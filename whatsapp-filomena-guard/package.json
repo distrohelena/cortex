@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --experimental-strip-types --test guard.test.ts index.test.ts"
+    "test": "node --experimental-strip-types --test guard.test.ts state.test.ts index.test.ts"
   },
   "openclaw": {
     "extensions": ["./index.ts"]
