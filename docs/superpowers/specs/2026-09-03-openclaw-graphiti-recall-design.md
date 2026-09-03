@@ -34,6 +34,8 @@ Cache each bounded group snapshot for five minutes, share in-flight loads, and w
 
 Both explicit `memory_recall` and automatic `before_prompt_build` recall use the same combined-search function. Output labels raw matches as `[episode:<uuid>]` so the model knows the provenance. Existing authorization boundaries and long-term/session separation remain unchanged.
 
+Automatic recall uses the latest user message as its query and falls back to the aggregated prompt only when no user message is available. Recent-chat context may help the model answer, but it must not displace the current message as the memory lookup target.
+
 ### Prompt behavior
 
 The injected memory guidance tells the model that raw excerpts are historical evidence, to answer from them when relevant, and to call `memory_recall` before claiming that it cannot remember. It must not claim that it searched memory unless a search or injected result actually occurred.
@@ -53,6 +55,7 @@ The injected memory guidance tells the model that raw excerpts are historical ev
 
 - Runtime plugin inspection reports all four tools and `before_prompt_build`, with no undeclared-tool or unknown-hook diagnostic.
 - Automatic recall and explicit `memory_recall` can surface the raw excerpt containing Gabriel and Shadow of Mordor.
+- Automatic recall prioritizes the latest user message over the aggregated gateway prompt.
 - Episode retrieval never queries a group not returned by SpiceDB authorization or the current authorized session scope.
 - Injected episode text is bounded and clearly marked as untrusted historical data.
 - A long-lived SSE response returns as soon as its first JSON-RPC event arrives.

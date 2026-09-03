@@ -1113,7 +1113,10 @@ describe("openclaw-memory-graphiti plugin", () => {
     expect(beforeHook).toBeDefined();
 
     const result = await beforeHook(
-      { prompt: "Gabriel fechou Shadow of Mordor", messages: [] },
+      {
+        prompt: "Envelope do gateway com contexto recente sem relação",
+        messages: [{ role: "user", content: "Gabriel fechou Shadow of Mordor" }],
+      },
       { sessionKey: "sess-shadow" },
     );
 

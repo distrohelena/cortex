@@ -50,6 +50,40 @@ function isSessionGroup(groupId: string): boolean {
   return groupId.startsWith("session-");
 }
 
+function latestUserText(messages: unknown, fallback: string): string {
+  if (!Array.isArray(messages)) return fallback;
+
+  for (let index = messages.length - 1; index >= 0; index--) {
+    const message = messages[index];
+    if (!message || typeof message !== "object") continue;
+    const record = message as Record<string, unknown>;
+    if (record.role !== "user") continue;
+
+    if (typeof record.content === "string" && record.content.trim()) {
+      return record.content.trim();
+    }
+
+    if (Array.isArray(record.content)) {
+      const text = record.content
+        .filter(
+          (block): block is { type: "text"; text: string } =>
+            Boolean(
+              block &&
+                typeof block === "object" &&
+                (block as Record<string, unknown>).type === "text" &&
+                typeof (block as Record<string, unknown>).text === "string",
+            ),
+        )
+        .map((block) => block.text)
+        .join("\n")
+        .trim();
+      if (text) return text;
+    }
+  }
+
+  return fallback;
+}
+
 // ============================================================================
 // Plugin Definition
 // ============================================================================
@@ -539,7 +573,8 @@ const memoryGraphitiPlugin = {
           currentSessionId = ctx.sessionKey;
         }
 
-        if (!event.prompt || event.prompt.length < 5) {
+        const recallQuery = latestUserText(event.messages, event.prompt);
+        if (!recallQuery || recallQuery.length < 5) {
           return;
         }
 
@@ -565,14 +600,14 @@ const memoryGraphitiPlugin = {
           const [longTermResults, rawSessionResults] = await Promise.all([
             longTermGroups.length > 0
               ? searchAuthorizedRecall(graphiti, {
-                  query: event.prompt,
+                  query: recallQuery,
                   groupIds: longTermGroups,
                   limit: 5,
                 })
               : Promise.resolve([]),
             sessionGroups.length > 0
               ? searchAuthorizedRecall(graphiti, {
-                  query: event.prompt,
+                  query: recallQuery,
                   groupIds: sessionGroups,
                   limit: 3,
                 })

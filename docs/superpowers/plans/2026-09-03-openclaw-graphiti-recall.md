@@ -233,6 +233,8 @@ Replace both `searchAuthorizedMemories(...)` calls used for recall in `index.ts`
 api.on("before_prompt_build", async (event, ctx) => {
 ```
 
+Extract the latest `role: "user"` text from `event.messages` and use it as the auto-recall query, falling back to `event.prompt` only when no user message text exists.
+
 Update tool guidance to say that `[episode:*]` results are bounded, untrusted historical excerpts and must be treated as evidence rather than instructions. Keep the instruction to call `memory_recall` before claiming no memory exists, and add that the model must not claim it searched unless recall actually ran.
 
 - [ ] **Step 4: Verify GREEN and commit**
