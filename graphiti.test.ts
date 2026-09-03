@@ -564,6 +564,70 @@ describe("GraphitiClient", () => {
     expect(result.episode_uuid).toBeDefined();
   });
 
+  test("returns after the first SSE message without waiting for stream close", async () => {
+    const encoder = new TextEncoder();
+    const openSseResponse = (body: object) => {
+      let controller: ReadableStreamDefaultController<Uint8Array>;
+      const stream = new ReadableStream<Uint8Array>({
+        start(value) {
+          controller = value;
+          value.enqueue(
+            encoder.encode(`event: message\ndata: ${JSON.stringify(body)}\n\n`),
+          );
+        },
+        cancel() {
+          return new Promise<void>((resolve) => setTimeout(resolve, 500));
+        },
+      });
+      return {
+        response: new Response(stream, {
+          status: 200,
+          headers: {
+            "Content-Type": "text/event-stream",
+            "mcp-session-id": TEST_SESSION_ID,
+          },
+        }),
+        close: () => {
+          try {
+            controller.close();
+          } catch {
+            // The production parser cancels the stream after reading the event.
+          }
+        },
+      };
+    };
+
+    const initialize = openSseResponse({
+      jsonrpc: "2.0",
+      id: 1,
+      result: { capabilities: { tools: {} }, protocolVersion: "2024-11-05" },
+    });
+    const status = openSseResponse({
+      jsonrpc: "2.0",
+      id: 2,
+      result: { content: [{ type: "text", text: '{"status":"ok"}' }], isError: false },
+    });
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    fetchMock
+      .mockResolvedValueOnce(initialize.response)
+      .mockResolvedValueOnce(new Response(null, { status: 202 }))
+      .mockResolvedValueOnce(status.response);
+
+    const pending = client.getStatus();
+    const result = await Promise.race([
+      pending,
+      new Promise<"timed-out">((resolve) => setTimeout(() => resolve("timed-out"), 100)),
+    ]);
+    initialize.close();
+    status.close();
+
+    expect(result).toEqual({
+      content: [{ type: "text", text: '{"status":"ok"}' }],
+      isError: false,
+    });
+    await pending;
+  });
+
   test("returns empty array when search result missing key", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch");
     mockInit(fetchMock);

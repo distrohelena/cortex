@@ -3,6 +3,7 @@ import {
   searchAuthorizedMemories,
   searchAuthorizedEpisodeExcerpts,
   searchAuthorizedRecall,
+  warmAuthorizedEpisodeCache,
   formatResultsForContext,
   formatDualResults,
   deduplicateSessionResults,
@@ -371,6 +372,43 @@ describe("searchAuthorizedEpisodeExcerpts", () => {
 
     expect(results[0].summary).toContain("Gabriel zerou Shadow of Mordor");
     expect(results[0].summary.length).toBeLessThanOrEqual(120);
+  });
+
+  test("drops weaker lexical matches when a more specific episode exists", async () => {
+    const graphiti = mockGraphiti({
+      getEpisodes: vi.fn().mockResolvedValue([
+        ...episodes,
+        {
+          ...episodes[0],
+          uuid: "ep-politics",
+          name: "whatsapp_wa-chat_0006",
+          content: "Gabriel: A Soraya já fechou com o barba",
+        },
+      ]),
+    });
+
+    const results = await searchAuthorizedEpisodeExcerpts(graphiti, {
+      query: "Gabriel fechou Shadow of Mordor",
+      groupIds: ["wa-chat"],
+      limit: 3,
+    });
+
+    expect(results.map((result) => result.uuid)).toEqual(["ep-wa"]);
+  });
+
+  test("reuses a warmed episode snapshot instead of refetching on every prompt", async () => {
+    const getEpisodes = vi.fn().mockResolvedValue(episodes);
+    const graphiti = mockGraphiti({ getEpisodes });
+
+    await warmAuthorizedEpisodeCache(graphiti, ["wa-chat"]);
+    const results = await searchAuthorizedEpisodeExcerpts(graphiti, {
+      query: "Gabriel Shadow Mordor",
+      groupIds: ["wa-chat"],
+    });
+
+    expect(results[0].uuid).toBe("ep-wa");
+    expect(getEpisodes).toHaveBeenCalledTimes(1);
+    expect(getEpisodes).toHaveBeenCalledWith("wa-chat", 100);
   });
 });
 

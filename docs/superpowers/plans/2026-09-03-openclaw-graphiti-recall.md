@@ -294,3 +294,49 @@ Run: `rtk git diff --check`
 Expected: no whitespace errors.
 
 Do not start or restart the gateway. Report that Helena must run `openclaw.cmd gateway run --force --verbose` for the new runtime to load.
+
+### Task 5: Keep raw recall fast and precise
+
+**Files:**
+- Modify: `graphiti.test.ts`
+- Modify: `graphiti.ts`
+- Modify: `search.test.ts`
+- Modify: `search.ts`
+- Modify: `index.test.ts`
+- Modify: `index.ts`
+
+- [ ] **Step 1: Reproduce long-lived SSE and weaker lexical matches**
+
+Add a test response backed by a `ReadableStream` that emits one complete SSE JSON-RPC event but delays stream cancellation. Race `client.getStatus()` against a 100 ms timer and require the parsed MCP result, not `timed-out`.
+
+Add two raw episodes for the query `Gabriel fechou Shadow of Mordor`: one matching `Gabriel`, `Shadow`, and `Mordor`, and one matching only `Gabriel` and `fechou`. Require only the stronger episode.
+
+- [ ] **Step 2: Verify RED**
+
+Run: `npx.cmd vitest run graphiti.test.ts -t "returns after the first SSE message"`
+
+Expected: FAIL with `timed-out`.
+
+Run: `npx.cmd vitest run search.test.ts -t "drops weaker lexical matches"`
+
+Expected: FAIL with both episode UUIDs.
+
+- [ ] **Step 3: Parse incrementally and cache episode snapshots**
+
+Replace `response.text()` with a `ReadableStream` reader that accumulates chunks until the first complete `data:` line, parses it, requests cancellation without awaiting cancellation acknowledgement, and returns immediately.
+
+Store per-client/per-group episode promises in a `WeakMap`, expire snapshots after five minutes, remove failed loads, and export `warmAuthorizedEpisodeCache`. Keep only candidates whose overlap score equals the strongest score.
+
+- [ ] **Step 4: Warm the cache without delaying gateway readiness**
+
+When the plugin service starts with `autoRecall`, fetch authorized groups and call `warmAuthorizedEpisodeCache` in a fire-and-forget promise with success/failure logging. Add an integration test that observes a `get_episodes` MCP call after service start.
+
+- [ ] **Step 5: Verify GREEN**
+
+Run: `npx.cmd vitest run graphiti.test.ts search.test.ts index.test.ts`
+
+Expected: all focused tests pass.
+
+Run: `npm.cmd test`
+
+Expected: the full suite passes.

@@ -29,6 +29,7 @@ import {
 } from "./authorization.js";
 import {
   searchAuthorizedRecall,
+  warmAuthorizedEpisodeCache,
   formatDualResults,
   deduplicateSessionResults,
 } from "./search.js";
@@ -772,6 +773,22 @@ const memoryGraphitiPlugin = {
           } catch {
             api.logger.warn("openclaw-memory-graphiti: failed to ensure default group membership");
           }
+        }
+
+        if (cfg.autoRecall && graphitiOk && spicedbOk) {
+          void lookupAuthorizedGroups(spicedb, currentSubject, lastWriteToken)
+            .then(async (groupIds) => {
+              const longTermGroupIds = groupIds.filter((groupId) => !isSessionGroup(groupId));
+              await warmAuthorizedEpisodeCache(graphiti, longTermGroupIds);
+              api.logger.info(
+                `openclaw-memory-graphiti: warmed raw episode cache for ${longTermGroupIds.length} authorized groups`,
+              );
+            })
+            .catch((err) => {
+              api.logger.warn(
+                `openclaw-memory-graphiti: raw episode cache warmup failed: ${String(err)}`,
+              );
+            });
         }
 
         api.logger.info(

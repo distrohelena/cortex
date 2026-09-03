@@ -625,6 +625,32 @@ describe("openclaw-memory-graphiti plugin", () => {
     expect(logs.some((l) => l.includes("initialized"))).toBe(true);
   });
 
+  test("service start prewarms authorized raw episodes when auto-recall is enabled", async () => {
+    mockApi.pluginConfig.autoRecall = true;
+    setupGraphitiMock(JSON.stringify({ message: "ok", episodes: [] }));
+    const { v1 } = await import("@authzed/authzed-node");
+    const mockClient = (v1.NewClient as ReturnType<typeof vi.fn>)();
+    mockClient.promises.lookupResources.mockResolvedValue([
+      { resourceObjectId: "main" },
+      { resourceObjectId: "session-old-chat" },
+    ]);
+
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+    await registeredServices[0].start({});
+
+    await vi.waitFor(() => {
+      const getEpisodesCalls = mockFetch.mock.calls.filter((call) => {
+        if (!call[1]?.body) return false;
+        const body = JSON.parse(call[1].body as string);
+        return body.params?.name === "get_episodes";
+      });
+      expect(getEpisodesCalls).toHaveLength(1);
+      const body = JSON.parse(getEpisodesCalls[0][1].body as string);
+      expect(body.params.arguments.group_ids).toEqual(["main"]);
+    });
+  });
+
   test("auto-capture sends batch episode with conversation text", async () => {
     mockApi.pluginConfig.autoCapture = true;
     setupGraphitiMock('{"message":"Episode queued"}');

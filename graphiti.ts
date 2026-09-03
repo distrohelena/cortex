@@ -212,15 +212,48 @@ export class GraphitiClient {
   }
 
   private async parseSseResponse(response: Response): Promise<JsonRpcResponse> {
-    const text = await response.text();
-    for (const line of text.split("\n")) {
-      if (line.startsWith("data: ")) {
-        const data = line.slice(6).trim();
-        if (data) {
-          return JSON.parse(data) as JsonRpcResponse;
-        }
-      }
+    if (!response.body) {
+      throw new Error("No JSON-RPC message found in SSE response");
     }
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        buffer += decoder.decode(value, { stream: !done });
+
+        let newlineIndex = buffer.indexOf("\n");
+        while (newlineIndex >= 0) {
+          const line = buffer.slice(0, newlineIndex).replace(/\r$/, "");
+          buffer = buffer.slice(newlineIndex + 1);
+
+          if (line.startsWith("data:")) {
+            const data = line.slice(5).trim();
+            if (data) {
+              const message = JSON.parse(data) as JsonRpcResponse;
+              void reader.cancel().catch(() => {});
+              return message;
+            }
+          }
+
+          newlineIndex = buffer.indexOf("\n");
+        }
+
+        if (done) break;
+      }
+
+      const trailingLine = buffer.replace(/\r$/, "");
+      if (trailingLine.startsWith("data:")) {
+        const data = trailingLine.slice(5).trim();
+        if (data) return JSON.parse(data) as JsonRpcResponse;
+      }
+    } finally {
+      reader.releaseLock();
+    }
+
     throw new Error("No JSON-RPC message found in SSE response");
   }
 

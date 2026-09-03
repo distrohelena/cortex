@@ -34,6 +34,14 @@ export type EpisodeSearchOptions = {
   maxSnippetChars?: number;
 };
 
+type EpisodeCacheEntry = {
+  expiresAt: number;
+  promise: Promise<GraphitiEpisode[]>;
+};
+
+const EPISODE_CACHE_TTL_MS = 5 * 60 * 1000;
+const episodeCaches = new WeakMap<GraphitiClient, Map<string, EpisodeCacheEntry>>();
+
 export type SearchOptions = {
   query: string;
   groupIds: string[];
@@ -206,6 +214,43 @@ function episodeMatch(
   };
 }
 
+function cachedEpisodes(
+  graphiti: GraphitiClient,
+  groupId: string,
+  maxEpisodes: number,
+): Promise<GraphitiEpisode[]> {
+  let cache = episodeCaches.get(graphiti);
+  if (!cache) {
+    cache = new Map();
+    episodeCaches.set(graphiti, cache);
+  }
+
+  const key = `${groupId}:${maxEpisodes}`;
+  const now = Date.now();
+  const existing = cache.get(key);
+  if (existing && existing.expiresAt > now) return existing.promise;
+
+  const promise = graphiti.getEpisodes(groupId, maxEpisodes).catch((error) => {
+    cache?.delete(key);
+    throw error;
+  });
+  cache.set(key, { expiresAt: now + EPISODE_CACHE_TTL_MS, promise });
+  return promise;
+}
+
+/** Preload raw episodes in the background so the first chat recall is local. */
+export async function warmAuthorizedEpisodeCache(
+  graphiti: GraphitiClient,
+  groupIds: string[],
+  maxEpisodesPerGroup = 100,
+): Promise<void> {
+  await Promise.allSettled(
+    [...new Set(groupIds)].map((groupId) =>
+      cachedEpisodes(graphiti, groupId, maxEpisodesPerGroup),
+    ),
+  );
+}
+
 /**
  * Search bounded raw episode excerpts in groups already authorized by SpiceDB.
  * Matching happens per line so unrelated terms elsewhere in a large export do
@@ -228,7 +273,7 @@ export async function searchAuthorizedEpisodeExcerpts(
 
   const minimumOverlap = queryTokens.length <= 2 ? 1 : 2;
   const episodeSets = await Promise.allSettled(
-    groupIds.map((groupId) => graphiti.getEpisodes(groupId, maxEpisodesPerGroup)),
+    groupIds.map((groupId) => cachedEpisodes(graphiti, groupId, maxEpisodesPerGroup)),
   );
   const matches: Array<{ result: SearchResult; score: number }> = [];
 
@@ -245,8 +290,10 @@ export async function searchAuthorizedEpisodeExcerpts(
     return new Date(b.result.created_at).getTime() - new Date(a.result.created_at).getTime();
   });
 
+  const bestScore = matches[0]?.score;
+  const strongestMatches = matches.filter((match) => match.score === bestScore);
   const seen = new Set<string>();
-  return matches
+  return strongestMatches
     .map(({ result }) => result)
     .filter((result) => {
       const key = `${result.type}:${result.uuid}`;

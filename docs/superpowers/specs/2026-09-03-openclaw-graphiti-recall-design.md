@@ -26,6 +26,10 @@ For each matching episode, return one bounded excerpt around its highest-scoring
 
 Run semantic node/fact search and raw-episode search together. Put exact episode excerpts before semantic results, deduplicate by typed ID, then enforce the caller's result limit. This is important because Graphiti can return semantically unrelated nodes/facts instead of an empty result.
 
+Keep only excerpts tied for the strongest lexical overlap. This prevents a weaker episode containing generic terms such as `Gabriel` and `fechou` from accompanying a stronger result containing `Gabriel`, `Shadow`, and `Mordor`.
+
+Cache each bounded group snapshot for five minutes, share in-flight loads, and warm authorized long-term groups in the background when the plugin service starts. The first SSE JSON-RPC event must be parsed incrementally; neither stream closure nor cancellation acknowledgement may delay a completed response.
+
 ### Shared recall path
 
 Both explicit `memory_recall` and automatic `before_prompt_build` recall use the same combined-search function. Output labels raw matches as `[episode:<uuid>]` so the model knows the provenance. Existing authorization boundaries and long-term/session separation remain unchanged.
@@ -39,6 +43,8 @@ The injected memory guidance tells the model that raw excerpts are historical ev
 - `openclaw.plugin.json`: static tool ownership contract.
 - `search.ts`: normalized lexical episode matching and combined recall.
 - `search.test.ts`: matching, limits, authorization scope, prioritization, and formatting tests.
+- `graphiti.ts`: incremental SSE response parsing.
+- `graphiti.test.ts`: regression for long-lived SSE connections.
 - `index.ts`: shared combined recall and modern hook name.
 - `index.test.ts`: tool and hook integration regressions.
 - `C:\Users\Helena\.openclaw\openclaw.json`: external hook permission flags.
@@ -49,5 +55,7 @@ The injected memory guidance tells the model that raw excerpts are historical ev
 - Automatic recall and explicit `memory_recall` can surface the raw excerpt containing Gabriel and Shadow of Mordor.
 - Episode retrieval never queries a group not returned by SpiceDB authorization or the current authorized session scope.
 - Injected episode text is bounded and clearly marked as untrusted historical data.
+- A long-lived SSE response returns as soon as its first JSON-RPC event arrives.
+- Weaker lexical false positives are omitted when a more specific episode match exists.
 - Existing unit tests and new regressions pass.
 - The active gateway is not started or restarted by this work.
