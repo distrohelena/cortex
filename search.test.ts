@@ -1,6 +1,8 @@
 import { describe, test, expect, vi } from "vitest";
 import {
   searchAuthorizedMemories,
+  searchAuthorizedEpisodeExcerpts,
+  searchAuthorizedRecall,
   formatResultsForContext,
   formatDualResults,
   deduplicateSessionResults,
@@ -282,5 +284,143 @@ describe("deduplicateSessionResults", () => {
     expect(deduplicateSessionResults([], [
       { type: "node", uuid: "n1", group_id: "session-s1", summary: "X", context: "X", created_at: "2026-01-01" },
     ])).toHaveLength(1);
+  });
+});
+
+describe("searchAuthorizedEpisodeExcerpts", () => {
+  const episodes = [
+    {
+      uuid: "ep-wa",
+      name: "whatsapp_wa-chat_0001",
+      content: [
+        "[4/11/26 12:30:00 PM] Outra pessoa: conversa sem relação",
+        "[4/11/26 12:37:03 PM] Gabriel: <image omitted> Zerei Shadow of Mordor, família",
+        "[4/11/26 12:37:33 PM] Gabriel: Jogaço",
+      ].join("\n"),
+      source_description: "WhatsApp export",
+      group_id: "wa-chat",
+      created_at: "2026-04-11T15:37:03Z",
+    },
+  ];
+
+  test("finds a bounded raw excerpt when Graphiti extraction missed the event", async () => {
+    const getEpisodes = vi.fn().mockResolvedValue(episodes);
+    const graphiti = mockGraphiti({ getEpisodes });
+
+    const results = await searchAuthorizedEpisodeExcerpts(graphiti, {
+      query: "você lembra quando o Gabriel fechou Shadow of Mordor",
+      groupIds: ["wa-chat"],
+      limit: 3,
+    });
+
+    expect(getEpisodes).toHaveBeenCalledWith("wa-chat", 100);
+    expect(results[0]).toMatchObject({
+      type: "episode",
+      uuid: "ep-wa",
+      group_id: "wa-chat",
+    });
+    expect(results[0].summary).toContain("Zerei Shadow of Mordor");
+    expect(results[0].summary.length).toBeLessThanOrEqual(800);
+  });
+
+  test("does not return an episode without enough line-level overlap", async () => {
+    const graphiti = mockGraphiti({
+      getEpisodes: vi.fn().mockResolvedValue(episodes),
+    });
+
+    await expect(
+      searchAuthorizedEpisodeExcerpts(graphiti, {
+        query: "Mariana terminou Resident Evil",
+        groupIds: ["wa-chat"],
+      }),
+    ).resolves.toEqual([]);
+  });
+
+  test("only requests supplied groups and keeps matches from a healthy group", async () => {
+    const getEpisodes = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValueOnce(episodes);
+    const graphiti = mockGraphiti({ getEpisodes });
+
+    const results = await searchAuthorizedEpisodeExcerpts(graphiti, {
+      query: "Gabriel Shadow Mordor",
+      groupIds: ["broken", "wa-chat"],
+    });
+
+    expect(getEpisodes).toHaveBeenNthCalledWith(1, "broken", 100);
+    expect(getEpisodes).toHaveBeenNthCalledWith(2, "wa-chat", 100);
+    expect(getEpisodes).toHaveBeenCalledTimes(2);
+    expect(results).toHaveLength(1);
+  });
+
+  test("clamps excerpts to the configured character limit", async () => {
+    const longEpisode = {
+      ...episodes[0],
+      content: `${"antes ".repeat(100)}\nGabriel zerou Shadow of Mordor\n${"depois ".repeat(100)}`,
+    };
+    const graphiti = mockGraphiti({
+      getEpisodes: vi.fn().mockResolvedValue([longEpisode]),
+    });
+
+    const results = await searchAuthorizedEpisodeExcerpts(graphiti, {
+      query: "Gabriel Shadow Mordor",
+      groupIds: ["wa-chat"],
+      maxSnippetChars: 120,
+    });
+
+    expect(results[0].summary).toContain("Gabriel zerou Shadow of Mordor");
+    expect(results[0].summary.length).toBeLessThanOrEqual(120);
+  });
+});
+
+describe("searchAuthorizedRecall", () => {
+  test("prioritizes a matching raw episode over unrelated semantic results", async () => {
+    const graphiti = mockGraphiti({
+      getEpisodes: vi.fn().mockResolvedValue([
+        {
+          uuid: "ep-wa",
+          name: "whatsapp_wa-chat_0001",
+          content: "[4/11/26] Gabriel: Zerei Shadow of Mordor, família",
+          source_description: "WhatsApp export",
+          group_id: "wa-chat",
+          created_at: "2026-04-11T15:37:03Z",
+        },
+      ]),
+      searchNodes: vi.fn().mockResolvedValue([
+        {
+          uuid: "n1",
+          name: "Other",
+          summary: "Unrelated semantic result",
+          group_id: "wa-chat",
+          created_at: "2026-09-01",
+        },
+      ]),
+    });
+
+    const results = await searchAuthorizedRecall(graphiti, {
+      query: "Gabriel fechou Shadow of Mordor",
+      groupIds: ["wa-chat"],
+      limit: 1,
+    });
+
+    expect(results).toHaveLength(1);
+    expect(results[0].type).toBe("episode");
+  });
+
+  test("formats raw history with an episode label and untrusted provenance", () => {
+    const formatted = formatResultsForContext([
+      {
+        type: "episode",
+        uuid: "ep-wa",
+        group_id: "wa-chat",
+        summary: "Gabriel: Zerei Shadow of Mordor",
+        context: "untrusted raw historical excerpt from whatsapp_wa-chat_0001",
+        created_at: "2026-04-11T15:37:03Z",
+      },
+    ]);
+
+    expect(formatted).toContain("[episode:ep-wa]");
+    expect(formatted).toContain("untrusted raw historical excerpt");
   });
 });

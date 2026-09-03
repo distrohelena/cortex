@@ -5,20 +5,33 @@
  * merges results, deduplicates, and re-ranks.
  */
 
-import type { GraphitiClient, GraphitiNode, GraphitiFact } from "./graphiti.js";
+import type {
+  GraphitiClient,
+  GraphitiEpisode,
+  GraphitiNode,
+  GraphitiFact,
+} from "./graphiti.js";
 
 // ============================================================================
 // Types
 // ============================================================================
 
 export type SearchResult = {
-  type: "node" | "fact";
+  type: "node" | "fact" | "episode";
   uuid: string;
   group_id: string;
   summary: string;
   /** Additional context: entity names for facts, node name for nodes */
   context: string;
   created_at: string;
+};
+
+export type EpisodeSearchOptions = {
+  query: string;
+  groupIds: string[];
+  limit?: number;
+  maxEpisodesPerGroup?: number;
+  maxSnippetChars?: number;
 };
 
 export type SearchOptions = {
@@ -98,6 +111,176 @@ export async function searchAuthorizedMemories(
   });
 
   return deduped.slice(0, limit);
+}
+
+const QUERY_STOP_WORDS = new Set([
+  "about",
+  "como",
+  "com",
+  "das",
+  "de",
+  "dos",
+  "ela",
+  "ele",
+  "eles",
+  "essa",
+  "esse",
+  "esta",
+  "foi",
+  "lembra",
+  "mais",
+  "para",
+  "por",
+  "qual",
+  "que",
+  "the",
+  "uma",
+  "voce",
+  "quando",
+  "with",
+]);
+
+function normalizeSearchText(value: string): string {
+  return value.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+}
+
+function significantTokens(value: string): string[] {
+  const tokens = normalizeSearchText(value).match(/[\p{L}\p{N}]+/gu) ?? [];
+  return [...new Set(tokens.filter((token) => token.length >= 3 && !QUERY_STOP_WORDS.has(token)))];
+}
+
+function buildEpisodeSnippet(lines: string[], matchIndex: number, maxChars: number): string {
+  const selected = [lines[matchIndex].trim()];
+
+  for (let distance = 1; distance <= 2; distance++) {
+    const before = lines[matchIndex - distance]?.trim();
+    if (before) {
+      const candidate = [before, ...selected].join("\n");
+      if (candidate.length <= maxChars) selected.unshift(before);
+    }
+
+    const after = lines[matchIndex + distance]?.trim();
+    if (after) {
+      const candidate = [...selected, after].join("\n");
+      if (candidate.length <= maxChars) selected.push(after);
+    }
+  }
+
+  return selected.join("\n").slice(0, maxChars);
+}
+
+function episodeMatch(
+  episode: GraphitiEpisode,
+  queryTokens: string[],
+  minimumOverlap: number,
+  maxSnippetChars: number,
+): { result: SearchResult; score: number } | undefined {
+  const lines = episode.content.split(/\r?\n/);
+  let bestIndex = -1;
+  let bestScore = 0;
+
+  for (let index = 0; index < lines.length; index++) {
+    const lineTokens = new Set(significantTokens(lines[index]));
+    const score = queryTokens.reduce(
+      (matches, token) => matches + (lineTokens.has(token) ? 1 : 0),
+      0,
+    );
+    if (score > bestScore) {
+      bestIndex = index;
+      bestScore = score;
+    }
+  }
+
+  if (bestIndex < 0 || bestScore < minimumOverlap) return undefined;
+
+  return {
+    score: bestScore,
+    result: {
+      type: "episode",
+      uuid: episode.uuid,
+      group_id: episode.group_id,
+      summary: buildEpisodeSnippet(lines, bestIndex, maxSnippetChars),
+      context: `untrusted raw historical excerpt from ${episode.name}`,
+      created_at: episode.created_at,
+    },
+  };
+}
+
+/**
+ * Search bounded raw episode excerpts in groups already authorized by SpiceDB.
+ * Matching happens per line so unrelated terms elsewhere in a large export do
+ * not make the whole episode look relevant.
+ */
+export async function searchAuthorizedEpisodeExcerpts(
+  graphiti: GraphitiClient,
+  options: EpisodeSearchOptions,
+): Promise<SearchResult[]> {
+  const {
+    query,
+    groupIds,
+    limit = 3,
+    maxEpisodesPerGroup = 100,
+    maxSnippetChars = 800,
+  } = options;
+  const queryTokens = significantTokens(query);
+
+  if (groupIds.length === 0 || queryTokens.length === 0 || limit <= 0) return [];
+
+  const minimumOverlap = queryTokens.length <= 2 ? 1 : 2;
+  const episodeSets = await Promise.allSettled(
+    groupIds.map((groupId) => graphiti.getEpisodes(groupId, maxEpisodesPerGroup)),
+  );
+  const matches: Array<{ result: SearchResult; score: number }> = [];
+
+  for (const episodeSet of episodeSets) {
+    if (episodeSet.status !== "fulfilled") continue;
+    for (const episode of episodeSet.value) {
+      const match = episodeMatch(episode, queryTokens, minimumOverlap, maxSnippetChars);
+      if (match) matches.push(match);
+    }
+  }
+
+  matches.sort((a, b) => {
+    if (a.score !== b.score) return b.score - a.score;
+    return new Date(b.result.created_at).getTime() - new Date(a.result.created_at).getTime();
+  });
+
+  const seen = new Set<string>();
+  return matches
+    .map(({ result }) => result)
+    .filter((result) => {
+      const key = `${result.type}:${result.uuid}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, limit);
+}
+
+/** Search semantic graph data and raw episode excerpts through one path. */
+export async function searchAuthorizedRecall(
+  graphiti: GraphitiClient,
+  options: SearchOptions,
+): Promise<SearchResult[]> {
+  const limit = options.limit ?? 10;
+  const [episodeResults, semanticResults] = await Promise.all([
+    searchAuthorizedEpisodeExcerpts(graphiti, {
+      query: options.query,
+      groupIds: options.groupIds,
+      limit: Math.min(limit, 3),
+    }),
+    searchAuthorizedMemories(graphiti, options),
+  ]);
+  const seen = new Set<string>();
+
+  return [...episodeResults, ...semanticResults]
+    .filter((result) => {
+      const key = `${result.type}:${result.uuid}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, limit);
 }
 
 // ============================================================================
@@ -201,7 +384,7 @@ export function formatDualResults(
  * The type prefix tells the LLM which deletion method to use.
  */
 function formatResultLine(r: SearchResult, idx: number): string {
-  const typeLabel = r.type === "node" ? "entity" : "fact";
+  const typeLabel = r.type === "node" ? "entity" : r.type;
   return `${idx}. [${typeLabel}:${r.uuid}] ${r.summary} (${r.context})`;
 }
 
