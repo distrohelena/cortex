@@ -1,7 +1,7 @@
 {
   "id": "whatsapp-filomena-guard",
   "name": "WhatsApp Filomena Guard",
-  "description": "Requires an explicit leading trigger before dispatching one WhatsApp group to the agent.",
+  "description": "Gates implicit replies by tracked outbound IDs and labels Filomena messages in one WhatsApp group.",
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -9,7 +9,15 @@
     "properties": {
       "channel": { "type": "string", "default": "whatsapp" },
       "groupId": { "type": "string", "minLength": 1 },
-      "trigger": { "type": "string", "default": "@Filomena", "minLength": 1 }
+      "trigger": { "type": "string", "default": "@Filomena", "minLength": 1 },
+      "responsePrefix": { "type": "string", "default": "Filomena: ", "minLength": 1 },
+      "stateFile": { "type": "string", "minLength": 1 },
+      "maxTrackedMessageIds": {
+        "type": "integer",
+        "default": 512,
+        "minimum": 1,
+        "maximum": 10000
+      }
     }
   }
 }
