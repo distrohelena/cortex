@@ -236,7 +236,8 @@ describe("openclaw-memory-graphiti plugin", () => {
     const { default: plugin } = await import("./index.js");
     plugin.register(mockApi);
 
-    expect(registeredHooks["before_agent_start"]).toHaveLength(1);
+    expect(registeredHooks["before_prompt_build"]).toHaveLength(1);
+    expect(registeredHooks["before_agent_start"]).toBeUndefined();
     expect(registeredHooks["agent_end"]).toHaveLength(1);
   });
 
@@ -247,7 +248,7 @@ describe("openclaw-memory-graphiti plugin", () => {
     const { default: plugin } = await import("./index.js");
     plugin.register(mockApi);
 
-    expect(registeredHooks["before_agent_start"]).toBeUndefined();
+    expect(registeredHooks["before_prompt_build"]).toBeUndefined();
     expect(registeredHooks["agent_end"]).toBeUndefined();
   });
 
@@ -268,6 +269,38 @@ describe("openclaw-memory-graphiti plugin", () => {
     expect(result.details.authorizedGroups).toBeDefined();
     expect(result.details.longTermCount).toBeDefined();
     expect(result.details.sessionCount).toBeDefined();
+  });
+
+  test("memory_recall returns a matching raw episode when semantic extraction missed it", async () => {
+    const episodes = [
+      {
+        uuid: "ep-wa",
+        name: "whatsapp_wa-chat_0001",
+        content: [
+          "[4/11/26 12:30:00 PM] Outra pessoa: conversa sem relação",
+          "[4/11/26 12:37:03 PM] Gabriel: <image omitted> Zerei Shadow of Mordor, família",
+          "[4/11/26 12:37:33 PM] Gabriel: Jogaço",
+        ].join("\n"),
+        source_description: "WhatsApp export",
+        group_id: "main",
+        created_at: "2026-04-11T15:37:03Z",
+      },
+    ];
+    setupGraphitiMock(JSON.stringify({ message: "ok", episodes, nodes: [], facts: [] }));
+
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+
+    const recallTool = registeredTools.find((t) => t.opts?.name === "memory_recall")?.tool;
+    const result = await recallTool.execute("call-shadow", {
+      query: "Gabriel fechou Shadow of Mordor",
+      scope: "all",
+      limit: 5,
+    });
+
+    expect(result.content[0].text).toContain("Zerei Shadow of Mordor");
+    expect(result.content[0].text).toContain("[episode:ep-wa]");
+    expect(result.content[0].text).toContain("untrusted raw historical excerpt");
   });
 
   test("memory_store tool creates episode with UUID", async () => {
@@ -309,14 +342,14 @@ describe("openclaw-memory-graphiti plugin", () => {
   test("memory_store tool uses session group when longTerm=false", async () => {
     setupGraphitiMock('{"message":"queued"}');
 
-    // Enable autoRecall so the before_agent_start hook fires and sets sessionId
+    // Enable autoRecall so the before_prompt_build hook fires and sets sessionId
     mockApi.pluginConfig.autoRecall = true;
 
     const { default: plugin } = await import("./index.js");
     plugin.register(mockApi);
 
-    // Simulate session ID being set via before_agent_start hook
-    const beforeHook = registeredHooks["before_agent_start"]?.[0];
+    // Simulate session ID being set via before_prompt_build hook
+    const beforeHook = registeredHooks["before_prompt_build"]?.[0];
     if (beforeHook) {
       await beforeHook({ prompt: "hello world test prompt" }, { sessionKey: "sess-123" });
     }
@@ -341,7 +374,7 @@ describe("openclaw-memory-graphiti plugin", () => {
     plugin.register(mockApi);
 
     // OpenClaw gateway sends sessionKey like "agent:main:main" — colons are invalid in Graphiti group_ids
-    const beforeHook = registeredHooks["before_agent_start"]?.[0];
+    const beforeHook = registeredHooks["before_prompt_build"]?.[0];
     if (beforeHook) {
       await beforeHook({ prompt: "test" }, { sessionKey: "agent:main:main" });
     }
@@ -419,7 +452,7 @@ describe("openclaw-memory-graphiti plugin", () => {
     plugin.register(mockApi);
 
     // Set session ID via hook — establishes "sess-write" as the agent's own session
-    const beforeHook = registeredHooks["before_agent_start"]?.[0];
+    const beforeHook = registeredHooks["before_prompt_build"]?.[0];
     if (beforeHook) {
       await beforeHook({ prompt: "test prompt for session" }, { sessionKey: "sess-write" });
     }
@@ -454,7 +487,7 @@ describe("openclaw-memory-graphiti plugin", () => {
     plugin.register(mockApi);
 
     // Set this agent's session to "my-session"
-    const beforeHook = registeredHooks["before_agent_start"]?.[0];
+    const beforeHook = registeredHooks["before_prompt_build"]?.[0];
     if (beforeHook) {
       await beforeHook({ prompt: "test" }, { sessionKey: "my-session" });
     }
@@ -1018,7 +1051,7 @@ describe("openclaw-memory-graphiti plugin", () => {
     const { default: plugin } = await import("./index.js");
     plugin.register(mockApi);
 
-    const beforeHook = registeredHooks["before_agent_start"]?.[0];
+    const beforeHook = registeredHooks["before_prompt_build"]?.[0];
     expect(beforeHook).toBeDefined();
 
     const result = await beforeHook({
@@ -1031,5 +1064,35 @@ describe("openclaw-memory-graphiti plugin", () => {
 
     // Should log injection with long-term/session breakdown
     expect(logs.some((l) => l.includes("injecting") && l.includes("long-term"))).toBe(true);
+  });
+
+  test("auto-recall injects matching raw episode excerpts", async () => {
+    mockApi.pluginConfig.autoRecall = true;
+    const episodes = [
+      {
+        uuid: "ep-wa",
+        name: "whatsapp_wa-chat_0001",
+        content: "[4/11/26 12:37:03 PM] Gabriel: Zerei Shadow of Mordor, família",
+        source_description: "WhatsApp export",
+        group_id: "main",
+        created_at: "2026-04-11T15:37:03Z",
+      },
+    ];
+    setupGraphitiMock(JSON.stringify({ message: "ok", episodes, nodes: [], facts: [] }));
+
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+
+    const beforeHook = registeredHooks["before_prompt_build"]?.[0];
+    expect(beforeHook).toBeDefined();
+
+    const result = await beforeHook(
+      { prompt: "Gabriel fechou Shadow of Mordor", messages: [] },
+      { sessionKey: "sess-shadow" },
+    );
+
+    expect(result?.prependContext).toContain("<relevant-memories>");
+    expect(result?.prependContext).toContain("[episode:ep-wa]");
+    expect(result?.prependContext).toContain("Zerei Shadow of Mordor");
   });
 });
