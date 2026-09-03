@@ -1,0 +1,15 @@
+{
+  "id": "whatsapp-filomena-guard",
+  "name": "WhatsApp Filomena Guard",
+  "description": "Requires an explicit leading trigger before dispatching one WhatsApp group to the agent.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["groupId"],
+    "properties": {
+      "channel": { "type": "string", "default": "whatsapp" },
+      "groupId": { "type": "string", "minLength": 1 },
+      "trigger": { "type": "string", "default": "@Filomena", "minLength": 1 }
+    }
+  }
+}
