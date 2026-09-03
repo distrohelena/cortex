@@ -31,12 +31,13 @@ WORKDIR /app/mcp
 ARG GRAPHITI_CORE_VERSION=0.23.1
 
 # Copy project files for dependency installation
-COPY pyproject.toml uv.lock ./
+COPY mcp_server/pyproject.toml mcp_server/uv.lock ./
 
 # Remove the local path override for graphiti-core in Docker builds
 # Install with BOTH neo4j and falkordb extras for maximum flexibility
 # and regenerate lock file to match the PyPI version
-RUN sed -i '/\[tool\.uv\.sources\]/,/graphiti-core/d' pyproject.toml && \
+RUN sed -i 's/graphiti-core\[falkordb,sentence-transformers\]/graphiti-core[falkordb]/' pyproject.toml && \
+    sed -i '/\[tool\.uv\.sources\]/,/graphiti-core/d' pyproject.toml && \
     sed -i "s/graphiti-core\[falkordb\]>=[0-9]\+\.[0-9]\+\.[0-9]\+$/graphiti-core[neo4j,falkordb]==${GRAPHITI_CORE_VERSION}/" pyproject.toml && \
     echo "Regenerating lock file for PyPI graphiti-core..." && \
     rm -f uv.lock && \
@@ -50,9 +51,16 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 RUN echo "${GRAPHITI_CORE_VERSION}" > /app/mcp/.graphiti-core-version
 
 # Copy MCP server application code
-COPY main.py ./
-COPY src/ ./src/
-COPY config/ ./config/
+COPY mcp_server/main.py ./
+COPY mcp_server/src/ ./src/
+COPY mcp_server/config/ ./config/
+
+# Use the checked-out graphiti-core source so local FalkorDB compatibility
+# fixes are included in the image instead of being shadowed by the PyPI wheel.
+COPY pyproject.toml /app/graphiti-core/pyproject.toml
+COPY README.md /app/graphiti-core/README.md
+COPY graphiti_core/ /app/graphiti-core/graphiti_core/
+RUN uv pip install --python /app/mcp/.venv/bin/python --no-deps /app/graphiti-core
 
 # Create log directory
 RUN mkdir -p /var/log/graphiti

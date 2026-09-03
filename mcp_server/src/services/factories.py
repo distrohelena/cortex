@@ -19,6 +19,7 @@ except ImportError:
 from graphiti_core.embedder import EmbedderClient, OpenAIEmbedder
 from graphiti_core.llm_client import LLMClient, OpenAIClient
 from graphiti_core.llm_client.config import LLMConfig as GraphitiLLMConfig
+from graphiti_core.cross_encoder.client import CrossEncoderClient
 
 # Try to import additional providers if available
 try:
@@ -83,6 +84,13 @@ try:
     HAS_BGE_RERANKER = True
 except ImportError:
     HAS_BGE_RERANKER = False
+
+
+class NoopReranker(CrossEncoderClient):
+    """Local zero-dependency fallback; preserves candidate order without an API call."""
+
+    async def rank(self, query: str, passages: list[str]) -> list[tuple[str, float]]:
+        return [(passage, 0.0) for passage in passages]
 
 try:
     from graphiti_core.cross_encoder.gemini_reranker_client import GeminiRerankerClient
@@ -499,6 +507,10 @@ class CrossEncoderFactory:
         provider = config.provider.lower()
 
         match provider:
+            case 'none':
+                logger.info('Creating local no-op reranker (no extra model or API call)')
+                return NoopReranker()
+
             case 'openai':
                 from graphiti_core.cross_encoder.openai_reranker_client import (
                     OpenAIRerankerClient,

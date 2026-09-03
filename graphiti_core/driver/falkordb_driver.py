@@ -400,9 +400,13 @@ class FalkorDriver(GraphDriver):
         if group_ids is None or len(group_ids) == 0:
             group_filter = ''
         else:
-            # Escape group_ids with quotes to prevent RediSearch syntax errors
-            # with reserved words like "main" or special characters like hyphens
-            escaped_group_ids = [f'"{gid}"' for gid in group_ids]
+            # Escape RediSearch operators in group IDs. Quoting is not enough
+            # for FalkorDB's field-query parser when an ID contains a hyphen.
+            redi_search_operators = ',.<>/{[}\\"\':;!@#$%^&*()-+=~|'
+            escaped_group_ids = [
+                gid.translate(str.maketrans({char: f'\\{char}' for char in redi_search_operators}))
+                for gid in group_ids
+            ]
             group_values = '|'.join(escaped_group_ids)
             group_filter = f'(@group_id:{group_values})'
 
