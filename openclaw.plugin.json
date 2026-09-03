@@ -1,6 +1,9 @@
 {
   "id": "openclaw-memory-graphiti",
   "kind": "memory",
+  "contracts": {
+    "tools": ["memory_recall", "memory_store", "memory_forget", "memory_status"]
+  },
   "uiHints": {
     "spicedb.endpoint": {
       "label": "SpiceDB Endpoint",
