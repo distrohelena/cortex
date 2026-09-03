@@ -1,0 +1,106 @@
+{
+  "id": "openclaw-memory-graphiti",
+  "kind": "memory",
+  "contracts": {
+    "tools": ["memory_recall", "memory_store", "memory_forget", "memory_status"]
+  },
+  "uiHints": {
+    "spicedb.endpoint": {
+      "label": "SpiceDB Endpoint",
+      "placeholder": "localhost:50051",
+      "help": "SpiceDB gRPC endpoint (host:port)"
+    },
+    "spicedb.token": {
+      "label": "SpiceDB Token",
+      "sensitive": true,
+      "placeholder": "dev_token",
+      "help": "SpiceDB pre-shared key (or use ${SPICEDB_TOKEN})"
+    },
+    "spicedb.insecure": {
+      "label": "Insecure Connection",
+      "help": "Allow insecure gRPC to localhost (dev mode)"
+    },
+    "graphiti.endpoint": {
+      "label": "Graphiti MCP Endpoint",
+      "placeholder": "http://localhost:8000",
+      "help": "Graphiti MCP server HTTP base URL"
+    },
+    "graphiti.defaultGroupId": {
+      "label": "Default Group ID",
+      "placeholder": "main",
+      "help": "Default Graphiti group_id for memory isolation"
+    },
+    "graphiti.uuidPollIntervalMs": {
+      "label": "UUID Poll Interval (ms)",
+      "placeholder": "3000",
+      "help": "Milliseconds between polling attempts when resolving episode UUIDs after memory_store (default: 3000)",
+      "advanced": true
+    },
+    "graphiti.uuidPollMaxAttempts": {
+      "label": "UUID Poll Max Attempts",
+      "placeholder": "30",
+      "help": "Maximum polling attempts for episode UUID resolution; total timeout = interval × attempts (default: 30 = 90s)",
+      "advanced": true
+    },
+    "subjectType": {
+      "label": "Subject Type",
+      "placeholder": "agent",
+      "help": "SpiceDB subject object type (agent or person)",
+      "advanced": true
+    },
+    "subjectId": {
+      "label": "Subject ID",
+      "placeholder": "${OPENCLAW_AGENT_ID}",
+      "help": "SpiceDB subject ID for the current agent/person"
+    },
+    "autoCapture": {
+      "label": "Auto-Capture",
+      "help": "Automatically capture important information from conversations"
+    },
+    "autoRecall": {
+      "label": "Auto-Recall",
+      "help": "Automatically inject relevant memories into context"
+    },
+    "customInstructions": {
+      "label": "Custom Extraction Instructions",
+      "help": "Natural language rules for what Graphiti should extract from conversations",
+      "advanced": true
+    },
+    "maxCaptureMessages": {
+      "label": "Max Capture Messages",
+      "help": "Maximum number of recent messages to include in auto-capture (default: 10)",
+      "advanced": true
+    }
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "spicedb": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "endpoint": { "type": "string" },
+          "token": { "type": "string" },
+          "insecure": { "type": "boolean" }
+        }
+      },
+      "graphiti": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "endpoint": { "type": "string" },
+          "defaultGroupId": { "type": "string" },
+          "uuidPollIntervalMs": { "type": "integer", "minimum": 500, "maximum": 30000 },
+          "uuidPollMaxAttempts": { "type": "integer", "minimum": 1, "maximum": 200 }
+        }
+      },
+      "subjectType": { "type": "string", "enum": ["agent", "person"] },
+      "subjectId": { "type": "string" },
+      "autoCapture": { "type": "boolean" },
+      "autoRecall": { "type": "boolean" },
+      "customInstructions": { "type": "string" },
+      "maxCaptureMessages": { "type": "integer", "minimum": 1, "maximum": 50 }
+    }
+  }
+}
