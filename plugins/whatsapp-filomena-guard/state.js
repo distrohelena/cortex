@@ -1,5 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { createScopedMessageIdRegistry } from "../filomena-conversation-policy-core/state.js";
 
 export function normalizeMessageId(value) {
   if (typeof value !== "string") return null;
@@ -7,59 +6,21 @@ export function normalizeMessageId(value) {
   return normalized || null;
 }
 
-export function createMessageIdRegistry({ filePath, maxEntries, warn }) {
-  const capacity = Number.isInteger(maxEntries) && maxEntries > 0 ? maxEntries : 512;
-  const reportWarning = typeof warn === "function" ? warn : () => {};
-  let messageIds = [];
-
-  try {
-    const parsed = JSON.parse(readFileSync(filePath, "utf8"));
-    const source = Array.isArray(parsed?.messageIds) ? parsed.messageIds : [];
-    for (const value of source) {
-      const id = normalizeMessageId(value);
-      if (!id) continue;
-      messageIds = messageIds.filter((candidate) => candidate !== id);
-      messageIds.push(id);
-    }
-    messageIds = messageIds.slice(-capacity);
-  } catch (error) {
-    const isMissingFile =
-      error && typeof error === "object" && "code" in error && error.code === "ENOENT";
-    if (!isMissingFile) {
-      reportWarning(`whatsapp-filomena-guard: could not load state: ${String(error)}`);
-    }
-  }
-
-  function persist() {
-    mkdirSync(dirname(filePath), { recursive: true });
-    const state = { version: 1, messageIds };
-    writeFileSync(filePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
-  }
-
+/** Phase 1 facade over the common scoped outbound-ID registry. */
+export function createMessageIdRegistry(options) {
+  const scope = "whatsapp:legacy";
+  const common = createScopedMessageIdRegistry(options);
   return {
-    has(value) {
+    has(value, conversationScope = scope) {
       const id = normalizeMessageId(value);
-      return id ? messageIds.includes(id) : false;
+      return id ? common.has(conversationScope ?? scope, id) : false;
     },
-
-    record(value) {
+    record(value, conversationScope = scope) {
       const id = normalizeMessageId(value);
-      if (!id) return false;
-
-      messageIds = messageIds.filter((candidate) => candidate !== id);
-      messageIds.push(id);
-      messageIds = messageIds.slice(-capacity);
-
-      try {
-        persist();
-      } catch (error) {
-        reportWarning(`whatsapp-filomena-guard: could not persist state: ${String(error)}`);
-      }
-      return true;
+      return id ? common.record(conversationScope ?? scope, id) : false;
     },
-
     snapshot() {
-      return [...messageIds];
+      return common.snapshot().map((entry) => entry.id);
     },
   };
 }

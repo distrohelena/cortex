@@ -1589,4 +1589,91 @@ describe("openclaw-memory-graphiti plugin", () => {
     expect(result?.prependContext).not.toContain("[episode:ep-wa]");
     expect(result?.prependContext).toContain("Zerei Shadow of Mordor");
   });
+
+  test("Telegram inbound is captured once without an agent run in its conversation namespace", async () => {
+    mockApi.pluginConfig.autoCapture = true;
+    setupGraphitiMock('{"message":"queued"}');
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+    const event = {
+      from: "-1001234567890",
+      content: "mensagem observada sem resposta",
+      timestamp: 1_788_000_000,
+      messageId: "77",
+      senderId: "8734062810",
+      senderName: "Gabriel",
+      threadId: 42,
+    };
+    const context = { channelId: "telegram", accountId: "filomena", conversationId: "-1001234567890:topic:42" };
+    await registeredHooks.message_received[0](event, context);
+    await registeredHooks.message_received[0](event, context);
+
+    const calls = mockFetch.mock.calls
+      .map((call) => call[1]?.body ? JSON.parse(call[1].body as string) : undefined)
+      .filter((body) => body?.params?.name === "add_memory");
+    expect(calls).toHaveLength(1);
+    expect(calls[0].params.arguments).toMatchObject({
+      group_id: "telegram-group-neg-1001234567890",
+      episode_uuid: "eb451775-4393-53e9-ac97-c1c54ccc6f65",
+      source_description: "OpenClaw inbound Telegram message",
+    });
+    expect(calls[0].params.arguments.bound_entities).toEqual([
+      expect.objectContaining({ role: "speaker", name: "telegram:user:8734062810" }),
+    ]);
+  });
+
+  test("Telegram outbound binds the DM peer but fails closed on group addressee", async () => {
+    mockApi.pluginConfig.autoCapture = true;
+    setupGraphitiMock('{"message":"queued"}');
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+    const send = registeredHooks.message_sent[0];
+
+    await send(
+      { to: "8734062810", content: "Helena comentou sobre Gabriel", success: true, messageId: "dm-out" },
+      { channelId: "telegram", accountId: "filomena", conversationId: "8734062810" },
+    );
+    await send(
+      { to: "-1001234567890", content: "Professor, Helena comentou isso", success: true, messageId: "group-out" },
+      { channelId: "telegram", accountId: "filomena", conversationId: "-1001234567890" },
+    );
+
+    const args = mockFetch.mock.calls
+      .map((call) => call[1]?.body ? JSON.parse(call[1].body as string) : undefined)
+      .filter((body) => body?.params?.name === "add_memory")
+      .map((body) => body.params.arguments);
+    expect(args).toHaveLength(2);
+    expect(args[0].group_id).toBe("telegram-dm-pos-8734062810");
+    expect(args[0].bound_entities.map((entity) => entity.name)).toEqual(["agent:filomena", "telegram:user:8734062810"]);
+    expect(args[1].group_id).toBe("telegram-group-neg-1001234567890");
+    expect(args[1].bound_entities.map((entity) => entity.name)).toEqual(["agent:filomena"]);
+  });
+
+  test("Telegram recall and memory_store are isolated from every other conversation and channel", async () => {
+    mockApi.pluginConfig.autoRecall = true;
+    setupGraphitiMock('{"message":"ok","episodes":[],"nodes":[],"facts":[]}');
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+
+    await registeredHooks.before_prompt_build[0](
+      { prompt: "lembra disso aqui?", messages: [{ role: "user", content: "lembra disso aqui?" }] },
+      {
+        channel: "telegram",
+        chatId: "8734062810",
+        senderId: "8734062810",
+        channelContext: { sender: { id: "8734062810", name: "Gabriel", username: "mutable" } },
+      },
+    );
+    const factory = registeredTools.find((entry) => entry.opts?.name === "memory_store")?.factory;
+    const store = factory({ messageChannel: "telegram", nativeChannelId: "8734062810" });
+    await store.execute("tg-store", { content: "memoria desta DM" });
+
+    const bodies = mockFetch.mock.calls
+      .map((call) => call[1]?.body ? JSON.parse(call[1].body as string) : undefined)
+      .filter((body) => ["search_nodes", "search_memory_facts", "get_episodes", "get_entity_neighborhood", "add_memory"].includes(body?.params?.name));
+    const namespaces = bodies.flatMap((body) => body.params.arguments.group_ids ?? [body.params.arguments.group_id]).filter(Boolean);
+    expect(namespaces).toContain("telegram-dm-pos-8734062810");
+    expect(new Set(namespaces)).toEqual(new Set(["telegram-dm-pos-8734062810"]));
+    expect(namespaces).not.toContain(REAL_GROUP_ID);
+  });
 });

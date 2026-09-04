@@ -1,57 +1,40 @@
 import type { BoundEntityInput } from "./graphiti.js";
-import { conversationIdentity } from "./conversation-namespace.mjs";
-import {
-  normalizeWhatsAppSenderId,
-  participantUuid,
-} from "./passive-capture.js";
+import { getChannelAdapter } from "./channel-adapters/registry.js";
+import type { ConversationRef } from "./channel-adapters/types.js";
+import { participantBoundEntity, participantUuidForActor } from "./identity.js";
 
-type FinalizedInboundContext = {
-  Provider?: string;
-  Surface?: string;
-  OriginatingChannel?: string;
-  OriginatingTo?: string;
-  To?: string;
-  From?: string;
-  MessageSidFull?: string;
-  MessageSid?: string;
-  MessageSidFirst?: string;
-  MessageSidLast?: string;
-  SenderId?: string;
-  SenderE164?: string;
-  SenderName?: string;
-  SenderUsername?: string;
-};
+type FinalizedInboundContext = Record<string, unknown>;
 
 type ReplyDispatchObservation = {
   runId?: string;
-  sessionKey?: string;
   ctx: FinalizedInboundContext;
 };
 
 export type TurnCorrelation = {
   runId: string;
-  groupId: string;
-  conversationJid: string;
+  conversation: ConversationRef;
+  conversationNamespace: string;
   inboundProviderMessageId: string;
   participantUuid: string;
   participant: BoundEntityInput;
+  /** Phase 3 compatibility aliases. */
+  groupId: string;
+  conversationJid: string;
 };
 
 function nonBlank(value: unknown): string | undefined {
   return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
+/** Phase 3 compatibility facade for WhatsApp callers. */
 export function normalizeConversationJid(value: string): string | undefined {
-  try {
-    return conversationIdentity({ channel: "whatsapp", conversationId: value }).conversationJid;
-  } catch {
-    return undefined;
-  }
+  return getChannelAdapter("whatsapp")?.normalizeConversation({ conversationId: value })?.nativeId;
 }
 
 function sameCorrelation(left: TurnCorrelation, right: TurnCorrelation): boolean {
-  return left.groupId === right.groupId
-    && left.conversationJid === right.conversationJid
+  return left.conversationNamespace === right.conversationNamespace
+    && left.conversation.channel === right.conversation.channel
+    && left.conversation.nativeId === right.conversation.nativeId
     && left.inboundProviderMessageId === right.inboundProviderMessageId
     && left.participantUuid === right.participantUuid;
 }
@@ -68,66 +51,48 @@ export class TurnCorrelationRegistry {
   }
 
   observeReplyDispatch(input: {
-    groupId: string;
+    conversationNamespace?: string;
+    /** Phase 3 compatibility alias. */
+    groupId?: string;
     event: ReplyDispatchObservation;
   }): TurnCorrelation | undefined {
-    const { groupId, event } = input;
     const provider = nonBlank(
-      event.ctx.OriginatingChannel ?? event.ctx.Surface ?? event.ctx.Provider,
+      input.event.ctx.OriginatingChannel
+      ?? input.event.ctx.Surface
+      ?? input.event.ctx.Provider,
     )?.toLowerCase();
-    const runId = nonBlank(event.runId);
-    const providerMessageId = nonBlank(
-      event.ctx.MessageSidFull
-      ?? event.ctx.MessageSid
-      ?? event.ctx.MessageSidFirst
-      ?? event.ctx.MessageSidLast,
-    );
-    const rawSenderId = nonBlank(event.ctx.SenderId);
-    const conversationJid = nonBlank(
-      event.ctx.OriginatingTo ?? event.ctx.To ?? event.ctx.From,
-    );
-    const normalizedConversation = conversationJid
-      ? normalizeConversationJid(conversationJid)
-      : undefined;
-    if (provider !== "whatsapp" || !runId || !providerMessageId || !rawSenderId || !normalizedConversation) {
-      return undefined;
-    }
+    const adapter = getChannelAdapter(provider);
+    const origin = adapter?.normalizeTurnOrigin(input.event as unknown as Record<string, unknown>);
+    const expectedNamespace = input.conversationNamespace ?? input.groupId;
+    if (!origin || !expectedNamespace) return undefined;
+    const legacyExplicitNamespace = !input.conversationNamespace && Boolean(input.groupId);
+    if (!legacyExplicitNamespace && origin.conversation.namespace !== expectedNamespace) return undefined;
+    const conversation = legacyExplicitNamespace
+      ? { ...origin.conversation, namespace: expectedNamespace }
+      : origin.conversation;
 
-    const sender = normalizeWhatsAppSenderId(rawSenderId, nonBlank(event.ctx.SenderE164));
-    if (!sender) return undefined;
-    const stableId = `whatsapp:${sender.canonicalId}`;
-    const displayName = nonBlank(event.ctx.SenderName) ?? nonBlank(event.ctx.SenderUsername);
-    const canonicalParticipantUuid = participantUuid(groupId, sender.canonicalId);
+    const participant = participantBoundEntity(conversation, origin.participant, "addressee");
+    if (!participant) return undefined;
+    const participantUuid = participantUuidForActor(conversation, origin.participant);
     const correlation: TurnCorrelation = {
-      runId,
-      groupId,
-      conversationJid: normalizedConversation,
-      inboundProviderMessageId: providerMessageId,
-      participantUuid: canonicalParticipantUuid,
-      participant: {
-        uuid: canonicalParticipantUuid,
-        role: "addressee",
-        name: stableId,
-        entity_type: "Person",
-        labels: ["Person"],
-        attributes: {
-          stable_id: stableId,
-          display_name_current: displayName ?? "",
-          aliases: displayName ? [displayName] : [],
-          identity_provider: "whatsapp",
-          identity_source: sender.source,
-        },
-      },
+      runId: origin.runId,
+      conversation,
+      conversationNamespace: expectedNamespace,
+      inboundProviderMessageId: origin.inboundProviderMessageId,
+      participantUuid,
+      participant,
+      groupId: expectedNamespace,
+      conversationJid: conversation.nativeId,
     };
 
-    if (this.conflictedRuns.has(runId)) return undefined;
-    const existing = this.entries.get(runId);
+    if (this.conflictedRuns.has(origin.runId)) return undefined;
+    const existing = this.entries.get(origin.runId);
     if (existing && !sameCorrelation(existing, correlation)) {
-      this.entries.delete(runId);
-      this.conflictedRuns.add(runId);
+      this.entries.delete(origin.runId);
+      this.conflictedRuns.add(origin.runId);
       return undefined;
     }
-    this.entries.set(runId, correlation);
+    this.entries.set(origin.runId, correlation);
     while (this.entries.size > this.maxEntries) {
       const oldest = this.entries.keys().next().value as string | undefined;
       if (!oldest) break;
@@ -136,17 +101,17 @@ export class TurnCorrelationRegistry {
     return correlation;
   }
 
-  get(runId: string | undefined, groupId: string, conversationJid: string): TurnCorrelation | undefined {
+  get(runId: string | undefined, conversationNamespace: string, conversationNativeId: string): TurnCorrelation | undefined {
     const normalizedRunId = nonBlank(runId);
-    const normalizedConversation = normalizeConversationJid(conversationJid);
-    if (!normalizedRunId || !normalizedConversation || this.conflictedRuns.has(normalizedRunId)) {
-      return undefined;
-    }
+    if (!normalizedRunId || this.conflictedRuns.has(normalizedRunId)) return undefined;
     const correlation = this.entries.get(normalizedRunId);
-    return correlation
-      && correlation.groupId === groupId
-      && correlation.conversationJid === normalizedConversation
-      ? correlation
-      : undefined;
+    if (!correlation || correlation.conversationNamespace !== conversationNamespace) return undefined;
+    const adapter = getChannelAdapter(correlation.conversation.channel);
+    const normalizedConversation = adapter?.normalizeConversation({
+      accountId: correlation.conversation.accountId,
+      conversationId: conversationNativeId,
+      kind: correlation.conversation.kind,
+    });
+    return normalizedConversation?.nativeId === correlation.conversation.nativeId ? correlation : undefined;
   }
 }

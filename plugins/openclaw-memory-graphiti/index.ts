@@ -30,21 +30,17 @@ import {
   ensureGroupMembership,
   type Subject,
 } from "./authorization.js";
-import { canonicalConversationNamespace } from "./conversation-namespace.mjs";
+import { getChannelAdapter } from "./channel-adapters/registry.js";
+import type { ConversationRef } from "./channel-adapters/types.js";
 import {
   searchAuthorizedRecall,
   formatDualResults,
   deduplicateSessionResults,
 } from "./search.js";
 import { registerCommands } from "./cli.js";
-import {
-  buildPassiveCapture,
-  normalizeWhatsAppSenderId,
-  participantUuid,
-} from "./passive-capture.js";
-import { buildOutboundCapture, filomenaUuid } from "./outbound-capture.js";
+import { filomenaUuidForConversation, participantUuidForActor } from "./identity.js";
+import { createMessageLifecycleRecorder } from "./message-lifecycle.js";
 import { TurnCorrelationRegistry } from "./turn-correlation.js";
-import { extractAddressTerm, normalizeAddressTerm } from "./social-evidence.js";
 import { buildSocialMemoryContext } from "./social-recall.js";
 
 const SOCIAL_EXTRACTION_INSTRUCTIONS = [
@@ -68,23 +64,25 @@ function sessionGroupId(sessionId: string): string {
 
 type ConversationContext = {
   channel?: string;
+  accountId?: string;
   conversationId?: string;
-  sessionKey?: string;
 };
 
+function resolveConversationRef(context: ConversationContext): ConversationRef | undefined {
+  return getChannelAdapter(context.channel)?.normalizeConversation({
+    accountId: context.accountId,
+    conversationId: context.conversationId,
+  });
+}
+
 function resolvePersistentGroupId(context: ConversationContext): string | undefined {
-  try {
-    return canonicalConversationNamespace(context);
-  } catch {
-    return undefined;
-  }
+  return resolveConversationRef(context)?.namespace;
 }
 
 function toolConversationContext(context: OpenClawPluginToolContext): ConversationContext {
   return {
     channel: context.messageChannel,
     conversationId: context.nativeChannelId,
-    sessionKey: context.sessionKey,
   };
 }
 
@@ -148,28 +146,6 @@ const memoryGraphitiPlugin = {
     }
     const spicedb = new SpiceDbClient(cfg.spicedb);
     const turnCorrelations = new TurnCorrelationRegistry();
-    const capturedEpisodes = new Map<string, Promise<void>>();
-
-    const captureEpisodeOnce = async (episodeUuid: string, operation: () => Promise<void>) => {
-      const existing = capturedEpisodes.get(episodeUuid);
-      if (existing) {
-        await existing;
-        return;
-      }
-      const pending = operation();
-      capturedEpisodes.set(episodeUuid, pending);
-      try {
-        await pending;
-        while (capturedEpisodes.size > 4096) {
-          const oldest = capturedEpisodes.keys().next().value as string | undefined;
-          if (!oldest) break;
-          capturedEpisodes.delete(oldest);
-        }
-      } catch (error) {
-        capturedEpisodes.delete(episodeUuid);
-        throw error;
-      }
-    };
 
     // Catch unhandled rejections from @grpc/grpc-js internals during initial
     // connection setup. The gRPC load balancer state machine can emit promise
@@ -197,6 +173,15 @@ const memoryGraphitiPlugin = {
     // Track most recent ZedToken from SpiceDB writes for causal consistency.
     // Reads use at_least_as_fresh(token) after own writes, minimize_latency otherwise.
     let lastWriteToken: string | undefined;
+    const messageRecorder = createMessageLifecycleRecorder({
+      graphiti,
+      spicedb,
+      subject: currentSubject,
+      extractionInstructions: SOCIAL_EXTRACTION_INSTRUCTIONS,
+      logger: api.logger,
+      getLastWriteToken: () => lastWriteToken,
+      setLastWriteToken: (token) => { lastWriteToken = token; },
+    });
 
     api.logger.info(
       `openclaw-memory-graphiti: registered (graphiti: ${cfg.graphiti.endpoint}, spicedb: ${cfg.spicedb.endpoint})`,
@@ -597,14 +582,15 @@ const memoryGraphitiPlugin = {
         }
 
         try {
-          const persistentGroupId = resolvePersistentGroupId({
+          const conversation = resolveConversationRef({
             channel: ctx?.channel ?? ctx?.messageProvider,
+            accountId: (ctx as { accountId?: string } | undefined)?.accountId,
             conversationId: ctx?.chatId ?? ctx?.channelId,
-            sessionKey: ctx?.sessionKey,
           });
-          if (!persistentGroupId) {
+          if (!conversation) {
             return;
           }
+          const persistentGroupId = conversation.namespace;
 
           const longTermGroups = [persistentGroupId];
           const sessionGroups = ctx?.sessionId ? [sessionGroupId(ctx.sessionId)] : [];
@@ -619,12 +605,18 @@ const memoryGraphitiPlugin = {
           } | undefined)?.sender;
           const rawSenderId = channelSender?.id ?? ctx?.senderId;
           const normalizedSender = typeof rawSenderId === "string"
-            ? normalizeWhatsAppSenderId(rawSenderId, channelSender?.e164 ?? undefined)
+            ? getChannelAdapter(conversation.channel)?.normalizeActor({
+                accountId: conversation.accountId,
+                nativeId: rawSenderId,
+                e164: channelSender?.e164 ?? undefined,
+                displayName: channelSender?.name ?? undefined,
+                username: channelSender?.username ?? undefined,
+              })
             : undefined;
           const canonicalParticipantUuid = normalizedSender
-            ? participantUuid(persistentGroupId, normalizedSender.canonicalId)
+            ? participantUuidForActor(conversation, normalizedSender)
             : undefined;
-          const canonicalFilomenaUuid = filomenaUuid(persistentGroupId);
+          const canonicalFilomenaUuid = filomenaUuidForConversation(conversation);
 
           // Exact social neighborhood and semantic retrieval are independent and bounded.
           const [longTermResults, rawSessionResults, participantFacts, relationshipFacts] = await Promise.all([
@@ -711,98 +703,48 @@ const memoryGraphitiPlugin = {
 
     if (cfg.autoCapture) {
       api.on("reply_dispatch", async (event) => {
-        const record = event as unknown as {
-          runId?: string;
-          ctx: {
-            Provider?: string;
-            Surface?: string;
-            OriginatingChannel?: string;
-            OriginatingTo?: string;
-            To?: string;
-            From?: string;
-            MessageSidFull?: string;
-            MessageSid?: string;
-            MessageSidFirst?: string;
-            MessageSidLast?: string;
-            SenderId?: string;
-            SenderE164?: string;
-            SenderName?: string;
-            SenderUsername?: string;
-          };
-        };
-        const targetGroupId = resolvePersistentGroupId({
-          channel: record.ctx.OriginatingChannel ?? record.ctx.Surface ?? record.ctx.Provider,
-          conversationId: record.ctx.OriginatingTo ?? record.ctx.To ?? record.ctx.From,
-        });
-        if (targetGroupId) {
-          turnCorrelations.observeReplyDispatch({ groupId: targetGroupId, event: record });
+        const record = event as unknown as { runId?: string; ctx: Record<string, unknown> };
+        const channel = typeof (record.ctx.OriginatingChannel ?? record.ctx.Surface ?? record.ctx.Provider) === "string"
+          ? String(record.ctx.OriginatingChannel ?? record.ctx.Surface ?? record.ctx.Provider)
+          : undefined;
+        const conversationId = typeof (record.ctx.OriginatingTo ?? record.ctx.To ?? record.ctx.From) === "string"
+          ? String(record.ctx.OriginatingTo ?? record.ctx.To ?? record.ctx.From)
+          : undefined;
+        const conversation = resolveConversationRef({ channel, conversationId });
+        if (conversation) {
+          turnCorrelations.observeReplyDispatch({ conversationNamespace: conversation.namespace, event: record });
         }
       });
 
       api.on("message_received", async (event, ctx) => {
         try {
-          const targetGroupId = resolvePersistentGroupId({
-            channel: ctx.channelId,
-            conversationId: ctx.conversationId,
-            sessionKey: ctx?.sessionKey,
+          const adapter = getChannelAdapter(ctx.channelId);
+          const eventRecord = event as unknown as Record<string, unknown>;
+          const conversation = adapter?.normalizeConversation({
+            accountId: (ctx as { accountId?: string }).accountId
+              ?? (typeof eventRecord.accountId === "string" ? eventRecord.accountId : undefined),
+            conversationId: ctx.conversationId
+              ?? (typeof eventRecord.conversationId === "string" ? eventRecord.conversationId : undefined)
+              ?? (typeof eventRecord.from === "string" ? eventRecord.from : undefined),
           });
-          if (!targetGroupId) {
+          if (!conversation) {
             api.logger.warn("openclaw-memory-graphiti: passive capture skipped without a conversation namespace");
             return;
           }
-
-          const capture = buildPassiveCapture({ event, context: ctx, groupId: targetGroupId });
-          if (!capture) {
+          const normalized = adapter?.normalizeInbound(
+            eventRecord,
+            ctx as unknown as Record<string, unknown>,
+          );
+          if (!normalized) {
             api.logger.warn("openclaw-memory-graphiti: passive capture skipped because required inbound provenance is missing");
             return;
           }
-          if (capture.sender.unresolvedAlternate) {
+          if (normalized.sender?.unresolvedAlternate) {
             api.logger.warn(
-              `openclaw-memory-graphiti: preserving unresolved WhatsApp LID identity ${capture.sender.canonicalId}; no deterministic PN mapping was provided`,
+              `openclaw-memory-graphiti: preserving unresolved alternate identity ${normalized.sender.stableId}; no deterministic canonical mapping was provided`,
             );
           }
-
-          const token = await ensureGroupMembership(spicedb, targetGroupId, currentSubject);
-          if (token) lastWriteToken = token;
-          const allowed = await canWriteToGroup(spicedb, currentSubject, targetGroupId, lastWriteToken);
-          if (!allowed) {
-            api.logger.warn(`openclaw-memory-graphiti: passive capture denied for group ${targetGroupId}`);
-            return;
-          }
-
-          await captureEpisodeOnce(capture.episodeUuid, async () => {
-            const result = await graphiti.addEpisode({
-              name: capture.episodeName,
-              episode_body: capture.episodeBody,
-              source_description: "OpenClaw inbound WhatsApp message",
-              group_id: targetGroupId,
-              source: "json",
-              episode_uuid: capture.episodeUuid,
-              reference_time: capture.referenceTime,
-              bound_entities: [capture.boundEntity],
-              extraction_body: capture.extractionBody,
-              custom_extraction_instructions: SOCIAL_EXTRACTION_INSTRUCTIONS,
-            });
-
-            result.resolvedUuid
-              .then(async (realUuid) => {
-                const writeToken = await writeFragmentRelationships(spicedb, {
-                  fragmentId: realUuid,
-                  groupId: targetGroupId,
-                  sharedBy: currentSubject,
-                });
-                if (writeToken) lastWriteToken = writeToken;
-              })
-              .catch((err) => {
-                api.logger.warn(
-                  `openclaw-memory-graphiti: deferred SpiceDB write (auto-capture) failed: ${err}`,
-                );
-              });
-          });
-
-          api.logger.info(
-            `openclaw-memory-graphiti: passively captured provider message ${capture.providerMessageId} to ${targetGroupId}`,
-          );
+          await messageRecorder.recordInbound(normalized);
         } catch (err) {
           api.logger.warn(`openclaw-memory-graphiti: passive capture failed: ${String(err)}`);
         }
@@ -810,79 +752,21 @@ const memoryGraphitiPlugin = {
 
       api.on("message_sent", async (event, ctx) => {
         try {
-          const outboundConversation = ctx.conversationId ?? event.to;
-          const targetGroupId = resolvePersistentGroupId({
-            channel: ctx.channelId,
-            conversationId: outboundConversation,
-          });
-          if (!targetGroupId) return;
-
-          const correlation = outboundConversation
-            ? turnCorrelations.get(event.runId, targetGroupId, outboundConversation)
-            : undefined;
-          const capture = buildOutboundCapture({
-            event,
-            context: ctx,
-            groupId: targetGroupId,
-            correlation,
+          const adapter = getChannelAdapter(ctx.channelId);
+          const normalized = adapter?.normalizeOutbound(
+            event as unknown as Record<string, unknown>,
+            ctx as unknown as Record<string, unknown>,
+            {
             selfActorIds: cfg.whatsapp.selfActorIds,
-          });
-          if (!capture) return;
-
-          const token = await ensureGroupMembership(spicedb, targetGroupId, currentSubject);
-          if (token) lastWriteToken = token;
-          if (!await canWriteToGroup(spicedb, currentSubject, targetGroupId, lastWriteToken)) {
-            api.logger.warn(`openclaw-memory-graphiti: outbound capture denied for group ${targetGroupId}`);
-            return;
-          }
-
-          await captureEpisodeOnce(capture.episodeUuid, async () => {
-            const result = await graphiti.addEpisode({
-              name: capture.episodeName,
-              episode_body: capture.episodeBody,
-              source_description: "OpenClaw outbound WhatsApp message",
-              group_id: targetGroupId,
-              source: "json",
-              episode_uuid: capture.episodeUuid,
-              reference_time: capture.referenceTime,
-              bound_entities: capture.boundEntities,
-              extraction_body: capture.extractionBody,
-              custom_extraction_instructions: SOCIAL_EXTRACTION_INSTRUCTIONS,
-            });
-
-            const addressTerm = correlation ? extractAddressTerm(event.content ?? "") : undefined;
-            if (addressTerm && event.runId && capture.boundEntities[1]) {
-              await graphiti.recordAddressTerm({
-                group_id: targetGroupId,
-                source_uuid: capture.boundEntities[0].uuid,
-                target_uuid: capture.boundEntities[1].uuid,
-                term: addressTerm,
-                normalized_term: normalizeAddressTerm(addressTerm),
-                run_id: event.runId,
-                episode_uuid: capture.episodeUuid,
-                reference_time: capture.referenceTime,
-              });
-            }
-
-            result.resolvedUuid
-              .then(async (realUuid) => {
-                const writeToken = await writeFragmentRelationships(spicedb, {
-                  fragmentId: realUuid,
-                  groupId: targetGroupId,
-                  sharedBy: currentSubject,
-                });
-                if (writeToken) lastWriteToken = writeToken;
-              })
-              .catch((err) => {
-                api.logger.warn(
-                  `openclaw-memory-graphiti: deferred SpiceDB write (outbound capture) failed: ${err}`,
-                );
-              });
-          });
-
-          api.logger.info(
-            `openclaw-memory-graphiti: captured outbound provider message ${capture.providerMessageId} to ${targetGroupId}`,
+            },
           );
+          if (!normalized) return;
+          const correlation = turnCorrelations.get(
+            normalized.runId,
+            normalized.conversation.namespace,
+            normalized.conversation.nativeId,
+          );
+          await messageRecorder.recordOutbound(normalized, correlation);
         } catch (err) {
           api.logger.warn(`openclaw-memory-graphiti: outbound capture failed: ${String(err)}`);
         }

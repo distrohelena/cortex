@@ -1,6 +1,6 @@
 # Filomena
 
-Local OpenClaw WhatsApp bot with a fixed trigger/identity guard and persistent
+Local multichannel OpenClaw bot with channel-specific response guards and persistent
 Graphiti knowledge-graph memory backed by FalkorDB and authorized by SpiceDB.
 
 ## Privacy
@@ -13,6 +13,8 @@ a separate history-redaction review.
 ## Components
 
 - `plugins/whatsapp-filomena-guard`: dispatch and reply-label policy.
+- `plugins/telegram-filomena-guard`: thin Telegram response-policy adapter.
+- `plugins/filomena-conversation-policy-core`: provider-neutral response evaluator and outbound-ID registry.
 - `plugins/openclaw-memory-graphiti`: OpenClaw Graphiti integration.
 - `vendor/graphiti`: locally adapted Graphiti source.
 - `runtime`: Docker Compose and Graphiti model configuration.

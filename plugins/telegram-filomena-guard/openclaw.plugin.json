@@ -1,0 +1,41 @@
+{
+  "id": "telegram-filomena-guard",
+  "name": "Telegram Filomena Guard",
+  "description": "Separates Telegram observation from configurable automatic response policies.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": ["respond"],
+    "properties": {
+      "respond": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["direct", "groups"],
+        "properties": {
+          "direct": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["mode"],
+            "properties": {
+              "mode": { "type": "string", "enum": ["disabled", "allow", "mention", "reply-to-filomena", "mention-or-reply"] },
+              "chats": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "groups": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["mode"],
+              "properties": {
+                "mode": { "type": "string", "enum": ["disabled", "allow", "mention", "reply-to-filomena", "mention-or-reply"] }
+              }
+            }
+          }
+        }
+      },
+      "stateFile": { "type": "string", "minLength": 1 },
+      "maxTrackedMessageIds": { "type": "integer", "minimum": 1, "maximum": 10000, "default": 512 }
+    }
+  }
+}

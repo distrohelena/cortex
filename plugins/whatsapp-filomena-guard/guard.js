@@ -30,14 +30,20 @@ function normalizedConversation(event, context) {
   return normalizeWhatsAppPeerId(context.conversationId ?? event.to);
 }
 
+export function whatsappConversationScope(event, context) {
+  const conversation = normalizedConversation(event, context);
+  return conversation ? `whatsapp:${conversation}` : undefined;
+}
+
 function groupPolicy(event, context, config) {
   const conversation = normalizedConversation(event, context);
   return conversation ? config.respond.groups[conversation] : undefined;
 }
 
 function replyTargetsTrackedMessage(event, context, registry) {
+  const scope = whatsappConversationScope(event, context);
   return [event.replyToId, event.replyToIdFull, context.replyToId, context.replyToIdFull]
-    .some((value) => registry.has(value));
+    .some((value) => registry.has(value, scope));
 }
 
 function directPeerIsAllowed(event, context, config) {
@@ -76,12 +82,15 @@ export function shouldSuppressDispatch(
 
   const isGroup = event.isGroup === true
     || normalizeWhatsAppPeerId(context.conversationId)?.endsWith("@g.us");
-  if (!isGroup) return !directPeerIsAllowed(event, context, config);
+  if (!isGroup) return !shouldRespond(directPeerIsAllowed(event, context, config) ? "allow" : "disabled", {});
 
   const policy = groupPolicy(event, context, config);
   if (!policy) return true;
   const body = typeof event.body === "string" ? event.body.trimStart() : "";
-  if (triggerPattern(policy.trigger).test(body)) return false;
-  if (policy.allowRepliesToFilomena && replyTargetsTrackedMessage(event, context, registry)) return false;
-  return true;
+  const mode = policy.allowRepliesToFilomena ? "mention-or-reply" : "mention";
+  return !shouldRespond(mode, {
+    mentioned: triggerPattern(policy.trigger).test(body),
+    replyToFilomena: replyTargetsTrackedMessage(event, context, registry),
+  });
 }
+import { shouldRespond } from "../filomena-conversation-policy-core/policy.js";

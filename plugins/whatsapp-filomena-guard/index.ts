@@ -4,6 +4,7 @@ import {
   prefixProtectedOutbound,
   shouldSuppressDispatch,
   targetsProtectedOutbound,
+  whatsappConversationScope,
 } from "./guard.js";
 import { createMessageIdRegistry } from "./state.js";
 
@@ -127,7 +128,7 @@ const plugin = {
 
     api.on("message_sent", (event, context) => {
       if (!event.success || !targetsProtectedOutbound(event, context, config)) return;
-      registry.record(event.messageId);
+      registry.record(event.messageId, whatsappConversationScope(event, context));
     });
   },
 };

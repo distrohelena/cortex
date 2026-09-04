@@ -2,6 +2,13 @@
   "session": {
     "dmScope": "per-account-channel-peer"
   },
+  "messages": {
+    "inbound": {
+      "byChannel": {
+        "telegram": 0
+      }
+    }
+  },
   "channels": {
     "whatsapp": {
       "dmPolicy": "open",
@@ -21,6 +28,12 @@
           "systemPrompt": "The current triggering WhatsApp message is always the primary request."
         }
       }
+    },
+    "telegram": {
+      "enabled": false,
+      "dmPolicy": "disabled",
+      "groupPolicy": "allowlist",
+      "groups": {}
     }
   },
   "plugins": {
@@ -44,6 +57,20 @@
             }
           },
           "stateFile": "<OPENCLAW_STATE_DIR>\\whatsapp-filomena-guard.json",
+          "maxTrackedMessageIds": 512
+        }
+      },
+      "telegram-filomena-guard": {
+        "enabled": false,
+        "config": {
+          "respond": {
+            "direct": {
+              "mode": "disabled",
+              "chats": []
+            },
+            "groups": {}
+          },
+          "stateFile": "<OPENCLAW_STATE_DIR>\\telegram-filomena-guard.json",
           "maxTrackedMessageIds": 512
         }
       },
@@ -77,7 +104,8 @@
     "load": {
       "paths": [
         "C:\\dev\\filomena\\plugins\\openclaw-memory-graphiti",
-        "C:\\dev\\filomena\\plugins\\whatsapp-filomena-guard"
+        "C:\\dev\\filomena\\plugins\\whatsapp-filomena-guard",
+        "C:\\dev\\filomena\\plugins\\telegram-filomena-guard"
       ]
     },
     "slots": {

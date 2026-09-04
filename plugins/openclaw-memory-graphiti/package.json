@@ -18,6 +18,10 @@
   ],
   "files": [
     "index.ts",
+    "identity.ts",
+    "conversation-identity.ts",
+    "message-lifecycle.ts",
+    "channel-adapters/",
     "passive-capture.ts",
     "outbound-capture.ts",
     "turn-correlation.ts",

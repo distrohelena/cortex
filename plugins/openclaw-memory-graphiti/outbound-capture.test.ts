@@ -25,6 +25,32 @@ function correlation() {
 }
 
 describe("outbound WhatsApp capture", () => {
+  test("legacy facade preserves an explicitly supplied noncanonical test namespace", () => {
+    const customNamespace = "isolated-contract-namespace";
+    const registry = new TurnCorrelationRegistry();
+    const exact = registry.observeReplyDispatch({
+      groupId: customNamespace,
+      event: {
+        runId: "custom-run",
+        ctx: {
+          Provider: "whatsapp",
+          OriginatingTo: GROUP_JID,
+          MessageSidFull: "custom-inbound",
+          SenderId: "5511999999999@s.whatsapp.net",
+        },
+      },
+    });
+    const capture = buildOutboundCapture({
+      event: { to: GROUP_JID, content: "Filomena: Professor, oi.", success: true, messageId: "custom-outbound", runId: "custom-run" },
+      context: { channelId: "whatsapp", conversationId: GROUP_JID },
+      groupId: customNamespace,
+      correlation: exact,
+    });
+
+    expect(exact?.conversationNamespace).toBe(customNamespace);
+    expect(capture?.boundEntities).toHaveLength(2);
+  });
+
   test("successful provider send builds one deterministic raw episode", () => {
     const input = {
       event: {
