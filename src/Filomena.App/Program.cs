@@ -7,7 +7,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
-var builder = Host.CreateApplicationBuilder(args);
+var builder = FilomenaHostConfiguration.CreateBuilder(args);
 builder.Services
     .AddOptions<ProbeOptions>()
     .Bind(builder.Configuration.GetSection(ProbeOptions.SectionName))

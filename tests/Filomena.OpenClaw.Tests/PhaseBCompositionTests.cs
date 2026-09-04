@@ -1,6 +1,7 @@
 using Filomena.App;
 using Filomena.Core.Conversations;
 using Filomena.Llm.LmStudio;
+using Microsoft.Extensions.Hosting;
 using Xunit;
 
 namespace Filomena.OpenClaw.Tests;
@@ -46,5 +47,16 @@ public sealed class PhaseBCompositionTests
             type.Name.Contains("Outbound", StringComparison.OrdinalIgnoreCase) ||
             type.Name.Contains("Sender", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(typeof(ConversationTurnManager), dependencies);
+    }
+
+    [Fact]
+    public void HostLoadsCopiedAppSettingsFromTheExecutableDirectory()
+    {
+        var builder = FilomenaHostConfiguration.CreateBuilder([]);
+
+        Assert.Equal(
+            Path.GetFullPath(AppContext.BaseDirectory),
+            Path.GetFullPath(builder.Environment.ContentRootPath));
+        Assert.Equal("phase-b", builder.Configuration["Probe:Mode"]);
     }
 }
