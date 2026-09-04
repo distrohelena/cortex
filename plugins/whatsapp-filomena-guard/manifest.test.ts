@@ -10,3 +10,15 @@ test("manifest selects the hook-only guard during gateway startup", async () => 
 
   assert.deepEqual(manifest.activation?.onCapabilities, ["hook"]);
 });
+
+test("manifest exposes transport-only mode", async () => {
+  const manifestUrl = new URL("./openclaw.plugin.json", import.meta.url);
+  const manifest = JSON.parse(await readFile(manifestUrl, "utf8")) as {
+    configSchema?: { properties?: Record<string, unknown> };
+  };
+
+  assert.deepEqual(manifest.configSchema?.properties?.transportOnly, {
+    type: "boolean",
+    default: false,
+  });
+});

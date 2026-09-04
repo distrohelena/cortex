@@ -10,6 +10,7 @@ import { createMessageIdRegistry } from "./state.js";
 
 type GuardConfig = {
   channel: string;
+  transportOnly: boolean;
   responsePrefix: string;
   stateFile: string;
   maxTrackedMessageIds: number;
@@ -63,6 +64,10 @@ function readConfig(api: OpenClawPluginApi): GuardConfig {
   const channel = typeof raw.channel === "string" && raw.channel.trim()
     ? raw.channel.trim()
     : "whatsapp";
+  if (raw.transportOnly !== undefined && typeof raw.transportOnly !== "boolean") {
+    throw new Error("whatsapp-filomena-guard: transportOnly must be a boolean");
+  }
+  const transportOnly = raw.transportOnly === true;
   let responsePrefix = "Filomena: ";
   if (raw.responsePrefix !== undefined) {
     if (typeof raw.responsePrefix !== "string" || !raw.responsePrefix.trim()) {
@@ -95,6 +100,7 @@ function readConfig(api: OpenClawPluginApi): GuardConfig {
 
   return {
     channel,
+    transportOnly,
     responsePrefix,
     stateFile,
     maxTrackedMessageIds,
@@ -118,6 +124,12 @@ const plugin = {
     api.on(
       "before_dispatch",
       (event, context) => {
+        if (config.transportOnly && event.channel === config.channel) {
+          api.logger.debug(
+            `whatsapp-filomena-guard: transport-only suppressed OpenClaw agent dispatch in ${String(context.conversationId ?? "unknown conversation")}`,
+          );
+          return { handled: true };
+        }
         if (!shouldSuppressDispatch(event, context, config, registry)) return;
 
         api.logger.debug(

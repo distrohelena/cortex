@@ -11,6 +11,7 @@
     "required": ["respond"],
     "properties": {
       "channel": { "type": "string", "default": "whatsapp" },
+      "transportOnly": { "type": "boolean", "default": false },
       "respond": {
         "type": "object",
         "additionalProperties": false,

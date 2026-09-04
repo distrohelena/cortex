@@ -209,6 +209,36 @@ test("allows the configured Helena DM and silently handles an unknown DM", () =>
   });
 });
 
+test("transport-only mode suppresses every WhatsApp agent dispatch", () => {
+  withTemporaryPlugin(({ config, groupId }) => {
+    const { handlers, logs } = registerGuard({ ...config, transportOnly: true });
+
+    assert.deepEqual(
+      handlers.before_dispatch!(
+        { channel: "whatsapp", isGroup: true, body: "@Filomena oi" },
+        { conversationId: groupId },
+      ),
+      { handled: true },
+    );
+    assert.deepEqual(
+      handlers.before_dispatch!(
+        { channel: "whatsapp", isGroup: false, body: "oi", senderId: "5511944558218@s.whatsapp.net" },
+        { conversationId: "5511944558218:4@c.us", senderId: "5511944558218@s.whatsapp.net" },
+      ),
+      { handled: true },
+    );
+    assert.equal(
+      handlers.before_dispatch!(
+        { channel: "telegram", isGroup: true, body: "@Filomena oi" },
+        { conversationId: "-100123" },
+      ),
+      undefined,
+    );
+    assert.equal(logs.debug.length, 2);
+    assert.ok(logs.debug.every((message) => message.includes("transport-only")));
+  });
+});
+
 test("rejects invalid plugin configuration during registration", () => {
   const minimal = { respond: { direct: { mode: "disabled", allowFrom: [] }, groups: {} } };
   assert.throws(() => registerGuard({}), /respond must be configured/);
@@ -223,5 +253,9 @@ test("rejects invalid plugin configuration during registration", () => {
   assert.throws(
     () => registerGuard({ ...minimal, maxTrackedMessageIds: 0 }),
     /maxTrackedMessageIds must be a positive integer/,
+  );
+  assert.throws(
+    () => registerGuard({ ...minimal, transportOnly: "yes" }),
+    /transportOnly must be a boolean/,
   );
 });

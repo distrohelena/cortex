@@ -42,6 +42,7 @@
         "enabled": true,
         "config": {
           "channel": "whatsapp",
+          "transportOnly": true,
           "responsePrefix": "Filomena: ",
           "respond": {
             "direct": {
