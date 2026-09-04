@@ -347,6 +347,8 @@ describe("openclaw-memory-graphiti plugin", () => {
     expect(registeredHooks["before_prompt_build"]).toHaveLength(1);
     expect(registeredHooks["before_agent_start"]).toBeUndefined();
     expect(registeredHooks["message_received"]).toHaveLength(1);
+    expect(registeredHooks["reply_dispatch"]).toHaveLength(1);
+    expect(registeredHooks["message_sent"]).toHaveLength(1);
     expect(registeredHooks["agent_end"]).toBeUndefined();
   });
 
@@ -359,6 +361,8 @@ describe("openclaw-memory-graphiti plugin", () => {
 
     expect(registeredHooks["before_prompt_build"]).toBeUndefined();
     expect(registeredHooks["message_received"]).toBeUndefined();
+    expect(registeredHooks["reply_dispatch"]).toBeUndefined();
+    expect(registeredHooks["message_sent"]).toBeUndefined();
     expect(registeredHooks["agent_end"]).toBeUndefined();
   });
 
@@ -397,11 +401,145 @@ describe("openclaw-memory-graphiti plugin", () => {
       reference_time: "2026-08-28T12:30:45.000Z",
     });
     expect(calls[0].params.arguments.episode_uuid).toMatch(/^[0-9a-f-]{36}$/);
-    expect(calls[0].params.arguments.bound_entity).toMatchObject({
+    expect(calls[0].params.arguments.bound_entities).toHaveLength(1);
+    expect(calls[0].params.arguments.bound_entities[0]).toMatchObject({
       role: "speaker",
       name: "whatsapp:5511999999999@s.whatsapp.net",
       entity_type: "Person",
     });
+    expect(calls[0].params.arguments.bound_entity).toBeUndefined();
+  });
+
+  test("correlated successful outbound is captured once with canonical speaker and addressee", async () => {
+    mockApi.pluginConfig.autoCapture = true;
+    setupGraphitiMock('{"message":"queued"}');
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+
+    await registeredHooks["reply_dispatch"][0]({
+      runId: "run-gabriel",
+      ctx: {
+        Provider: "whatsapp",
+        OriginatingTo: REAL_GROUP_JID,
+        MessageSidFull: "inbound-gabriel",
+        SenderId: "5511999999999@s.whatsapp.net",
+        SenderName: "Gabriel",
+      },
+    });
+    const sent = {
+      to: REAL_GROUP_JID,
+      content: "Filomena: Professor, a Marina comentou isso.",
+      success: true,
+      messageId: "outbound-gabriel",
+      runId: "run-gabriel",
+    };
+    const context = { channelId: "whatsapp", conversationId: REAL_GROUP_JID };
+    await registeredHooks["message_sent"][0](sent, context);
+    await registeredHooks["message_sent"][0](sent, context);
+
+    const bodies = mockFetch.mock.calls
+      .map((call) => call[1]?.body ? JSON.parse(call[1].body as string) : undefined)
+      .filter((body) => body?.params?.name === "add_memory");
+    expect(bodies).toHaveLength(1);
+    const args = bodies[0].params.arguments;
+    expect(args.source_description).toBe("OpenClaw outbound WhatsApp message");
+    expect(args.episode_body).not.toContain("Extraction Instructions");
+    expect(JSON.parse(args.episode_body).text).toBe(sent.content);
+    expect(args.bound_entities).toHaveLength(2);
+    expect(args.bound_entities[0]).toMatchObject({ role: "speaker", entity_type: "Agent", name: "agent:filomena" });
+    expect(args.bound_entities[1]).toMatchObject({ role: "addressee", entity_type: "Person" });
+
+    const evidenceBodies = mockFetch.mock.calls
+      .map((call) => call[1]?.body ? JSON.parse(call[1].body as string) : undefined)
+      .filter((body) => body?.params?.name === "record_address_term");
+    expect(evidenceBodies).toHaveLength(1);
+    expect(evidenceBodies[0].params.arguments).toMatchObject({ term: "Professor", run_id: "run-gabriel" });
+  });
+
+  test("failed outbound is ignored and uncorrelated outbound keeps only Filomena", async () => {
+    mockApi.pluginConfig.autoCapture = true;
+    setupGraphitiMock('{"message":"queued"}');
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+    const hook = registeredHooks["message_sent"][0];
+    const context = { channelId: "whatsapp", conversationId: REAL_GROUP_JID };
+
+    await hook({
+      to: REAL_GROUP_JID,
+      content: "Filomena: oi",
+      success: false,
+      messageId: "failed-outbound",
+      runId: "run-failed",
+    }, context);
+    await hook({
+      to: REAL_GROUP_JID,
+      content: "Filomena: oi",
+      success: true,
+      messageId: "uncorrelated-outbound",
+      runId: "unknown-run",
+    }, context);
+
+    const bodies = mockFetch.mock.calls
+      .map((call) => call[1]?.body ? JSON.parse(call[1].body as string) : undefined)
+      .filter((body) => body?.params?.name === "add_memory");
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0].params.arguments.bound_entities).toHaveLength(1);
+    expect(bodies[0].params.arguments.bound_entities[0].role).toBe("speaker");
+    expect(JSON.parse(bodies[0].params.arguments.episode_body).originating).toBeNull();
+  });
+
+  test("captures outbound when the conversation JID is available only as event.to", async () => {
+    mockApi.pluginConfig.autoCapture = true;
+    setupGraphitiMock('{"message":"queued"}');
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+
+    await registeredHooks["message_sent"][0]({
+      to: REAL_GROUP_JID,
+      content: "Filomena: resposta final",
+      success: true,
+      messageId: "outbound-event-to-only",
+    }, { channelId: "whatsapp" });
+
+    const bodies = mockFetch.mock.calls
+      .map((call) => call[1]?.body ? JSON.parse(call[1].body as string) : undefined)
+      .filter((body) => body?.params?.name === "add_memory");
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0].params.arguments.group_id).toBe(REAL_GROUP_ID);
+    expect(bodies[0].params.arguments.bound_entities).toHaveLength(1);
+  });
+
+  test("concurrent runs in one session keep their exact outbound addressees", async () => {
+    mockApi.pluginConfig.autoCapture = true;
+    setupGraphitiMock('{"message":"queued"}');
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+    const observe = registeredHooks["reply_dispatch"][0];
+    for (const [runId, senderId, messageId] of [
+      ["run-a", "5511999999999@s.whatsapp.net", "in-a"],
+      ["run-b", "5511888888888@s.whatsapp.net", "in-b"],
+    ]) {
+      await observe({
+        runId,
+        sessionKey: "same-session",
+        ctx: { Provider: "whatsapp", OriginatingTo: REAL_GROUP_JID, MessageSidFull: messageId, SenderId: senderId },
+      });
+    }
+    const send = registeredHooks["message_sent"][0];
+    await Promise.all([
+      send({ to: REAL_GROUP_JID, content: "Filomena: A, oi", success: true, messageId: "out-a", runId: "run-a" }, { channelId: "whatsapp", conversationId: REAL_GROUP_JID }),
+      send({ to: REAL_GROUP_JID, content: "Filomena: B, oi", success: true, messageId: "out-b", runId: "run-b" }, { channelId: "whatsapp", conversationId: REAL_GROUP_JID }),
+    ]);
+
+    const origins = mockFetch.mock.calls
+      .map((call) => call[1]?.body ? JSON.parse(call[1].body as string) : undefined)
+      .filter((body) => body?.params?.name === "add_memory")
+      .map((body) => JSON.parse(body.params.arguments.episode_body).originating);
+    expect(origins).toEqual(expect.arrayContaining([
+      expect.objectContaining({ run_id: "run-a", inbound_provider_message_id: "in-a" }),
+      expect.objectContaining({ run_id: "run-b", inbound_provider_message_id: "in-b" }),
+    ]));
+    expect(new Set(origins.map((origin) => origin.participant_uuid)).size).toBe(2);
   });
 
   test("a triggering inbound message is still submitted exactly once", async () => {
@@ -510,10 +648,9 @@ describe("openclaw-memory-graphiti plugin", () => {
     expect(addMemoryCall).toBeDefined();
     const body = JSON.parse(addMemoryCall![1]?.body as string);
     expect(body.params.arguments.group_id).toBe(REAL_GROUP_ID);
-    // custom_extraction_instructions are prepended to episode_body
-    expect(body.params.arguments.episode_body).toContain("[Extraction Instructions]");
-    expect(body.params.arguments.episode_body).toContain("Mark got a promotion at work");
-    expect(body.params.arguments.custom_extraction_instructions).toBeUndefined();
+    expect(body.params.arguments.episode_body).toBe("Mark got a promotion at work");
+    expect(body.params.arguments.custom_extraction_instructions).toMatch(/Extract key facts/);
+    expect(body.params.arguments.episode_body).not.toContain("Extraction Instructions");
   });
 
   test("memory_store tool uses session group when longTerm=false", async () => {
@@ -1267,6 +1404,52 @@ describe("openclaw-memory-graphiti plugin", () => {
     expect(logs.some((l) => l.includes("injecting") && l.includes("long-term"))).toBe(true);
   });
 
+  test("auto-recall performs exact canonical participant lookup and prioritizes boundaries", async () => {
+    mockApi.pluginConfig.autoRecall = true;
+    const { participantUuid } = await import("./passive-capture.js");
+    const { filomenaUuid } = await import("./outbound-capture.js");
+    const participant = participantUuid(REAL_GROUP_ID, "5511999999999@s.whatsapp.net");
+    const agent = filomenaUuid(REAL_GROUP_ID);
+    const facts = [{
+      uuid: "boundary-fact-uuid",
+      name: "REQUESTED_BOUNDARY",
+      fact: "Gabriel asked Filomena not to joke about his family.",
+      group_id: REAL_GROUP_ID,
+      source_node_uuid: participant,
+      target_node_uuid: agent,
+      source_node: { uuid: participant, canonical: true, stable_id: "whatsapp:5511999999999@s.whatsapp.net", labels: ["Person"] },
+      target_node: { uuid: agent, canonical: true, stable_id: "agent:filomena", labels: ["Agent"] },
+      created_at: "2026-09-04T18:00:00Z",
+    }];
+    setupGraphitiMock(JSON.stringify({ message: "ok", episodes: [], nodes: [], facts }));
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+
+    const result = await registeredHooks["before_prompt_build"][0](
+      { prompt: "me responde direto", messages: [{ role: "user", content: "me responde direto" }] },
+      {
+        channel: "whatsapp",
+        chatId: REAL_GROUP_JID,
+        senderId: "5511999999999@s.whatsapp.net",
+        channelContext: { sender: { id: "5511999999999@s.whatsapp.net", name: "Gabriel" } },
+      },
+    );
+
+    const neighborhoodCalls = mockFetch.mock.calls
+      .map((call) => call[1]?.body ? JSON.parse(call[1].body as string) : undefined)
+      .filter((body) => body?.params?.name === "get_entity_neighborhood");
+    expect(neighborhoodCalls).toHaveLength(2);
+    expect(neighborhoodCalls[0].params.arguments).toMatchObject({
+      group_id: REAL_GROUP_ID,
+      entity_uuid: participant,
+      active_only: true,
+    });
+    expect(result.prependContext).toContain("[LIMITS]");
+    expect(result.prependContext).toContain("not to joke about his family");
+    expect(result.prependContext).not.toContain("boundary-fact-uuid");
+    expect(result.prependContext).not.toContain(participant);
+  });
+
   test("auto-recall injects matching raw episode excerpts", async () => {
     mockApi.pluginConfig.autoRecall = true;
     const episodes = [
@@ -1301,7 +1484,7 @@ describe("openclaw-memory-graphiti plugin", () => {
     );
 
     expect(result?.prependContext).toContain("<relevant-memories>");
-    expect(result?.prependContext).toContain("[episode:ep-wa]");
+    expect(result?.prependContext).not.toContain("[episode:ep-wa]");
     expect(result?.prependContext).toContain("Zerei Shadow of Mordor");
   });
 });

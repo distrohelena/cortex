@@ -238,7 +238,7 @@ describe("GraphitiClient", () => {
     expect(body.params.arguments.source).toBe("message");
   });
 
-  test("addEpisode prepends custom_extraction_instructions to episode_body", async () => {
+  test("addEpisode forwards custom_extraction_instructions without altering episode_body", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch");
     mockInit(fetchMock);
     fetchMock.mockResolvedValueOnce(
@@ -257,13 +257,8 @@ describe("GraphitiClient", () => {
     });
 
     const body = JSON.parse(fetchMock.mock.calls[2][1]!.body as string);
-    // Instructions are prepended to episode_body with delimiters
-    expect(body.params.arguments.episode_body).toContain("[Extraction Instructions]");
-    expect(body.params.arguments.episode_body).toContain("Extract names and roles");
-    expect(body.params.arguments.episode_body).toContain("[End Instructions]");
-    expect(body.params.arguments.episode_body).toContain("Mark got a promotion");
-    // Not sent as a separate argument
-    expect(body.params.arguments.custom_extraction_instructions).toBeUndefined();
+    expect(body.params.arguments.episode_body).toBe("Mark got a promotion");
+    expect(body.params.arguments.custom_extraction_instructions).toBe("Extract names and roles");
   });
 
   test("addEpisode leaves episode_body unchanged when no custom instructions", async () => {
@@ -567,6 +562,70 @@ describe("GraphitiClient", () => {
     expect(body.params.name).toBe("search_memory_facts");
     expect(body.params.arguments.group_ids).toEqual(["family"]);
     expect(body.params.arguments.max_facts).toBe(5);
+    expect(body.params.arguments.active_only).toBe(true);
+  });
+
+  test("getEntityNeighborhood uses an exact group-bound lookup", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    mockInit(fetchMock);
+    fetchMock.mockResolvedValueOnce(
+      sseResponse({
+        jsonrpc: "2.0",
+        id: 2,
+        result: { content: [{ type: "text", text: '{"message":"ok","facts":[]}' }], isError: false },
+      }),
+    );
+
+    await client.getEntityNeighborhood({
+      group_id: "group-a",
+      entity_uuid: "participant-a",
+      counterpart_uuid: "filomena-a",
+      active_only: true,
+      limit: 7,
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[2][1]!.body as string);
+    expect(body.params.name).toBe("get_entity_neighborhood");
+    expect(body.params.arguments).toEqual({
+      group_id: "group-a",
+      entity_uuid: "participant-a",
+      counterpart_uuid: "filomena-a",
+      active_only: true,
+      limit: 7,
+    });
+  });
+
+  test("recordAddressTerm forwards deterministic evidence provenance", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    mockInit(fetchMock);
+    fetchMock.mockResolvedValueOnce(
+      sseResponse({
+        jsonrpc: "2.0",
+        id: 2,
+        result: { content: [{ type: "text", text: '{"message":"queued"}' }], isError: false },
+      }),
+    );
+
+    await client.recordAddressTerm({
+      group_id: "group-a",
+      source_uuid: "filomena-a",
+      target_uuid: "participant-a",
+      term: "Professor",
+      normalized_term: "professor",
+      run_id: "run-a",
+      episode_uuid: "episode-a",
+      reference_time: "2026-09-04T18:30:00.000Z",
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[2][1]!.body as string);
+    expect(body.params.name).toBe("record_address_term");
+    expect(body.params.arguments).toMatchObject({
+      group_id: "group-a",
+      source_uuid: "filomena-a",
+      target_uuid: "participant-a",
+      normalized_term: "professor",
+      run_id: "run-a",
+    });
   });
 
   // --------------------------------------------------------------------------
@@ -672,7 +731,7 @@ describe("GraphitiClient", () => {
       sseResponse({
         jsonrpc: "2.0",
         id: 2,
-        result: { content: [{ type: "text", text: '{"message":"error"}' }], isError: true },
+        result: { content: [{ type: "text", text: '{"message":"no results"}' }], isError: false },
       }),
     );
 
@@ -714,6 +773,26 @@ describe("GraphitiClient", () => {
     await expect(
       client.searchNodes({ query: "test", group_id: "main" }),
     ).rejects.toThrow("Graphiti tool search_nodes failed: Method not found");
+  });
+
+  test("throws when an MCP tool returns an ErrorResponse payload", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    mockInit(fetchMock);
+    fetchMock.mockResolvedValueOnce(
+      sseResponse({
+        jsonrpc: "2.0",
+        id: 2,
+        result: {
+          content: [{ type: "text", text: '{"error":"canonical actor not found"}' }],
+          isError: false,
+        },
+      }),
+    );
+
+    await expect(client.getEntityNeighborhood({
+      group_id: "group-a",
+      entity_uuid: "missing",
+    })).rejects.toThrow("canonical actor not found");
   });
 
   test("throws on MCP init failure", async () => {

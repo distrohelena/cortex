@@ -15,7 +15,8 @@ from typing import Any, Optional
 from dotenv import load_dotenv
 from graphiti_core import Graphiti
 from graphiti_core.edges import EntityEdge
-from graphiti_core.nodes import EpisodeType, EpisodicNode
+from graphiti_core.errors import EdgeNotFoundError
+from graphiti_core.nodes import EntityNode, EpisodeType, EpisodicNode
 from graphiti_core.search.search_filters import SearchFilters
 from graphiti_core.utils.maintenance.bound_entities import BoundEntity
 from graphiti_core.utils.maintenance.graph_data_operations import clear_data
@@ -41,6 +42,19 @@ from services.factories import (
 )
 from services.queue_service import QueueService
 from utils.formatting import format_fact_result
+from utils.social_evidence import (
+    address_term_edge_uuid,
+    merge_address_term_observation,
+)
+from utils.social_retrieval import (
+    active_edge_filter,
+    clear_group_namespaces,
+    filter_neighborhood_edges,
+    format_fact_with_group_nodes,
+    format_fact_with_nodes,
+    load_endpoint_nodes_by_group,
+    normalize_persisted_edge_direction,
+)
 
 # Load .env file from mcp_server directory
 mcp_server_dir = Path(__file__).parent.parent
@@ -345,7 +359,9 @@ async def add_memory(
     episode_uuid: str | None = None,
     reference_time: datetime | None = None,
     bound_entity: BoundEntity | None = None,
+    bound_entities: list[BoundEntity] | None = None,
     extraction_body: str | None = None,
+    custom_extraction_instructions: str | None = None,
 ) -> SuccessResponse | ErrorResponse:
     """Add an episode to memory. This is the primary way to add information to the graph.
 
@@ -416,7 +432,9 @@ async def add_memory(
             episode_uuid=episode_uuid or None,
             reference_time=reference_time,
             bound_entity=bound_entity,
+            bound_entities=bound_entities,
             extraction_body=extraction_body,
+            custom_extraction_instructions=custom_extraction_instructions,
         )
 
         return SuccessResponse(
@@ -514,6 +532,7 @@ async def search_memory_facts(
     group_ids: list[str] | None = None,
     max_facts: int = 10,
     center_node_uuid: str | None = None,
+    active_only: bool = True,
 ) -> FactSearchResponse | ErrorResponse:
     """Search the graph memory for relevant facts.
 
@@ -522,6 +541,7 @@ async def search_memory_facts(
         group_ids: Optional list of group IDs to filter results
         max_facts: Maximum number of facts to return (default: 10)
         center_node_uuid: Optional UUID of a node to center the search around
+        active_only: Exclude facts that are not yet valid, invalidated, or expired
     """
     global graphiti_service
 
@@ -549,17 +569,162 @@ async def search_memory_facts(
             query=query,
             num_results=max_facts,
             center_node_uuid=center_node_uuid,
+            search_filter=active_edge_filter(datetime.now(timezone.utc)) if active_only else None,
         )
 
         if not relevant_edges:
             return FactSearchResponse(message='No relevant facts found', facts=[])
 
-        facts = [format_fact_result(edge) for edge in relevant_edges]
+        nodes_by_group = await load_endpoint_nodes_by_group(client.driver, relevant_edges)
+        facts = [
+            format_fact_with_group_nodes(edge, nodes_by_group) for edge in relevant_edges
+        ]
         return FactSearchResponse(message='Facts retrieved successfully', facts=facts)
     except Exception as e:
         error_msg = str(e)
         logger.error(f'Error searching facts: {error_msg}')
         return ErrorResponse(error=f'Error searching facts: {error_msg}')
+
+
+@mcp.tool()
+async def get_entity_neighborhood(
+    group_id: str,
+    entity_uuid: str,
+    counterpart_uuid: str | None = None,
+    active_only: bool = True,
+    limit: int = 10,
+) -> FactSearchResponse | ErrorResponse:
+    """Retrieve a deterministic, exact, group-bound entity neighborhood."""
+    global graphiti_service
+
+    if graphiti_service is None:
+        return ErrorResponse(error='Graphiti service not initialized')
+    if not group_id.strip():
+        return ErrorResponse(error='group_id is required')
+    if limit <= 0 or limit > 50:
+        return ErrorResponse(error='limit must be between 1 and 50')
+
+    try:
+        client = await graphiti_service.get_client()
+        driver = client.driver.clone(database=group_id)
+
+        entity = await EntityNode.get_by_uuid(driver, entity_uuid)
+        if entity.group_id != group_id:
+            return ErrorResponse(error='entity is outside the requested group')
+
+        counterpart = None
+        if counterpart_uuid is not None:
+            counterpart = await EntityNode.get_by_uuid(driver, counterpart_uuid)
+            if counterpart.group_id != group_id:
+                return ErrorResponse(error='counterpart is outside the requested group')
+
+        edges = [
+            normalize_persisted_edge_direction(edge)
+            for edge in await EntityEdge.get_by_node_uuid(driver, entity_uuid)
+        ]
+        if counterpart is not None:
+            expected = {entity_uuid, counterpart.uuid}
+            edges = [
+                edge
+                for edge in edges
+                if {edge.source_node_uuid, edge.target_node_uuid} == expected
+            ]
+
+        edges = filter_neighborhood_edges(
+            edges,
+            group_id=group_id,
+            active_only=active_only,
+            now=datetime.now(timezone.utc),
+            limit=limit,
+        )
+        if not edges:
+            return FactSearchResponse(message='No neighborhood facts found', facts=[])
+
+        endpoint_uuids = list(
+            {
+                uuid
+                for edge in edges
+                for uuid in (edge.source_node_uuid, edge.target_node_uuid)
+            }
+        )
+        nodes = await EntityNode.get_by_uuids(driver, endpoint_uuids)
+        nodes_by_uuid = {node.uuid: node for node in nodes}
+        facts = [format_fact_with_nodes(edge, nodes_by_uuid) for edge in edges]
+        return FactSearchResponse(message='Neighborhood retrieved successfully', facts=facts)
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f'Error retrieving entity neighborhood: {error_msg}')
+        return ErrorResponse(error=f'Error retrieving entity neighborhood: {error_msg}')
+
+
+@mcp.tool()
+async def record_address_term(
+    group_id: str,
+    source_uuid: str,
+    target_uuid: str,
+    term: str,
+    normalized_term: str,
+    run_id: str,
+    episode_uuid: str,
+    reference_time: datetime,
+) -> SuccessResponse | ErrorResponse:
+    """Queue one deterministic address-term observation after its outbound episode."""
+    global graphiti_service, queue_service
+
+    values = (group_id, source_uuid, target_uuid, term, normalized_term, run_id, episode_uuid)
+    if graphiti_service is None or queue_service is None:
+        return ErrorResponse(error='Services not initialized')
+    service = graphiti_service
+    queue = queue_service
+    if any(not value.strip() for value in values):
+        return ErrorResponse(error='all address-term provenance fields are required')
+    if source_uuid == target_uuid:
+        return ErrorResponse(error='source and target must be distinct canonical actors')
+
+    edge_uuid = address_term_edge_uuid(group_id, source_uuid, target_uuid, normalized_term)
+
+    async def process() -> None:
+        client = await service.get_client()
+        driver = client.driver.clone(database=group_id)
+        source = await EntityNode.get_by_uuid(driver, source_uuid)
+        target = await EntityNode.get_by_uuid(driver, target_uuid)
+        if source.group_id != group_id or target.group_id != group_id:
+            raise ValueError('address-term actor is outside the requested group')
+        if not source.attributes.get('stable_id') or not target.attributes.get('stable_id'):
+            raise ValueError('address-term evidence requires canonical actors')
+        if 'Agent' not in source.labels or 'Person' not in target.labels:
+            raise ValueError('address-term evidence requires Agent source and Person target')
+
+        try:
+            existing = await EntityEdge.get_by_uuid(driver, edge_uuid)
+        except EdgeNotFoundError:
+            existing = None
+
+        edge = merge_address_term_observation(
+            existing=existing,
+            group_id=group_id,
+            source_uuid=source_uuid,
+            target_uuid=target_uuid,
+            source_name=source.name,
+            target_name=target.name,
+            term=term,
+            normalized_term=normalized_term,
+            run_id=run_id,
+            episode_uuid=episode_uuid,
+            reference_time=reference_time,
+        )
+        await edge.generate_embedding(client.embedder)
+        await edge.save(driver)
+
+    try:
+        await queue.add_episode_task(group_id, process)
+        return SuccessResponse(
+            message=f'Address-term observation {edge_uuid} queued for group {group_id}'
+        )
+    except Exception as e:
+        error_msg = str(e)
+        logger.error(f'Error queuing address-term observation: {error_msg}')
+        return ErrorResponse(error=f'Error queuing address-term observation: {error_msg}')
 
 
 @mcp.tool()
@@ -734,8 +899,7 @@ async def clear_graph(group_ids: list[str] | None = None) -> SuccessResponse | E
         if not effective_group_ids:
             return ErrorResponse(error='No group IDs specified for clearing')
 
-        # Clear data for the specified group IDs
-        await clear_data(client.driver, group_ids=effective_group_ids)
+        await clear_group_namespaces(client.driver, effective_group_ids)
 
         return SuccessResponse(
             message=f'Graph data cleared successfully for group IDs: {", ".join(effective_group_ids)}'

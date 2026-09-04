@@ -125,6 +125,36 @@ describe("searchAuthorizedMemories", () => {
     expect(results).toHaveLength(5);
   });
 
+  test("omits unsafe legacy Person results before applying the limit", async () => {
+    const searchNodes = vi.fn().mockResolvedValue([
+      {
+        uuid: "legacy-person",
+        name: "Gabriel",
+        summary: "Name-only legacy person",
+        labels: ["Entity", "Person"],
+        group_id: "g1",
+        created_at: "2026-02-01T00:00:00Z",
+      },
+      {
+        uuid: "safe-preference",
+        name: "Shadow of Mordor",
+        summary: "A directly observed preference",
+        labels: ["Entity", "Preference"],
+        group_id: "g1",
+        created_at: "2026-01-01T00:00:00Z",
+      },
+    ]);
+    const graphiti = mockGraphiti({ searchNodes, searchFacts: vi.fn().mockResolvedValue([]) });
+
+    const results = await searchAuthorizedMemories(graphiti, {
+      query: "Gabriel game",
+      groupIds: ["g1"],
+      limit: 1,
+    });
+
+    expect(results.map((result) => result.uuid)).toEqual(["safe-preference"]);
+  });
+
   test("handles partial failures gracefully", async () => {
     const searchNodes = vi.fn()
       .mockResolvedValueOnce([
@@ -249,6 +279,20 @@ describe("formatDualResults", () => {
 
   test("returns empty string when both are empty", () => {
     expect(formatDualResults([], [])).toBe("");
+  });
+
+  test("never formats an unsafe legacy Person result", () => {
+    const legacy: SearchResult = {
+      type: "fact",
+      uuid: "legacy-fact",
+      group_id: "main",
+      summary: "Potentially misattributed fact",
+      context: "Gabriel -> Game",
+      created_at: "2026-01-15",
+      legacyPersonRisk: true,
+    };
+
+    expect(formatDualResults([legacy], [])).toBe("");
   });
 });
 
@@ -413,6 +457,19 @@ describe("searchAuthorizedEpisodeExcerpts", () => {
 });
 
 describe("searchAuthorizedRecall", () => {
+  test("does not fetch raw episodes for immediate conversational intent", async () => {
+    const getEpisodes = vi.fn().mockResolvedValue([]);
+    const graphiti = mockGraphiti({ getEpisodes });
+
+    await searchAuthorizedRecall(graphiti, {
+      query: "como vai hoje?",
+      groupIds: ["wa-chat"],
+      limit: 3,
+    });
+
+    expect(getEpisodes).not.toHaveBeenCalled();
+  });
+
   test("prioritizes a matching raw episode over unrelated semantic results", async () => {
     const graphiti = mockGraphiti({
       getEpisodes: vi.fn().mockResolvedValue([

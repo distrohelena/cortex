@@ -6,6 +6,7 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any
 
+from graphiti_core import Graphiti
 from graphiti_core.utils.maintenance.bound_entities import BoundEntity
 
 logger = logging.getLogger(__name__)
@@ -22,6 +23,9 @@ class QueueService:
         self._queue_workers: dict[str, bool] = {}
         # Store the graphiti client after initialization
         self._graphiti_client: Any = None
+        # Graphiti mutates its driver when add_episode changes databases. Never
+        # share that mutable instance across concurrently processed groups.
+        self._group_clients: dict[str, Graphiti] = {}
 
     async def add_episode_task(
         self, group_id: str, process_func: Callable[[], Awaitable[None]]
@@ -44,6 +48,9 @@ class QueueService:
 
         # Start a worker for this queue if one isn't already running
         if not self._queue_workers.get(group_id, False):
+            # Claim the worker slot synchronously before yielding to the event
+            # loop; concurrent enqueue calls must not each spawn a worker.
+            self._queue_workers[group_id] = True
             asyncio.create_task(self._process_episode_queue(group_id))
 
         return self._episode_queues[group_id].qsize()
@@ -98,7 +105,27 @@ class QueueService:
             graphiti_client: The graphiti client instance to use for processing episodes
         """
         self._graphiti_client = graphiti_client
+        self._group_clients.clear()
         logger.info('Queue service initialized with graphiti client')
+
+    def get_group_client(self, group_id: str) -> Graphiti:
+        """Return an isolated Graphiti instance whose driver is fixed to one group."""
+        if self._graphiti_client is None:
+            raise RuntimeError('Queue service not initialized. Call initialize() first.')
+        existing = self._group_clients.get(group_id)
+        if existing is not None:
+            return existing
+        base = self._graphiti_client
+        client = Graphiti(
+            graph_driver=base.driver.clone(database=group_id),
+            llm_client=base.llm_client,
+            embedder=base.embedder,
+            cross_encoder=base.cross_encoder,
+            store_raw_episode_content=base.store_raw_episode_content,
+            max_coroutines=base.max_coroutines,
+        )
+        self._group_clients[group_id] = client
+        return client
 
     async def add_episode(
         self,
@@ -112,7 +139,9 @@ class QueueService:
         episode_uuid: str | None = None,
         reference_time: datetime | None = None,
         bound_entity: BoundEntity | None = None,
+        bound_entities: list[BoundEntity] | None = None,
         extraction_body: str | None = None,
+        custom_extraction_instructions: str | None = None,
     ) -> int:
         """Add an episode for processing.
 
@@ -132,6 +161,7 @@ class QueueService:
             raise RuntimeError('Queue service not initialized. Call initialize() first.')
 
         identity = episode_uuid or uuid or name
+        group_client = self.get_group_client(group_id)
 
         async def process_episode():
             """Process the episode using the graphiti client."""
@@ -139,7 +169,7 @@ class QueueService:
                 logger.info(f'Processing episode {identity} for group {group_id}')
 
                 # Process the episode using the graphiti client
-                await self._graphiti_client.add_episode(
+                await group_client.add_episode(
                     name=name,
                     episode_body=content,
                     source_description=source_description,
@@ -150,7 +180,9 @@ class QueueService:
                     uuid=uuid,
                     episode_uuid=episode_uuid,
                     bound_entity=bound_entity,
+                    bound_entities=bound_entities,
                     extraction_body=extraction_body,
+                    custom_extraction_instructions=custom_extraction_instructions,
                 )
 
                 logger.info(f'Successfully processed episode {identity} for group {group_id}')

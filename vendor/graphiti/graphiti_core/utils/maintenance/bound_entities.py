@@ -22,7 +22,7 @@ class BoundEntityInvariantError(RuntimeError):
 
 class BoundEntity(BaseModel):
     uuid: str
-    role: Literal['speaker']
+    role: Literal['speaker', 'addressee']
     name: str
     entity_type: str = 'Entity'
     labels: list[str] = Field(default_factory=list)
@@ -34,7 +34,24 @@ class BoundCandidateResult:
     nodes_for_resolution: list[EntityNode]
     nodes_for_edges: list[EntityNode]
     uuid_map: dict[str, str]
-    speaker_candidate_uuids: set[str]
+    bound_candidate_uuids: set[str]
+
+
+def validate_bound_entity_bindings(bindings: list[BoundEntity]) -> None:
+    """Reject structurally ambiguous actor definitions before extraction."""
+    roles: set[str] = set()
+    names: dict[str, str] = {}
+    uuids: dict[str, str] = {}
+    for binding in bindings:
+        if binding.role in roles:
+            raise BoundEntityInvariantError(f'bound actor role {binding.role} is duplicated')
+        roles.add(binding.role)
+        if binding.name in names and names[binding.name] != binding.uuid:
+            raise BoundEntityInvariantError('bound actors share a canonical name')
+        if binding.uuid in uuids and uuids[binding.uuid] != binding.name:
+            raise BoundEntityInvariantError('bound actor UUID has multiple canonical names')
+        names[binding.name] = binding.uuid
+        uuids[binding.uuid] = binding.name
 
 
 def _aliases(attributes: dict[str, Any]) -> list[str]:
@@ -96,31 +113,44 @@ def build_bound_entity_node(
 
 def bind_entity_candidates(
     extracted_nodes: list[EntityNode],
-    bound_node: EntityNode,
+    bound_nodes: list[EntityNode],
 ) -> BoundCandidateResult:
-    """Replace only the explicit canonical speaker marker with the bound UUID.
+    """Replace only explicit canonical actor markers with their bound UUIDs.
 
     Display names and aliases deliberately do not participate. A mentioned
-    person named like the sender therefore remains an ordinary extracted node.
+    person named like a bound actor therefore remains an ordinary extracted node.
     """
+    names_to_nodes: dict[str, EntityNode] = {}
+    uuids_to_names: dict[str, str] = {}
+    for bound_node in bound_nodes:
+        existing_by_name = names_to_nodes.get(bound_node.name)
+        if existing_by_name is not None and existing_by_name.uuid != bound_node.uuid:
+            raise BoundEntityInvariantError('bound actors share a canonical name')
+        existing_name = uuids_to_names.get(bound_node.uuid)
+        if existing_name is not None and existing_name != bound_node.name:
+            raise BoundEntityInvariantError('bound actor UUID has multiple canonical names')
+        names_to_nodes[bound_node.name] = bound_node
+        uuids_to_names[bound_node.uuid] = bound_node.name
+
     nodes_for_resolution: list[EntityNode] = []
-    uuid_map = {bound_node.uuid: bound_node.uuid}
-    speaker_candidates: set[str] = set()
+    uuid_map = {bound_node.uuid: bound_node.uuid for bound_node in bound_nodes}
+    bound_candidates: set[str] = set()
 
     for candidate in extracted_nodes:
-        if candidate.name == bound_node.name:
+        bound_node = names_to_nodes.get(candidate.name)
+        if bound_node is not None:
             if candidate.group_id != bound_node.group_id:
-                raise BoundEntityInvariantError('speaker candidate belongs to another group')
-            speaker_candidates.add(candidate.uuid)
+                raise BoundEntityInvariantError('bound actor candidate belongs to another group')
+            bound_candidates.add(candidate.uuid)
             uuid_map[candidate.uuid] = bound_node.uuid
         else:
             nodes_for_resolution.append(candidate)
 
     return BoundCandidateResult(
         nodes_for_resolution=nodes_for_resolution,
-        nodes_for_edges=[*nodes_for_resolution, bound_node],
+        nodes_for_edges=[*nodes_for_resolution, *bound_nodes],
         uuid_map=uuid_map,
-        speaker_candidate_uuids=speaker_candidates,
+        bound_candidate_uuids=bound_candidates,
     )
 
 
@@ -137,29 +167,39 @@ def normalize_bound_edge_pointers(
 def validate_bound_entity_persistence(
     nodes: list[EntityNode],
     edges: list[EntityEdge],
-    bound_node: EntityNode,
-    speaker_candidate_uuids: set[str],
+    bound_nodes: list[EntityNode],
+    bound_candidate_uuids: set[str],
 ) -> None:
-    """Fail closed if the canonical speaker invariant is not true pre-write."""
-    canonical = [node for node in nodes if node.uuid == bound_node.uuid]
-    if len(canonical) != 1:
-        raise BoundEntityInvariantError('bound speaker must resolve to exactly one canonical entity')
-    if canonical[0].name != bound_node.name or canonical[0].group_id != bound_node.group_id:
-        raise BoundEntityInvariantError('bound speaker canonical identity changed during extraction')
+    """Fail closed if any canonical bound actor invariant is false pre-write."""
+    for bound_node in bound_nodes:
+        canonical = [node for node in nodes if node.uuid == bound_node.uuid]
+        if len(canonical) != 1:
+            raise BoundEntityInvariantError(
+                'bound actor must resolve to exactly one canonical entity'
+            )
+        if canonical[0].name != bound_node.name or canonical[0].group_id != bound_node.group_id:
+            raise BoundEntityInvariantError('bound actor canonical identity changed during extraction')
 
-    conflicting_names = [
-        node.uuid for node in nodes if node.name == bound_node.name and node.uuid != bound_node.uuid
-    ]
-    if conflicting_names:
-        raise BoundEntityInvariantError('another entity retained the bound speaker canonical name')
+        conflicting_names = [
+            node.uuid
+            for node in nodes
+            if node.name == bound_node.name and node.uuid != bound_node.uuid
+        ]
+        if conflicting_names:
+            raise BoundEntityInvariantError('another entity retained a bound actor canonical name')
 
     for edge in edges:
-        if edge.source_node_uuid in speaker_candidate_uuids or edge.target_node_uuid in speaker_candidate_uuids:
-            raise BoundEntityInvariantError('edge still points at an unnormalized speaker candidate')
+        if (
+            edge.source_node_uuid in bound_candidate_uuids
+            or edge.target_node_uuid in bound_candidate_uuids
+        ):
+            raise BoundEntityInvariantError(
+                'edge still points at an unnormalized speaker candidate or other bound actor candidate'
+            )
 
 
-def render_bound_extraction_content(content: str, binding: BoundEntity) -> str:
-    """Render a provider-neutral structural speaker marker for the extractor."""
+def render_bound_extraction_content(content: str, bindings: list[BoundEntity]) -> str:
+    """Render provider-neutral structural actor markers for the extractor."""
     return json.dumps(
         {
             'bound_entities': [
@@ -168,6 +208,7 @@ def render_bound_extraction_content(content: str, binding: BoundEntity) -> str:
                     'canonical_name': binding.name,
                     'entity_type': binding.entity_type,
                 }
+                for binding in bindings
             ],
             'content': content,
         },

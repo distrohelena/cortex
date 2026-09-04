@@ -45,7 +45,22 @@ export type GraphitiFact = {
   target_node_name?: string;
   group_id: string;
   created_at: string;
+  valid_at?: string | null;
+  invalid_at?: string | null;
+  expired_at?: string | null;
+  episodes?: string[];
+  attributes?: Record<string, unknown>;
+  source_node?: GraphitiFactNode;
+  target_node?: GraphitiFactNode;
   [key: string]: unknown;
+};
+
+export type GraphitiFactNode = {
+  uuid: string;
+  name?: string;
+  labels?: string[];
+  stable_id?: string | null;
+  canonical: boolean;
 };
 
 export type AddEpisodeResult = {
@@ -56,7 +71,7 @@ export type AddEpisodeResult = {
 
 export type BoundEntityInput = {
   uuid: string;
-  role: "speaker";
+  role: "speaker" | "addressee";
   name: string;
   entity_type: string;
   labels: string[];
@@ -209,6 +224,11 @@ export class GraphitiClient {
       throw new Error(`Graphiti tool ${name} failed: ${json.error.message}`);
     }
 
+    const returnedError = extractToolError(json.result);
+    if (returnedError) {
+      throw new Error(`Graphiti tool ${name} failed: ${returnedError}`);
+    }
+
     return json.result;
   }
 
@@ -293,13 +313,7 @@ export class GraphitiClient {
     source_description?: string;
     group_id?: string;
     source?: string;
-    /**
-     * Custom extraction instructions for Graphiti's LLM entity extraction.
-     * The MCP server doesn't expose this parameter, so we prepend the
-     * instructions to episode_body with clear delimiters. Graphiti's
-     * extraction prompts include the full episode content, so the LLM
-     * will see these instructions inline alongside the actual content.
-     */
+    /** Custom extraction instructions forwarded separately from raw provenance. */
     custom_extraction_instructions?: string;
     /** Stable UUID for a newly-created idempotent episode. */
     episode_uuid?: string;
@@ -307,6 +321,8 @@ export class GraphitiClient {
     reference_time?: string;
     /** Provider-neutral canonical entity structurally bound to this episode. */
     bound_entity?: BoundEntityInput;
+    /** Provider-neutral canonical actors structurally bound to this episode. */
+    bound_entities?: BoundEntityInput[];
     /** Message-only content used for extraction while episode_body remains raw provenance. */
     extraction_body?: string;
     /** @deprecated The MCP server's uuid param is for re-processing existing episodes */
@@ -317,18 +333,9 @@ export class GraphitiClient {
     // a client-side tracking UUID instead (it won't match the server-side UUID).
     const trackingUuid = params.episode_uuid ?? `tmp-${randomUUID()}`;
 
-    // Prepend custom extraction instructions to episode_body since the MCP
-    // server doesn't support custom_extraction_instructions as a parameter.
-    // The extraction LLM sees the full episode content, so inline instructions work.
-    let effectiveBody = params.episode_body;
-    if (params.custom_extraction_instructions) {
-      effectiveBody =
-        `[Extraction Instructions]\n${params.custom_extraction_instructions}\n[End Instructions]\n\n${params.episode_body}`;
-    }
-
     const args: Record<string, unknown> = {
       name: params.name,
-      episode_body: effectiveBody,
+      episode_body: params.episode_body,
     };
     if (params.group_id) {
       args.group_id = params.group_id;
@@ -342,7 +349,11 @@ export class GraphitiClient {
     if (params.episode_uuid) args.episode_uuid = params.episode_uuid;
     if (params.reference_time) args.reference_time = params.reference_time;
     if (params.bound_entity) args.bound_entity = params.bound_entity;
+    if (params.bound_entities) args.bound_entities = params.bound_entities;
     if (params.extraction_body !== undefined) args.extraction_body = params.extraction_body;
+    if (params.custom_extraction_instructions) {
+      args.custom_extraction_instructions = params.custom_extraction_instructions;
+    }
 
     await this.callTool("add_memory", args);
 
@@ -429,6 +440,7 @@ export class GraphitiClient {
     group_ids?: string[];
     limit?: number;
     center_node_uuid?: string;
+    active_only?: boolean;
     /** @deprecated No longer supported by the Graphiti MCP server */
     created_after?: string;
   }): Promise<GraphitiFact[]> {
@@ -445,9 +457,41 @@ export class GraphitiClient {
     if (params.center_node_uuid) {
       args.center_node_uuid = params.center_node_uuid;
     }
+    args.active_only = params.active_only ?? true;
 
     const result = await this.callTool("search_memory_facts", args);
     return parseToolResult<GraphitiFact[]>(result, "facts");
+  }
+
+  async getEntityNeighborhood(params: {
+    group_id: string;
+    entity_uuid: string;
+    counterpart_uuid?: string;
+    active_only?: boolean;
+    limit?: number;
+  }): Promise<GraphitiFact[]> {
+    const args: Record<string, unknown> = {
+      group_id: params.group_id,
+      entity_uuid: params.entity_uuid,
+      active_only: params.active_only ?? true,
+      limit: params.limit ?? 10,
+    };
+    if (params.counterpart_uuid) args.counterpart_uuid = params.counterpart_uuid;
+    const result = await this.callTool("get_entity_neighborhood", args);
+    return parseToolResult<GraphitiFact[]>(result, "facts");
+  }
+
+  async recordAddressTerm(params: {
+    group_id: string;
+    source_uuid: string;
+    target_uuid: string;
+    term: string;
+    normalized_term: string;
+    run_id: string;
+    episode_uuid: string;
+    reference_time: string;
+  }): Promise<void> {
+    await this.callTool("record_address_term", params);
   }
 
   // --------------------------------------------------------------------------
@@ -506,4 +550,19 @@ function parseJsonResult<T>(result: unknown): T {
     }
   }
   return result as T;
+}
+
+function extractToolError(result: unknown): string | undefined {
+  try {
+    const parsed = parseJsonResult<Record<string, unknown>>(result);
+    if (parsed && typeof parsed === "object" && typeof parsed.error === "string") {
+      return parsed.error;
+    }
+  } catch {
+    // Non-JSON tool text is handled by the individual parser.
+  }
+  if (result && typeof result === "object" && (result as Record<string, unknown>).isError === true) {
+    return "MCP tool returned an error";
+  }
+  return undefined;
 }

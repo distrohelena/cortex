@@ -37,7 +37,23 @@ import {
   deduplicateSessionResults,
 } from "./search.js";
 import { registerCommands } from "./cli.js";
-import { buildPassiveCapture } from "./passive-capture.js";
+import {
+  buildPassiveCapture,
+  normalizeWhatsAppSenderId,
+  participantUuid,
+} from "./passive-capture.js";
+import { buildOutboundCapture, filomenaUuid } from "./outbound-capture.js";
+import { TurnCorrelationRegistry } from "./turn-correlation.js";
+import { extractAddressTerm, normalizeAddressTerm } from "./social-evidence.js";
+import { buildSocialMemoryContext } from "./social-recall.js";
+
+const SOCIAL_EXTRACTION_INSTRUCTIONS = [
+  "Extract only concrete, directly evidenced social observations.",
+  "Allowed: explicit preferences, events, corrections, actual teasing or reactions, requested boundaries, and explicitly shared information.",
+  "Do not infer trust, intimacy, submission, attraction, personality, psychological state, sexual preferences, sensitive attributes, or repeated-behavior generalizations.",
+  "A single observed reaction must remain a single observed reaction.",
+  "Explicit boundaries remain factual unless an explicit reversal is observed.",
+].join(" ");
 
 // ============================================================================
 // Session helpers
@@ -131,6 +147,29 @@ const memoryGraphitiPlugin = {
       );
     }
     const spicedb = new SpiceDbClient(cfg.spicedb);
+    const turnCorrelations = new TurnCorrelationRegistry();
+    const capturedEpisodes = new Map<string, Promise<void>>();
+
+    const captureEpisodeOnce = async (episodeUuid: string, operation: () => Promise<void>) => {
+      const existing = capturedEpisodes.get(episodeUuid);
+      if (existing) {
+        await existing;
+        return;
+      }
+      const pending = operation();
+      capturedEpisodes.set(episodeUuid, pending);
+      try {
+        await pending;
+        while (capturedEpisodes.size > 4096) {
+          const oldest = capturedEpisodes.keys().next().value as string | undefined;
+          if (!oldest) break;
+          capturedEpisodes.delete(oldest);
+        }
+      } catch (error) {
+        capturedEpisodes.delete(episodeUuid);
+        throw error;
+      }
+    };
 
     // Catch unhandled rejections from @grpc/grpc-js internals during initial
     // connection setup. The gRPC load balancer state machine can emit promise
@@ -575,8 +614,20 @@ const memoryGraphitiPlugin = {
             if (!await canAccessGroup(spicedb, currentSubject, groupId, lastWriteToken)) return;
           }
 
-          // Dual search: long-term + session in parallel
-          const [longTermResults, rawSessionResults] = await Promise.all([
+          const channelSender = (ctx?.channelContext as {
+            sender?: { id?: string | null; e164?: string | null; name?: string | null; username?: string | null };
+          } | undefined)?.sender;
+          const rawSenderId = channelSender?.id ?? ctx?.senderId;
+          const normalizedSender = typeof rawSenderId === "string"
+            ? normalizeWhatsAppSenderId(rawSenderId, channelSender?.e164 ?? undefined)
+            : undefined;
+          const canonicalParticipantUuid = normalizedSender
+            ? participantUuid(persistentGroupId, normalizedSender.canonicalId)
+            : undefined;
+          const canonicalFilomenaUuid = filomenaUuid(persistentGroupId);
+
+          // Exact social neighborhood and semantic retrieval are independent and bounded.
+          const [longTermResults, rawSessionResults, participantFacts, relationshipFacts] = await Promise.all([
             longTermGroups.length > 0
               ? searchAuthorizedRecall(graphiti, {
                   query: recallQuery,
@@ -591,11 +642,31 @@ const memoryGraphitiPlugin = {
                   limit: 3,
                 })
               : Promise.resolve([]),
+            canonicalParticipantUuid
+              ? graphiti.getEntityNeighborhood({
+                  group_id: persistentGroupId,
+                  entity_uuid: canonicalParticipantUuid,
+                  active_only: true,
+                  limit: 12,
+                }).catch(() => [])
+              : Promise.resolve([]),
+            canonicalParticipantUuid
+              ? graphiti.getEntityNeighborhood({
+                  group_id: persistentGroupId,
+                  entity_uuid: canonicalParticipantUuid,
+                  counterpart_uuid: canonicalFilomenaUuid,
+                  active_only: true,
+                  limit: 8,
+                }).catch(() => [])
+              : Promise.resolve([]),
           ]);
 
           const sessionResults = deduplicateSessionResults(longTermResults, rawSessionResults);
 
-          const totalCount = longTermResults.length + sessionResults.length;
+          const exactFacts = [...participantFacts, ...relationshipFacts].filter(
+            (fact, index, facts) => facts.findIndex((candidate) => candidate.uuid === fact.uuid) === index,
+          );
+          const totalCount = longTermResults.length + sessionResults.length + exactFacts.length;
 
           const toolHint =
             "<memory-tools>\n" +
@@ -610,7 +681,21 @@ const memoryGraphitiPlugin = {
             return { prependContext: toolHint };
           }
 
-          const memoryContext = formatDualResults(longTermResults, sessionResults);
+          const semanticMemories = [...longTermResults, ...sessionResults];
+          const memoryContext = canonicalParticipantUuid
+            ? buildSocialMemoryContext({
+                participantName: channelSender?.name ?? channelSender?.username ?? "Current participant",
+                participantUuid: canonicalParticipantUuid,
+                filomenaUuid: canonicalFilomenaUuid,
+                exactFacts,
+                semanticMemories,
+                maxChars: 1500,
+              })
+            : semanticMemories
+                .filter((memory) => !memory.legacyPersonRisk)
+                .map((memory) => `- ${memory.summary}`)
+                .join("\n")
+                .slice(0, 1500);
           api.logger.info?.(
             `openclaw-memory-graphiti: injecting ${totalCount} memories (${longTermResults.length} long-term, ${sessionResults.length} session)`,
           );
@@ -625,6 +710,35 @@ const memoryGraphitiPlugin = {
     }
 
     if (cfg.autoCapture) {
+      api.on("reply_dispatch", async (event) => {
+        const record = event as unknown as {
+          runId?: string;
+          ctx: {
+            Provider?: string;
+            Surface?: string;
+            OriginatingChannel?: string;
+            OriginatingTo?: string;
+            To?: string;
+            From?: string;
+            MessageSidFull?: string;
+            MessageSid?: string;
+            MessageSidFirst?: string;
+            MessageSidLast?: string;
+            SenderId?: string;
+            SenderE164?: string;
+            SenderName?: string;
+            SenderUsername?: string;
+          };
+        };
+        const targetGroupId = resolvePersistentGroupId({
+          channel: record.ctx.OriginatingChannel ?? record.ctx.Surface ?? record.ctx.Provider,
+          conversationId: record.ctx.OriginatingTo ?? record.ctx.To ?? record.ctx.From,
+        });
+        if (targetGroupId) {
+          turnCorrelations.observeReplyDispatch({ groupId: targetGroupId, event: record });
+        }
+      });
+
       api.on("message_received", async (event, ctx) => {
         try {
           const targetGroupId = resolvePersistentGroupId({
@@ -656,39 +770,120 @@ const memoryGraphitiPlugin = {
             return;
           }
 
-          const result = await graphiti.addEpisode({
-            name: capture.episodeName,
-            episode_body: capture.episodeBody,
-            source_description: "OpenClaw inbound WhatsApp message",
-            group_id: targetGroupId,
-            source: "json",
-            episode_uuid: capture.episodeUuid,
-            reference_time: capture.referenceTime,
-            bound_entity: capture.boundEntity,
-            extraction_body: capture.extractionBody,
-          });
-
-          // SpiceDB writes use the real UUID once Graphiti finishes processing
-          result.resolvedUuid
-            .then(async (realUuid) => {
-              const writeToken = await writeFragmentRelationships(spicedb, {
-                fragmentId: realUuid,
-                groupId: targetGroupId,
-                sharedBy: currentSubject,
-              });
-              if (writeToken) lastWriteToken = writeToken;
-            })
-            .catch((err) => {
-              api.logger.warn(
-                `openclaw-memory-graphiti: deferred SpiceDB write (auto-capture) failed: ${err}`,
-              );
+          await captureEpisodeOnce(capture.episodeUuid, async () => {
+            const result = await graphiti.addEpisode({
+              name: capture.episodeName,
+              episode_body: capture.episodeBody,
+              source_description: "OpenClaw inbound WhatsApp message",
+              group_id: targetGroupId,
+              source: "json",
+              episode_uuid: capture.episodeUuid,
+              reference_time: capture.referenceTime,
+              bound_entities: [capture.boundEntity],
+              extraction_body: capture.extractionBody,
+              custom_extraction_instructions: SOCIAL_EXTRACTION_INSTRUCTIONS,
             });
+
+            result.resolvedUuid
+              .then(async (realUuid) => {
+                const writeToken = await writeFragmentRelationships(spicedb, {
+                  fragmentId: realUuid,
+                  groupId: targetGroupId,
+                  sharedBy: currentSubject,
+                });
+                if (writeToken) lastWriteToken = writeToken;
+              })
+              .catch((err) => {
+                api.logger.warn(
+                  `openclaw-memory-graphiti: deferred SpiceDB write (auto-capture) failed: ${err}`,
+                );
+              });
+          });
 
           api.logger.info(
             `openclaw-memory-graphiti: passively captured provider message ${capture.providerMessageId} to ${targetGroupId}`,
           );
         } catch (err) {
           api.logger.warn(`openclaw-memory-graphiti: passive capture failed: ${String(err)}`);
+        }
+      });
+
+      api.on("message_sent", async (event, ctx) => {
+        try {
+          const outboundConversation = ctx.conversationId ?? event.to;
+          const targetGroupId = resolvePersistentGroupId({
+            channel: ctx.channelId,
+            conversationId: outboundConversation,
+          });
+          if (!targetGroupId) return;
+
+          const correlation = outboundConversation
+            ? turnCorrelations.get(event.runId, targetGroupId, outboundConversation)
+            : undefined;
+          const capture = buildOutboundCapture({
+            event,
+            context: ctx,
+            groupId: targetGroupId,
+            correlation,
+          });
+          if (!capture) return;
+
+          const token = await ensureGroupMembership(spicedb, targetGroupId, currentSubject);
+          if (token) lastWriteToken = token;
+          if (!await canWriteToGroup(spicedb, currentSubject, targetGroupId, lastWriteToken)) {
+            api.logger.warn(`openclaw-memory-graphiti: outbound capture denied for group ${targetGroupId}`);
+            return;
+          }
+
+          await captureEpisodeOnce(capture.episodeUuid, async () => {
+            const result = await graphiti.addEpisode({
+              name: capture.episodeName,
+              episode_body: capture.episodeBody,
+              source_description: "OpenClaw outbound WhatsApp message",
+              group_id: targetGroupId,
+              source: "json",
+              episode_uuid: capture.episodeUuid,
+              reference_time: capture.referenceTime,
+              bound_entities: capture.boundEntities,
+              extraction_body: capture.extractionBody,
+              custom_extraction_instructions: SOCIAL_EXTRACTION_INSTRUCTIONS,
+            });
+
+            const addressTerm = correlation ? extractAddressTerm(event.content ?? "") : undefined;
+            if (addressTerm && event.runId && capture.boundEntities[1]) {
+              await graphiti.recordAddressTerm({
+                group_id: targetGroupId,
+                source_uuid: capture.boundEntities[0].uuid,
+                target_uuid: capture.boundEntities[1].uuid,
+                term: addressTerm,
+                normalized_term: normalizeAddressTerm(addressTerm),
+                run_id: event.runId,
+                episode_uuid: capture.episodeUuid,
+                reference_time: capture.referenceTime,
+              });
+            }
+
+            result.resolvedUuid
+              .then(async (realUuid) => {
+                const writeToken = await writeFragmentRelationships(spicedb, {
+                  fragmentId: realUuid,
+                  groupId: targetGroupId,
+                  sharedBy: currentSubject,
+                });
+                if (writeToken) lastWriteToken = writeToken;
+              })
+              .catch((err) => {
+                api.logger.warn(
+                  `openclaw-memory-graphiti: deferred SpiceDB write (outbound capture) failed: ${err}`,
+                );
+              });
+          });
+
+          api.logger.info(
+            `openclaw-memory-graphiti: captured outbound provider message ${capture.providerMessageId} to ${targetGroupId}`,
+          );
+        } catch (err) {
+          api.logger.warn(`openclaw-memory-graphiti: outbound capture failed: ${String(err)}`);
         }
       });
     }

@@ -24,6 +24,8 @@ export type SearchResult = {
   /** Additional context: entity names for facts, node name for nodes */
   context: string;
   created_at: string;
+  /** True when legacy name-only Person nodes make attribution unsafe. */
+  legacyPersonRisk?: boolean;
 };
 
 export type EpisodeSearchOptions = {
@@ -111,14 +113,19 @@ export async function searchAuthorizedMemories(
     return true;
   });
 
+  // A name-only legacy Person cannot be attributed to the current canonical
+  // participant safely. Quarantine it before sorting/limiting so it neither
+  // reaches the prompt nor crowds out safe semantic results.
+  const safeResults = deduped.filter((result) => result.legacyPersonRisk !== true);
+
   // Sort by recency (most recent first) and trim to limit
-  deduped.sort((a, b) => {
+  safeResults.sort((a, b) => {
     const dateA = new Date(a.created_at).getTime();
     const dateB = new Date(b.created_at).getTime();
     return dateB - dateA;
   });
 
-  return deduped.slice(0, limit);
+  return safeResults.slice(0, limit);
 }
 
 const QUERY_STOP_WORDS = new Set([
@@ -310,12 +317,17 @@ export async function searchAuthorizedRecall(
   options: SearchOptions,
 ): Promise<SearchResult[]> {
   const limit = options.limit ?? 10;
+  const needsRawHistory = /\b(lembra|recorda|quando|aconteceu|disse|falou|fechou|zerou|come[cç]ou|ontem|hist[oó]rico|contexto anterior|remember|previously)\b/iu.test(
+    options.query,
+  );
   const [episodeResults, semanticResults] = await Promise.all([
-    searchAuthorizedEpisodeExcerpts(graphiti, {
-      query: options.query,
-      groupIds: options.groupIds,
-      limit: Math.min(limit, 3),
-    }),
+    needsRawHistory
+      ? searchAuthorizedEpisodeExcerpts(graphiti, {
+          query: options.query,
+          groupIds: options.groupIds,
+          limit: Math.min(limit, 3),
+        })
+      : Promise.resolve([]),
     searchAuthorizedMemories(graphiti, options),
   ]);
   const seen = new Set<string>();
@@ -364,6 +376,7 @@ function nodeToResult(node: GraphitiNode): SearchResult {
     summary: node.summary ?? node.name,
     context: node.name,
     created_at: node.created_at ?? new Date().toISOString(),
+    legacyPersonRisk: node.labels?.includes("Person") === true && !node.attributes?.stable_id,
   };
 }
 
@@ -380,6 +393,9 @@ function factToResult(fact: GraphitiFact): SearchResult {
     summary: fact.fact,
     context,
     created_at: fact.created_at,
+    legacyPersonRisk: [fact.source_node, fact.target_node].some(
+      (node) => node?.labels?.includes("Person") && node.canonical !== true,
+    ),
   };
 }
 
@@ -391,11 +407,12 @@ function factToResult(fact: GraphitiFact): SearchResult {
  * Format search results into a text block suitable for injecting into agent context.
  */
 export function formatResultsForContext(results: SearchResult[]): string {
-  if (results.length === 0) {
+  const safeResults = results.filter((result) => result.legacyPersonRisk !== true);
+  if (safeResults.length === 0) {
     return "";
   }
 
-  return results.map((r, i) => formatResultLine(r, i + 1)).join("\n");
+  return safeResults.map((r, i) => formatResultLine(r, i + 1)).join("\n");
 }
 
 /**
@@ -408,16 +425,18 @@ export function formatDualResults(
 ): string {
   const parts: string[] = [];
   let idx = 1;
+  const safeLongTermResults = longTermResults.filter((result) => result.legacyPersonRisk !== true);
+  const safeSessionResults = sessionResults.filter((result) => result.legacyPersonRisk !== true);
 
-  if (longTermResults.length > 0) {
-    for (const r of longTermResults) {
+  if (safeLongTermResults.length > 0) {
+    for (const r of safeLongTermResults) {
       parts.push(formatResultLine(r, idx++));
     }
   }
 
-  if (sessionResults.length > 0) {
+  if (safeSessionResults.length > 0) {
     parts.push("Session memories:");
-    for (const r of sessionResults) {
+    for (const r of safeSessionResults) {
       parts.push(formatResultLine(r, idx++));
     }
   }

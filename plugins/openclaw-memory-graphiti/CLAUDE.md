@@ -130,7 +130,7 @@ The `GraphitiClient` speaks MCP Streamable HTTP transport: JSON-RPC 2.0 requests
 - SSE response parsing (extracts `data:` lines)
 - Content block unwrapping (MCP tool results are wrapped in `{ content: [{ type: "text", text: "..." }] }`)
 
-Custom extraction instructions are prepended to `episode_body` with `[Extraction Instructions]`/`[End Instructions]` delimiters since the Graphiti MCP server doesn't expose a `custom_extraction_instructions` parameter.
+Custom extraction instructions are forwarded through the Graphiti MCP server's `custom_extraction_instructions` parameter. They are never inserted into `episode_body`, so the stored raw episode remains exactly as observed.
 
 ## Testing
 

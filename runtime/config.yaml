@@ -39,6 +39,8 @@ graphiti:
   episode_id_prefix: "wa-"
   user_id: "openclaw-main"
   entity_types:
+    - name: "Agent"
+      description: "A canonical assistant actor whose messages were actually sent"
     - name: "Person"
       description: "A WhatsApp participant or other person mentioned in the chat"
     - name: "Group"

@@ -88,6 +88,7 @@ from graphiti_core.utils.maintenance.bound_entities import (
     build_bound_entity_node,
     normalize_bound_edge_pointers,
     render_bound_extraction_content,
+    validate_bound_entity_bindings,
     validate_bound_entity_persistence,
 )
 from graphiti_core.utils.maintenance.community_operations import (
@@ -818,6 +819,7 @@ class Graphiti:
         saga: str | SagaNode | None = None,
         saga_previous_episode_uuid: str | None = None,
         bound_entity: BoundEntity | None = None,
+        bound_entities: list[BoundEntity] | None = None,
         extraction_body: str | None = None,
     ) -> AddEpisodeResults:
         """
@@ -961,27 +963,37 @@ class Graphiti:
                 if episode is None:
                     raise NodeNotFoundError(uuid or episode_uuid or name)
 
-                bound_node: EntityNode | None = None
+                if bound_entity is not None and bound_entities is not None:
+                    raise BoundEntityInvariantError(
+                        'bound_entity and bound_entities are mutually exclusive'
+                    )
+                bindings = bound_entities or ([bound_entity] if bound_entity is not None else [])
+                validate_bound_entity_bindings(bindings)
+
+                bound_nodes: list[EntityNode] = []
                 bound_candidates = None
                 extraction_episode = episode
-                if bound_entity is not None:
-                    try:
-                        existing_bound_node = await EntityNode.get_by_uuid(
-                            self.driver, bound_entity.uuid
+                if bindings:
+                    for binding in bindings:
+                        try:
+                            existing_bound_node = await EntityNode.get_by_uuid(
+                                self.driver, binding.uuid
+                            )
+                        except NodeNotFoundError:
+                            existing_bound_node = None
+                        bound_nodes.append(
+                            build_bound_entity_node(
+                                binding,
+                                group_id,
+                                now,
+                                existing=existing_bound_node,
+                            )
                         )
-                    except NodeNotFoundError:
-                        existing_bound_node = None
-                    bound_node = build_bound_entity_node(
-                        bound_entity,
-                        group_id,
-                        now,
-                        existing=existing_bound_node,
-                    )
                     extraction_episode = episode.model_copy(
                         update={
                             'content': render_bound_extraction_content(
                                 extraction_body if extraction_body is not None else episode_body,
-                                bound_entity,
+                                bindings,
                             )
                         }
                     )
@@ -1004,8 +1016,8 @@ class Graphiti:
                 )
 
                 nodes_for_edges = extracted_nodes
-                if bound_node is not None:
-                    bound_candidates = bind_entity_candidates(extracted_nodes, bound_node)
+                if bound_nodes:
+                    bound_candidates = bind_entity_candidates(extracted_nodes, bound_nodes)
                     nodes_for_resolution = bound_candidates.nodes_for_resolution
                     if nodes_for_resolution:
                         nodes, uuid_map, _ = await resolve_extracted_nodes(
@@ -1018,7 +1030,7 @@ class Graphiti:
                     else:
                         nodes, uuid_map = [], {}
                     uuid_map.update(bound_candidates.uuid_map)
-                    nodes.append(bound_node)
+                    nodes.extend(bound_nodes)
                     nodes_for_edges = bound_candidates.nodes_for_edges
                 else:
                     nodes, uuid_map, _ = await resolve_extracted_nodes(
@@ -1049,12 +1061,12 @@ class Graphiti:
 
                 entity_edges = resolved_edges + invalidated_edges
 
-                if bound_node is not None and bound_candidates is not None:
+                if bound_nodes and bound_candidates is not None:
                     validate_bound_entity_persistence(
                         nodes,
                         entity_edges,
-                        bound_node,
-                        bound_candidates.speaker_candidate_uuids,
+                        bound_nodes,
+                        bound_candidates.bound_candidate_uuids,
                     )
 
                 # Extract node attributes - only pass new edges for summary generation
@@ -1068,13 +1080,15 @@ class Graphiti:
                     edges=new_edges,
                 )
 
-                if bound_node is not None:
+                if bound_nodes:
+                    bound_nodes_by_uuid = {node.uuid: node for node in bound_nodes}
                     for hydrated_node in hydrated_nodes:
-                        if hydrated_node.uuid == bound_node.uuid:
-                            hydrated_node.name = bound_node.name
-                            hydrated_node.group_id = bound_node.group_id
-                            hydrated_node.labels = bound_node.labels
-                            hydrated_node.attributes.update(bound_node.attributes)
+                        canonical_bound_node = bound_nodes_by_uuid.get(hydrated_node.uuid)
+                        if canonical_bound_node is not None:
+                            hydrated_node.name = canonical_bound_node.name
+                            hydrated_node.group_id = canonical_bound_node.group_id
+                            hydrated_node.labels = canonical_bound_node.labels
+                            hydrated_node.attributes.update(canonical_bound_node.attributes)
 
                 # Process and save episode data (including saga association if provided)
                 episodic_edges, episode = await self._process_episode_data(

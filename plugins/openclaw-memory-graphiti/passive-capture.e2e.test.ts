@@ -36,7 +36,7 @@ live("passive capture MCP contract", () => {
       group_id: groupId,
       episode_uuid: episodeUuid,
       reference_time: "2026-09-04T10:34:56.000Z",
-      bound_entity: {
+      bound_entities: [{
         uuid: participantUuid,
         role: "speaker" as const,
         name: "whatsapp:5511999999999@s.whatsapp.net",
@@ -47,7 +47,7 @@ live("passive capture MCP contract", () => {
           display_name_current: "Gabriel",
           aliases: ["Gabriel"],
         },
-      },
+      }],
     };
 
     await Promise.all([client.addEpisode(request), client.addEpisode(request)]);
