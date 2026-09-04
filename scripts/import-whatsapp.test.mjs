@@ -30,4 +30,3 @@ describe("WhatsApp importer target identity", () => {
     assert.equal(resolveTargetGroupId(first), resolveTargetGroupId(second));
   });
 });
-

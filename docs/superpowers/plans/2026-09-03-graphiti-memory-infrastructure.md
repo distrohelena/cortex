@@ -169,4 +169,3 @@ Commit all source, tests, documentation, and versioned configuration on
 `main`. Fetch the local implementation repository from `C:\dev\filomena` and
 fast-forward its `main`. Confirm both checkouts report the same commit and a
 clean status. Do not push remotely.
-

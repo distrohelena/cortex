@@ -50,4 +50,3 @@ export function canonicalConversationGroupId(input) {
 
   return `${normalizeSegment(channel, "channel")}-${kind}-${normalizeSegment(normalizedConversation, "conversation ID")}`;
 }
-

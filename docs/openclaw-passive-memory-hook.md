@@ -54,4 +54,3 @@ passive observation and cannot cause Filomena to reply.
 `message_sent` may later capture successful Filomena output if bot-authored
 history proves useful, but it is not required for remembering group events and
 is intentionally outside this change.
-

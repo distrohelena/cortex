@@ -18,4 +18,3 @@ export function conversationIdentityFromSessionKey(
 ): ConversationIdentity | null;
 
 export function canonicalConversationGroupId(input: ConversationNamespaceInput): string;
-
