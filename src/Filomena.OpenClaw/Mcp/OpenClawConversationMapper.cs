@@ -184,6 +184,7 @@ public static class OpenClawConversationMapper
     private static long? Int64(JsonElement value, string propertyName) =>
         value.ValueKind == JsonValueKind.Object &&
         value.TryGetProperty(propertyName, out var property) &&
+        property.ValueKind == JsonValueKind.Number &&
         property.TryGetInt64(out var result)
             ? result
             : null;
@@ -191,6 +192,7 @@ public static class OpenClawConversationMapper
     private static int? Int32(JsonElement value, string propertyName) =>
         value.ValueKind == JsonValueKind.Object &&
         value.TryGetProperty(propertyName, out var property) &&
+        property.ValueKind == JsonValueKind.Number &&
         property.TryGetInt32(out var result)
             ? result
             : null;

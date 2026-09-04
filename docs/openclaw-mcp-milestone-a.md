@@ -95,21 +95,26 @@ The diagnostic payload is recursively bounded and redacts credential-shaped prop
 
 ## Live probe status
 
-The runtime attempt on 2026-09-04 successfully launched the MCP stdio child, then stopped before MCP initialization because the user-managed Gateway was not listening:
+After Helena started the user-managed Gateway, the runtime probe connected to OpenClaw `2026.8.1`, received the MCP capability advertisement, and listed all nine installed tools with schemas matching the source inspection above.
 
-```text
-connect ECONNREFUSED 127.0.0.1:18789
-```
+The conversation inventory discovered:
 
-`openclaw.cmd gateway status --deep --require-rpc` independently confirmed that `ws://127.0.0.1:18789` was unreachable. No Gateway was started or stopped by this work.
+| Conversation | Native ID | Namespace |
+| --- | --- | --- |
+| `(tri)PLEX do Lula requests` | `120363318973251043@g.us` | `whatsapp-group-120363318973251043-g-us` |
+| `Alunos de Drift do Fiuk™` | `5511981042361-1589823314@g.us` | `whatsapp-group-5511981042361-1589823314-g-us` |
 
-Consequently, these live milestone items remain pending:
+The Helena DM route `5511944558218@s.whatsapp.net` was not present in `conversations_list`; a new inbound DM is needed for OpenClaw to materialize or refresh that session route.
 
-- runtime tool-list response;
-- discovery of Alunos de Drift, `(tri)PLEX`, and Helena DM through MCP;
-- one real inbound event and its actual sender/reply metadata.
+An inbound event reached `events_wait`, but its conversation descriptor contained `updatedAt: null`. The first probe build incorrectly called `TryGetInt64` on that JSON null and failed before printing the sanitized event. A regression test now covers explicit null values in `updatedAt`, `messageSeq`, and provider timestamps, and the numeric mapper accepts only actual JSON numbers.
 
-When Helena has started the Gateway in her own terminal, run from `C:\dev\filomena`:
+Still pending after rebuilding the probe:
+
+- one successfully printed real inbound event;
+- inspection of its actual sender ID, timestamp, and reply provenance;
+- discovery of the Helena DM route.
+
+Stop the old probe with `Ctrl+C`, then run from `C:\dev\filomena`:
 
 ```powershell
 dotnet run --project src\Filomena.App\Filomena.App.csproj --no-build -- --Probe:Mode=milestone-a --Probe:WaitTimeoutSeconds=300

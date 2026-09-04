@@ -121,4 +121,35 @@ public sealed class OpenClawConversationMapperTests
 
         Assert.Null(OpenClawConversationMapper.MapInboundEvent(document.RootElement));
     }
+
+    [Fact]
+    public void EventAcceptsExplicitNullForOptionalNumericFields()
+    {
+        using var document = JsonDocument.Parse("""
+            {
+              "cursor": 44,
+              "type": "message",
+              "sessionKey": "agent:main:whatsapp:group:5511981042361-1589823314@g.us",
+              "conversation": {
+                "sessionKey": "agent:main:whatsapp:group:5511981042361-1589823314@g.us",
+                "channel": "whatsapp",
+                "to": "5511981042361-1589823314@g.us",
+                "accountId": "default",
+                "updatedAt": null
+              },
+              "messageId": "3EB0NULLS",
+              "messageSeq": null,
+              "role": "user",
+              "text": "payload real permite null",
+              "raw": { "message": { "role": "user", "timestamp": null } }
+            }
+            """);
+
+        var message = OpenClawConversationMapper.MapInboundEvent(document.RootElement);
+
+        Assert.NotNull(message);
+        Assert.Null(message.Conversation?.UpdatedAt);
+        Assert.Null(message.MessageSequence);
+        Assert.Null(message.Timestamp);
+    }
 }
