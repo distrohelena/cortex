@@ -1,0 +1,7 @@
+<Solution>
+  <Project Path="src/Filomena.App/Filomena.App.csproj" />
+  <Project Path="src/Filomena.Core/Filomena.Core.csproj" />
+  <Project Path="src/Filomena.OpenClaw/Filomena.OpenClaw.csproj" />
+  <Project Path="tests/Filomena.Core.Tests/Filomena.Core.Tests.csproj" />
+  <Project Path="tests/Filomena.OpenClaw.Tests/Filomena.OpenClaw.Tests.csproj" />
+</Solution>

@@ -31,6 +31,8 @@ backups/
 **/coverage/
 **/dist/
 **/build/
+**/bin/
+**/obj/
 
 # Local work areas
 .worktrees/
