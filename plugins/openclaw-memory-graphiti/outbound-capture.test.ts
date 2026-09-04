@@ -1,6 +1,7 @@
 import { describe, expect, test } from "vitest";
 
 import { buildOutboundCapture, filomenaUuid } from "./outbound-capture.js";
+import { participantUuid } from "./passive-capture.js";
 import { TurnCorrelationRegistry } from "./turn-correlation.js";
 
 const GROUP_ID = "whatsapp-group-5511981042361-1589823314-g-us";
@@ -121,5 +122,64 @@ describe("outbound WhatsApp capture", () => {
     expect(capture?.boundEntities).toHaveLength(2);
     expect(capture?.boundEntities[1].attributes.display_name_current).toBe("Gabriel");
     expect(capture?.boundEntities.some((entity) => entity.name === "Marina")).toBe(false);
+  });
+
+  test("binds a DM peer structurally from the native conversation JID", () => {
+    const dmJid = "5511999999999:4@s.whatsapp.net";
+    const dmGroupId = "whatsapp-dm-5511999999999-s-whatsapp-net";
+    const capture = buildOutboundCapture({
+      event: {
+        to: dmJid,
+        content: "Oi, Helena falou do Gabriel.",
+        success: true,
+        messageId: "dm-out-1",
+      },
+      context: { channelId: "whatsapp", accountId: "filomena-business", conversationId: dmJid },
+      groupId: dmGroupId,
+      observedAt: new Date("2026-09-04T18:30:00.000Z"),
+    });
+
+    expect(capture?.boundEntities).toHaveLength(2);
+    expect(capture?.boundEntities[0].uuid).toBe(filomenaUuid(dmGroupId));
+    expect(capture?.boundEntities[1]).toMatchObject({
+      uuid: participantUuid(dmGroupId, "5511999999999@s.whatsapp.net"),
+      role: "addressee",
+      name: "whatsapp:5511999999999@s.whatsapp.net",
+    });
+    expect(capture?.boundEntities.some((entity) => entity.name === "Gabriel")).toBe(false);
+    expect(JSON.parse(capture!.episodeBody)).toMatchObject({
+      conversation_kind: "dm",
+      account_id: "filomena-business",
+      originating: null,
+    });
+  });
+
+  test("never binds a configured account self JID as the DM peer", () => {
+    const selfJid = "5511888777666@s.whatsapp.net";
+    const dmGroupId = "whatsapp-dm-5511888777666-s-whatsapp-net";
+    const capture = buildOutboundCapture({
+      event: { to: selfJid, content: "nota para mim", success: true, messageId: "self-out-1" },
+      context: { channelId: "whatsapp", conversationId: selfJid },
+      groupId: dmGroupId,
+      selfActorIds: ["5511888777666:9@c.us"],
+    });
+
+    expect(capture?.boundEntities).toHaveLength(1);
+    expect(capture?.boundEntities[0].role).toBe("speaker");
+  });
+
+  test("linked account changes do not change the group Agent UUID", () => {
+    const first = buildOutboundCapture({
+      event: { to: GROUP_JID, content: "Filomena: oi", success: true, messageId: "out-old" },
+      context: { channelId: "whatsapp", accountId: "old", conversationId: GROUP_JID },
+      groupId: GROUP_ID,
+    });
+    const second = buildOutboundCapture({
+      event: { to: GROUP_JID, content: "Filomena: oi", success: true, messageId: "out-new" },
+      context: { channelId: "whatsapp", accountId: "business", conversationId: GROUP_JID },
+      groupId: GROUP_ID,
+    });
+
+    expect(first?.boundEntities[0].uuid).toBe(second?.boundEntities[0].uuid);
   });
 });

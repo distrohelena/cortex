@@ -32,21 +32,57 @@ export function conversationIdentityFromSessionKey(sessionKey) {
   };
 }
 
-/**
- * Produce the single persistent Graphiti group_id for a channel conversation.
- */
-export function canonicalConversationGroupId(input) {
-  const fallback = conversationIdentityFromSessionKey(input?.sessionKey);
-  const channel = input?.channel ?? fallback?.channel;
-  const conversationId = input?.conversationId ?? fallback?.conversationId;
+function normalizeWhatsAppConversationJid(value, kind) {
+  let normalized = String(value).trim().toLowerCase().replace(/^whatsapp:/, "");
+  if (kind === "group") return normalized;
 
-  if (!channel || !conversationId) {
+  if (/^\+?[\d\s().-]+$/.test(normalized)) {
+    const digits = normalized.replace(/\D/g, "");
+    if (/^\d{7,15}$/.test(digits)) return `${digits}@s.whatsapp.net`;
+  }
+
+  const separator = normalized.lastIndexOf("@");
+  if (separator <= 0 || separator === normalized.length - 1) return normalized;
+  const local = normalized.slice(0, separator).replace(/:\d+$/, "");
+  const domain = normalized.slice(separator + 1) === "c.us"
+    ? "s.whatsapp.net"
+    : normalized.slice(separator + 1);
+  return `${local}@${domain}`;
+}
+
+/** Resolve a typed conversation from the native provider identity. */
+export function conversationIdentity(input) {
+  const fallback = conversationIdentityFromSessionKey(input?.sessionKey);
+  const channel = String(input?.channel ?? fallback?.channel ?? "").trim().toLowerCase();
+  const rawConversation = input?.conversationId ?? fallback?.conversationId;
+  if (!channel || !rawConversation) {
     throw new Error("Missing channel conversation identity for persistent memory");
   }
 
-  const normalizedConversation = String(conversationId).trim().toLowerCase();
-  const explicitKind = input?.kind === "group" || input?.kind === "dm" ? input.kind : fallback?.kind;
-  const kind = explicitKind ?? (normalizedConversation.endsWith("@g.us") ? "group" : "dm");
+  const rawNormalized = String(rawConversation).trim().toLowerCase().replace(/^whatsapp:/, "");
+  const explicitKind = input?.kind === "group" || input?.kind === "dm"
+    ? input.kind
+    : input?.conversationId === undefined
+      ? fallback?.kind
+      : undefined;
+  const kind = explicitKind ?? (rawNormalized.endsWith("@g.us") ? "group" : "dm");
+  const conversationJid = channel === "whatsapp"
+    ? normalizeWhatsAppConversationJid(rawNormalized, kind)
+    : rawNormalized;
+  if (!conversationJid) throw new Error("Missing conversation JID for persistent memory");
 
-  return `${normalizeSegment(channel, "channel")}-${kind}-${normalizeSegment(normalizedConversation, "conversation ID")}`;
+  return { channel, conversationJid, kind };
+}
+
+/**
+ * Produce the single persistent Graphiti group_id for a channel conversation.
+ */
+export function canonicalConversationNamespace(input) {
+  const identity = conversationIdentity(input);
+  return `${normalizeSegment(identity.channel, "channel")}-${identity.kind}-${normalizeSegment(identity.conversationJid, "conversation ID")}`;
+}
+
+/** @deprecated Compatibility alias for callers that mirror Graphiti's group_id name. */
+export function canonicalConversationGroupId(input) {
+  return canonicalConversationNamespace(input);
 }

@@ -138,12 +138,13 @@ When enabled (default: `true`), the plugin searches relevant memories before eac
 
 ### Auto-Capture
 
-When enabled (default: `true`), the plugin captures the last N messages from each completed agent turn and stores them as a batch episode in Graphiti.
+When enabled (default: `true`), the plugin captures accepted inbound WhatsApp messages from `message_received` and successful provider sends from `message_sent`.
 
-- Captures up to `maxCaptureMessages` messages (default: 10)
-- Stores to the current session group by default
-- Skips messages shorter than 5 characters and injected context blocks
-- Uses custom extraction instructions for entity/fact extraction
+- One provider message creates at most one deterministic episode.
+- Each native WhatsApp group or DM JID maps to an isolated persistent `group_id`.
+- Inbound capture does not depend on an agent run or response.
+- Outbound capture stores only text confirmed successful by the provider.
+- `whatsapp.selfActorIds` prevents a self-chat target from being bound as a Person addressee.
 
 ## Authorization Model
 

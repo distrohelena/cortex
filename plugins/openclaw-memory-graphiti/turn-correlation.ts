@@ -1,4 +1,5 @@
 import type { BoundEntityInput } from "./graphiti.js";
+import { conversationIdentity } from "./conversation-namespace.mjs";
 import {
   normalizeWhatsAppSenderId,
   participantUuid,
@@ -41,8 +42,11 @@ function nonBlank(value: unknown): string | undefined {
 }
 
 export function normalizeConversationJid(value: string): string | undefined {
-  const normalized = value.trim().toLowerCase().replace(/^whatsapp:/, "");
-  return normalized || undefined;
+  try {
+    return conversationIdentity({ channel: "whatsapp", conversationId: value }).conversationJid;
+  } catch {
+    return undefined;
+  }
 }
 
 function sameCorrelation(left: TurnCorrelation, right: TurnCorrelation): boolean {

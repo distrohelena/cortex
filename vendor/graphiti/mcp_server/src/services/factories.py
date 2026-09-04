@@ -16,10 +16,10 @@ except ImportError:
     HAS_FALKOR = False
 
 # Kuzu support removed - FalkorDB is now the default
+from graphiti_core.cross_encoder.client import CrossEncoderClient
 from graphiti_core.embedder import EmbedderClient, OpenAIEmbedder
 from graphiti_core.llm_client import LLMClient, OpenAIClient
 from graphiti_core.llm_client.config import LLMConfig as GraphitiLLMConfig
-from graphiti_core.cross_encoder.client import CrossEncoderClient
 
 # Try to import additional providers if available
 try:

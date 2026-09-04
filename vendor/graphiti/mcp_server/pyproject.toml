@@ -28,7 +28,8 @@ providers = [
 
 [tool.pyright]
 include = ["src", "tests"]
-pythonVersion = "3.10"
+extraPaths = ["..", "src"]
+pythonVersion = "3.11"
 typeCheckingMode = "basic"
 
 [tool.ruff]

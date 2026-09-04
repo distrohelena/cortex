@@ -9,27 +9,47 @@ import { createMessageIdRegistry } from "./state.js";
 
 type GuardConfig = {
   channel: string;
-  groupId: string;
-  trigger: string;
   responsePrefix: string;
   stateFile: string;
   maxTrackedMessageIds: number;
+  respond: {
+    direct: { mode: "allowlist" | "disabled"; allowFrom: string[] };
+    groups: Record<string, { trigger: string; allowRepliesToFilomena: boolean; prefix: boolean }>;
+  };
 };
 
 function readConfig(api: OpenClawPluginApi): GuardConfig {
   const raw = api.pluginConfig ?? {};
-  const groupId = typeof raw.groupId === "string" ? raw.groupId.trim() : "";
-  if (!groupId) {
-    throw new Error("whatsapp-filomena-guard: groupId must be configured");
+  if (!raw.respond || typeof raw.respond !== "object" || Array.isArray(raw.respond)) {
+    throw new Error("whatsapp-filomena-guard: respond must be configured");
+  }
+
+  const respondRaw = raw.respond as Record<string, unknown>;
+  const directRaw = respondRaw.direct && typeof respondRaw.direct === "object" && !Array.isArray(respondRaw.direct)
+    ? respondRaw.direct as Record<string, unknown>
+    : {};
+  const directMode = directRaw.mode === "disabled" ? "disabled" : "allowlist";
+  const allowFrom = Array.isArray(directRaw.allowFrom)
+    ? directRaw.allowFrom.filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+    : [];
+  const groupsRaw = respondRaw.groups && typeof respondRaw.groups === "object" && !Array.isArray(respondRaw.groups)
+    ? respondRaw.groups as Record<string, unknown>
+    : {};
+  const groups: GuardConfig["respond"]["groups"] = {};
+  for (const [rawGroupId, rawPolicy] of Object.entries(groupsRaw)) {
+    const groupId = rawGroupId.trim().toLowerCase();
+    if (!groupId || !rawPolicy || typeof rawPolicy !== "object" || Array.isArray(rawPolicy)) continue;
+    const policy = rawPolicy as Record<string, unknown>;
+    groups[groupId] = {
+      trigger: typeof policy.trigger === "string" && policy.trigger.trim() ? policy.trigger.trim() : "@Filomena",
+      allowRepliesToFilomena: policy.allowRepliesToFilomena !== false,
+      prefix: policy.prefix !== false,
+    };
   }
 
   const channel = typeof raw.channel === "string" && raw.channel.trim()
     ? raw.channel.trim()
     : "whatsapp";
-  const trigger = typeof raw.trigger === "string" && raw.trigger.trim()
-    ? raw.trigger.trim()
-    : "@Filomena";
-
   let responsePrefix = "Filomena: ";
   if (raw.responsePrefix !== undefined) {
     if (typeof raw.responsePrefix !== "string" || !raw.responsePrefix.trim()) {
@@ -62,18 +82,17 @@ function readConfig(api: OpenClawPluginApi): GuardConfig {
 
   return {
     channel,
-    groupId,
-    trigger,
     responsePrefix,
     stateFile,
     maxTrackedMessageIds,
+    respond: { direct: { mode: directMode, allowFrom }, groups },
   };
 }
 
 const plugin = {
   id: "whatsapp-filomena-guard",
   name: "WhatsApp Filomena Guard",
-  description: "Gates and labels Filomena replies in one WhatsApp group.",
+  description: "Separates WhatsApp observation from configurable Filomena response policy.",
 
   register(api: OpenClawPluginApi) {
     const config = readConfig(api);
@@ -89,7 +108,7 @@ const plugin = {
         if (!shouldSuppressDispatch(event, context, config, registry)) return;
 
         api.logger.debug(
-          `whatsapp-filomena-guard: suppressed non-trigger dispatch in ${config.groupId}`,
+          `whatsapp-filomena-guard: suppressed automatic response in ${String(context.conversationId ?? "unknown conversation")}`,
         );
         return { handled: true };
       },

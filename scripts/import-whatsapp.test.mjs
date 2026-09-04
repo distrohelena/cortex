@@ -14,6 +14,11 @@ describe("WhatsApp importer target identity", () => {
     assert.equal(options.dryRun, true);
   });
 
+  it("uses the same shared helper for an explicit DM JID", () => {
+    const options = parseCliArgs(["exports", "--jid", "5511944558218:3@c.us", "--dry-run"]);
+    assert.equal(resolveTargetGroupId(options), "whatsapp-dm-5511944558218-s-whatsapp-net");
+  });
+
   it("accepts an explicit group_id unchanged", () => {
     const options = parseCliArgs(["exports", "--group-id", "whatsapp-group-test-g-us"]);
     assert.equal(resolveTargetGroupId(options), "whatsapp-group-test-g-us");

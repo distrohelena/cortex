@@ -63,9 +63,20 @@ function withTemporaryPlugin(
       groupId,
       config: {
         channel: "whatsapp",
-        groupId,
-        trigger: "@Filomena",
         responsePrefix: "Filomena: ",
+        respond: {
+          direct: {
+            mode: "allowlist",
+            allowFrom: ["5511944558218@s.whatsapp.net"],
+          },
+          groups: {
+            [groupId]: {
+              trigger: "@Filomena",
+              allowRepliesToFilomena: true,
+              prefix: true,
+            },
+          },
+        },
         stateFile: filePath,
         maxTrackedMessageIds: 512,
       },
@@ -178,19 +189,39 @@ test("lets explicit Filomena messages continue to the model", () => {
   });
 });
 
+test("allows the configured Helena DM and silently handles an unknown DM", () => {
+  withTemporaryPlugin(({ config }) => {
+    const { handlers } = registerGuard(config);
+    assert.equal(
+      handlers.before_dispatch!(
+        { channel: "whatsapp", isGroup: false, body: "oi", senderId: "5511944558218@s.whatsapp.net" },
+        { conversationId: "5511944558218:4@c.us", senderId: "5511944558218@s.whatsapp.net" },
+      ),
+      undefined,
+    );
+    assert.deepEqual(
+      handlers.before_dispatch!(
+        { channel: "whatsapp", isGroup: false, body: "oi", senderId: "5511888888888@s.whatsapp.net" },
+        { conversationId: "5511888888888@s.whatsapp.net", senderId: "5511888888888@s.whatsapp.net" },
+      ),
+      { handled: true },
+    );
+  });
+});
+
 test("rejects invalid plugin configuration during registration", () => {
-  assert.throws(() => registerGuard({}), /groupId must be configured/);
-  assert.throws(() => registerGuard({ groupId: "   " }), /groupId must be configured/);
+  const minimal = { respond: { direct: { mode: "disabled", allowFrom: [] }, groups: {} } };
+  assert.throws(() => registerGuard({}), /respond must be configured/);
   assert.throws(
-    () => registerGuard({ groupId: "group@g.us", responsePrefix: "" }),
+    () => registerGuard({ ...minimal, responsePrefix: "" }),
     /responsePrefix must not be blank/,
   );
   assert.throws(
-    () => registerGuard({ groupId: "group@g.us", stateFile: "   " }),
+    () => registerGuard({ ...minimal, stateFile: "   " }),
     /stateFile must not be blank/,
   );
   assert.throws(
-    () => registerGuard({ groupId: "group@g.us", maxTrackedMessageIds: 0 }),
+    () => registerGuard({ ...minimal, maxTrackedMessageIds: 0 }),
     /maxTrackedMessageIds must be a positive integer/,
   );
 });

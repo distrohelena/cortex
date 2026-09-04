@@ -11,6 +11,10 @@ const REAL_GROUP_JID = "5511981042361-1589823314@g.us";
 const REAL_GROUP_ID = "whatsapp-group-5511981042361-1589823314-g-us";
 const OTHER_GROUP_JID = "120363000000000000@g.us";
 const OTHER_GROUP_ID = "whatsapp-group-120363000000000000-g-us";
+const HELENA_DM_JID = "5511944558218@s.whatsapp.net";
+const HELENA_DM_ID = "whatsapp-dm-5511944558218-s-whatsapp-net";
+const GABRIEL_DM_JID = "5511999999999@s.whatsapp.net";
+const GABRIEL_DM_ID = "whatsapp-dm-5511999999999-s-whatsapp-net";
 
 // Mock @authzed/authzed-node before importing the plugin
 vi.mock("@authzed/authzed-node", () => {
@@ -410,6 +414,42 @@ describe("openclaw-memory-graphiti plugin", () => {
     expect(calls[0].params.arguments.bound_entity).toBeUndefined();
   });
 
+  test("passively captures DMs and other groups into only their native conversation namespaces", async () => {
+    mockApi.pluginConfig.autoCapture = true;
+    setupGraphitiMock('{"message":"queued"}');
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+    const hook = registeredHooks["message_received"][0];
+
+    await hook(
+      {
+        content: "mensagem privada sem agent run",
+        timestamp: 1_787_920_245,
+        messageId: "dm-in-1",
+        senderId: HELENA_DM_JID,
+        metadata: { senderName: "Helena" },
+      },
+      { channelId: "whatsapp", accountId: "filomena-business", conversationId: HELENA_DM_JID },
+    );
+    await hook(
+      {
+        content: "mensagem em outro grupo",
+        timestamp: 1_787_920_246,
+        messageId: "other-group-in-1",
+        senderId: GABRIEL_DM_JID,
+        metadata: { senderName: "Gabriel" },
+      },
+      { channelId: "whatsapp", accountId: "filomena-business", conversationId: OTHER_GROUP_JID },
+    );
+
+    const calls = mockFetch.mock.calls
+      .map((call) => call[1]?.body ? JSON.parse(call[1].body as string) : undefined)
+      .filter((body) => body?.params?.name === "add_memory");
+    expect(calls).toHaveLength(2);
+    expect(calls.map((body) => body.params.arguments.group_id)).toEqual([HELENA_DM_ID, OTHER_GROUP_ID]);
+    expect(calls.map((body) => JSON.parse(body.params.arguments.episode_body).conversation_kind)).toEqual(["dm", "group"]);
+  });
+
   test("correlated successful outbound is captured once with canonical speaker and addressee", async () => {
     mockApi.pluginConfig.autoCapture = true;
     setupGraphitiMock('{"message":"queued"}');
@@ -507,6 +547,68 @@ describe("openclaw-memory-graphiti plugin", () => {
     expect(bodies).toHaveLength(1);
     expect(bodies[0].params.arguments.group_id).toBe(REAL_GROUP_ID);
     expect(bodies[0].params.arguments.bound_entities).toHaveLength(1);
+  });
+
+  test("captures outbound DM with conversation-scoped Agent and structural peer addressee", async () => {
+    mockApi.pluginConfig.autoCapture = true;
+    setupGraphitiMock('{"message":"queued"}');
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+
+    await registeredHooks["message_sent"][0](
+      { to: HELENA_DM_JID, content: "Oi", success: true, messageId: "dm-outbound-1" },
+      { channelId: "whatsapp", accountId: "filomena-business", conversationId: HELENA_DM_JID },
+    );
+
+    const args = mockFetch.mock.calls
+      .map((call) => call[1]?.body ? JSON.parse(call[1].body as string) : undefined)
+      .find((body) => body?.params?.name === "add_memory")
+      .params.arguments;
+    const { filomenaUuid } = await import("./outbound-capture.js");
+    const { participantUuid } = await import("./passive-capture.js");
+    expect(args.group_id).toBe(HELENA_DM_ID);
+    expect(args.bound_entities).toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: "speaker", uuid: filomenaUuid(HELENA_DM_ID) }),
+      expect.objectContaining({ role: "addressee", uuid: participantUuid(HELENA_DM_ID, HELENA_DM_JID) }),
+    ]));
+  });
+
+  test("DM recall and memory_store never query or write another chat", async () => {
+    mockApi.pluginConfig.autoRecall = true;
+    setupGraphitiMock('{"message":"ok","episodes":[],"nodes":[],"facts":[]}');
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+
+    await registeredHooks["before_prompt_build"][0](
+      { prompt: "lembra do assunto privado?", messages: [{ role: "user", content: "lembra do assunto privado?" }] },
+      {
+        channel: "whatsapp",
+        chatId: HELENA_DM_JID,
+        senderId: HELENA_DM_JID,
+        channelContext: { sender: { id: HELENA_DM_JID, name: "Helena" } },
+      },
+    );
+
+    const factory = registeredTools.find((entry) => entry.opts?.name === "memory_store")?.factory;
+    const store = factory({
+      messageChannel: "whatsapp",
+      nativeChannelId: HELENA_DM_JID,
+      sessionKey: `agent:main:whatsapp:dm:${HELENA_DM_JID}`,
+    });
+    await store.execute("dm-store", { content: "memoria somente da DM" });
+
+    const bodies = mockFetch.mock.calls
+      .map((call) => call[1]?.body ? JSON.parse(call[1].body as string) : undefined)
+      .filter(Boolean);
+    const searchedGroups = bodies
+      .filter((body) => ["search_nodes", "search_memory_facts", "get_episodes", "get_entity_neighborhood"].includes(body?.params?.name))
+      .flatMap((body) => body.params.arguments.group_ids ?? [body.params.arguments.group_id]);
+    const writes = bodies.filter((body) => body?.params?.name === "add_memory");
+
+    expect(new Set(searchedGroups)).toEqual(new Set([HELENA_DM_ID]));
+    expect(searchedGroups).not.toContain(REAL_GROUP_ID);
+    expect(searchedGroups).not.toContain(GABRIEL_DM_ID);
+    expect(writes.at(-1)?.params.arguments.group_id).toBe(HELENA_DM_ID);
   });
 
   test("concurrent runs in one session keep their exact outbound addressees", async () => {

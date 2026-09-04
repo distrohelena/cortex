@@ -4,12 +4,24 @@ import { prefixProtectedOutbound, shouldSuppressDispatch } from "./guard.js";
 
 const config = {
   channel: "whatsapp",
-  groupId: "120363012345678901@g.us",
-  trigger: "@Filomena",
   responsePrefix: "Filomena: ",
+  respond: {
+    direct: {
+      mode: "allowlist",
+      allowFrom: ["5511944558218@s.whatsapp.net"],
+    },
+    groups: {
+      "120363012345678901@g.us": {
+        trigger: "@Filomena",
+        allowRepliesToFilomena: true,
+        prefix: true,
+      },
+    },
+  },
 };
 
-const protectedContext = { conversationId: config.groupId };
+const groupId = "120363012345678901@g.us";
+const protectedContext = { conversationId: groupId };
 
 test("allows a leading trigger", () => {
   assert.equal(
@@ -147,25 +159,33 @@ test("suppresses a trigger with trailing letters", () => {
   );
 });
 
-test("leaves a direct WhatsApp message untouched", () => {
+test("allows an allowlisted DM by canonical peer identity", () => {
   assert.equal(
     shouldSuppressDispatch(
-      { channel: "whatsapp", isGroup: false, body: "@ai oi" },
-      { conversationId: "15551234567" },
+      { channel: "whatsapp", isGroup: false, body: "oi" },
+      { conversationId: "5511944558218:9@c.us", senderId: "5511944558218@s.whatsapp.net" },
       config,
     ),
     false,
   );
 });
 
-test("leaves another group and Telegram untouched", () => {
+test("suppresses unknown DMs and groups while leaving Telegram untouched", () => {
   assert.equal(
     shouldSuppressDispatch(
-      { channel: "whatsapp", isGroup: true, body: "oi" },
+      { channel: "whatsapp", isGroup: false, body: "oi" },
+      { conversationId: "5511888888888@s.whatsapp.net", senderId: "5511888888888@s.whatsapp.net" },
+      config,
+    ),
+    true,
+  );
+  assert.equal(
+    shouldSuppressDispatch(
+      { channel: "whatsapp", isGroup: true, body: "@Filomena oi" },
       { conversationId: "another-group@g.us" },
       config,
     ),
-    false,
+    true,
   );
   assert.equal(
     shouldSuppressDispatch(
@@ -177,26 +197,26 @@ test("leaves another group and Telegram untouched", () => {
   );
 });
 
-test("prefixes outbound text only in the protected WhatsApp group", () => {
+test("prefixes outbound text only in a configured group that requests it", () => {
   assert.equal(
     prefixProtectedOutbound(
-      { to: config.groupId, content: "Olá" },
-      { channelId: "whatsapp", conversationId: config.groupId },
+      { to: groupId, content: "Olá" },
+      { channelId: "whatsapp", conversationId: groupId },
       config,
     ),
     "Filomena: Olá",
   );
   assert.equal(
     prefixProtectedOutbound(
-      { to: config.groupId, content: "Filomena: Olá" },
-      { channelId: "whatsapp", conversationId: config.groupId },
+      { to: groupId, content: "Filomena: Olá" },
+      { channelId: "whatsapp", conversationId: groupId },
       config,
     ),
     "Filomena: Olá",
   );
 });
 
-test("does not prefix private chats, other groups, other channels, or empty text", () => {
+test("does not prefix DMs, unknown groups, other channels, or empty text", () => {
   const cases = [
     {
       event: { to: "15551234567", content: "Olá" },
@@ -209,13 +229,13 @@ test("does not prefix private chats, other groups, other channels, or empty text
       expected: "Olá",
     },
     {
-      event: { to: config.groupId, content: "Olá" },
-      context: { channelId: "telegram", conversationId: config.groupId },
+      event: { to: groupId, content: "Olá" },
+      context: { channelId: "telegram", conversationId: groupId },
       expected: "Olá",
     },
     {
-      event: { to: config.groupId, content: "" },
-      context: { channelId: "whatsapp", conversationId: config.groupId },
+      event: { to: groupId, content: "" },
+      context: { channelId: "whatsapp", conversationId: groupId },
       expected: "",
     },
   ];

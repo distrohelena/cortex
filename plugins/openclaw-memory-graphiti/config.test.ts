@@ -25,6 +25,7 @@ describe("graphitiMemoryConfigSchema", () => {
       subjectId: "mom",
       autoCapture: true,
       autoRecall: false,
+      whatsapp: { selfActorIds: ["5511888777666@s.whatsapp.net"] },
     });
 
     expect(config.spicedb.endpoint).toBe("spicedb.example.com:50051");
@@ -36,6 +37,7 @@ describe("graphitiMemoryConfigSchema", () => {
     expect(config.subjectId).toBe("mom");
     expect(config.autoCapture).toBe(true);
     expect(config.autoRecall).toBe(false);
+    expect(config.whatsapp.selfActorIds).toEqual(["5511888777666@s.whatsapp.net"]);
   });
 
   test("applies defaults for optional fields", () => {
@@ -51,6 +53,7 @@ describe("graphitiMemoryConfigSchema", () => {
     expect(config.subjectId).toBe("default");
     expect(config.autoCapture).toBe(true);
     expect(config.autoRecall).toBe(true);
+    expect(config.whatsapp.selfActorIds).toEqual([]);
   });
 
   test("resolves env vars in token", () => {

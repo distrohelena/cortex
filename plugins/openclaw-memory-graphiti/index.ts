@@ -30,7 +30,7 @@ import {
   ensureGroupMembership,
   type Subject,
 } from "./authorization.js";
-import { canonicalConversationGroupId } from "./conversation-namespace.mjs";
+import { canonicalConversationNamespace } from "./conversation-namespace.mjs";
 import {
   searchAuthorizedRecall,
   formatDualResults,
@@ -74,7 +74,7 @@ type ConversationContext = {
 
 function resolvePersistentGroupId(context: ConversationContext): string | undefined {
   try {
-    return canonicalConversationGroupId(context);
+    return canonicalConversationNamespace(context);
   } catch {
     return undefined;
   }
@@ -825,6 +825,7 @@ const memoryGraphitiPlugin = {
             context: ctx,
             groupId: targetGroupId,
             correlation,
+            selfActorIds: cfg.whatsapp.selfActorIds,
           });
           if (!capture) return;
 

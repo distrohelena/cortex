@@ -3,7 +3,7 @@ import { dirname, extname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-import { canonicalConversationGroupId } from "../plugins/openclaw-memory-graphiti/conversation-namespace.mjs";
+import { canonicalConversationNamespace } from "../plugins/openclaw-memory-graphiti/conversation-namespace.mjs";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
 const ENDPOINT = "http://127.0.0.1:8000";
@@ -54,7 +54,7 @@ export function resolveTargetGroupId(options) {
     return options.groupId;
   }
   if (options.jid) {
-    return canonicalConversationGroupId({
+    return canonicalConversationNamespace({
       channel: options.channel,
       conversationId: options.jid,
     });

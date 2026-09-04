@@ -10,6 +10,9 @@ export type GraphitiMemoryConfig = {
     uuidPollIntervalMs: number;
     uuidPollMaxAttempts: number;
   };
+  whatsapp: {
+    selfActorIds: string[];
+  };
   subjectType: "agent" | "person";
   subjectId: string;
   autoCapture: boolean;
@@ -64,7 +67,7 @@ export const graphitiMemoryConfigSchema = {
       cfg,
       [
         "spicedb", "graphiti", "subjectType", "subjectId",
-        "autoCapture", "autoRecall", "customInstructions", "maxCaptureMessages",
+        "autoCapture", "autoRecall", "customInstructions", "maxCaptureMessages", "whatsapp",
       ],
       "openclaw-memory-graphiti config",
     );
@@ -76,6 +79,12 @@ export const graphitiMemoryConfigSchema = {
     // Graphiti config
     const graphiti = (cfg.graphiti as Record<string, unknown>) ?? {};
     assertAllowedKeys(graphiti, ["endpoint", "defaultGroupId", "uuidPollIntervalMs", "uuidPollMaxAttempts"], "graphiti config");
+
+    const whatsapp = (cfg.whatsapp as Record<string, unknown>) ?? {};
+    assertAllowedKeys(whatsapp, ["selfActorIds"], "whatsapp config");
+    const selfActorIds = Array.isArray(whatsapp.selfActorIds)
+      ? whatsapp.selfActorIds.filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
+      : [];
 
     // Subject
     const subjectType = cfg.subjectType === "person" ? "person" : DEFAULT_SUBJECT_TYPE;
@@ -105,6 +114,7 @@ export const graphitiMemoryConfigSchema = {
             ? Math.round(graphiti.uuidPollMaxAttempts)
             : DEFAULT_UUID_POLL_MAX_ATTEMPTS,
       },
+      whatsapp: { selfActorIds },
       subjectType,
       subjectId,
       autoCapture: cfg.autoCapture !== false,

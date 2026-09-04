@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import type { BoundEntityInput } from "./graphiti.js";
+import { conversationIdentity } from "./conversation-namespace.mjs";
 
 // Versioned constants: changing either value would intentionally fork identity.
 export const FILOMENA_EPISODE_NAMESPACE_V1 = "b7897b2d-9c72-5ea9-8f1f-19b097cd37f8";
@@ -22,6 +23,7 @@ type PassiveMessageEvent = {
 
 type PassiveMessageContext = {
   channelId?: string;
+  accountId?: string;
   conversationId?: string;
   messageId?: string;
   senderId?: string;
@@ -126,21 +128,20 @@ function timestampToIso(timestamp: number): string | undefined {
   return Number.isNaN(date.valueOf()) ? undefined : date.toISOString();
 }
 
-function normalizeConversationJid(value: string): string | undefined {
-  const normalized = value.trim().toLowerCase().replace(/^whatsapp:/, "");
-  return normalized || undefined;
-}
-
 export function buildPassiveCapture(input: {
   event: PassiveMessageEvent;
   context: PassiveMessageContext;
   groupId: string;
 }): PassiveCapture | undefined {
   const { event, context, groupId } = input;
-  const channel = nonBlank(context.channelId)?.toLowerCase();
-  const conversationJid = context.conversationId
-    ? normalizeConversationJid(context.conversationId)
-    : undefined;
+  let identity: ReturnType<typeof conversationIdentity> | undefined;
+  try {
+    identity = conversationIdentity({ channel: context.channelId, conversationId: context.conversationId });
+  } catch {
+    return undefined;
+  }
+  const channel = identity.channel;
+  const conversationJid = identity.conversationJid;
   const providerMessageId = nonBlank(event.messageId) ?? nonBlank(context.messageId);
   const rawSenderId = nonBlank(event.senderId) ?? nonBlank(context.senderId);
   const text = typeof event.content === "string" ? event.content : undefined;
@@ -186,7 +187,9 @@ export function buildPassiveCapture(input: {
   const episodeBody = JSON.stringify({
     schema: "filomena.openclaw.inbound.v1",
     channel,
+    account_id: nonBlank(context.accountId) ?? null,
     conversation_jid: conversationJid,
+    conversation_kind: identity.kind,
     provider_message_id: providerMessageId,
     sender: {
       raw_id: rawSenderId,

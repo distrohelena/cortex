@@ -30,6 +30,7 @@ describe("passive WhatsApp capture", () => {
       },
       context: {
         channelId: "whatsapp",
+        accountId: "default",
         conversationId: GROUP_JID,
         messageId: "3EB0ABC",
         senderId: "5511999999999:4@s.whatsapp.net",
@@ -56,6 +57,8 @@ describe("passive WhatsApp capture", () => {
     expect(body.text).toBe("eu gosto de Shadow of Mordor");
     expect(body.timestamp.original).toBe(1_787_920_245);
     expect(body.conversation_jid).toBe(GROUP_JID);
+    expect(body.conversation_kind).toBe("group");
+    expect(body.account_id).toBe("default");
     expect(body.provider_message_id).toBe("3EB0ABC");
     expect(body.sender.raw_id).toBe("5511999999999:4@s.whatsapp.net");
     expect(body.sender.canonical_id).toBe("5511999999999@s.whatsapp.net");
@@ -96,6 +99,34 @@ describe("passive WhatsApp capture", () => {
     expect(participantUuid(GROUP_ID, sender)).toBe(uuid);
     expect(participantUuid("whatsapp-group-other-g-us", sender)).not.toBe(uuid);
     expect(participantUuid(GROUP_ID, "5511888888888@s.whatsapp.net")).not.toBe(uuid);
+  });
+
+  test("captures a DM in its own namespace and keeps the same contact distinct from a group", () => {
+    const dmJid = "5511999999999:8@s.whatsapp.net";
+    const dmGroupId = "whatsapp-dm-5511999999999-s-whatsapp-net";
+    const capture = buildPassiveCapture({
+      event: {
+        content: "mensagem privada",
+        timestamp: 1_788_000_000,
+        messageId: "dm-provider-1",
+        senderId: dmJid,
+        metadata: { senderName: "Gabriel" },
+      },
+      context: {
+        channelId: "whatsapp",
+        accountId: "filomena-business",
+        conversationId: dmJid,
+      },
+      groupId: dmGroupId,
+    });
+
+    expect(capture?.conversationJid).toBe("5511999999999@s.whatsapp.net");
+    expect(capture?.boundEntity.uuid).toBe(participantUuid(dmGroupId, "5511999999999@s.whatsapp.net"));
+    expect(capture?.boundEntity.uuid).not.toBe(participantUuid(GROUP_ID, "5511999999999@s.whatsapp.net"));
+    expect(JSON.parse(capture!.episodeBody)).toMatchObject({
+      conversation_kind: "dm",
+      account_id: "filomena-business",
+    });
   });
 
   test("fails closed when identity, provider ID, timestamp, or text is missing", () => {

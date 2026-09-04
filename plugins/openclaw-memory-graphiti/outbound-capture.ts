@@ -1,9 +1,7 @@
 import type { BoundEntityInput } from "./graphiti.js";
-import { uuidV5 } from "./passive-capture.js";
-import {
-  normalizeConversationJid,
-  type TurnCorrelation,
-} from "./turn-correlation.js";
+import { conversationIdentity } from "./conversation-namespace.mjs";
+import { normalizeWhatsAppSenderId, participantUuid, uuidV5 } from "./passive-capture.js";
+import type { TurnCorrelation } from "./turn-correlation.js";
 
 export const FILOMENA_AGENT_NAMESPACE_V1 = "409fb013-87b0-5ac0-a152-e07b7e6074a0";
 export const FILOMENA_OUTBOUND_EPISODE_NAMESPACE_V1 = "7e5bb18f-2c95-582d-9107-a809ddd3759c";
@@ -18,6 +16,7 @@ type MessageSentEvent = {
 
 type MessageSentContext = {
   channelId?: string;
+  accountId?: string;
   conversationId?: string;
 };
 
@@ -70,11 +69,18 @@ export function buildOutboundCapture(input: {
   groupId: string;
   observedAt?: Date;
   correlation?: TurnCorrelation;
+  selfActorIds?: string[];
 }): OutboundCapture | undefined {
   const { event, context, groupId } = input;
   const channel = nonBlank(context.channelId)?.toLowerCase();
   const rawConversation = nonBlank(context.conversationId) ?? nonBlank(event.to);
-  const conversationJid = rawConversation ? normalizeConversationJid(rawConversation) : undefined;
+  let identity: ReturnType<typeof conversationIdentity> | undefined;
+  try {
+    identity = conversationIdentity({ channel, conversationId: rawConversation });
+  } catch {
+    return undefined;
+  }
+  const conversationJid = identity.conversationJid;
   const providerMessageId = nonBlank(event.messageId);
   const content = typeof event.content === "string" ? event.content : undefined;
   if (channel !== "whatsapp" || !conversationJid || event.success !== true || !providerMessageId || !content?.trim()) {
@@ -92,12 +98,38 @@ export function buildOutboundCapture(input: {
     ? input.correlation
     : undefined;
   const boundEntities = [filomenaBoundEntity(groupId)];
-  if (exactCorrelation) boundEntities.push(exactCorrelation.participant);
+  if (exactCorrelation) {
+    boundEntities.push(exactCorrelation.participant);
+  } else if (identity.kind === "dm") {
+    const peer = normalizeWhatsAppSenderId(conversationJid);
+    const selfIds = new Set((input.selfActorIds ?? [])
+      .map((value) => normalizeWhatsAppSenderId(value)?.canonicalId)
+      .filter((value): value is string => Boolean(value)));
+    if (peer && !selfIds.has(peer.canonicalId)) {
+      const stableId = `whatsapp:${peer.canonicalId}`;
+      boundEntities.push({
+        uuid: participantUuid(groupId, peer.canonicalId),
+        role: "addressee",
+        name: stableId,
+        entity_type: "Person",
+        labels: ["Person"],
+        attributes: {
+          stable_id: stableId,
+          display_name_current: "",
+          aliases: [],
+          identity_provider: "whatsapp",
+          identity_source: peer.source,
+        },
+      });
+    }
+  }
 
   const episodeBody = JSON.stringify({
     schema: "filomena.openclaw.outbound.v1",
     channel,
+    account_id: nonBlank(context.accountId) ?? null,
     conversation_jid: conversationJid,
+    conversation_kind: identity.kind,
     provider_message_id: providerMessageId,
     timestamp: { iso: referenceTime, source: "message_sent_observed" },
     reply: null,

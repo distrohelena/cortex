@@ -95,6 +95,16 @@
           "uuidPollMaxAttempts": { "type": "integer", "minimum": 1, "maximum": 200 }
         }
       },
+      "whatsapp": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "selfActorIds": {
+            "type": "array",
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      },
       "subjectType": { "type": "string", "enum": ["agent", "person"] },
       "subjectId": { "type": "string" },
       "autoCapture": { "type": "boolean" },

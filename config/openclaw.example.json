@@ -1,13 +1,48 @@
 {
+  "session": {
+    "dmScope": "per-account-channel-peer"
+  },
+  "channels": {
+    "whatsapp": {
+      "dmPolicy": "open",
+      "allowFrom": ["*"],
+      "groupPolicy": "open",
+      "groupAllowFrom": ["*"],
+      "selfChatMode": false,
+      "pluginHooks": {
+        "messageReceived": true
+      },
+      "groups": {
+        "*": {
+          "requireMention": true
+        },
+        "<EXISTING_WHATSAPP_GROUP_JID>": {
+          "requireMention": true,
+          "systemPrompt": "The current triggering WhatsApp message is always the primary request."
+        }
+      }
+    }
+  },
   "plugins": {
     "entries": {
       "whatsapp-filomena-guard": {
         "enabled": true,
         "config": {
           "channel": "whatsapp",
-          "groupId": "<WHATSAPP_GROUP_JID>",
-          "trigger": "@Filomena",
           "responsePrefix": "Filomena: ",
+          "respond": {
+            "direct": {
+              "mode": "allowlist",
+              "allowFrom": ["<HELENA_WHATSAPP_JID>"]
+            },
+            "groups": {
+              "<EXISTING_WHATSAPP_GROUP_JID>": {
+                "trigger": "@Filomena",
+                "allowRepliesToFilomena": true,
+                "prefix": true
+              }
+            }
+          },
           "stateFile": "<OPENCLAW_STATE_DIR>\\whatsapp-filomena-guard.json",
           "maxTrackedMessageIds": 512
         }
@@ -27,6 +62,9 @@
           "graphiti": {
             "endpoint": "http://localhost:8000",
             "defaultGroupId": "replace-with-canonical-conversation-group-id"
+          },
+          "whatsapp": {
+            "selfActorIds": ["<FILOMENA_BUSINESS_WHATSAPP_JID>"]
           },
           "subjectType": "agent",
           "subjectId": "main",
