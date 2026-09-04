@@ -4,7 +4,7 @@ import { prefixProtectedOutbound, shouldSuppressDispatch } from "./guard.js";
 
 const config = {
   channel: "whatsapp",
-  groupId: "5511981042361-1589823314@g.us",
+  groupId: "120363012345678901@g.us",
   trigger: "@Filomena",
   responsePrefix: "Filomena: ",
 };
@@ -151,7 +151,7 @@ test("leaves a direct WhatsApp message untouched", () => {
   assert.equal(
     shouldSuppressDispatch(
       { channel: "whatsapp", isGroup: false, body: "@ai oi" },
-      { conversationId: "5511981042361" },
+      { conversationId: "15551234567" },
       config,
     ),
     false,
@@ -199,8 +199,8 @@ test("prefixes outbound text only in the protected WhatsApp group", () => {
 test("does not prefix private chats, other groups, other channels, or empty text", () => {
   const cases = [
     {
-      event: { to: "5511981042361", content: "Olá" },
-      context: { channelId: "whatsapp", conversationId: "5511981042361" },
+      event: { to: "15551234567", content: "Olá" },
+      context: { channelId: "whatsapp", conversationId: "15551234567" },
       expected: "Olá",
     },
     {

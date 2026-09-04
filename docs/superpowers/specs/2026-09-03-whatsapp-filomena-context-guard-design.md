@@ -6,7 +6,7 @@ Make the configured WhatsApp group invoke the agent only when the current messag
 
 ## Scope
 
-- Target only WhatsApp group `5511981042361-1589823314@g.us`.
+- Target only WhatsApp group `120363012345678901@g.us`.
 - Preserve self-chat behavior and the existing LM Studio and Graphiti configuration.
 - Do not implement an exact character or token cap. Use the native message-count limit as a small bounded approximation.
 - Do not start the OpenClaw gateway; Helena starts it manually.

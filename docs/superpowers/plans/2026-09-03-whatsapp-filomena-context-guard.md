@@ -81,7 +81,7 @@ import { shouldSuppressDispatch } from "./guard.js";
 
 const config = {
   channel: "whatsapp",
-  groupId: "5511981042361-1589823314@g.us",
+   groupId: "120363012345678901@g.us",
   trigger: "@Filomena",
 };
 
@@ -124,7 +124,7 @@ test("does not accept a longer name with the same prefix", () => {
 
 test("leaves direct messages untouched", () => {
   const event = { channel: "whatsapp", isGroup: false, body: "@ai oi" };
-  const context = { conversationId: "+5511944558218" };
+  const context = { conversationId: "+15551234567" };
   assert.equal(shouldSuppressDispatch(event, context, config), false);
 });
 
@@ -245,11 +245,11 @@ function registerGuard(pluginConfig: Record<string, unknown>) {
 
 test("registers a before_dispatch hook that silently claims non-trigger replies", () => {
   const { handler, logs } = registerGuard({
-    groupId: "5511981042361-1589823314@g.us",
+     groupId: "120363012345678901@g.us",
   });
   const result = handler(
     { channel: "whatsapp", isGroup: true, body: "resposta sem gatilho" },
-    { conversationId: "5511981042361-1589823314@g.us" },
+     { conversationId: "120363012345678901@g.us" },
   );
   assert.deepEqual(result, { handled: true });
   assert.equal(logs.length, 1);
@@ -257,12 +257,12 @@ test("registers a before_dispatch hook that silently claims non-trigger replies"
 
 test("lets explicit Filomena messages continue to the model", () => {
   const { handler } = registerGuard({
-    groupId: "5511981042361-1589823314@g.us",
+     groupId: "120363012345678901@g.us",
     trigger: "@Filomena",
   });
   const result = handler(
     { channel: "whatsapp", isGroup: true, body: "@Filomena oi" },
-    { conversationId: "5511981042361-1589823314@g.us" },
+     { conversationId: "120363012345678901@g.us" },
   );
   assert.equal(result, undefined);
 });
@@ -431,7 +431,7 @@ Under `plugins.entries`, add:
   "enabled": true,
   "config": {
     "channel": "whatsapp",
-    "groupId": "5511981042361-1589823314@g.us",
+     "groupId": "120363012345678901@g.us",
     "trigger": "@Filomena"
   }
 }
@@ -454,7 +454,7 @@ Under `channels.whatsapp`, add:
 Change the target group entry to:
 
 ```json
-"5511981042361-1589823314@g.us": {
+ "120363012345678901@g.us": {
   "requireMention": true,
   "systemPrompt": "Use the recent WhatsApp messages supplied by the channel as immediate conversational context. Answer the request following the leading @Filomena trigger. If the user asks for historical analysis, or older or broader group context is clearly required, call memory_recall to search Graphiti before answering. Do not call Graphiti for ordinary requests. Do not guess or claim historical context when no relevant memory is returned."
 }

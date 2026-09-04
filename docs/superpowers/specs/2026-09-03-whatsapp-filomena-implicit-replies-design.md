@@ -2,7 +2,7 @@
 
 ## Goal
 
-In the WhatsApp group `5511981042361-1589823314@g.us`, dispatch to Filomena only when either:
+In the WhatsApp group `120363012345678901@g.us`, dispatch to Filomena only when either:
 
 1. The current message starts with `@Filomena`; or
 2. The current message directly replies to a WhatsApp message previously sent by OpenClaw/Filomena.

@@ -56,7 +56,7 @@ function withTemporaryPlugin(
 ) {
   const directory = mkdtempSync(join(tmpdir(), "filomena-plugin-"));
   const filePath = join(directory, "state.json");
-  const groupId = "5511981042361-1589823314@g.us";
+  const groupId = "120363012345678901@g.us";
   try {
     run({
       filePath,
@@ -133,8 +133,8 @@ test("prefixes only protected-group outbound text", () => {
     );
     assert.equal(
       handlers.message_sending!(
-        { to: "5511981042361", content: "Olá" },
-        { channelId: "whatsapp", conversationId: "5511981042361" },
+        { to: "15551234567", content: "Olá" },
+        { channelId: "whatsapp", conversationId: "15551234567" },
       ),
       undefined,
     );

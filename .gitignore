@@ -1,1 +1,37 @@
+# Local secrets and environment
+.env
+.env.*
+!.env.example
+config/openclaw.json
+config/*.local.*
+
+# Private conversations and imported media
+whatsapp-exports/
+data/
+chat.txt
+*.chat.txt
+workspace/media/
+
+# Runtime state and databases
+workspace/memory/
+workspace/*.jsonl
+state/
+logs/
+backups/
+*.rdb
+*.aof
+*.sqlite
+*.sqlite3
+
+# Dependencies and generated files
+**/node_modules/
+**/.venv/
+**/__pycache__/
+**/.pytest_cache/
+**/coverage/
+**/dist/
+**/build/
+
+# Local work areas
 .worktrees/
+.tmp-*/
