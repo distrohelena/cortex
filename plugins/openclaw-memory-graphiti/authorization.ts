@@ -171,6 +171,26 @@ export async function canWriteToGroup(
 }
 
 /**
+ * Check access to one known conversation group without listing every group the
+ * subject can access. Runtime recall uses this to avoid cross-chat fan-out.
+ */
+export async function canAccessGroup(
+  spicedb: SpiceDbClient,
+  subject: Subject,
+  groupId: string,
+  zedToken?: string,
+): Promise<boolean> {
+  return spicedb.checkPermission({
+    resourceType: "group",
+    resourceId: groupId,
+    permission: "access",
+    subjectType: subject.type,
+    subjectId: subject.id,
+    consistency: tokenConsistency(zedToken),
+  });
+}
+
+/**
  * Ensure a subject is registered as a member of a group.
  * Idempotent (uses TOUCH operation).
  */

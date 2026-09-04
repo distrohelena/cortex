@@ -28,7 +28,7 @@
     "graphiti.defaultGroupId": {
       "label": "Default Group ID",
       "placeholder": "main",
-      "help": "Default Graphiti group_id for memory isolation"
+      "help": "Administrative CLI fallback only; runtime tools derive the current conversation group_id"
     },
     "graphiti.uuidPollIntervalMs": {
       "label": "UUID Poll Interval (ms)",

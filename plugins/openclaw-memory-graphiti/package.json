@@ -18,6 +18,8 @@
   ],
   "files": [
     "index.ts",
+    "conversation-namespace.mjs",
+    "conversation-namespace.d.mts",
     "cli.ts",
     "config.ts",
     "authorization.ts",

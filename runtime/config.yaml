@@ -33,7 +33,9 @@ database:
       database: "default_db"
 
 graphiti:
-  group_id: "whatsapp"
+  # Runtime callers must always pass a canonical conversation group_id.
+  # This sentinel isolates accidental unscoped MCP calls.
+  group_id: "unscoped-disabled"
   episode_id_prefix: "wa-"
   user_id: "openclaw-main"
   entity_types:

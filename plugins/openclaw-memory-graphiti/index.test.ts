@@ -7,6 +7,11 @@
 
 import { describe, test, expect, vi, beforeEach } from "vitest";
 
+const REAL_GROUP_JID = "5511981042361-1589823314@g.us";
+const REAL_GROUP_ID = "whatsapp-group-5511981042361-1589823314-g-us";
+const OTHER_GROUP_JID = "120363000000000000@g.us";
+const OTHER_GROUP_ID = "whatsapp-group-120363000000000000-g-us";
+
 // Mock @authzed/authzed-node before importing the plugin
 vi.mock("@authzed/authzed-node", () => {
   const mockPromises = {
@@ -182,7 +187,18 @@ describe("openclaw-memory-graphiti plugin", () => {
         debug: (msg: string) => logs.push(`[debug] ${msg}`),
       },
       // oxlint-disable-next-line typescript/no-explicit-any
-      registerTool: (tool: any, opts: any) => registeredTools.push({ tool, opts }),
+      registerTool: (tool: any, opts: any) => {
+        const factory = typeof tool === "function" ? tool : undefined;
+        const boundTool = factory
+          ? factory({
+              messageChannel: "whatsapp",
+              nativeChannelId: REAL_GROUP_JID,
+              sessionKey: `agent:main:whatsapp:group:${REAL_GROUP_JID}`,
+              sessionId: "default-test-session",
+            })
+          : tool;
+        registeredTools.push({ tool: boundTool, factory, opts });
+      },
       // oxlint-disable-next-line typescript/no-explicit-any
       registerCli: (registrar: any, opts: any) => registeredClis.push({ registrar, opts }),
       // oxlint-disable-next-line typescript/no-explicit-any
@@ -229,6 +245,98 @@ describe("openclaw-memory-graphiti plugin", () => {
     expect(registeredServices[0].id).toBe("openclaw-memory-graphiti");
   });
 
+  test("registers recall and store as conversation-bound tool factories", async () => {
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+
+    expect(typeof registeredTools.find((t) => t.opts?.name === "memory_recall")?.factory).toBe("function");
+    expect(typeof registeredTools.find((t) => t.opts?.name === "memory_store")?.factory).toBe("function");
+  });
+
+  test("memory_store in the real group writes only its canonical namespace", async () => {
+    setupGraphitiMock('{"message":"queued"}');
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+
+    const factory = registeredTools.find((t) => t.opts?.name === "memory_store")?.factory;
+    const storeTool = factory({
+      messageChannel: "whatsapp",
+      nativeChannelId: REAL_GROUP_JID,
+      sessionKey: `agent:main:whatsapp:group:${REAL_GROUP_JID}`,
+      sessionId: "session-real-a",
+    });
+    const result = await storeTool.execute("call-real-group", {
+      content: "Gabriel gosta de Shadow of Mordor",
+    });
+
+    expect(result.details.groupId).toBe(REAL_GROUP_ID);
+    const addMemoryBodies = mockFetch.mock.calls
+      .map((call) => call[1]?.body ? JSON.parse(call[1].body as string) : undefined)
+      .filter((body) => body?.params?.name === "add_memory");
+    expect(addMemoryBodies).toHaveLength(1);
+    expect(addMemoryBodies[0].params.arguments.group_id).toBe(REAL_GROUP_ID);
+    expect(addMemoryBodies[0].params.arguments.group_id).not.toBe("whatsapp");
+  });
+
+  test("recall in group A never asks Graphiti to search group B", async () => {
+    setupGraphitiMock('{"message":"ok","episodes":[],"nodes":[],"facts":[]}');
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+
+    const factory = registeredTools.find((t) => t.opts?.name === "memory_recall")?.factory;
+    const recallA = factory({
+      messageChannel: "whatsapp",
+      nativeChannelId: REAL_GROUP_JID,
+      sessionKey: `agent:main:whatsapp:group:${REAL_GROUP_JID}`,
+      sessionId: "session-a",
+    });
+    await recallA.execute("call-a", { query: "Gabriel Shadow of Mordor", scope: "long-term" });
+
+    const searchedGroupIds = mockFetch.mock.calls
+      .map((call) => call[1]?.body ? JSON.parse(call[1].body as string) : undefined)
+      .filter((body) => ["search_nodes", "search_memory_facts", "get_episodes"].includes(body?.params?.name))
+      .flatMap((body) => body.params.arguments.group_ids ?? []);
+    expect(searchedGroupIds).toContain(REAL_GROUP_ID);
+    expect(searchedGroupIds).not.toContain(OTHER_GROUP_ID);
+    expect(searchedGroupIds).not.toContain("whatsapp");
+  });
+
+  test("recall in group B never asks Graphiti to search group A", async () => {
+    setupGraphitiMock('{"message":"ok","episodes":[],"nodes":[],"facts":[]}');
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+
+    const factory = registeredTools.find((t) => t.opts?.name === "memory_recall")?.factory;
+    const recallB = factory({
+      messageChannel: "whatsapp",
+      nativeChannelId: OTHER_GROUP_JID,
+      sessionKey: `agent:main:whatsapp:group:${OTHER_GROUP_JID}`,
+      sessionId: "session-b",
+    });
+    await recallB.execute("call-b", { query: "Gabriel Shadow of Mordor", scope: "long-term" });
+
+    const searchedGroupIds = mockFetch.mock.calls
+      .map((call) => call[1]?.body ? JSON.parse(call[1].body as string) : undefined)
+      .filter((body) => ["search_nodes", "search_memory_facts", "get_episodes"].includes(body?.params?.name))
+      .flatMap((body) => body.params.arguments.group_ids ?? []);
+    expect(searchedGroupIds).toContain(OTHER_GROUP_ID);
+    expect(searchedGroupIds).not.toContain(REAL_GROUP_ID);
+  });
+
+  test("conversation-bound tools fail closed without a channel conversation", async () => {
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+
+    for (const name of ["memory_recall", "memory_store"]) {
+      const factory = registeredTools.find((t) => t.opts?.name === name)?.factory;
+      const tool = factory({ sessionKey: "agent:main:main", sessionId: "local-session" });
+      const params = name === "memory_recall" ? { query: "anything useful" } : { content: "remember this" };
+      const result = await tool.execute(`call-${name}`, params);
+      expect(result.details.action).toBe("denied");
+      expect(result.content[0].text).toMatch(/conversation namespace/i);
+    }
+  });
+
   test("registers hooks when autoRecall and autoCapture enabled", async () => {
     mockApi.pluginConfig.autoRecall = true;
     mockApi.pluginConfig.autoCapture = true;
@@ -255,7 +363,7 @@ describe("openclaw-memory-graphiti plugin", () => {
   test("memory_recall tool returns results with scope support", async () => {
     // Mock Graphiti search response — needs both nodes and facts keys
     const nodes = [
-      { uuid: "n1", name: "Mark", summary: "Mark is a developer", group_id: "main", labels: [], created_at: "2026-01-15T00:00:00Z", attributes: {} },
+      { uuid: "n1", name: "Mark", summary: "Mark is a developer", group_id: REAL_GROUP_ID, labels: [], created_at: "2026-01-15T00:00:00Z", attributes: {} },
     ];
     setupGraphitiMock(JSON.stringify({ message: "Found 1 node", nodes, facts: [] }));
 
@@ -314,13 +422,12 @@ describe("openclaw-memory-graphiti plugin", () => {
       content: "Mark got a promotion at work",
       source_description: "conversation with Mark",
       involves: ["mark"],
-      group_id: "family",
     });
 
     expect(result.details.action).toBe("created");
     expect(result.details.episodeId).toBeDefined();
     expect(result.details.episodeId).toMatch(/^tmp-[0-9a-f-]{36}$/);
-    expect(result.details.groupId).toBe("family");
+    expect(result.details.groupId).toBe(REAL_GROUP_ID);
     expect(result.details.longTerm).toBe(true);
 
     // Verify add_memory tool was called
@@ -332,7 +439,7 @@ describe("openclaw-memory-graphiti plugin", () => {
     });
     expect(addMemoryCall).toBeDefined();
     const body = JSON.parse(addMemoryCall![1]?.body as string);
-    expect(body.params.arguments.group_id).toBe("family");
+    expect(body.params.arguments.group_id).toBe(REAL_GROUP_ID);
     // custom_extraction_instructions are prepended to episode_body
     expect(body.params.arguments.episode_body).toContain("[Extraction Instructions]");
     expect(body.params.arguments.episode_body).toContain("Mark got a promotion at work");
@@ -354,7 +461,12 @@ describe("openclaw-memory-graphiti plugin", () => {
       await beforeHook({ prompt: "hello world test prompt" }, { sessionKey: "sess-123" });
     }
 
-    const storeTool = registeredTools.find((t) => t.opts?.name === "memory_store")?.tool;
+    const factory = registeredTools.find((t) => t.opts?.name === "memory_store")?.factory;
+    const storeTool = factory({
+      messageChannel: "whatsapp",
+      nativeChannelId: REAL_GROUP_JID,
+      sessionId: "sess-123",
+    });
     const result = await storeTool.execute("call-session", {
       content: "This is session context",
       longTerm: false,
@@ -379,7 +491,12 @@ describe("openclaw-memory-graphiti plugin", () => {
       await beforeHook({ prompt: "test" }, { sessionKey: "agent:main:main" });
     }
 
-    const storeTool = registeredTools.find((t) => t.opts?.name === "memory_store")?.tool;
+    const factory = registeredTools.find((t) => t.opts?.name === "memory_store")?.factory;
+    const storeTool = factory({
+      messageChannel: "whatsapp",
+      nativeChannelId: REAL_GROUP_JID,
+      sessionId: "agent:main:main",
+    });
     const result = await storeTool.execute("call-sanitized", {
       content: "Session with colons in key",
       longTerm: false,
@@ -402,7 +519,7 @@ describe("openclaw-memory-graphiti plugin", () => {
     expect(result.content[0].text).toContain("fact:");
   });
 
-  test("memory_store denies write to unauthorized non-session group", async () => {
+  test("memory_store denies write to an unauthorized current conversation", async () => {
     setupGraphitiMock('{"message":"queued"}');
 
     // Make checkPermission deny "contribute" but allow "delete"
@@ -421,11 +538,10 @@ describe("openclaw-memory-graphiti plugin", () => {
     const storeTool = registeredTools.find((t) => t.opts?.name === "memory_store")?.tool;
     const result = await storeTool.execute("call-denied", {
       content: "Trying to inject false memories",
-      group_id: "family",
     });
 
     expect(result.details.action).toBe("denied");
-    expect(result.details.groupId).toBe("family");
+    expect(result.details.groupId).toBe(REAL_GROUP_ID);
 
     // Verify Graphiti was NOT called (no add_memory fetch after initialize)
     const addMemoryCalls = mockFetch.mock.calls.filter((call) => {
@@ -436,14 +552,14 @@ describe("openclaw-memory-graphiti plugin", () => {
     expect(addMemoryCalls).toHaveLength(0);
   });
 
-  test("memory_store allows write to own current session group", async () => {
+  test("memory_store allows write to the bound current session group", async () => {
     setupGraphitiMock('{"message":"queued"}');
 
     // Make checkPermission deny contribute — should NOT matter for OWN session
     const { v1 } = await import("@authzed/authzed-node");
     const mockClient = (v1.NewClient as ReturnType<typeof vi.fn>)();
     mockClient.promises.checkPermission.mockImplementation(() => {
-      return Promise.resolve({ permissionship: 1 }); // NO_PERMISSION for everything
+      return Promise.resolve({ permissionship: 2 });
     });
 
     mockApi.pluginConfig.autoRecall = true;
@@ -457,7 +573,12 @@ describe("openclaw-memory-graphiti plugin", () => {
       await beforeHook({ prompt: "test prompt for session" }, { sessionKey: "sess-write" });
     }
 
-    const storeTool = registeredTools.find((t) => t.opts?.name === "memory_store")?.tool;
+    const factory = registeredTools.find((t) => t.opts?.name === "memory_store")?.factory;
+    const storeTool = factory({
+      messageChannel: "whatsapp",
+      nativeChannelId: REAL_GROUP_JID,
+      sessionId: "sess-write",
+    });
     const result = await storeTool.execute("call-session-write", {
       content: "Session memory content",
       longTerm: false,
@@ -468,7 +589,7 @@ describe("openclaw-memory-graphiti plugin", () => {
     expect(result.details.groupId).toBe("session-sess-write");
   });
 
-  test("memory_store denies write to foreign session group", async () => {
+  test("memory_store cannot be redirected to a foreign group by tool arguments", async () => {
     setupGraphitiMock('{"message":"queued"}');
 
     // Make checkPermission deny contribute
@@ -502,7 +623,7 @@ describe("openclaw-memory-graphiti plugin", () => {
 
     // Should be denied — not the agent's own session, and no contribute permission
     expect(result.details.action).toBe("denied");
-    expect(result.details.groupId).toBe("session-other-agents-session");
+    expect(result.details.groupId).toBe(REAL_GROUP_ID);
 
     // Verify Graphiti was NOT called
     const addMemoryCalls = mockFetch.mock.calls.filter((call) => {
@@ -513,7 +634,7 @@ describe("openclaw-memory-graphiti plugin", () => {
     expect(addMemoryCalls).toHaveLength(0);
   });
 
-  test("auto-capture skips write when permission denied for non-session group", async () => {
+  test("auto-capture fails closed without a conversation namespace", async () => {
     mockApi.pluginConfig.autoCapture = true;
     setupGraphitiMock('{"message":"queued"}');
 
@@ -551,7 +672,7 @@ describe("openclaw-memory-graphiti plugin", () => {
     expect(addMemoryCalls).toHaveLength(0);
 
     // Should log the denial
-    expect(logs.some((l) => l.includes("auto-capture denied"))).toBe(true);
+    expect(logs.some((l) => l.includes("auto-capture skipped without a conversation namespace"))).toBe(true);
   });
 
   test("memory_status tool reports session ID", async () => {
@@ -563,7 +684,8 @@ describe("openclaw-memory-graphiti plugin", () => {
 
     expect(result.details.graphiti).toBe("connected");
     expect(result.details.spicedb).toBe("connected");
-    expect(result.details.currentSessionId).toBe("none");
+    expect(result.details.currentSessionId).toBe("default-test-session");
+    expect(result.details.conversationGroupId).toBe(REAL_GROUP_ID);
   });
 
   test("threads ZedToken from synchronous write to subsequent read for causal consistency", async () => {
@@ -577,11 +699,7 @@ describe("openclaw-memory-graphiti plugin", () => {
 
     // 1. Start the service — ensureGroupMembership writes a group membership
     //    relationship synchronously, setting lastWriteToken.
-    const service = registeredServices[0];
-    await service.start();
-
     // 2. Recall memories — should pass the stored token via consistency
-    mockClient.promises.lookupResources.mockResolvedValue([{ resourceObjectId: "main" }]);
     const nodes = [
       { uuid: "n1", name: "Test", summary: "Test entity", group_id: "main", labels: [], created_at: "2026-01-15T00:00:00Z", attributes: {} },
     ];
@@ -591,9 +709,10 @@ describe("openclaw-memory-graphiti plugin", () => {
     await recallTool.execute("call-token-2", { query: "test" });
 
     // Verify lookupResources was called with consistency containing the write token
-    const lookupCalls = mockClient.promises.lookupResources.mock.calls;
-    const lastLookupCall = lookupCalls[lookupCalls.length - 1][0];
-    expect(lastLookupCall.consistency).toEqual({
+    const accessCall = mockClient.promises.checkPermission.mock.calls
+      .map((call: unknown[]) => call[0] as Record<string, unknown>)
+      .find((request: Record<string, unknown>) => request.permission === "access");
+    expect(accessCall?.consistency).toEqual({
       requirement: {
         oneofKind: "atLeastAsFresh",
         atLeastAsFresh: { token: "write-token-1" },
@@ -625,7 +744,7 @@ describe("openclaw-memory-graphiti plugin", () => {
     expect(logs.some((l) => l.includes("initialized"))).toBe(true);
   });
 
-  test("service start prewarms authorized raw episodes when auto-recall is enabled", async () => {
+  test("service start does not enumerate or prewarm every authorized group", async () => {
     mockApi.pluginConfig.autoRecall = true;
     setupGraphitiMock(JSON.stringify({ message: "ok", episodes: [] }));
     const { v1 } = await import("@authzed/authzed-node");
@@ -639,16 +758,13 @@ describe("openclaw-memory-graphiti plugin", () => {
     plugin.register(mockApi);
     await registeredServices[0].start({});
 
-    await vi.waitFor(() => {
-      const getEpisodesCalls = mockFetch.mock.calls.filter((call) => {
-        if (!call[1]?.body) return false;
-        const body = JSON.parse(call[1].body as string);
-        return body.params?.name === "get_episodes";
-      });
-      expect(getEpisodesCalls).toHaveLength(1);
-      const body = JSON.parse(getEpisodesCalls[0][1].body as string);
-      expect(body.params.arguments.group_ids).toEqual(["main"]);
+    const getEpisodesCalls = mockFetch.mock.calls.filter((call) => {
+      if (!call[1]?.body) return false;
+      const body = JSON.parse(call[1].body as string);
+      return body.params?.name === "get_episodes";
     });
+    expect(getEpisodesCalls).toHaveLength(0);
+    expect(mockClient.promises.lookupResources).not.toHaveBeenCalled();
   });
 
   test("auto-capture sends batch episode with conversation text", async () => {
@@ -668,7 +784,12 @@ describe("openclaw-memory-graphiti plugin", () => {
         { role: "assistant", content: "Got it! I'll remember your dark mode preference." },
         { role: "user", content: "Also, my email is mark@example.com" },
       ],
-    }, { sessionKey: "sess-cap-1" });
+    }, {
+      channel: "whatsapp",
+      chatId: REAL_GROUP_JID,
+      sessionKey: `agent:main:whatsapp:group:${REAL_GROUP_JID}`,
+      sessionId: "sess-cap-1",
+    });
 
     // Verify add_memory was called (tool name changed from add_episode)
     const fetchCalls = mockFetch.mock.calls;
@@ -686,8 +807,8 @@ describe("openclaw-memory-graphiti plugin", () => {
     expect(episodeBody).toContain("Assistant: Got it!");
     expect(episodeBody).toContain("User: Also, my email");
 
-    // Should go to session group
-    expect(body.params.arguments.group_id).toBe("session-sess-cap-1");
+    // Transitional capture follows the persistent conversation namespace.
+    expect(body.params.arguments.group_id).toBe(REAL_GROUP_ID);
 
     // custom_extraction_instructions are prepended to episode_body
     expect(body.params.arguments.episode_body).toContain("[Extraction Instructions]");
@@ -713,6 +834,11 @@ describe("openclaw-memory-graphiti plugin", () => {
         { role: "user", content: "<relevant-memories>injected context here</relevant-memories> What about Mark?" },
         { role: "assistant", content: "Mark is doing great!" },
       ],
+    }, {
+      channel: "whatsapp",
+      chatId: REAL_GROUP_JID,
+      sessionKey: `agent:main:whatsapp:group:${REAL_GROUP_JID}`,
+      sessionId: "sess-cap-2",
     });
 
     // Verify the episode body does NOT include the injected context message
@@ -930,7 +1056,7 @@ describe("openclaw-memory-graphiti plugin", () => {
       fact: "Mark works at Acme",
       source_node_name: "Mark",
       target_node_name: "Acme",
-      group_id: "main",
+      group_id: REAL_GROUP_ID,
       created_at: "2026-01-15",
     };
 
@@ -1082,11 +1208,24 @@ describe("openclaw-memory-graphiti plugin", () => {
 
     const result = await beforeHook({
       prompt: "What does Mark do for work?",
-    }, { sessionKey: "sess-recall-1" });
+    }, {
+      channel: "whatsapp",
+      chatId: REAL_GROUP_JID,
+      sessionKey: `agent:main:whatsapp:group:${REAL_GROUP_JID}`,
+      sessionId: "sess-recall-1",
+    });
 
     // Should return prepended context
     expect(result?.prependContext).toContain("<relevant-memories>");
     expect(result?.prependContext).toContain("</relevant-memories>");
+
+    const searchedGroupIds = mockFetch.mock.calls
+      .map((call) => call[1]?.body ? JSON.parse(call[1].body as string) : undefined)
+      .filter((body) => ["search_nodes", "search_memory_facts", "get_episodes"].includes(body?.params?.name))
+      .flatMap((body) => body.params.arguments.group_ids ?? []);
+    expect(new Set(searchedGroupIds)).toEqual(new Set([REAL_GROUP_ID, "session-sess-recall-1"]));
+    expect(searchedGroupIds).not.toContain(OTHER_GROUP_ID);
+    expect(searchedGroupIds).not.toContain("whatsapp");
 
     // Should log injection with long-term/session breakdown
     expect(logs.some((l) => l.includes("injecting") && l.includes("long-term"))).toBe(true);
@@ -1100,7 +1239,7 @@ describe("openclaw-memory-graphiti plugin", () => {
         name: "whatsapp_wa-chat_0001",
         content: "[4/11/26 12:37:03 PM] Gabriel: Zerei Shadow of Mordor, família",
         source_description: "WhatsApp export",
-        group_id: "main",
+        group_id: REAL_GROUP_ID,
         created_at: "2026-04-11T15:37:03Z",
       },
     ];
@@ -1117,7 +1256,12 @@ describe("openclaw-memory-graphiti plugin", () => {
         prompt: "Envelope do gateway com contexto recente sem relação",
         messages: [{ role: "user", content: "Gabriel fechou Shadow of Mordor" }],
       },
-      { sessionKey: "sess-shadow" },
+      {
+        channel: "whatsapp",
+        chatId: REAL_GROUP_JID,
+        sessionKey: `agent:main:whatsapp:group:${REAL_GROUP_JID}`,
+        sessionId: "sess-shadow",
+      },
     );
 
     expect(result?.prependContext).toContain("<relevant-memories>");

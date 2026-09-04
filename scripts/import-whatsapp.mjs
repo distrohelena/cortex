@@ -1,23 +1,65 @@
 import { readdir, readFile } from "node:fs/promises";
-import { basename, dirname, extname, join, resolve } from "node:path";
+import { dirname, extname, join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-const positionalArgs = process.argv.slice(2).filter((arg) => !arg.startsWith("--"));
+import { canonicalConversationGroupId } from "../plugins/openclaw-memory-graphiti/conversation-namespace.mjs";
+
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
-const EXPORT_DIR = resolve(positionalArgs[0] ?? SCRIPT_DIR);
-const DRY_RUN = process.argv.includes("--dry-run");
-const NO_AUTHORIZE = process.argv.includes("--no-authorize");
 const ENDPOINT = "http://127.0.0.1:8000";
 
-function slugify(value) {
-  return value
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .toLowerCase()
-    .slice(0, 80) || "conversa";
+export function parseCliArgs(args = process.argv.slice(2)) {
+  const options = {
+    exportDir: undefined,
+    dryRun: false,
+    noAuthorize: false,
+    channel: "whatsapp",
+    jid: undefined,
+    groupId: undefined,
+  };
+
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    if (arg === "--dry-run") {
+      options.dryRun = true;
+    } else if (arg === "--no-authorize") {
+      options.noAuthorize = true;
+    } else if (arg === "--jid" || arg === "--group-id" || arg === "--channel") {
+      const value = args[++index];
+      if (!value || value.startsWith("--")) throw new Error(`${arg} requires a value`);
+      if (arg === "--jid") options.jid = value;
+      if (arg === "--group-id") options.groupId = value;
+      if (arg === "--channel") options.channel = value;
+    } else if (arg.startsWith("--")) {
+      throw new Error(`Unknown option: ${arg}`);
+    } else if (options.exportDir === undefined) {
+      options.exportDir = arg;
+    } else {
+      throw new Error(`Unexpected positional argument: ${arg}`);
+    }
+  }
+
+  options.exportDir ??= SCRIPT_DIR;
+  return options;
+}
+
+export function resolveTargetGroupId(options) {
+  if (options.jid && options.groupId) {
+    throw new Error("Use either --jid or --group-id, not both");
+  }
+  if (options.groupId) {
+    if (!/^[a-zA-Z0-9_-]+$/.test(options.groupId)) {
+      throw new Error("--group-id must contain only letters, numbers, dashes, or underscores");
+    }
+    return options.groupId;
+  }
+  if (options.jid) {
+    return canonicalConversationGroupId({
+      channel: options.channel,
+      conversationId: options.jid,
+    });
+  }
+  throw new Error("A persistent target is required: pass --jid <WhatsApp JID> or --group-id <id>");
 }
 
 function parseExport(text) {
@@ -145,8 +187,8 @@ async function addEpisode(name, groupId, body, sourceDescription) {
   });
 }
 
-function authorize(groupId) {
-  if (NO_AUTHORIZE) return;
+function authorize(groupId, noAuthorize) {
+  if (noAuthorize) return;
   const command = process.platform === "win32" ? "openclaw.cmd" : "openclaw";
   const result = spawnSync(command, ["graphiti-mem", "add-member", groupId, "main", "--type", "agent"], {
     stdio: "inherit",
@@ -155,27 +197,29 @@ function authorize(groupId) {
   if (result.status !== 0) throw new Error(`SpiceDB authorization failed for ${groupId}`);
 }
 
-async function main() {
-  const files = (await readdir(EXPORT_DIR))
+export async function main(options = parseCliArgs()) {
+  const exportDir = resolve(options.exportDir);
+  const groupId = resolveTargetGroupId(options);
+  const files = (await readdir(exportDir))
     .filter((file) => extname(file).toLowerCase() === ".txt")
     .sort();
   if (files.length === 0) {
-    console.log(`No .txt files found in ${EXPORT_DIR}`);
+    console.log(`No .txt files found in ${exportDir}`);
     return;
   }
 
-  console.log(`${DRY_RUN ? "Previewing" : "Importing"} ${files.length} WhatsApp export(s) from ${EXPORT_DIR}`);
-  if (!DRY_RUN) await startMcpSession();
+  console.log(`${options.dryRun ? "Previewing" : "Importing"} ${files.length} WhatsApp export(s) from ${exportDir}`);
+  console.log(`Target conversation group_id: ${groupId}`);
+  if (!options.dryRun) await startMcpSession();
 
   for (const file of files) {
-    const text = await readFile(join(EXPORT_DIR, file), "utf8");
+    const text = await readFile(join(exportDir, file), "utf8");
     const messages = parseExport(text);
-    const groupId = `wa-${slugify(basename(file, extname(file)))}`;
     const fileChunks = chunks(messages);
     console.log(`\n${file}: ${messages.length} messages, ${fileChunks.length} episode(s), group_id=${groupId}`);
-    if (DRY_RUN) continue;
+    if (options.dryRun) continue;
 
-    authorize(groupId);
+    authorize(groupId, options.noAuthorize);
     for (let index = 0; index < fileChunks.length; index++) {
       const body = [
         `WhatsApp conversation export: ${file}`,
@@ -191,7 +235,10 @@ async function main() {
   console.log("\nImport complete. Graphiti processes episodes asynchronously; leave the service running until its queue drains.");
 }
 
-main().catch((error) => {
-  console.error(`Import failed: ${error instanceof Error ? error.message : String(error)}`);
-  process.exitCode = 1;
-});
+const isDirectInvocation = process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
+if (isDirectInvocation) {
+  main().catch((error) => {
+    console.error(`Import failed: ${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = 1;
+  });
+}

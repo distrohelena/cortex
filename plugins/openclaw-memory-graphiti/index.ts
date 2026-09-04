@@ -10,7 +10,10 @@
  * Authorization is enforced at the data layer, not in prompts.
  */
 
-import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
+import type {
+  OpenClawPluginApi,
+  OpenClawPluginToolContext,
+} from "openclaw/plugin-sdk/plugin-entry";
 import { Type } from "@sinclair/typebox";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -21,15 +24,15 @@ import { graphitiMemoryConfigSchema } from "./config.js";
 import { GraphitiClient } from "./graphiti.js";
 import { SpiceDbClient } from "./spicedb.js";
 import {
-  lookupAuthorizedGroups,
   writeFragmentRelationships,
+  canAccessGroup,
   canWriteToGroup,
   ensureGroupMembership,
   type Subject,
 } from "./authorization.js";
+import { canonicalConversationGroupId } from "./conversation-namespace.mjs";
 import {
   searchAuthorizedRecall,
-  warmAuthorizedEpisodeCache,
   formatDualResults,
   deduplicateSessionResults,
 } from "./search.js";
@@ -46,8 +49,26 @@ function sessionGroupId(sessionId: string): string {
   return `session-${sanitized}`;
 }
 
-function isSessionGroup(groupId: string): boolean {
-  return groupId.startsWith("session-");
+type ConversationContext = {
+  channel?: string;
+  conversationId?: string;
+  sessionKey?: string;
+};
+
+function resolvePersistentGroupId(context: ConversationContext): string | undefined {
+  try {
+    return canonicalConversationGroupId(context);
+  } catch {
+    return undefined;
+  }
+}
+
+function toolConversationContext(context: OpenClawPluginToolContext): ConversationContext {
+  return {
+    channel: context.messageChannel,
+    conversationId: context.nativeChannelId,
+    sessionKey: context.sessionKey,
+  };
 }
 
 function latestUserText(messages: unknown, fallback: string): string {
@@ -133,9 +154,6 @@ const memoryGraphitiPlugin = {
       id: cfg.subjectId,
     };
 
-    // Track current session ID — updated from hook event context
-    let currentSessionId: string | undefined;
-
     // Track most recent ZedToken from SpiceDB writes for causal consistency.
     // Reads use at_least_as_fresh(token) after own writes, minimize_latency otherwise.
     let lastWriteToken: string | undefined;
@@ -149,7 +167,7 @@ const memoryGraphitiPlugin = {
     // ========================================================================
 
     api.registerTool(
-      {
+      (toolContext: OpenClawPluginToolContext) => ({
         name: "memory_recall",
         label: "Memory Recall",
         description:
@@ -183,46 +201,30 @@ const memoryGraphitiPlugin = {
             center_node_uuid?: string;
           };
 
-          // 1. Get authorized groups for current subject
-          const authorizedGroups = await lookupAuthorizedGroups(spicedb, currentSubject, lastWriteToken);
-
-          if (authorizedGroups.length === 0) {
+          const persistentGroupId = resolvePersistentGroupId(toolConversationContext(toolContext));
+          if (!persistentGroupId) {
             return {
-              content: [{ type: "text", text: "No accessible memory groups found." }],
-              details: { count: 0, authorizedGroups: [] },
+              content: [{ type: "text", text: "Memory denied: no trusted conversation namespace is available." }],
+              details: { action: "denied", count: 0, authorizedGroups: [] },
             };
           }
 
-          // 2. Filter groups by scope
-          let longTermGroups: string[];
-          let sessionGroups: string[];
+          const sessionGroup = toolContext.sessionId ? sessionGroupId(toolContext.sessionId) : undefined;
+          const longTermGroups = scope === "session" ? [] : [persistentGroupId];
+          const sessionGroups = scope === "long-term" || !sessionGroup ? [] : [sessionGroup];
+          const targetGroups = [...longTermGroups, ...sessionGroups];
 
-          if (scope === "session") {
-            longTermGroups = [];
-            sessionGroups = authorizedGroups.filter(isSessionGroup);
-            // Also include current session if not in authorized groups
-            if (currentSessionId) {
-              const sg = sessionGroupId(currentSessionId);
-              if (!sessionGroups.includes(sg)) {
-                sessionGroups.push(sg);
-              }
-            }
-          } else if (scope === "long-term") {
-            longTermGroups = authorizedGroups.filter((g) => !isSessionGroup(g));
-            sessionGroups = [];
-          } else {
-            // "all"
-            longTermGroups = authorizedGroups.filter((g) => !isSessionGroup(g));
-            sessionGroups = authorizedGroups.filter(isSessionGroup);
-            if (currentSessionId) {
-              const sg = sessionGroupId(currentSessionId);
-              if (!sessionGroups.includes(sg)) {
-                sessionGroups.push(sg);
-              }
+          for (const groupId of targetGroups) {
+            const token = await ensureGroupMembership(spicedb, groupId, currentSubject);
+            if (token) lastWriteToken = token;
+            if (!await canAccessGroup(spicedb, currentSubject, groupId, lastWriteToken)) {
+              return {
+                content: [{ type: "text", text: `Memory denied for conversation group "${groupId}".` }],
+                details: { action: "denied", count: 0, authorizedGroups: targetGroups },
+              };
             }
           }
 
-          // 3. Parallel search across groups
           const searchOpts = { entityTypes: entity_types, centerNodeUuid: center_node_uuid };
           const [longTermResults, rawSessionResults] = await Promise.all([
             longTermGroups.length > 0
@@ -233,18 +235,16 @@ const memoryGraphitiPlugin = {
               : Promise.resolve([]),
           ]);
 
-          // 4. Deduplicate session results against long-term
           const sessionResults = deduplicateSessionResults(longTermResults, rawSessionResults);
 
           const totalCount = longTermResults.length + sessionResults.length;
           if (totalCount === 0) {
             return {
               content: [{ type: "text", text: "No relevant memories found." }],
-              details: { count: 0, authorizedGroups },
+              details: { count: 0, authorizedGroups: targetGroups },
             };
           }
 
-          // 5. Format results with section separation
           const text = formatDualResults(longTermResults, sessionResults);
           const allResults = [...longTermResults, ...sessionResults];
           const sanitized = allResults.map((r) => ({
@@ -260,18 +260,18 @@ const memoryGraphitiPlugin = {
             details: {
               count: totalCount,
               memories: sanitized,
-              authorizedGroups,
+              authorizedGroups: targetGroups,
               longTermCount: longTermResults.length,
               sessionCount: sessionResults.length,
             },
           };
         },
-      },
+      }),
       { name: "memory_recall" },
     );
 
     api.registerTool(
-      {
+      (toolContext: OpenClawPluginToolContext) => ({
         name: "memory_store",
         label: "Memory Store",
         description:
@@ -284,9 +284,6 @@ const memoryGraphitiPlugin = {
           involves: Type.Optional(
             Type.Array(Type.String(), { description: "Person/agent IDs involved in this memory" }),
           ),
-          group_id: Type.Optional(
-            Type.String({ description: "Target group ID (optional, uses your default group if omitted)" }),
-          ),
           longTerm: Type.Optional(
             Type.Boolean({ description: "Store as long-term memory (default: true). Set to false for session-scoped." }),
           ),
@@ -296,67 +293,45 @@ const memoryGraphitiPlugin = {
             content,
             source_description = "conversation",
             involves = [],
-            group_id,
             longTerm = true,
           } = params as {
             content: string;
             source_description?: string;
             involves?: string[];
-            group_id?: string;
             longTerm?: boolean;
           };
 
-          // Sanitize group_id: SpiceDB requires alphanumeric + _|\\-=+ only (no spaces!)
-          const sanitizeGroupId = (id?: string): string | undefined => {
-            if (!id) return undefined;
-            const trimmed = id.trim();
-            // If it looks like a description rather than an ID, ignore it
-            if (trimmed.includes(' ') || trimmed.toLowerCase().includes('configured')) {
-              return undefined;
-            }
-            return trimmed;
-          };
-
-          // Resolve target group: explicit > longTerm flag > default
-          let targetGroupId: string;
-          const sanitizedGroupId = sanitizeGroupId(group_id);
-          if (sanitizedGroupId) {
-            targetGroupId = sanitizedGroupId;
-          } else if (!longTerm && currentSessionId) {
-            targetGroupId = sessionGroupId(currentSessionId);
-          } else {
-            targetGroupId = cfg.graphiti.defaultGroupId;
+          // Persistent writes are bound to trusted channel context. Session
+          // writes use only the current ephemeral session identifier.
+          const persistentGroupId = resolvePersistentGroupId(toolConversationContext(toolContext));
+          if (!persistentGroupId) {
+            return {
+              content: [{ type: "text", text: "Memory denied: no trusted conversation namespace is available." }],
+              details: { action: "denied" },
+            };
           }
 
-          // Only auto-create membership for the agent's OWN current session.
-          // Foreign session groups (belonging to other agents) require explicit
-          // membership — prevents cross-agent session memory injection.
-          const isOwnSession =
-            isSessionGroup(targetGroupId) &&
-            currentSessionId != null &&
-            targetGroupId === sessionGroupId(currentSessionId);
+          if (!longTerm && !toolContext.sessionId) {
+            return {
+              content: [{ type: "text", text: "Memory denied: no current ephemeral session is available." }],
+              details: { action: "denied" },
+            };
+          }
 
-          if (isOwnSession) {
-            try {
-              const token = await ensureGroupMembership(spicedb, targetGroupId, currentSubject);
-              if (token) lastWriteToken = token;
-            } catch {
-              api.logger.warn(`openclaw-memory-graphiti: failed to ensure membership in ${targetGroupId}`);
-            }
-          } else {
-            // All other groups (non-session AND foreign session) require write permission
-            const allowed = await canWriteToGroup(spicedb, currentSubject, targetGroupId, lastWriteToken);
-            if (!allowed) {
-              return {
-                content: [
-                  {
-                    type: "text",
-                    text: `Permission denied: cannot write to group "${targetGroupId}"`,
-                  },
-                ],
-                details: { action: "denied", groupId: targetGroupId },
-              };
-            }
+          const targetGroupId = longTerm
+            ? persistentGroupId
+            : sessionGroupId(toolContext.sessionId!);
+
+          // Membership is safe to create because both targets come from trusted
+          // OpenClaw execution context, never model-supplied group IDs.
+          const token = await ensureGroupMembership(spicedb, targetGroupId, currentSubject);
+          if (token) lastWriteToken = token;
+          const allowed = await canWriteToGroup(spicedb, currentSubject, targetGroupId, lastWriteToken);
+          if (!allowed) {
+            return {
+              content: [{ type: "text", text: `Permission denied: cannot write to group "${targetGroupId}"` }],
+              details: { action: "denied", groupId: targetGroupId },
+            };
           }
 
           // 1. Add episode to Graphiti
@@ -413,12 +388,12 @@ const memoryGraphitiPlugin = {
             },
           };
         },
-      },
+      }),
       { name: "memory_store" },
     );
 
     api.registerTool(
-      {
+      (toolContext: OpenClawPluginToolContext) => ({
         name: "memory_forget",
         label: "Memory Forget",
         description:
@@ -475,6 +450,13 @@ const memoryGraphitiPlugin = {
             // but SpiceDB ObjectIds require at least one character. Map empty to the
             // configured default so the permission check doesn't fail with INVALID_ARGUMENT.
             const effectiveGroupId = fact.group_id || cfg.graphiti.defaultGroupId;
+            const currentGroupId = resolvePersistentGroupId(toolConversationContext(toolContext));
+            if (!currentGroupId || effectiveGroupId !== currentGroupId) {
+              return {
+                content: [{ type: "text", text: "Permission denied: fact is outside the current conversation namespace." }],
+                details: { action: "denied", id },
+              };
+            }
             const allowed = await canWriteToGroup(spicedb, currentSubject, effectiveGroupId, lastWriteToken);
             if (!allowed) {
               return {
@@ -498,12 +480,12 @@ const memoryGraphitiPlugin = {
             details: { action: "error", id },
           };
         },
-      },
+      }),
       { name: "memory_forget" },
     );
 
     api.registerTool(
-      {
+      (toolContext: OpenClawPluginToolContext) => ({
         name: "memory_status",
         label: "Memory Status",
         description: "Check the health of the Graphiti and SpiceDB services.",
@@ -524,7 +506,8 @@ const memoryGraphitiPlugin = {
             spicedb: spicedbHealthy ? "connected" : "unreachable",
             endpoint_graphiti: cfg.graphiti.endpoint,
             endpoint_spicedb: cfg.spicedb.endpoint,
-            currentSessionId: currentSessionId ?? "none",
+            currentSessionId: toolContext.sessionId ?? "none",
+            conversationGroupId: resolvePersistentGroupId(toolConversationContext(toolContext)) ?? "none",
           };
 
           const statusText = [
@@ -538,7 +521,7 @@ const memoryGraphitiPlugin = {
             details: status,
           };
         },
-      },
+      }),
       { name: "memory_status" },
     );
 
@@ -568,32 +551,27 @@ const memoryGraphitiPlugin = {
 
     if (cfg.autoRecall) {
       api.on("before_prompt_build", async (event, ctx) => {
-        // Track session ID from hook context
-        if (ctx?.sessionKey) {
-          currentSessionId = ctx.sessionKey;
-        }
-
         const recallQuery = latestUserText(event.messages, event.prompt);
         if (!recallQuery || recallQuery.length < 5) {
           return;
         }
 
         try {
-          const authorizedGroups = await lookupAuthorizedGroups(spicedb, currentSubject, lastWriteToken);
-          if (authorizedGroups.length === 0) {
+          const persistentGroupId = resolvePersistentGroupId({
+            channel: ctx?.channel ?? ctx?.messageProvider,
+            conversationId: ctx?.chatId ?? ctx?.channelId,
+            sessionKey: ctx?.sessionKey,
+          });
+          if (!persistentGroupId) {
             return;
           }
 
-          // Separate long-term and session groups
-          const longTermGroups = authorizedGroups.filter((g) => !isSessionGroup(g));
-          const sessionGroups = authorizedGroups.filter(isSessionGroup);
-
-          // Include current session group if known
-          if (currentSessionId) {
-            const sg = sessionGroupId(currentSessionId);
-            if (!sessionGroups.includes(sg)) {
-              sessionGroups.push(sg);
-            }
+          const longTermGroups = [persistentGroupId];
+          const sessionGroups = ctx?.sessionId ? [sessionGroupId(ctx.sessionId)] : [];
+          for (const groupId of [...longTermGroups, ...sessionGroups]) {
+            const token = await ensureGroupMembership(spicedb, groupId, currentSubject);
+            if (token) lastWriteToken = token;
+            if (!await canAccessGroup(spicedb, currentSubject, groupId, lastWriteToken)) return;
           }
 
           // Dual search: long-term + session in parallel
@@ -647,11 +625,6 @@ const memoryGraphitiPlugin = {
 
     if (cfg.autoCapture) {
       api.on("agent_end", async (event, ctx) => {
-        // Track session ID from hook context
-        if (ctx?.sessionKey) {
-          currentSessionId = ctx.sessionKey;
-        }
-
         if (!event.success || !event.messages || event.messages.length === 0) {
           return;
         }
@@ -709,30 +682,22 @@ const memoryGraphitiPlugin = {
           // Send as a single batch episode to Graphiti
           const episodeBody = conversationLines.join("\n");
 
-          // Store to session group by default (if session is known), otherwise default group
-          const targetGroupId = currentSessionId
-            ? sessionGroupId(currentSessionId)
-            : cfg.graphiti.defaultGroupId;
+          const targetGroupId = resolvePersistentGroupId({
+            channel: ctx?.channel ?? ctx?.messageProvider,
+            conversationId: ctx?.chatId ?? ctx?.channelId,
+            sessionKey: ctx?.sessionKey,
+          });
+          if (!targetGroupId) {
+            api.logger.warn("openclaw-memory-graphiti: auto-capture skipped without a conversation namespace");
+            return;
+          }
 
-          // Only auto-create membership for the agent's own current session
-          const isOwnSession =
-            isSessionGroup(targetGroupId) &&
-            currentSessionId != null &&
-            targetGroupId === sessionGroupId(currentSessionId);
-
-          if (isOwnSession) {
-            try {
-              const token = await ensureGroupMembership(spicedb, targetGroupId, currentSubject);
-              if (token) lastWriteToken = token;
-            } catch {
-              // Best-effort
-            }
-          } else {
-            const allowed = await canWriteToGroup(spicedb, currentSubject, targetGroupId, lastWriteToken);
-            if (!allowed) {
-              api.logger.warn(`openclaw-memory-graphiti: auto-capture denied for group ${targetGroupId}`);
-              return;
-            }
+          const token = await ensureGroupMembership(spicedb, targetGroupId, currentSubject);
+          if (token) lastWriteToken = token;
+          const allowed = await canWriteToGroup(spicedb, currentSubject, targetGroupId, lastWriteToken);
+          if (!allowed) {
+            api.logger.warn(`openclaw-memory-graphiti: auto-capture denied for group ${targetGroupId}`);
+            return;
           }
 
           // Generate unique episode name to avoid collisions
@@ -794,36 +759,6 @@ const memoryGraphitiPlugin = {
           }
         } catch {
           // Will be retried on first use
-        }
-
-        // Ensure current subject is a member of the default group
-        if (spicedbOk) {
-          try {
-            const token = await ensureGroupMembership(
-              spicedb,
-              cfg.graphiti.defaultGroupId,
-              currentSubject,
-            );
-            if (token) lastWriteToken = token;
-          } catch {
-            api.logger.warn("openclaw-memory-graphiti: failed to ensure default group membership");
-          }
-        }
-
-        if (cfg.autoRecall && graphitiOk && spicedbOk) {
-          void lookupAuthorizedGroups(spicedb, currentSubject, lastWriteToken)
-            .then(async (groupIds) => {
-              const longTermGroupIds = groupIds.filter((groupId) => !isSessionGroup(groupId));
-              await warmAuthorizedEpisodeCache(graphiti, longTermGroupIds);
-              api.logger.info(
-                `openclaw-memory-graphiti: warmed raw episode cache for ${longTermGroupIds.length} authorized groups`,
-              );
-            })
-            .catch((err) => {
-              api.logger.warn(
-                `openclaw-memory-graphiti: raw episode cache warmup failed: ${String(err)}`,
-              );
-            });
         }
 
         api.logger.info(

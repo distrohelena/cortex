@@ -5,6 +5,7 @@ import {
   writeFragmentRelationships,
   deleteFragmentRelationships,
   canDeleteFragment,
+  canAccessGroup,
   canWriteToGroup,
   ensureGroupMembership,
 } from "./authorization.js";
@@ -252,6 +253,32 @@ describe("canWriteToGroup", () => {
       subjectId: "pi",
       consistency: { mode: "at_least_as_fresh", token: "tok-write" },
     });
+  });
+});
+
+describe("canAccessGroup", () => {
+  test("checks one explicit group instead of enumerating all groups", async () => {
+    const checkPermission = vi.fn().mockResolvedValue(true);
+    const lookupResources = vi.fn().mockResolvedValue(["other-group"]);
+    const spicedb = mockSpiceDb({ checkPermission, lookupResources });
+
+    const allowed = await canAccessGroup(
+      spicedb,
+      { type: "agent", id: "pi" },
+      "whatsapp-group-a-g-us",
+      "tok-access",
+    );
+
+    expect(allowed).toBe(true);
+    expect(checkPermission).toHaveBeenCalledWith({
+      resourceType: "group",
+      resourceId: "whatsapp-group-a-g-us",
+      permission: "access",
+      subjectType: "agent",
+      subjectId: "pi",
+      consistency: { mode: "at_least_as_fresh", token: "tok-access" },
+    });
+    expect(lookupResources).not.toHaveBeenCalled();
   });
 });
 

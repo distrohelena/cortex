@@ -26,7 +26,7 @@
           },
           "graphiti": {
             "endpoint": "http://localhost:8000",
-            "defaultGroupId": "whatsapp"
+            "defaultGroupId": "replace-with-canonical-conversation-group-id"
           },
           "subjectType": "agent",
           "subjectId": "main",
