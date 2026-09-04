@@ -1,0 +1,57 @@
+{
+  "plugins": {
+    "entries": {
+      "whatsapp-filomena-guard": {
+        "enabled": true,
+        "config": {
+          "channel": "whatsapp",
+          "groupId": "<WHATSAPP_GROUP_JID>",
+          "trigger": "@Filomena",
+          "responsePrefix": "Filomena: ",
+          "stateFile": "<OPENCLAW_STATE_DIR>\\whatsapp-filomena-guard.json",
+          "maxTrackedMessageIds": 512
+        }
+      },
+      "openclaw-memory-graphiti": {
+        "enabled": true,
+        "hooks": {
+          "allowConversationAccess": true,
+          "allowPromptInjection": true
+        },
+        "config": {
+          "spicedb": {
+            "endpoint": "localhost:50051",
+            "token": "<SPICEDB_TOKEN>",
+            "insecure": true
+          },
+          "graphiti": {
+            "endpoint": "http://localhost:8000",
+            "defaultGroupId": "whatsapp"
+          },
+          "subjectType": "agent",
+          "subjectId": "main",
+          "autoCapture": true,
+          "autoRecall": true,
+          "maxCaptureMessages": 10
+        }
+      }
+    },
+    "load": {
+      "paths": [
+        "C:\\dev\\filomena\\plugins\\openclaw-memory-graphiti",
+        "C:\\dev\\filomena\\plugins\\whatsapp-filomena-guard"
+      ]
+    },
+    "slots": {
+      "memory": "openclaw-memory-graphiti"
+    }
+  },
+  "agents": {
+    "defaults": {
+      "workspace": "C:\\dev\\filomena\\workspace",
+      "model": {
+        "primary": "lmstudio/google/gemma-4-e4b"
+      }
+    }
+  }
+}
