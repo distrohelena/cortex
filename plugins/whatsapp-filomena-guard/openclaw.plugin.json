@@ -2,6 +2,9 @@
   "id": "whatsapp-filomena-guard",
   "name": "WhatsApp Filomena Guard",
   "description": "Separates WhatsApp observation from configurable automatic response policies.",
+  "activation": {
+    "onCapabilities": ["hook"]
+  },
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
@@ -29,6 +32,11 @@
               "additionalProperties": false,
               "properties": {
                 "trigger": { "type": "string", "default": "@Filomena", "minLength": 1 },
+                "triggerAliases": {
+                  "type": "array",
+                  "items": { "type": "string", "minLength": 1 },
+                  "default": []
+                },
                 "allowRepliesToFilomena": { "type": "boolean", "default": true },
                 "prefix": { "type": "boolean", "default": true }
               }

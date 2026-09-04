@@ -15,7 +15,12 @@ type GuardConfig = {
   maxTrackedMessageIds: number;
   respond: {
     direct: { mode: "allowlist" | "disabled"; allowFrom: string[] };
-    groups: Record<string, { trigger: string; allowRepliesToFilomena: boolean; prefix: boolean }>;
+    groups: Record<string, {
+      trigger: string;
+      triggerAliases: string[];
+      allowRepliesToFilomena: boolean;
+      prefix: boolean;
+    }>;
   };
 };
 
@@ -41,8 +46,15 @@ function readConfig(api: OpenClawPluginApi): GuardConfig {
     const groupId = rawGroupId.trim().toLowerCase();
     if (!groupId || !rawPolicy || typeof rawPolicy !== "object" || Array.isArray(rawPolicy)) continue;
     const policy = rawPolicy as Record<string, unknown>;
+    const triggerAliases = Array.isArray(policy.triggerAliases)
+      ? [...new Set(policy.triggerAliases
+          .filter((value): value is string => typeof value === "string")
+          .map((value) => value.trim())
+          .filter(Boolean))]
+      : [];
     groups[groupId] = {
       trigger: typeof policy.trigger === "string" && policy.trigger.trim() ? policy.trigger.trim() : "@Filomena",
+      triggerAliases,
       allowRepliesToFilomena: policy.allowRepliesToFilomena !== false,
       prefix: policy.prefix !== false,
     };

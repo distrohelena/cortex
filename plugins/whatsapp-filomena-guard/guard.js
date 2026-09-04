@@ -86,10 +86,18 @@ export function shouldSuppressDispatch(
 
   const policy = groupPolicy(event, context, config);
   if (!policy) return true;
-  const body = typeof event.body === "string" ? event.body.trimStart() : "";
+  // OpenClaw's before_dispatch hook exposes the original command-facing text
+  // as `content`; `body` may contain the agent-facing history envelope.
+  const messageText = typeof event.content === "string"
+    ? event.content
+    : typeof event.body === "string"
+      ? event.body
+      : "";
+  const body = messageText.trimStart();
+  const triggers = [policy.trigger, ...(policy.triggerAliases ?? [])];
   const mode = policy.allowRepliesToFilomena ? "mention-or-reply" : "mention";
   return !shouldRespond(mode, {
-    mentioned: triggerPattern(policy.trigger).test(body),
+    mentioned: triggers.some((trigger) => triggerPattern(trigger).test(body)),
     replyToFilomena: replyTargetsTrackedMessage(event, context, registry),
   });
 }

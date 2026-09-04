@@ -13,6 +13,7 @@ const config = {
     groups: {
       "120363012345678901@g.us": {
         trigger: "@Filomena",
+        triggerAliases: ["@101211743244331"],
         allowRepliesToFilomena: true,
         prefix: true,
       },
@@ -164,6 +165,33 @@ test("allows an allowlisted DM by canonical peer identity", () => {
     shouldSuppressDispatch(
       { channel: "whatsapp", isGroup: false, body: "oi" },
       { conversationId: "5511944558218:9@c.us", senderId: "5511944558218@s.whatsapp.net" },
+      config,
+    ),
+    false,
+  );
+});
+
+test("allows a configured leading provider-native trigger alias", () => {
+  assert.equal(
+    shouldSuppressDispatch(
+      { channel: "whatsapp", isGroup: true, body: "@101211743244331 oi amiga" },
+      protectedContext,
+      config,
+    ),
+    false,
+  );
+});
+
+test("matches the raw command content when the agent body contains context", () => {
+  assert.equal(
+    shouldSuppressDispatch(
+      {
+        channel: "whatsapp",
+        isGroup: true,
+        content: "@101211743244331 helloo",
+        body: "[Recent chat context]\nCarlos: outra mensagem\n[/Recent chat context]\n\nHelena: @101211743244331 helloo",
+      },
+      protectedContext,
       config,
     ),
     false,
