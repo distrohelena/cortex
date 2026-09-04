@@ -10,6 +10,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.10" />
     <ProjectReference Include="../Filomena.Core/Filomena.Core.csproj" />
+    <ProjectReference Include="../Filomena.Llm/Filomena.Llm.csproj" />
     <ProjectReference Include="../Filomena.OpenClaw/Filomena.OpenClaw.csproj" />
   </ItemGroup>
 

@@ -1,14 +1,19 @@
 using Filomena.App;
+using Filomena.Core.Arbitration;
+using Filomena.Core.Conversations;
+using Filomena.Llm.Arbitration;
+using Filomena.Llm.LmStudio;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.Services
     .AddOptions<ProbeOptions>()
     .Bind(builder.Configuration.GetSection(ProbeOptions.SectionName))
     .Validate(
-        options => options.Mode is "inspect" or "list" or "wait" or "milestone-a",
-        "Probe:Mode must be inspect, list, wait, or milestone-a.")
+        options => ProbeOptions.IsSupportedMode(options.Mode),
+        "Probe:Mode must be inspect, list, wait, milestone-a, or phase-b.")
     .Validate(
         options => options.WaitTimeoutSeconds is >= 1 and <= 300,
         "Probe:WaitTimeoutSeconds must be between 1 and 300.")
@@ -16,6 +21,52 @@ builder.Services
         options => options.ReconnectDelaySeconds is >= 1 and <= 60,
         "Probe:ReconnectDelaySeconds must be between 1 and 60.")
     .ValidateOnStart();
-builder.Services.AddHostedService<OpenClawProbeWorker>();
+
+var mode = builder.Configuration[$"{ProbeOptions.SectionName}:Mode"] ?? "milestone-a";
+if (string.Equals(mode, "phase-b", StringComparison.Ordinal))
+{
+    builder.Services
+        .AddOptions<PhaseBOptions>()
+        .Bind(builder.Configuration.GetSection(PhaseBOptions.SectionName))
+        .Validate(
+            options => IsValid(() => options.Turns.Validate()),
+            "PhaseB:Turns contains invalid scheduling values.")
+        .ValidateOnStart();
+    builder.Services
+        .AddOptions<LmStudioOptions>()
+        .Bind(builder.Configuration.GetSection(LmStudioOptions.SectionName))
+        .Validate(
+            options => IsValid(options.Validate),
+            "LmStudio contains invalid endpoint, model, or arbitration values.")
+        .ValidateOnStart();
+    builder.Services.AddSingleton(serviceProvider =>
+        serviceProvider.GetRequiredService<IOptions<LmStudioOptions>>().Value);
+    builder.Services.AddSingleton<HttpClient>();
+    builder.Services.AddSingleton<ILmStudioChatClient, LmStudioClient>();
+    builder.Services.AddSingleton<ITurnArbiter, GemmaTurnArbiter>();
+    builder.Services.AddSingleton(serviceProvider => new ConversationTurnManager(
+        serviceProvider.GetRequiredService<ITurnArbiter>(),
+        serviceProvider.GetRequiredService<IOptions<PhaseBOptions>>().Value.Turns));
+    builder.Services.AddHostedService<FilomenaTurnWorker>();
+}
+else
+{
+    builder.Services.AddHostedService<OpenClawProbeWorker>();
+}
 
 await builder.Build().RunAsync();
+
+static bool IsValid(Action validation)
+{
+    try
+    {
+        validation();
+        return true;
+    }
+    catch (Exception exception) when (exception is
+        ArgumentException or
+        InvalidOperationException)
+    {
+        return false;
+    }
+}

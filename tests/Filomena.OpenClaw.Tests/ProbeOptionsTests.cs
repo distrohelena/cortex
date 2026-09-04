@@ -21,4 +21,21 @@ public sealed class ProbeOptionsTests
             ],
             options.TargetConversationIds);
     }
+
+    [Theory]
+    [InlineData("inspect")]
+    [InlineData("list")]
+    [InlineData("wait")]
+    [InlineData("milestone-a")]
+    [InlineData("phase-b")]
+    public void AcceptsKnownRuntimeModes(string mode)
+    {
+        Assert.True(ProbeOptions.IsSupportedMode(mode));
+    }
+
+    [Fact]
+    public void RejectsUnknownRuntimeMode()
+    {
+        Assert.False(ProbeOptions.IsSupportedMode("send-everything"));
+    }
 }

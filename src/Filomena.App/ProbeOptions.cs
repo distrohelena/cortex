@@ -21,4 +21,7 @@ public sealed class ProbeOptions
         "120363318973251043@g.us",
         "5511944558218@s.whatsapp.net",
     ];
+
+    public static bool IsSupportedMode(string? mode) =>
+        mode is "inspect" or "list" or "wait" or "milestone-a" or "phase-b";
 }
