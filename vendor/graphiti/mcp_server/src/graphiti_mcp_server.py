@@ -8,6 +8,7 @@ import asyncio
 import logging
 import os
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -659,12 +660,14 @@ async def get_episodes(
             else []
         )
 
-        # Get episodes from the driver directly
-        from graphiti_core.nodes import EpisodicNode
-
         if effective_group_ids:
-            episodes = await EpisodicNode.get_by_group_ids(
-                client.driver, effective_group_ids, limit=max_episodes
+            # Use Graphiti's routed API. FalkorDB stores every group in its own
+            # graph database, so querying the shared/default driver directly
+            # cannot retrieve an explicitly requested conversation namespace.
+            episodes = await client.retrieve_episodes(
+                reference_time=datetime.now(timezone.utc),
+                last_n=max_episodes,
+                group_ids=effective_group_ids,
             )
         else:
             # If no group IDs, we need to use a different approach

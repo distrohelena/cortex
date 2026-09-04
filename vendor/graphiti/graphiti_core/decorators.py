@@ -28,8 +28,11 @@ F = TypeVar('F', bound=Callable[..., Awaitable[Any]])
 
 def handle_multiple_group_ids(func: F) -> F:
     """
-    Decorator for FalkorDB methods that need to handle multiple group_ids.
-    Runs the function for each group_id separately and merges results.
+    Route FalkorDB methods to the graph database for every explicit group_id.
+
+    FalkorDB stores each Graphiti group in a separate graph. Even a single
+    group_id therefore needs a cloned driver targeting that graph; filtering
+    by group_id while using the default database cannot find it.
     """
 
     @functools.wraps(func)
@@ -44,13 +47,12 @@ def handle_multiple_group_ids(func: F) -> F:
         if group_ids is None and group_ids_pos is not None and len(args) > group_ids_pos:
             group_ids = args[group_ids_pos]
 
-        # Only handle FalkorDB with multiple group_ids
+        # Handle every explicit FalkorDB group in its own graph database.
         if (
             hasattr(self, 'clients')
             and hasattr(self.clients, 'driver')
             and self.clients.driver.provider == GraphProvider.FALKORDB
             and group_ids
-            and len(group_ids) > 1
         ):
             # Execute for each group_id concurrently
             driver = self.clients.driver
@@ -71,6 +73,9 @@ def handle_multiple_group_ids(func: F) -> F:
                 *[execute_for_group(gid) for gid in group_ids],
                 max_coroutines=getattr(self, 'max_coroutines', None),
             )
+
+            if len(results) == 1:
+                return results[0]
 
             # Merge results based on type
             if isinstance(results[0], SearchResults):
