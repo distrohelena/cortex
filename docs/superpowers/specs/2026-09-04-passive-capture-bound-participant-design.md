@@ -74,9 +74,9 @@ that:
 2. no speaker candidate remains mapped to another Person UUID;
 3. no edge identified as speaker-scoped points to another Person UUID.
 
-Violation fails closed. The raw episodic node is saved for provenance with a
-clear ingestion-error marker, while ambiguous entity nodes and edges are not
-persisted.
+Violation fails closed. The raw episodic node is saved for provenance while
+ambiguous entity nodes and edges are not persisted, and the error is logged
+with the episode UUID and violated invariant.
 
 ## Context
 

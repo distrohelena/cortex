@@ -38,7 +38,7 @@ SPICEDB_TOKEN=dev_token npx tsx bin/graphiti-mem.ts search "some query"
 
 | File | Purpose |
 |------|---------|
-| `index.ts` | Plugin entry point. Registers tools (`memory_recall`, `memory_store`, `memory_forget`, `memory_status`), lifecycle hooks (`before_agent_start` for auto-recall, `agent_end` for auto-capture), CLI commands (via `cli.ts`), and the startup service. |
+| `index.ts` | Plugin entry point. Registers tools (`memory_recall`, `memory_store`, `memory_forget`, `memory_status`), lifecycle hooks (`before_prompt_build` for auto-recall, `message_received` for passive auto-capture), CLI commands (via `cli.ts`), and the startup service. |
 | `cli.ts` | Shared CLI command registration (`registerCommands()`). Used by both the plugin (`index.ts`) and the standalone entry point (`bin/graphiti-mem.ts`). |
 | `bin/graphiti-mem.ts` | Standalone CLI entry point. Loads config from env vars / JSON file, instantiates clients, delegates to `registerCommands()`. |
 | `config.ts` | Config schema, parsing, defaults, `${ENV_VAR}` interpolation. |

@@ -37,6 +37,7 @@ import {
   deduplicateSessionResults,
 } from "./search.js";
 import { registerCommands } from "./cli.js";
+import { buildPassiveCapture } from "./passive-capture.js";
 
 // ============================================================================
 // Session helpers
@@ -624,90 +625,47 @@ const memoryGraphitiPlugin = {
     }
 
     if (cfg.autoCapture) {
-      api.on("agent_end", async (event, ctx) => {
-        if (!event.success || !event.messages || event.messages.length === 0) {
-          return;
-        }
-
+      api.on("message_received", async (event, ctx) => {
         try {
-          // Collect last N messages (user + assistant only), skip injected context
-          const maxMessages = cfg.maxCaptureMessages;
-          const conversationLines: string[] = [];
-          let messageCount = 0;
-
-          // Process messages in reverse to get the most recent ones
-          const messages = [...event.messages].reverse();
-
-          for (const msg of messages) {
-            if (messageCount >= maxMessages) break;
-            if (!msg || typeof msg !== "object") continue;
-
-            const msgObj = msg as Record<string, unknown>;
-            const role = msgObj.role;
-            if (role !== "user" && role !== "assistant") continue;
-
-            // Extract text content
-            let text = "";
-            const content = msgObj.content;
-            if (typeof content === "string") {
-              text = content;
-            } else if (Array.isArray(content)) {
-              const textParts: string[] = [];
-              for (const block of content) {
-                if (
-                  block &&
-                  typeof block === "object" &&
-                  "type" in block &&
-                  (block as Record<string, unknown>).type === "text" &&
-                  "text" in block &&
-                  typeof (block as Record<string, unknown>).text === "string"
-                ) {
-                  textParts.push((block as Record<string, unknown>).text as string);
-                }
-              }
-              text = textParts.join("\n");
-            }
-
-            // Skip injected context and very short messages
-            if (!text || text.length < 5) continue;
-            if (text.includes("<relevant-memories>")) continue;
-
-            const roleLabel = role === "user" ? "User" : "Assistant";
-            conversationLines.unshift(`${roleLabel}: ${text}`);
-            messageCount++;
-          }
-
-          if (conversationLines.length === 0) return;
-
-          // Send as a single batch episode to Graphiti
-          const episodeBody = conversationLines.join("\n");
-
           const targetGroupId = resolvePersistentGroupId({
-            channel: ctx?.channel ?? ctx?.messageProvider,
-            conversationId: ctx?.chatId ?? ctx?.channelId,
+            channel: ctx.channelId,
+            conversationId: ctx.conversationId,
             sessionKey: ctx?.sessionKey,
           });
           if (!targetGroupId) {
-            api.logger.warn("openclaw-memory-graphiti: auto-capture skipped without a conversation namespace");
+            api.logger.warn("openclaw-memory-graphiti: passive capture skipped without a conversation namespace");
             return;
+          }
+
+          const capture = buildPassiveCapture({ event, context: ctx, groupId: targetGroupId });
+          if (!capture) {
+            api.logger.warn("openclaw-memory-graphiti: passive capture skipped because required inbound provenance is missing");
+            return;
+          }
+          if (capture.sender.unresolvedAlternate) {
+            api.logger.warn(
+              `openclaw-memory-graphiti: preserving unresolved WhatsApp LID identity ${capture.sender.canonicalId}; no deterministic PN mapping was provided`,
+            );
           }
 
           const token = await ensureGroupMembership(spicedb, targetGroupId, currentSubject);
           if (token) lastWriteToken = token;
           const allowed = await canWriteToGroup(spicedb, currentSubject, targetGroupId, lastWriteToken);
           if (!allowed) {
-            api.logger.warn(`openclaw-memory-graphiti: auto-capture denied for group ${targetGroupId}`);
+            api.logger.warn(`openclaw-memory-graphiti: passive capture denied for group ${targetGroupId}`);
             return;
           }
 
-          // Generate unique episode name to avoid collisions
-          const episodeName = `auto_capture_${randomUUID()}`;
           const result = await graphiti.addEpisode({
-            name: episodeName,
-            episode_body: episodeBody,
-            source_description: "auto-captured conversation",
+            name: capture.episodeName,
+            episode_body: capture.episodeBody,
+            source_description: "OpenClaw inbound WhatsApp message",
             group_id: targetGroupId,
-            custom_extraction_instructions: cfg.customInstructions,
+            source: "json",
+            episode_uuid: capture.episodeUuid,
+            reference_time: capture.referenceTime,
+            bound_entity: capture.boundEntity,
+            extraction_body: capture.extractionBody,
           });
 
           // SpiceDB writes use the real UUID once Graphiti finishes processing
@@ -727,10 +685,10 @@ const memoryGraphitiPlugin = {
             });
 
           api.logger.info(
-            `openclaw-memory-graphiti: auto-captured ${conversationLines.length} messages as batch episode to ${targetGroupId}`,
+            `openclaw-memory-graphiti: passively captured provider message ${capture.providerMessageId} to ${targetGroupId}`,
           );
         } catch (err) {
-          api.logger.warn(`openclaw-memory-graphiti: capture failed: ${String(err)}`);
+          api.logger.warn(`openclaw-memory-graphiti: passive capture failed: ${String(err)}`);
         }
       });
     }

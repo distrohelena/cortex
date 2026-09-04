@@ -346,7 +346,8 @@ describe("openclaw-memory-graphiti plugin", () => {
 
     expect(registeredHooks["before_prompt_build"]).toHaveLength(1);
     expect(registeredHooks["before_agent_start"]).toBeUndefined();
-    expect(registeredHooks["agent_end"]).toHaveLength(1);
+    expect(registeredHooks["message_received"]).toHaveLength(1);
+    expect(registeredHooks["agent_end"]).toBeUndefined();
   });
 
   test("does not register hooks when autoRecall and autoCapture disabled", async () => {
@@ -357,6 +358,75 @@ describe("openclaw-memory-graphiti plugin", () => {
     plugin.register(mockApi);
 
     expect(registeredHooks["before_prompt_build"]).toBeUndefined();
+    expect(registeredHooks["message_received"]).toBeUndefined();
+    expect(registeredHooks["agent_end"]).toBeUndefined();
+  });
+
+  test("passively captures an inbound message even when no agent run occurs", async () => {
+    mockApi.pluginConfig.autoCapture = true;
+    setupGraphitiMock('{"message":"queued"}');
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+
+    const hook = registeredHooks["message_received"][0];
+    await hook(
+      {
+        from: REAL_GROUP_JID,
+        content: "mensagem que nao chamou a Filomena",
+        timestamp: 1_787_920_245,
+        messageId: "provider-message-1",
+        senderId: "5511999999999:3@s.whatsapp.net",
+        metadata: { senderName: "Gabriel", senderE164: "+5511999999999", provider: "whatsapp" },
+      },
+      {
+        channelId: "whatsapp",
+        conversationId: REAL_GROUP_JID,
+        messageId: "provider-message-1",
+        senderId: "5511999999999:3@s.whatsapp.net",
+      },
+    );
+
+    const calls = mockFetch.mock.calls
+      .map((call) => call[1]?.body ? JSON.parse(call[1].body as string) : undefined)
+      .filter((body) => body?.params?.name === "add_memory");
+    expect(calls).toHaveLength(1);
+    expect(calls[0].params.arguments).toMatchObject({
+      group_id: REAL_GROUP_ID,
+      source: "json",
+      source_description: "OpenClaw inbound WhatsApp message",
+      reference_time: "2026-08-28T12:30:45.000Z",
+    });
+    expect(calls[0].params.arguments.episode_uuid).toMatch(/^[0-9a-f-]{36}$/);
+    expect(calls[0].params.arguments.bound_entity).toMatchObject({
+      role: "speaker",
+      name: "whatsapp:5511999999999@s.whatsapp.net",
+      entity_type: "Person",
+    });
+  });
+
+  test("a triggering inbound message is still submitted exactly once", async () => {
+    mockApi.pluginConfig.autoCapture = true;
+    setupGraphitiMock('{"message":"queued"}');
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+
+    await registeredHooks["message_received"][0](
+      {
+        from: REAL_GROUP_JID,
+        content: "@Filomena como vai?",
+        timestamp: 1_787_920_245_000,
+        messageId: "provider-trigger-1",
+        senderId: "5511999999999@s.whatsapp.net",
+        metadata: { senderName: "Gabriel", provider: "whatsapp" },
+      },
+      { channelId: "whatsapp", conversationId: REAL_GROUP_JID },
+    );
+
+    const calls = mockFetch.mock.calls.filter((call) => {
+      const body = call[1]?.body ? JSON.parse(call[1].body as string) : undefined;
+      return body?.params?.name === "add_memory";
+    });
+    expect(calls).toHaveLength(1);
     expect(registeredHooks["agent_end"]).toBeUndefined();
   });
 
@@ -634,7 +704,7 @@ describe("openclaw-memory-graphiti plugin", () => {
     expect(addMemoryCalls).toHaveLength(0);
   });
 
-  test("auto-capture fails closed without a conversation namespace", async () => {
+  test("passive capture fails closed without a conversation namespace", async () => {
     mockApi.pluginConfig.autoCapture = true;
     setupGraphitiMock('{"message":"queued"}');
 
@@ -651,17 +721,16 @@ describe("openclaw-memory-graphiti plugin", () => {
     const { default: plugin } = await import("./index.js");
     plugin.register(mockApi);
 
-    const agentEndHook = registeredHooks["agent_end"]?.[0];
-    expect(agentEndHook).toBeDefined();
+    const messageReceivedHook = registeredHooks["message_received"]?.[0];
+    expect(messageReceivedHook).toBeDefined();
 
     // No sessionKey → falls back to default group (non-session) → write check fires
-    await agentEndHook({
-      success: true,
-      messages: [
-        { role: "user", content: "Some info to capture" },
-        { role: "assistant", content: "Got it!" },
-      ],
-    }, {});
+    await messageReceivedHook({
+      content: "Some info to capture",
+      timestamp: 1_787_920_245,
+      messageId: "m-no-conversation",
+      senderId: "5511999999999@s.whatsapp.net",
+    }, { channelId: "whatsapp" });
 
     // Verify add_memory was NOT called
     const addMemoryCalls = mockFetch.mock.calls.filter((call) => {
@@ -672,7 +741,7 @@ describe("openclaw-memory-graphiti plugin", () => {
     expect(addMemoryCalls).toHaveLength(0);
 
     // Should log the denial
-    expect(logs.some((l) => l.includes("auto-capture skipped without a conversation namespace"))).toBe(true);
+    expect(logs.some((l) => l.includes("passive capture skipped without a conversation namespace"))).toBe(true);
   });
 
   test("memory_status tool reports session ID", async () => {
@@ -767,28 +836,25 @@ describe("openclaw-memory-graphiti plugin", () => {
     expect(mockClient.promises.lookupResources).not.toHaveBeenCalled();
   });
 
-  test("auto-capture sends batch episode with conversation text", async () => {
+  test("passive capture preserves exactly one original provider message", async () => {
     mockApi.pluginConfig.autoCapture = true;
     setupGraphitiMock('{"message":"Episode queued"}');
 
     const { default: plugin } = await import("./index.js");
     plugin.register(mockApi);
 
-    const agentEndHook = registeredHooks["agent_end"]?.[0];
-    expect(agentEndHook).toBeDefined();
+    const messageReceivedHook = registeredHooks["message_received"]?.[0];
+    expect(messageReceivedHook).toBeDefined();
 
-    await agentEndHook({
-      success: true,
-      messages: [
-        { role: "user", content: "I prefer dark mode for all editors" },
-        { role: "assistant", content: "Got it! I'll remember your dark mode preference." },
-        { role: "user", content: "Also, my email is mark@example.com" },
-      ],
+    await messageReceivedHook({
+      content: "I prefer dark mode for all editors",
+      timestamp: 1_787_920_245,
+      messageId: "single-provider-message",
+      senderId: "5511999999999@s.whatsapp.net",
+      metadata: { senderName: "Mark", provider: "whatsapp" },
     }, {
-      channel: "whatsapp",
-      chatId: REAL_GROUP_JID,
-      sessionKey: `agent:main:whatsapp:group:${REAL_GROUP_JID}`,
-      sessionId: "sess-cap-1",
+      channelId: "whatsapp",
+      conversationId: REAL_GROUP_JID,
     });
 
     // Verify add_memory was called (tool name changed from add_episode)
@@ -802,59 +868,29 @@ describe("openclaw-memory-graphiti plugin", () => {
 
     const body = JSON.parse(addMemoryCall![1]!.body as string);
     const episodeBody = body.params.arguments.episode_body;
-    // Should contain all 3 messages as a batch
-    expect(episodeBody).toContain("User: I prefer dark mode");
-    expect(episodeBody).toContain("Assistant: Got it!");
-    expect(episodeBody).toContain("User: Also, my email");
+    expect(JSON.parse(episodeBody).text).toBe("I prefer dark mode for all editors");
 
     // Transitional capture follows the persistent conversation namespace.
     expect(body.params.arguments.group_id).toBe(REAL_GROUP_ID);
 
-    // custom_extraction_instructions are prepended to episode_body
-    expect(body.params.arguments.episode_body).toContain("[Extraction Instructions]");
-    expect(body.params.arguments.episode_body).toContain("[End Instructions]");
-    expect(body.params.arguments.custom_extraction_instructions).toBeUndefined();
+    expect(body.params.arguments.extraction_body).toBe("I prefer dark mode for all editors");
 
     // Should log the capture
-    expect(logs.some((l) => l.includes("auto-captured") && l.includes("batch episode"))).toBe(true);
+    expect(logs.some((l) => l.includes("passively captured provider message"))).toBe(true);
   });
 
-  test("auto-capture skips messages with injected context", async () => {
+  test("agent_end never captures conversation content", async () => {
     mockApi.pluginConfig.autoCapture = true;
     setupGraphitiMock('{"message":"queued"}');
 
     const { default: plugin } = await import("./index.js");
     plugin.register(mockApi);
 
-    const agentEndHook = registeredHooks["agent_end"]?.[0];
-
-    await agentEndHook({
-      success: true,
-      messages: [
-        { role: "user", content: "<relevant-memories>injected context here</relevant-memories> What about Mark?" },
-        { role: "assistant", content: "Mark is doing great!" },
-      ],
-    }, {
-      channel: "whatsapp",
-      chatId: REAL_GROUP_JID,
-      sessionKey: `agent:main:whatsapp:group:${REAL_GROUP_JID}`,
-      sessionId: "sess-cap-2",
-    });
-
-    // Verify the episode body does NOT include the injected context message
-    const fetchCalls = mockFetch.mock.calls;
-    const addMemoryCall = fetchCalls.find((call) => {
-      if (!call[1]?.body) return false;
-      const body = JSON.parse(call[1].body as string);
-      return body.params?.name === "add_memory";
-    });
-    expect(addMemoryCall).toBeDefined();
-
-    const body = JSON.parse(addMemoryCall![1]!.body as string);
-    const episodeBody = body.params.arguments.episode_body;
-    expect(episodeBody).not.toContain("<relevant-memories>");
-    // Should only contain the assistant message
-    expect(episodeBody).toContain("Assistant: Mark is doing great!");
+    expect(registeredHooks["agent_end"]).toBeUndefined();
+    expect(mockFetch.mock.calls.some((call) => {
+      const body = call[1]?.body ? JSON.parse(call[1].body as string) : undefined;
+      return body?.params?.name === "add_memory";
+    })).toBe(false);
   });
 
   // ==========================================================================

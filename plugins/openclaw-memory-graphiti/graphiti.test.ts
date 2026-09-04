@@ -288,7 +288,7 @@ describe("GraphitiClient", () => {
     expect(body.params.arguments.episode_body).not.toContain("[Extraction Instructions]");
   });
 
-  test("addEpisode drops deprecated uuid and reference_time params", async () => {
+  test("addEpisode drops deprecated uuid but forwards passive-capture binding", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch");
     mockInit(fetchMock);
     fetchMock.mockResolvedValueOnce(
@@ -305,11 +305,48 @@ describe("GraphitiClient", () => {
       group_id: "main",
       uuid: "should-be-dropped",
       reference_time: "2026-01-15T00:00:00Z",
+      episode_uuid: "22222222-2222-5222-8222-222222222222",
+      extraction_body: "Gabriel gosta do jogo",
+      bound_entity: {
+        uuid: "11111111-1111-5111-8111-111111111111",
+        role: "speaker",
+        name: "whatsapp:5511999999999@s.whatsapp.net",
+        entity_type: "Person",
+        labels: ["Person"],
+        attributes: { stable_id: "whatsapp:5511999999999@s.whatsapp.net" },
+      },
     });
 
     const body = JSON.parse(fetchMock.mock.calls[2][1]!.body as string);
     expect(body.params.arguments.uuid).toBeUndefined();
-    expect(body.params.arguments.reference_time).toBeUndefined();
+    expect(body.params.arguments.reference_time).toBe("2026-01-15T00:00:00Z");
+    expect(body.params.arguments.episode_uuid).toBe("22222222-2222-5222-8222-222222222222");
+    expect(body.params.arguments.extraction_body).toBe("Gabriel gosta do jogo");
+    expect(body.params.arguments.bound_entity.uuid).toBe("11111111-1111-5111-8111-111111111111");
+  });
+
+  test("deterministic episode UUID resolves immediately without polling", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    mockInit(fetchMock);
+    fetchMock.mockResolvedValueOnce(
+      sseResponse({
+        jsonrpc: "2.0",
+        id: 2,
+        result: { content: [{ type: "text", text: '{"message":"queued"}' }], isError: false },
+      }),
+    );
+
+    const episodeUuid = "22222222-2222-5222-8222-222222222222";
+    const result = await client.addEpisode({
+      name: "inbound",
+      episode_body: "raw",
+      group_id: "main",
+      episode_uuid: episodeUuid,
+    });
+
+    expect(result.episode_uuid).toBe(episodeUuid);
+    await expect(result.resolvedUuid).resolves.toBe(episodeUuid);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
   });
 
   test("addEpisode returns resolvedUuid promise", async () => {

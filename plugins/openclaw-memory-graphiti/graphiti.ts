@@ -54,6 +54,15 @@ export type AddEpisodeResult = {
   resolvedUuid: Promise<string>;
 };
 
+export type BoundEntityInput = {
+  uuid: string;
+  role: "speaker";
+  name: string;
+  entity_type: string;
+  labels: string[];
+  attributes: Record<string, unknown>;
+};
+
 type JsonRpcRequest = {
   jsonrpc: "2.0";
   id: number;
@@ -292,15 +301,21 @@ export class GraphitiClient {
      * will see these instructions inline alongside the actual content.
      */
     custom_extraction_instructions?: string;
+    /** Stable UUID for a newly-created idempotent episode. */
+    episode_uuid?: string;
+    /** Original source timestamp used as Graphiti reference_time. */
+    reference_time?: string;
+    /** Provider-neutral canonical entity structurally bound to this episode. */
+    bound_entity?: BoundEntityInput;
+    /** Message-only content used for extraction while episode_body remains raw provenance. */
+    extraction_body?: string;
     /** @deprecated The MCP server's uuid param is for re-processing existing episodes */
     uuid?: string;
-    /** @deprecated No longer supported by the Graphiti MCP server */
-    reference_time?: string;
   }): Promise<AddEpisodeResult> {
     // Note: The Graphiti MCP server's uuid parameter is for re-processing
     // existing episodes, NOT for setting the UUID of new ones. We generate
     // a client-side tracking UUID instead (it won't match the server-side UUID).
-    const trackingUuid = `tmp-${randomUUID()}`;
+    const trackingUuid = params.episode_uuid ?? `tmp-${randomUUID()}`;
 
     // Prepend custom extraction instructions to episode_body since the MCP
     // server doesn't support custom_extraction_instructions as a parameter.
@@ -324,6 +339,10 @@ export class GraphitiClient {
     if (params.source_description) {
       args.source_description = params.source_description;
     }
+    if (params.episode_uuid) args.episode_uuid = params.episode_uuid;
+    if (params.reference_time) args.reference_time = params.reference_time;
+    if (params.bound_entity) args.bound_entity = params.bound_entity;
+    if (params.extraction_body !== undefined) args.extraction_body = params.extraction_body;
 
     await this.callTool("add_memory", args);
 
@@ -331,7 +350,9 @@ export class GraphitiClient {
     // returns only a "queued" message — no UUID. We poll getEpisodes in the
     // background to discover the real server-side UUID by name match.
     let resolvedUuid: Promise<string>;
-    if (params.group_id) {
+    if (params.episode_uuid) {
+      resolvedUuid = Promise.resolve(params.episode_uuid);
+    } else if (params.group_id) {
       resolvedUuid = this.resolveEpisodeUuid(params.name, params.group_id);
       resolvedUuid.catch(() => {}); // Prevent unhandled rejection if caller ignores
     } else {

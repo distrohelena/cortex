@@ -412,7 +412,7 @@ Workspace files are imported to the configured `defaultGroupId`. Session transcr
 
 OpenClaw's JSONL session logging is always-on core behavior — openclaw-memory-graphiti does not replace it. The plugin augments session context by:
 
-- **Auto-capture**: Extracting entities and facts from conversation turns into the knowledge graph (`agent_end` hook)
+- **Passive auto-capture**: One accepted inbound provider message per idempotent episode (`message_received` hook), including canonical conversation/sender provenance
 - **Auto-recall**: Injecting relevant memories into the agent's context before each turn (`before_agent_start` hook)
 
 The JSONL transcripts remain on disk as a historical record. If you switch back to another memory plugin, they're still available.

@@ -18,6 +18,7 @@
   ],
   "files": [
     "index.ts",
+    "passive-capture.ts",
     "conversation-namespace.mjs",
     "conversation-namespace.d.mts",
     "cli.ts",
@@ -37,7 +38,7 @@
     "typecheck": "tsc --noEmit 2>&1 | grep -v '../openclaw/' | grep -c 'error TS' | xargs -I{} test {} -eq 0",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "OPENCLAW_LIVE_TEST=1 vitest run --config vitest.e2e.config.ts"
+    "test:e2e": "vitest run --config vitest.e2e.config.ts"
   },
   "dependencies": {
     "@authzed/authzed-node": "^1.2.0",

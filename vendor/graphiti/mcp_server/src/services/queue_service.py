@@ -6,6 +6,8 @@ from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any
 
+from graphiti_core.utils.maintenance.bound_entities import BoundEntity
+
 logger = logging.getLogger(__name__)
 
 
@@ -107,6 +109,10 @@ class QueueService:
         episode_type: Any,
         entity_types: Any,
         uuid: str | None,
+        episode_uuid: str | None = None,
+        reference_time: datetime | None = None,
+        bound_entity: BoundEntity | None = None,
+        extraction_body: str | None = None,
     ) -> int:
         """Add an episode for processing.
 
@@ -125,10 +131,12 @@ class QueueService:
         if self._graphiti_client is None:
             raise RuntimeError('Queue service not initialized. Call initialize() first.')
 
+        identity = episode_uuid or uuid or name
+
         async def process_episode():
             """Process the episode using the graphiti client."""
             try:
-                logger.info(f'Processing episode {uuid} for group {group_id}')
+                logger.info(f'Processing episode {identity} for group {group_id}')
 
                 # Process the episode using the graphiti client
                 await self._graphiti_client.add_episode(
@@ -137,15 +145,18 @@ class QueueService:
                     source_description=source_description,
                     source=episode_type,
                     group_id=group_id,
-                    reference_time=datetime.now(timezone.utc),
+                    reference_time=reference_time or datetime.now(timezone.utc),
                     entity_types=entity_types,
                     uuid=uuid,
+                    episode_uuid=episode_uuid,
+                    bound_entity=bound_entity,
+                    extraction_body=extraction_body,
                 )
 
-                logger.info(f'Successfully processed episode {uuid} for group {group_id}')
+                logger.info(f'Successfully processed episode {identity} for group {group_id}')
 
             except Exception as e:
-                logger.error(f'Failed to process episode {uuid} for group {group_id}: {str(e)}')
+                logger.error(f'Failed to process episode {identity} for group {group_id}: {str(e)}')
                 raise
 
         # Use the existing add_episode_task method to queue the processing

@@ -17,6 +17,7 @@ from graphiti_core import Graphiti
 from graphiti_core.edges import EntityEdge
 from graphiti_core.nodes import EpisodeType, EpisodicNode
 from graphiti_core.search.search_filters import SearchFilters
+from graphiti_core.utils.maintenance.bound_entities import BoundEntity
 from graphiti_core.utils.maintenance.graph_data_operations import clear_data
 from mcp.server.fastmcp import FastMCP
 from pydantic import BaseModel
@@ -341,6 +342,10 @@ async def add_memory(
     source: str = 'text',
     source_description: str = '',
     uuid: str | None = None,
+    episode_uuid: str | None = None,
+    reference_time: datetime | None = None,
+    bound_entity: BoundEntity | None = None,
+    extraction_body: str | None = None,
 ) -> SuccessResponse | ErrorResponse:
     """Add an episode to memory. This is the primary way to add information to the graph.
 
@@ -408,6 +413,10 @@ async def add_memory(
             episode_type=episode_type,
             entity_types=graphiti_service.entity_types,
             uuid=uuid or None,  # Ensure None is passed if uuid is None
+            episode_uuid=episode_uuid or None,
+            reference_time=reference_time,
+            bound_entity=bound_entity,
+            extraction_body=extraction_body,
         )
 
         return SuccessResponse(
