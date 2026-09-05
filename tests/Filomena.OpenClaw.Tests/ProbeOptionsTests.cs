@@ -13,6 +13,10 @@ public sealed class ProbeOptionsTests
         Assert.Equal("milestone-a", options.Mode);
         Assert.Equal(300, options.WaitTimeoutSeconds);
         Assert.Equal(2, options.ReconnectDelaySeconds);
+        Assert.Empty(options.OpenClawArguments);
+        Assert.Equal(
+            ["mcp", "serve", "--claude-channel-mode", "off"],
+            options.EffectiveOpenClawArguments);
         Assert.Equal(
             [
                 "5511981042361-1589823314@g.us",

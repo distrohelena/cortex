@@ -27,7 +27,7 @@ public sealed class FilomenaTurnWorker(
                     var options = configuredOptions.Value;
                     var clientOptions = new OpenClawMcpClientOptions(
                         options.OpenClawCommand,
-                        options.OpenClawArguments);
+                        options.EffectiveOpenClawArguments);
                     await using var client = await OpenClawMcpClient.ConnectAsync(
                         clientOptions,
                         loggerFactory,

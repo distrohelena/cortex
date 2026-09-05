@@ -2,6 +2,9 @@ namespace Filomena.App;
 
 public sealed class ProbeOptions
 {
+    private static readonly string[] DefaultArguments =
+        ["mcp", "serve", "--claude-channel-mode", "off"];
+
     public const string SectionName = "Probe";
 
     public string Mode { get; set; } = "milestone-a";
@@ -12,8 +15,10 @@ public sealed class ProbeOptions
 
     public string OpenClawCommand { get; set; } = "openclaw.cmd";
 
-    public string[] OpenClawArguments { get; set; } =
-        ["mcp", "serve", "--claude-channel-mode", "off"];
+    public string[] OpenClawArguments { get; set; } = [];
+
+    public IReadOnlyList<string> EffectiveOpenClawArguments =>
+        OpenClawArguments.Length == 0 ? DefaultArguments : OpenClawArguments;
 
     public string[] TargetConversationIds { get; set; } =
     [

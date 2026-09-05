@@ -1,7 +1,9 @@
 using Filomena.App;
 using Filomena.Core.Conversations;
 using Filomena.Llm.LmStudio;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Xunit;
 
 namespace Filomena.OpenClaw.Tests;
@@ -58,5 +60,21 @@ public sealed class PhaseBCompositionTests
             Path.GetFullPath(AppContext.BaseDirectory),
             Path.GetFullPath(builder.Environment.ContentRootPath));
         Assert.Equal("phase-b", builder.Configuration["Probe:Mode"]);
+    }
+
+    [Fact]
+    public void RuntimeBindingDoesNotDuplicateOpenClawArguments()
+    {
+        var builder = FilomenaHostConfiguration.CreateBuilder([]);
+        builder.Services
+            .AddOptions<ProbeOptions>()
+            .Bind(builder.Configuration.GetSection(ProbeOptions.SectionName));
+        using var services = builder.Services.BuildServiceProvider();
+
+        var options = services.GetRequiredService<IOptions<ProbeOptions>>().Value;
+
+        Assert.Equal(
+            ["mcp", "serve", "--claude-channel-mode", "off"],
+            options.OpenClawArguments);
     }
 }
