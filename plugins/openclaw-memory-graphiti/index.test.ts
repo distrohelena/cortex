@@ -370,6 +370,46 @@ describe("openclaw-memory-graphiti plugin", () => {
     expect(registeredHooks["agent_end"]).toBeUndefined();
   });
 
+  test("bridges an inbound message when Graphiti auto-capture is disabled", async () => {
+    mockApi.pluginConfig.autoCapture = false;
+    mockApi.pluginConfig.eventBridge = {
+      enabled: true,
+      endpoint: "http://127.0.0.1:5147/v1/openclaw/events/inbound",
+      timeoutMs: 500,
+    };
+    mockFetch.mockResolvedValue(new Response(null, { status: 202 }));
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+
+    expect(registeredHooks["message_received"]).toHaveLength(1);
+    expect(registeredHooks["reply_dispatch"]).toBeUndefined();
+    expect(registeredHooks["message_sent"]).toBeUndefined();
+
+    await registeredHooks["message_received"][0](
+      {
+        content: "Oiii flooo",
+        timestamp: 1_788_571_873,
+        messageId: "3EB0C49C242B01294DB555",
+        senderId: "5511944558218:7@c.us",
+        metadata: { senderName: "Helena", senderE164: "+5511944558218" },
+      },
+      {
+        channelId: "whatsapp",
+        accountId: "default",
+        conversationId: HELENA_DM_JID,
+        sessionKey: "agent:main:whatsapp:default:direct:+5511944558218",
+      },
+    );
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe("http://127.0.0.1:5147/v1/openclaw/events/inbound");
+    const body = JSON.parse(String(init.body));
+    expect(body.conversation.namespace).toBe(HELENA_DM_ID);
+    expect(body.sender.stableId).toBe("whatsapp:5511944558218@s.whatsapp.net");
+    expect(body.providerMessageId).toBe("3EB0C49C242B01294DB555");
+  });
+
   test("passively captures an inbound message even when no agent run occurs", async () => {
     mockApi.pluginConfig.autoCapture = true;
     setupGraphitiMock('{"message":"queued"}');

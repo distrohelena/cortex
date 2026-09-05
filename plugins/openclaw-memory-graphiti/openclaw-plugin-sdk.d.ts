@@ -31,6 +31,7 @@ declare module "openclaw/plugin-sdk/plugin-entry" {
     reply_dispatch: [Record<string, unknown>, Record<string, unknown>];
     message_received: [
       {
+        from?: string;
         content?: string;
         timestamp?: number;
         messageId?: string;
@@ -42,8 +43,9 @@ declare module "openclaw/plugin-sdk/plugin-entry" {
         replyToIsQuote?: boolean;
         providerUpdate?: Record<string, unknown>;
         metadata?: Record<string, unknown>;
+        sessionKey?: string;
       },
-      { channelId?: string; conversationId?: string; messageId?: string; senderId?: string; sessionKey?: string },
+      { channelId?: string; accountId?: string; conversationId?: string; messageId?: string; senderId?: string; sessionKey?: string },
     ];
     message_sent: [
       { to?: string; content?: string; success?: boolean; messageId?: string; runId?: string },

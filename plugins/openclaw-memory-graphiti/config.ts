@@ -13,6 +13,11 @@ export type GraphitiMemoryConfig = {
   whatsapp: {
     selfActorIds: string[];
   };
+  eventBridge: {
+    enabled: boolean;
+    endpoint: string;
+    timeoutMs: number;
+  };
   subjectType: "agent" | "person";
   subjectId: string;
   autoCapture: boolean;
@@ -29,6 +34,8 @@ const DEFAULT_UUID_POLL_INTERVAL_MS = 3000;
 const DEFAULT_UUID_POLL_MAX_ATTEMPTS = 30;
 const DEFAULT_SUBJECT_TYPE = "agent";
 const DEFAULT_MAX_CAPTURE_MESSAGES = 10;
+const DEFAULT_EVENT_BRIDGE_ENDPOINT = "http://127.0.0.1:5147/v1/openclaw/events/inbound";
+const DEFAULT_EVENT_BRIDGE_TIMEOUT_MS = 1500;
 
 const DEFAULT_CUSTOM_INSTRUCTIONS = `Extract key facts about:
 - Identity: names, roles, titles, contact info
@@ -56,6 +63,23 @@ function assertAllowedKeys(value: Record<string, unknown>, allowed: string[], la
   }
 }
 
+function loopbackHttpEndpoint(value: unknown): string {
+  const endpoint = typeof value === "string" ? value : DEFAULT_EVENT_BRIDGE_ENDPOINT;
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    throw new Error("eventBridge.endpoint must be a valid loopback HTTP URL");
+  }
+  if (url.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)) {
+    throw new Error("eventBridge.endpoint must use HTTP on a loopback host");
+  }
+  if (url.username || url.password) {
+    throw new Error("eventBridge.endpoint must not contain embedded credentials");
+  }
+  return url.toString();
+}
+
 export const graphitiMemoryConfigSchema = {
   parse(value: unknown): GraphitiMemoryConfig {
     if (Array.isArray(value)) {
@@ -67,7 +91,7 @@ export const graphitiMemoryConfigSchema = {
       cfg,
       [
         "spicedb", "graphiti", "subjectType", "subjectId",
-        "autoCapture", "autoRecall", "customInstructions", "maxCaptureMessages", "whatsapp",
+        "autoCapture", "autoRecall", "customInstructions", "maxCaptureMessages", "whatsapp", "eventBridge",
       ],
       "openclaw-memory-graphiti config",
     );
@@ -85,6 +109,9 @@ export const graphitiMemoryConfigSchema = {
     const selfActorIds = Array.isArray(whatsapp.selfActorIds)
       ? whatsapp.selfActorIds.filter((value): value is string => typeof value === "string" && Boolean(value.trim()))
       : [];
+
+    const eventBridge = (cfg.eventBridge as Record<string, unknown>) ?? {};
+    assertAllowedKeys(eventBridge, ["enabled", "endpoint", "timeoutMs"], "eventBridge config");
 
     // Subject
     const subjectType = cfg.subjectType === "person" ? "person" : DEFAULT_SUBJECT_TYPE;
@@ -115,6 +142,17 @@ export const graphitiMemoryConfigSchema = {
             : DEFAULT_UUID_POLL_MAX_ATTEMPTS,
       },
       whatsapp: { selfActorIds },
+      eventBridge: {
+        enabled: eventBridge.enabled === true,
+        endpoint: loopbackHttpEndpoint(eventBridge.endpoint),
+        timeoutMs:
+          typeof eventBridge.timeoutMs === "number" &&
+          Number.isFinite(eventBridge.timeoutMs) &&
+          eventBridge.timeoutMs >= 100 &&
+          eventBridge.timeoutMs <= 10_000
+            ? Math.round(eventBridge.timeoutMs)
+            : DEFAULT_EVENT_BRIDGE_TIMEOUT_MS,
+      },
       subjectType,
       subjectId,
       autoCapture: cfg.autoCapture !== false,

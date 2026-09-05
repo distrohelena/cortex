@@ -54,6 +54,43 @@ describe("graphitiMemoryConfigSchema", () => {
     expect(config.autoCapture).toBe(true);
     expect(config.autoRecall).toBe(true);
     expect(config.whatsapp.selfActorIds).toEqual([]);
+    expect(config.eventBridge.enabled).toBe(false);
+    expect(config.eventBridge.endpoint).toBe("http://127.0.0.1:5147/v1/openclaw/events/inbound");
+    expect(config.eventBridge.timeoutMs).toBe(1500);
+  });
+
+  test("accepts a loopback-only inbound event bridge", () => {
+    const config = graphitiMemoryConfigSchema.parse({
+      eventBridge: {
+        enabled: true,
+        endpoint: "http://localhost:5147/v1/openclaw/events/inbound",
+        timeoutMs: 750,
+      },
+    });
+
+    expect(config.eventBridge).toEqual({
+      enabled: true,
+      endpoint: "http://localhost:5147/v1/openclaw/events/inbound",
+      timeoutMs: 750,
+    });
+  });
+
+  test("rejects a bridge endpoint that could exfiltrate inbound messages", () => {
+    expect(() => graphitiMemoryConfigSchema.parse({
+      eventBridge: {
+        enabled: true,
+        endpoint: "https://example.com/events",
+      },
+    })).toThrow(/loopback/i);
+  });
+
+  test("rejects credentials embedded in the bridge URL", () => {
+    expect(() => graphitiMemoryConfigSchema.parse({
+      eventBridge: {
+        enabled: true,
+        endpoint: "http://secret@localhost:5147/events",
+      },
+    })).toThrow(/credentials/i);
   });
 
   test("resolves env vars in token", () => {

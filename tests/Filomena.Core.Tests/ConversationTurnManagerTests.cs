@@ -294,7 +294,12 @@ public sealed class ConversationTurnManagerTests
         var resultTask = manager.Results.ReadAsync(timeout.Token).AsTask();
         while (!resultTask.IsCompleted)
         {
-            await clock.WaitForDelayAsync();
+            var delayReady = clock.WaitForDelayAsync();
+            if (await Task.WhenAny(resultTask, delayReady) == resultTask)
+            {
+                break;
+            }
+            await delayReady;
             clock.Advance(clock.LastRequestedDelay);
             await Task.Yield();
         }

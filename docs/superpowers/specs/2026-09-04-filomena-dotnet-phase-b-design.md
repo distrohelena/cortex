@@ -11,7 +11,8 @@ writer during this phase.
 ## Runtime flow
 
 ```text
-OpenClaw events_wait
+OpenClaw message_received hook
+  -> metadata-only loopback bridge
   -> normalized InboundConversationEvent
   -> ConversationTurnManager
   -> isolated per-conversation queue
@@ -31,8 +32,8 @@ while an arbitration call is in flight remain queued for the next burst and
 are never appended retroactively to the burst being evaluated.
 
 Pending state is intentionally ephemeral. A restart discards an unevaluated
-burst; the OpenClaw MCP cursor/recovery behavior remains responsible for
-transport recovery. Provider-message deduplication stays in the transport.
+burst. The hook bridge has no durable replay queue in this phase; failed
+delivery is logged. Provider-message deduplication stays in the receiver.
 
 ## Burst policy
 
@@ -73,11 +74,14 @@ finalizes as `Ignore`, preventing an immortal pending turn.
 
 ## Application hosting
 
-`Probe:Mode=phase-b` selects a dedicated Generic Host worker. It maintains one
-long-lived OpenClaw MCP connection, feeds events into the manager, and logs
-structured decisions. Existing milestone-A inspect/list/wait modes remain
-available and unchanged. LM Studio endpoint, model, aliases, timing, limits,
-and allowlisted DM native IDs are typed configuration.
+`Probe:Mode=phase-b` selects a dedicated Generic Host worker plus a loopback
+HTTP listener. OpenClaw MCP `events_wait` cannot observe raw inbound messages
+when the transport-only `before_dispatch` hook claims the turn, so the existing
+OpenClaw memory plugin forwards only its already-normalized `message_received`
+metadata to this listener. The plugin does not make turn decisions. Existing
+milestone-A inspect/list/wait modes remain available and unchanged. LM Studio
+endpoint, model, aliases, timing, limits, allowlisted DM native IDs, and the
+bridge endpoint are typed configuration.
 
 ## Failure behavior
 
@@ -85,12 +89,13 @@ and allowlisted DM native IDs are typed configuration.
 - LM Studio timeout/network failure: retry once, then apply the conservative
   fallback.
 - Invalid JSON or references: retry once, then apply the fallback.
-- MCP disconnect: reconnect using the existing worker pattern while retaining
-  the in-memory provider-message registry for the process lifetime.
+- Bridge redelivery: acknowledge idempotently using conversation namespace plus
+  provider message ID; no duplicate reaches the turn manager.
+- Bridge unavailable: OpenClaw logs the isolated delivery failure while its
+  Graphiti capture path continues independently.
 - Shutdown: cancel the listener and all per-conversation processors cleanly.
 
 ## Phase boundary
 
 Phase C will consume `Respond` decisions, build the full Filomena prompt, and
 call OpenClaw `messages_send`. Phase B only proves scheduling and arbitration.
-

@@ -42,6 +42,22 @@
       "help": "Maximum polling attempts for episode UUID resolution; total timeout = interval × attempts (default: 30 = 90s)",
       "advanced": true
     },
+    "eventBridge.enabled": {
+      "label": "Filomena Event Bridge",
+      "help": "Forward normalized inbound events to the local Filomena .NET lifecycle",
+      "advanced": true
+    },
+    "eventBridge.endpoint": {
+      "label": "Filomena Event Bridge Endpoint",
+      "placeholder": "http://127.0.0.1:5147/v1/openclaw/events/inbound",
+      "help": "Loopback-only HTTP endpoint owned by Filomena.App",
+      "advanced": true
+    },
+    "eventBridge.timeoutMs": {
+      "label": "Filomena Event Bridge Timeout (ms)",
+      "placeholder": "1500",
+      "advanced": true
+    },
     "subjectType": {
       "label": "Subject Type",
       "placeholder": "agent",
@@ -103,6 +119,15 @@
             "type": "array",
             "items": { "type": "string", "minLength": 1 }
           }
+        }
+      },
+      "eventBridge": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": { "type": "boolean" },
+          "endpoint": { "type": "string" },
+          "timeoutMs": { "type": "integer", "minimum": 100, "maximum": 10000 }
         }
       },
       "subjectType": { "type": "string", "enum": ["agent", "person"] },

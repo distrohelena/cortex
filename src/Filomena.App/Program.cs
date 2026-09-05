@@ -3,6 +3,7 @@ using Filomena.Core.Arbitration;
 using Filomena.Core.Conversations;
 using Filomena.Llm.Arbitration;
 using Filomena.Llm.LmStudio;
+using Filomena.OpenClaw.Bridge;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
@@ -26,6 +27,13 @@ var mode = builder.Configuration[$"{ProbeOptions.SectionName}:Mode"] ?? "milesto
 if (string.Equals(mode, "phase-b", StringComparison.Ordinal))
 {
     builder.Services
+        .AddOptions<InboundBridgeOptions>()
+        .Bind(builder.Configuration.GetSection(InboundBridgeOptions.SectionName))
+        .Validate(
+            options => IsValid(options.Validate),
+            "InboundBridge must use a valid loopback HTTP endpoint and absolute path.")
+        .ValidateOnStart();
+    builder.Services
         .AddOptions<PhaseBOptions>()
         .Bind(builder.Configuration.GetSection(PhaseBOptions.SectionName))
         .Validate(
@@ -44,9 +52,11 @@ if (string.Equals(mode, "phase-b", StringComparison.Ordinal))
     builder.Services.AddSingleton<HttpClient>();
     builder.Services.AddSingleton<ILmStudioChatClient, LmStudioClient>();
     builder.Services.AddSingleton<ITurnArbiter, GemmaTurnArbiter>();
+    builder.Services.AddSingleton<OpenClawInboundBridgeReceiver>();
     builder.Services.AddSingleton(serviceProvider => new ConversationTurnManager(
         serviceProvider.GetRequiredService<ITurnArbiter>(),
         serviceProvider.GetRequiredService<IOptions<PhaseBOptions>>().Value.Turns));
+    builder.Services.AddHostedService<InboundBridgeHttpServer>();
     builder.Services.AddHostedService<FilomenaTurnWorker>();
 }
 else

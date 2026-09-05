@@ -21,6 +21,7 @@
     "identity.ts",
     "conversation-identity.ts",
     "message-lifecycle.ts",
+    "event-bridge.ts",
     "channel-adapters/",
     "passive-capture.ts",
     "outbound-capture.ts",

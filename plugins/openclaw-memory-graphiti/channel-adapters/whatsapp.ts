@@ -77,7 +77,7 @@ function normalizeActor(input: ActorInput): ActorRef | undefined {
 }
 
 function normalizeInbound(event: Record<string, unknown>, context: Record<string, unknown>): NormalizedInboundMessage | undefined {
-  const conversation = normalizeConversation({
+  let conversation = normalizeConversation({
     accountId: nonBlank(context.accountId) ?? nonBlank(event.accountId),
     conversationId: nonBlank(context.conversationId) ?? nonBlank(event.conversationId) ?? nonBlank(event.from),
   });
@@ -94,6 +94,14 @@ function normalizeInbound(event: Record<string, unknown>, context: Record<string
     e164: nonBlank(event.senderE164) ?? nonBlank(metadata?.senderE164),
   }) : undefined;
   if (!sender) return undefined;
+  // The public hook may project To (our own account) as conversationId in a
+  // DM. From is the inbound peer; use it only with structural sender agreement.
+  if (conversation.kind === "dm" && nonBlank(event.from)) {
+    const peer = normalizeConversation({ accountId: conversation.accountId, conversationId: nonBlank(event.from) });
+    const fromActor = normalizeWhatsAppId(String(event.from), nonBlank(event.senderE164) ?? nonBlank(metadata?.senderE164));
+    if (!peer || peer.kind !== "dm" || fromActor?.canonicalId !== sender.nativeId) return undefined;
+    conversation = normalizeConversation({ accountId: conversation.accountId, conversationId: sender.nativeId })!;
+  }
   const replyTo = normalizedReply(event, context);
   const provenance = safeProvenance(event);
   return {

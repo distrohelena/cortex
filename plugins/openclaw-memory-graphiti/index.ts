@@ -42,6 +42,7 @@ import { filomenaUuidForConversation, participantUuidForActor } from "./identity
 import { createMessageLifecycleRecorder } from "./message-lifecycle.js";
 import { TurnCorrelationRegistry } from "./turn-correlation.js";
 import { buildSocialMemoryContext } from "./social-recall.js";
+import { InboundEventBridge } from "./event-bridge.js";
 
 const SOCIAL_EXTRACTION_INSTRUCTIONS = [
   "Extract only concrete, directly evidenced social observations.",
@@ -146,6 +147,9 @@ const memoryGraphitiPlugin = {
     }
     const spicedb = new SpiceDbClient(cfg.spicedb);
     const turnCorrelations = new TurnCorrelationRegistry();
+    const inboundEventBridge = cfg.eventBridge.enabled
+      ? new InboundEventBridge(cfg.eventBridge)
+      : undefined;
 
     // Catch unhandled rejections from @grpc/grpc-js internals during initial
     // connection setup. The gRPC load balancer state machine can emit promise
@@ -716,40 +720,6 @@ const memoryGraphitiPlugin = {
         }
       });
 
-      api.on("message_received", async (event, ctx) => {
-        try {
-          const adapter = getChannelAdapter(ctx.channelId);
-          const eventRecord = event as unknown as Record<string, unknown>;
-          const conversation = adapter?.normalizeConversation({
-            accountId: (ctx as { accountId?: string }).accountId
-              ?? (typeof eventRecord.accountId === "string" ? eventRecord.accountId : undefined),
-            conversationId: ctx.conversationId
-              ?? (typeof eventRecord.conversationId === "string" ? eventRecord.conversationId : undefined)
-              ?? (typeof eventRecord.from === "string" ? eventRecord.from : undefined),
-          });
-          if (!conversation) {
-            api.logger.warn("openclaw-memory-graphiti: passive capture skipped without a conversation namespace");
-            return;
-          }
-          const normalized = adapter?.normalizeInbound(
-            eventRecord,
-            ctx as unknown as Record<string, unknown>,
-          );
-          if (!normalized) {
-            api.logger.warn("openclaw-memory-graphiti: passive capture skipped because required inbound provenance is missing");
-            return;
-          }
-          if (normalized.sender?.unresolvedAlternate) {
-            api.logger.warn(
-              `openclaw-memory-graphiti: preserving unresolved alternate identity ${normalized.sender.stableId}; no deterministic canonical mapping was provided`,
-            );
-          }
-          await messageRecorder.recordInbound(normalized);
-        } catch (err) {
-          api.logger.warn(`openclaw-memory-graphiti: passive capture failed: ${String(err)}`);
-        }
-      });
-
       api.on("message_sent", async (event, ctx) => {
         try {
           const adapter = getChannelAdapter(ctx.channelId);
@@ -769,6 +739,58 @@ const memoryGraphitiPlugin = {
           await messageRecorder.recordOutbound(normalized, correlation);
         } catch (err) {
           api.logger.warn(`openclaw-memory-graphiti: outbound capture failed: ${String(err)}`);
+        }
+      });
+    }
+
+    if (cfg.autoCapture || inboundEventBridge) {
+      api.on("message_received", async (event, ctx) => {
+        const adapter = getChannelAdapter(ctx.channelId);
+        const eventRecord = event as unknown as Record<string, unknown>;
+        const conversation = adapter?.normalizeConversation({
+          accountId: (ctx as { accountId?: string }).accountId
+            ?? (typeof eventRecord.accountId === "string" ? eventRecord.accountId : undefined),
+          conversationId: ctx.conversationId
+            ?? (typeof eventRecord.conversationId === "string" ? eventRecord.conversationId : undefined)
+            ?? (typeof eventRecord.from === "string" ? eventRecord.from : undefined),
+        });
+        if (!conversation) {
+          api.logger.warn("openclaw-memory-graphiti: passive capture skipped without a conversation namespace");
+          return;
+        }
+        const normalized = adapter?.normalizeInbound(
+          eventRecord,
+          ctx as unknown as Record<string, unknown>,
+        );
+        if (!normalized) {
+          api.logger.warn("openclaw-memory-graphiti: inbound observation skipped because required structural provenance is missing");
+          return;
+        }
+        if (normalized.sender?.unresolvedAlternate) {
+          api.logger.warn(
+            `openclaw-memory-graphiti: preserving unresolved alternate identity ${normalized.sender.stableId}; no deterministic canonical mapping was provided`,
+          );
+        }
+
+        if (inboundEventBridge) {
+          try {
+            await inboundEventBridge.forward(
+              normalized,
+              typeof (ctx as { sessionKey?: string }).sessionKey === "string"
+                ? (ctx as { sessionKey: string }).sessionKey
+                : typeof eventRecord.sessionKey === "string" ? eventRecord.sessionKey : undefined,
+            );
+          } catch (err) {
+            api.logger.warn(`openclaw-memory-graphiti: Filomena inbound bridge failed: ${String(err)}`);
+          }
+        }
+
+        if (cfg.autoCapture) {
+          try {
+            await messageRecorder.recordInbound(normalized);
+          } catch (err) {
+            api.logger.warn(`openclaw-memory-graphiti: passive capture failed: ${String(err)}`);
+          }
         }
       });
     }

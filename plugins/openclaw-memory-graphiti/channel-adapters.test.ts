@@ -7,6 +7,15 @@ const WHATSAPP_GROUP_JID = "5511981042361-1589823314@g.us";
 const WHATSAPP_GROUP_NAMESPACE = "whatsapp-group-5511981042361-1589823314-g-us";
 
 describe("channel memory adapters", () => {
+  test("WhatsApp inbound DM uses the structural from peer when hook destination is self", () => {
+    const message = getChannelAdapter("whatsapp")!.normalizeInbound({
+      from: "+5511944558218", senderId: "5511944558218:7@c.us",
+      content: "Oiii flooo", timestamp: 1788571873, messageId: "dm-real-hook",
+      metadata: { to: "+5511966112687", senderE164: "+5511944558218" },
+    }, { channelId: "whatsapp", accountId: "default", conversationId: "+5511966112687" });
+    expect(message?.conversation.nativeId).toBe("5511944558218@s.whatsapp.net");
+    expect(message?.conversation.namespace).toBe("whatsapp-dm-5511944558218-s-whatsapp-net");
+  });
   test("registry is the central channel selector", () => {
     expect(supportedMemoryChannels()).toEqual(["telegram", "whatsapp"]);
     expect(getChannelAdapter("WHATSAPP")?.channel).toBe("whatsapp");

@@ -1,8 +1,10 @@
 using Filomena.App;
 using Filomena.Core.Conversations;
 using Filomena.Llm.LmStudio;
+using Filomena.OpenClaw.Bridge;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Xunit;
 
@@ -49,6 +51,18 @@ public sealed class PhaseBCompositionTests
             type.Name.Contains("Outbound", StringComparison.OrdinalIgnoreCase) ||
             type.Name.Contains("Sender", StringComparison.OrdinalIgnoreCase));
         Assert.Contains(typeof(ConversationTurnManager), dependencies);
+        Assert.Contains(typeof(OpenClawInboundBridgeReceiver), dependencies);
+        Assert.DoesNotContain(typeof(ILoggerFactory), dependencies);
+    }
+
+    [Fact]
+    public void InboundBridgeDefaultsToTheApprovedLoopbackEndpoint()
+    {
+        var options = new InboundBridgeOptions();
+
+        Assert.Equal(new Uri("http://127.0.0.1:5147/"), options.ListenUrl);
+        Assert.Equal("/v1/openclaw/events/inbound", options.Path);
+        options.Validate();
     }
 
     [Fact]
