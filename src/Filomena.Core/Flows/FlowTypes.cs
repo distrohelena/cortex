@@ -140,19 +140,22 @@ internal static class FlowTypeCompatibility
 
     private static bool CompatibleObjects(ObjectType source, ObjectType target)
     {
-        foreach (var (name, targetField) in target.Fields)
+        foreach (var (name, sourceField) in source.Fields)
         {
-            if (!source.Fields.TryGetValue(name, out var sourceField))
-            {
-                return false;
-            }
-
-            if (targetField.Required && !sourceField.Required)
+            if (!target.Fields.TryGetValue(name, out var targetField))
             {
                 return false;
             }
 
             if (!IsCompatible(sourceField.Type, targetField.Type))
+            {
+                return false;
+            }
+        }
+
+        foreach (var (name, targetField) in target.Fields)
+        {
+            if (targetField.Required && (!source.Fields.TryGetValue(name, out var sourceField) || !sourceField.Required))
             {
                 return false;
             }
@@ -312,6 +315,8 @@ internal static class FlowSchemaCodec
                 writer.WriteStringValue(value);
             }
 
+            writer.WriteNullValue();
+
             writer.WriteEndArray();
         }
     }
@@ -335,20 +340,28 @@ internal static class FlowSchemaCodec
             }
 
             var innerName = typeNames.Single(name => name != "null");
-            return new NullableType(ParseSchemaBody(schema, innerName, depth, budget, path));
+            return new NullableType(ParseSchemaBody(schema, innerName, depth, budget, path, allowNullEnum: true));
         }
 
-        return ParseSchemaBody(schema, RequiredString(schema, "type", path), depth, budget, path);
+        return ParseSchemaBody(schema, RequiredString(schema, "type", path), depth, budget, path, allowNullEnum: false);
     }
 
-    private static FlowType ParseSchemaBody(JsonElement schema, string type, int depth, SchemaBudget budget, string path)
+    private static FlowType ParseSchemaBody(
+        JsonElement schema,
+        string type,
+        int depth,
+        SchemaBudget budget,
+        string path,
+        bool allowNullEnum)
     {
         var properties = GetAllowedProperties(schema, path);
         if (type == "string")
         {
             EnsureOnly(properties, path, "type", "enum");
             return schema.TryGetProperty("enum", out var enumElement)
-                ? new EnumType(ParseStringArray(enumElement, Join(path, "enum")))
+                ? new EnumType(allowNullEnum
+                    ? ParseNullableEnumArray(enumElement, Join(path, "enum"))
+                    : ParseStringArray(enumElement, Join(path, "enum")))
                 : new StringType();
         }
 
@@ -562,6 +575,39 @@ internal static class FlowSchemaCodec
             if (value.ValueKind != JsonValueKind.String || value.GetString() is not { } stringValue)
             {
                 throw Unsupported(path, "Schema value must be an array of strings.");
+            }
+
+            values.Add(stringValue);
+        }
+
+        return values.ToArray();
+    }
+
+    private static string[] ParseNullableEnumArray(JsonElement element, string path)
+    {
+        if (element.ValueKind != JsonValueKind.Array)
+        {
+            throw Unsupported(path, "Schema value must be an array of strings and null.");
+        }
+
+        var values = new List<string>();
+        var hasNull = false;
+        foreach (var value in element.EnumerateArray())
+        {
+            if (value.ValueKind == JsonValueKind.Null)
+            {
+                if (hasNull)
+                {
+                    throw Unsupported(path, "Enum values must be unique.");
+                }
+
+                hasNull = true;
+                continue;
+            }
+
+            if (value.ValueKind != JsonValueKind.String || value.GetString() is not { } stringValue)
+            {
+                throw Unsupported(path, "Schema value must be an array of strings and null.");
             }
 
             values.Add(stringValue);

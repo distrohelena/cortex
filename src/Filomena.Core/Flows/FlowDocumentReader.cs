@@ -173,7 +173,7 @@ public static class FlowDocumentReader
             ValidateUnknownFields(edge, path, ["source", "fieldPath", "target"], issues, "edge");
             var source = ReadPort(edge, "source", path, issues);
             var target = ReadPort(edge, "target", path, issues);
-            var fieldPath = ReadStringArray(edge, "fieldPath", path, issues, "edge");
+            var fieldPath = ReadStringArray(edge, "fieldPath", path, issues, "edge", required: true);
             if (source is not null && target is not null && fieldPath is not null)
             {
                 result.Add(new DataEdge(source, fieldPath, target));
@@ -321,10 +321,21 @@ public static class FlowDocumentReader
         return element.GetString();
     }
 
-    private static string[]? ReadStringArray(JsonElement parent, string name, string path, FlowIssues issues, string issuePrefix)
+    private static string[]? ReadStringArray(
+        JsonElement parent,
+        string name,
+        string path,
+        FlowIssues issues,
+        string issuePrefix,
+        bool required = false)
     {
         if (!parent.TryGetProperty(name, out var element))
         {
+            if (required)
+            {
+                issues.Add(issuePrefix + ".field_required", Join(path, name), "Required field is missing.");
+            }
+
             return null;
         }
 

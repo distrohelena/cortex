@@ -105,16 +105,104 @@ public sealed class FlowTypeTests
     }
 
     [Fact]
-    public void RejectsOptionalSourceForRequiredTargetAndChecksNestedArrays()
+    public void ChecksClosedObjectDirectionRequirednessAndNestedArrays()
     {
-        var optionalSource = new ObjectType(new Dictionary<string, FlowField>
+        var source = new ObjectType(new Dictionary<string, FlowField>
         {
             ["payload"] = new(new ArrayType(new ObjectType(new Dictionary<string, FlowField>
             {
                 ["count"] = new(new IntegerType(), Required: true),
-            })), Required: false),
+            })), Required: true),
+        });
+        var target = new ObjectType(new Dictionary<string, FlowField>
+        {
+            ["payload"] = new(new ArrayType(new ObjectType(new Dictionary<string, FlowField>
+            {
+                ["count"] = new(new NumberType(), Required: true),
+                ["label"] = new(new StringType(), Required: false),
+            })), Required: true),
+        });
+
+        Assert.True(source.IsCompatibleWith(target));
+        Assert.False(target.IsCompatibleWith(source));
+
+        var sourceMissingRequiredField = new ObjectType(new Dictionary<string, FlowField>());
+        Assert.False(sourceMissingRequiredField.IsCompatibleWith(target));
+    }
+
+    [Fact]
+    public void NullableEnumSchemaIncludesAndParsesNullEnumMember()
+    {
+        var type = new NullableType(new EnumType(["draft", "released"]));
+
+        var schema = type.ToJsonSchema();
+        var enumValues = schema.GetProperty("enum").EnumerateArray().ToArray();
+        Assert.Contains(enumValues, value => value.ValueKind == JsonValueKind.Null);
+        Assert.Equal(["draft", "released"], enumValues.Where(value => value.ValueKind == JsonValueKind.String).Select(value => value.GetString()));
+
+        var parsed = Assert.IsType<NullableType>(FlowType.ParseJsonSchema(schema));
+        var parsedEnum = Assert.IsType<EnumType>(parsed.InnerType);
+        Assert.Equal(["draft", "released"], parsedEnum.Values);
+    }
+
+    [Fact]
+    public void AcceptsTargetOptionalFieldWhenSourceOmitsIt()
+    {
+        var source = new ObjectType(new Dictionary<string, FlowField>
+        {
+            ["id"] = new(new StringType(), Required: true),
+        });
+        var target = new ObjectType(new Dictionary<string, FlowField>
+        {
+            ["id"] = new(new StringType(), Required: true),
+            ["optional"] = new(new StringType(), Required: false),
+        });
+
+        Assert.True(source.IsCompatibleWith(target));
+    }
+
+    [Fact]
+    public void RejectsSourceExtraFieldForClosedTarget()
+    {
+        var source = new ObjectType(new Dictionary<string, FlowField>
+        {
+            ["id"] = new(new StringType(), Required: true),
+            ["extra"] = new(new StringType(), Required: true),
+        });
+        var target = new ObjectType(new Dictionary<string, FlowField>
+        {
+            ["id"] = new(new StringType(), Required: true),
+        });
+
+        Assert.False(source.IsCompatibleWith(target));
+    }
+
+    [Fact]
+    public void RejectsOptionalSourceForRequiredTarget()
+    {
+        var optionalSource = new ObjectType(new Dictionary<string, FlowField>
+        {
+            ["payload"] = new(new StringType(), Required: false),
         });
         var requiredTarget = new ObjectType(new Dictionary<string, FlowField>
+        {
+            ["payload"] = new(new StringType(), Required: true),
+        });
+
+        Assert.False(optionalSource.IsCompatibleWith(requiredTarget));
+    }
+
+    [Fact]
+    public void RetainsNestedIntegerToNumberCompatibility()
+    {
+        var source = new ObjectType(new Dictionary<string, FlowField>
+        {
+            ["payload"] = new(new ArrayType(new ObjectType(new Dictionary<string, FlowField>
+            {
+                ["count"] = new(new IntegerType(), Required: true),
+            })), Required: true),
+        });
+        var target = new ObjectType(new Dictionary<string, FlowField>
         {
             ["payload"] = new(new ArrayType(new ObjectType(new Dictionary<string, FlowField>
             {
@@ -122,17 +210,7 @@ public sealed class FlowTypeTests
             })), Required: true),
         });
 
-        Assert.False(optionalSource.IsCompatibleWith(requiredTarget));
-        var requiredTargetWithInteger = new ObjectType(new Dictionary<string, FlowField>
-        {
-            ["payload"] = new(new ArrayType(new ObjectType(new Dictionary<string, FlowField>
-            {
-                ["count"] = new(new IntegerType(), Required: true),
-            })), Required: true),
-        });
-
-        Assert.True(requiredTargetWithInteger.IsCompatibleWith(optionalSource));
-        Assert.True(requiredTargetWithInteger.IsCompatibleWith(requiredTarget));
+        Assert.True(source.IsCompatibleWith(target));
     }
 
     [Fact]

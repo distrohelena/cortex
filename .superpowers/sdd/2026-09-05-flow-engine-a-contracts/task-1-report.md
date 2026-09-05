@@ -85,3 +85,44 @@ Task 1 enum. NodeCatalog owns the later catalog of recognized kinds, block versi
 schemas, as directed; the reader still rejects unknown structural fields and all unsupported type
 discriminators. Graph-reference existence and graph topology validation remain subsequent
 validator responsibilities.
+
+## Reviewer fix round 1
+
+Base commit: `c5af9f75b37fd8a8070ce0e0ef53728a23401cfa`.
+
+Addressed the three scoped reviewer findings:
+
+1. Data-edge `fieldPath` is now required and missing values produce
+   `edge.field_required` at `/dataEdges/{index}/fieldPath`; the edge is never silently
+   omitted from an issue-free result.
+2. Object compatibility now enforces source fields as a subset of target fields, checks
+   every source field recursively against its target field, and requires every target
+   required field to be present and required in the source. Target optional fields may be
+   absent from the source.
+3. Nullable enum JSON Schema emits `null` in the enum alongside string members, and the
+   nullable-only parser accepts and normalizes that null member while non-nullable enums
+   remain strings-only.
+
+TDD regression run before production fixes:
+
+```text
+rtk dotnet test tests\Filomena.Core.Tests\Filomena.Core.Tests.csproj --no-restore -c Release --filter FullyQualifiedName~Filomena.Core.Tests.Flows
+26 passed, 5 failed: the three reviewer defects reproduced (with directional cases split into focused assertions).
+```
+
+Focused regression run after fixes:
+
+```text
+rtk dotnet test tests\Filomena.Core.Tests\Filomena.Core.Tests.csproj --no-restore -c Release --filter FullyQualifiedName~Filomena.Core.Tests.Flows
+31 tests passed, 0 warnings.
+```
+
+Full Core Release run after fixes:
+
+```text
+rtk dotnet test tests\Filomena.Core.Tests\Filomena.Core.Tests.csproj --no-restore -c Release
+65 tests passed, 0 warnings.
+```
+
+`git diff --check` was run on the staged round-1 diff with no whitespace errors. No runtime,
+settings, identity, Gateway, model, send, Graphiti, push, or `DREAMS.md` files were included.

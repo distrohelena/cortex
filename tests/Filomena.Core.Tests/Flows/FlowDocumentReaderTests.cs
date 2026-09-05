@@ -119,6 +119,17 @@ public sealed class FlowDocumentReaderTests
     }
 
     [Fact]
+    public void RejectsDataEdgeWithoutFieldPath()
+    {
+        var result = FlowDocumentReader.Read("""
+            {"id":"flow-1","formatVersion":1,"role":"ingress","nodes":[],"dataEdges":[{"source":{"nodeId":"n1","port":"out"},"target":{"nodeId":"n2","port":"in"}}],"controlEdges":[]}
+            """);
+
+        Assert.Null(result.Document);
+        Assert.Contains(result.Issues, issue => issue.Code == "edge.field_required" && issue.Path == "/dataEdges/0/fieldPath");
+    }
+
+    [Fact]
     public void RejectsJsonDepthOverflow()
     {
         var nested = new string('[', FlowLimits.MaxJsonParseDepth + 1) + "0" + new string(']', FlowLimits.MaxJsonParseDepth + 1);
