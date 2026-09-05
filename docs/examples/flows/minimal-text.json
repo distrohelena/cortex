@@ -1,0 +1,52 @@
+{
+  "artifactFormatVersion": 1,
+  "catalogVersion": 1,
+  "releaseId": "example-minimal-text",
+  "environment": "testnet",
+  "workspace": {
+    "characters": [
+      {
+        "id": "filomena",
+        "displayName": "Filomena",
+        "personality": "Curious, direct, and warm.",
+        "graphId": "minimal-text"
+      }
+    ],
+    "graphs": [
+      {
+        "id": "minimal-text",
+        "formatVersion": 1,
+        "role": "character",
+        "characterId": "filomena",
+        "entryNodeIds": ["input"],
+        "nodes": [
+          {"id": "input", "kind": "manual-input", "blockVersion": 1, "config": {}},
+          {
+            "id": "ai",
+            "kind": "ai",
+            "blockVersion": 1,
+            "config": {"modelProfileId": "profile-filomena", "outputSchema": "text"}
+          },
+          {
+            "id": "send",
+            "kind": "send",
+            "blockVersion": 1,
+            "config": {"destinationId": "fake-destination"}
+          }
+        ],
+        "dataEdges": [
+          {"source": {"nodeId": "input", "port": "text"}, "fieldPath": [], "target": {"nodeId": "ai", "port": "prompt"}},
+          {"source": {"nodeId": "ai", "port": "text"}, "fieldPath": [], "target": {"nodeId": "send", "port": "body"}}
+        ],
+        "controlEdges": [
+          {"source": {"nodeId": "input", "port": "success"}, "target": {"nodeId": "ai", "port": "run"}},
+          {"source": {"nodeId": "ai", "port": "success"}, "target": {"nodeId": "send", "port": "run"}}
+        ]
+      }
+    ],
+    "modelProfiles": [
+      {"profileId": "profile-filomena", "credentialReference": "fake-model-profile"}
+    ],
+    "modelProfileReferences": {"filomena": "profile-filomena"}
+  }
+}

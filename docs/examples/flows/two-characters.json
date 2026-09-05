@@ -1,0 +1,86 @@
+{
+  "artifactFormatVersion": 1,
+  "catalogVersion": 1,
+  "releaseId": "example-two-characters",
+  "environment": "testnet",
+  "workspace": {
+    "characters": [
+      {"id": "lia", "displayName": "Lia", "personality": "Thoughtful and analytical.", "graphId": "character-lia"},
+      {"id": "noa", "displayName": "Noa", "personality": "Energetic and playful.", "graphId": "character-noa"}
+    ],
+    "graphs": [
+      {
+        "id": "two-characters-ingress",
+        "formatVersion": 1,
+        "role": "ingress",
+        "entryNodeIds": ["input"],
+        "nodes": [
+          {"id": "input", "kind": "manual-input", "blockVersion": 1, "config": {}},
+          {"id": "fanout", "kind": "parallel", "blockVersion": 1, "config": {"branches": ["lia", "noa"]}},
+          {"id": "dispatch-lia", "kind": "character-dispatch", "blockVersion": 1, "config": {"characterId": "lia"}},
+          {"id": "dispatch-noa", "kind": "character-dispatch", "blockVersion": 1, "config": {"characterId": "noa"}},
+          {"id": "send-lia", "kind": "send", "blockVersion": 1, "config": {"destinationId": "fake-destination-lia"}},
+          {"id": "send-noa", "kind": "send", "blockVersion": 1, "config": {"destinationId": "fake-destination-noa"}}
+        ],
+        "dataEdges": [
+          {"source": {"nodeId": "input", "port": "text"}, "fieldPath": [], "target": {"nodeId": "dispatch-lia", "port": "input"}},
+          {"source": {"nodeId": "input", "port": "text"}, "fieldPath": [], "target": {"nodeId": "dispatch-noa", "port": "input"}},
+          {"source": {"nodeId": "dispatch-lia", "port": "result"}, "fieldPath": [], "target": {"nodeId": "send-lia", "port": "body"}},
+          {"source": {"nodeId": "dispatch-noa", "port": "result"}, "fieldPath": [], "target": {"nodeId": "send-noa", "port": "body"}}
+        ],
+        "controlEdges": [
+          {"source": {"nodeId": "input", "port": "success"}, "target": {"nodeId": "fanout", "port": "run"}},
+          {"source": {"nodeId": "fanout", "port": "lia"}, "target": {"nodeId": "dispatch-lia", "port": "run"}},
+          {"source": {"nodeId": "fanout", "port": "noa"}, "target": {"nodeId": "dispatch-noa", "port": "run"}},
+          {"source": {"nodeId": "dispatch-lia", "port": "success"}, "target": {"nodeId": "send-lia", "port": "run"}},
+          {"source": {"nodeId": "dispatch-noa", "port": "success"}, "target": {"nodeId": "send-noa", "port": "run"}}
+        ]
+      },
+      {
+        "id": "character-lia",
+        "formatVersion": 1,
+        "role": "character",
+        "characterId": "lia",
+        "entryNodeIds": ["input"],
+        "nodes": [
+          {"id": "input", "kind": "manual-input", "blockVersion": 1, "config": {}},
+          {"id": "ai", "kind": "ai", "blockVersion": 1, "config": {"modelProfileId": "profile-lia", "outputSchema": "text"}},
+          {"id": "send", "kind": "send", "blockVersion": 1, "config": {"destinationId": "fake-destination-lia"}}
+        ],
+        "dataEdges": [
+          {"source": {"nodeId": "input", "port": "text"}, "fieldPath": [], "target": {"nodeId": "ai", "port": "prompt"}},
+          {"source": {"nodeId": "ai", "port": "text"}, "fieldPath": [], "target": {"nodeId": "send", "port": "body"}}
+        ],
+        "controlEdges": [
+          {"source": {"nodeId": "input", "port": "success"}, "target": {"nodeId": "ai", "port": "run"}},
+          {"source": {"nodeId": "ai", "port": "success"}, "target": {"nodeId": "send", "port": "run"}}
+        ]
+      },
+      {
+        "id": "character-noa",
+        "formatVersion": 1,
+        "role": "character",
+        "characterId": "noa",
+        "entryNodeIds": ["input"],
+        "nodes": [
+          {"id": "input", "kind": "manual-input", "blockVersion": 1, "config": {}},
+          {"id": "ai", "kind": "ai", "blockVersion": 1, "config": {"modelProfileId": "profile-noa", "outputSchema": "text"}},
+          {"id": "send", "kind": "send", "blockVersion": 1, "config": {"destinationId": "fake-destination-noa"}}
+        ],
+        "dataEdges": [
+          {"source": {"nodeId": "input", "port": "text"}, "fieldPath": [], "target": {"nodeId": "ai", "port": "prompt"}},
+          {"source": {"nodeId": "ai", "port": "text"}, "fieldPath": [], "target": {"nodeId": "send", "port": "body"}}
+        ],
+        "controlEdges": [
+          {"source": {"nodeId": "input", "port": "success"}, "target": {"nodeId": "ai", "port": "run"}},
+          {"source": {"nodeId": "ai", "port": "success"}, "target": {"nodeId": "send", "port": "run"}}
+        ]
+      }
+    ],
+    "modelProfiles": [
+      {"profileId": "profile-lia", "credentialReference": "fake-model-profile-lia"},
+      {"profileId": "profile-noa", "credentialReference": "fake-model-profile-noa"}
+    ],
+    "modelProfileReferences": {"lia": "profile-lia", "noa": "profile-noa"}
+  }
+}
