@@ -1,6 +1,6 @@
 # Filomena local dashboard
 
-Status: design approved in chat; detailed specification awaiting final review.
+Status: superseded by 2026-09-05-filomena-flow-engine-design.md. Historical reference only; do not implement as the current product specification.
 Date: 2026-09-05.
 
 ## Scope and existing implementation
