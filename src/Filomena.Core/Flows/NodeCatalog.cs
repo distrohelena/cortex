@@ -114,6 +114,9 @@ public sealed record NodeDefinition
 
 public sealed class NodeCatalog
 {
+    public const int MaxBranchCount = 64;
+    public const int MaxBranchNameLength = 128;
+
     private readonly IReadOnlyDictionary<(string Kind, int Version), NodeDefinition> _definitions;
 
     private NodeCatalog(IEnumerable<NodeDefinition> definitions)
@@ -263,8 +266,18 @@ public sealed class NodeCatalog
     }
 
     private static bool IsSupportedOperator(string? value) => value?.ToLowerInvariant() is
-        "equals" or "notequals" or "lessthan" or "lessorequal" or "greaterthan" or "greaterorequal" or
+        "equals" or "eq" or "notequals" or "ne" or "lessthan" or "lt" or "lessorequal" or "lte" or "greaterthan" or "gt" or "greaterorequal" or "gte" or
         "contains" or "startswith" or "endswith" or "in";
+
+    private static bool IsSupportedJoinMode(JsonElement mode)
+    {
+        if (mode.ValueKind != JsonValueKind.String)
+        {
+            return false;
+        }
+
+        return mode.GetString()?.ToLowerInvariant() is "all" or "first-valid" or "firstvalid" or "independent";
+    }
 
     private static NodeDefinitionResolution ResolveBranches(JsonElement config)
     {
@@ -277,8 +290,7 @@ public sealed class NodeCatalog
     {
         var issues = new List<FlowIssue>();
         var branches = ReadNames(config, "branches", issues);
-        if (!config.TryGetProperty("mode", out var mode) || mode.ValueKind != JsonValueKind.String ||
-            !Enum.TryParse<JoinMode>(mode.GetString()?.Replace("-", string.Empty, StringComparison.Ordinal), ignoreCase: true, out _))
+        if (!config.TryGetProperty("mode", out var mode) || !IsSupportedJoinMode(mode))
         {
             issues.Add(new FlowIssue("node.join_mode_invalid", "/config/mode", "Join requires mode all, first-valid, or independent."));
         }
@@ -292,10 +304,13 @@ public sealed class NodeCatalog
     private static NodeDefinitionResolution ResolveAwait(JsonElement config)
     {
         var issues = new List<FlowIssue>();
-        if (!config.TryGetProperty("resumePredicate", out var predicate) || predicate.ValueKind is JsonValueKind.Null ||
-            predicate.ValueKind == JsonValueKind.String && string.IsNullOrWhiteSpace(predicate.GetString()))
+        if (!config.TryGetProperty("resumePredicate", out var predicate) || predicate.ValueKind is JsonValueKind.Null)
         {
             issues.Add(new FlowIssue("node.await_predicate_required", "/config/resumePredicate", "Await requires an explicit resume predicate."));
+        }
+        else
+        {
+            ValidateResumePredicate(predicate, issues);
         }
 
         RequireString(config, "deadline", issues);
@@ -331,15 +346,86 @@ public sealed class NodeCatalog
             return [];
         }
 
-        var names = value.EnumerateArray()
-            .Where(item => item.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(item.GetString()))
-            .Select(item => item.GetString()!)
-            .ToArray();
-        if (names.Length == 0 || names.Distinct(StringComparer.Ordinal).Count() != names.Length)
+        var count = value.GetArrayLength();
+        if (count > MaxBranchCount)
         {
-            issues.Add(new FlowIssue("node.branches_invalid", "/config/" + name, "Branch names must be non-empty and unique."));
+            issues.Add(new FlowIssue("node.branches_invalid", "/config/" + name, $"Branch count must not exceed {MaxBranchCount}."));
+            return [];
         }
 
-        return names;
+        var names = new List<string>(count);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var invalid = count == 0;
+        foreach (var item in value.EnumerateArray())
+        {
+            if (item.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(item.GetString()))
+            {
+                invalid = true;
+                continue;
+            }
+
+            var branch = item.GetString()!;
+            if (branch.Length > MaxBranchNameLength || !seen.Add(branch))
+            {
+                invalid = true;
+                continue;
+            }
+
+            names.Add(branch);
+        }
+
+        if (invalid)
+        {
+            issues.Add(new FlowIssue("node.branches_invalid", "/config/" + name, $"Branch names must be non-empty, unique, and at most {MaxBranchNameLength} characters."));
+            return [];
+        }
+
+        return names.ToArray();
+    }
+
+    private static void ValidateResumePredicate(JsonElement predicate, ICollection<FlowIssue> issues)
+    {
+        const int maxStringLength = 128;
+        if (predicate.ValueKind != JsonValueKind.Object)
+        {
+            issues.Add(new FlowIssue("node.await_predicate_invalid", "/config/resumePredicate", "Resume predicate must be a bounded event predicate object."));
+            return;
+        }
+
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        var invalid = false;
+        foreach (var property in predicate.EnumerateObject())
+        {
+            if (!names.Add(property.Name) || property.Name is not ("eventKind" or "conversationId" or "actorId" or "correlationId"))
+            {
+                invalid = true;
+                continue;
+            }
+
+            if (property.Value.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(property.Value.GetString()) || property.Value.GetString()!.Length > maxStringLength)
+            {
+                invalid = true;
+            }
+        }
+
+        if (!predicate.TryGetProperty("eventKind", out var eventKind) ||
+            eventKind.ValueKind != JsonValueKind.String ||
+            eventKind.GetString() is not ("dm" or "group" or "manual"))
+        {
+            invalid = true;
+        }
+
+        if (!predicate.TryGetProperty("conversationId", out var conversationId) ||
+            conversationId.ValueKind != JsonValueKind.String ||
+            string.IsNullOrWhiteSpace(conversationId.GetString()) ||
+            conversationId.GetString()!.Length > maxStringLength)
+        {
+            invalid = true;
+        }
+
+        if (invalid)
+        {
+            issues.Add(new FlowIssue("node.await_predicate_invalid", "/config/resumePredicate", "Resume predicate must contain only bounded eventKind, conversationId, actorId, and correlationId fields."));
+        }
     }
 }

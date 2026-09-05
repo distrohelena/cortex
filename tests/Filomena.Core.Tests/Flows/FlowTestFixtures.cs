@@ -193,6 +193,72 @@ internal static class FlowTestFixtures
             ["manual"]);
     }
 
+    public static GraphDocument WithCrossedNamedJoinData() => new(
+        "flow-crossed-join",
+        1,
+        GraphRole.Character,
+        "filomena",
+        [
+            Node("manual", "manual-input", new { }),
+            Node("parallel", "parallel", new { branches = new[] { "left", "right" } }),
+            Node("left-context", "context", new { }),
+            Node("right-context", "context", new { }),
+            Node("join", "join", new { mode = "all", branches = new[] { "left", "right" } }),
+        ],
+        [new DataEdge(new PortRef("left-context", "text"), [], new PortRef("join", "right"))],
+        [
+            new ControlEdge(new PortRef("manual", "success"), new PortRef("parallel", "run")),
+            new ControlEdge(new PortRef("parallel", "left"), new PortRef("left-context", "run")),
+            new ControlEdge(new PortRef("parallel", "right"), new PortRef("right-context", "run")),
+            new ControlEdge(new PortRef("left-context", "success"), new PortRef("join", "left")),
+            new ControlEdge(new PortRef("right-context", "success"), new PortRef("join", "right")),
+        ],
+        ["manual"]);
+
+    public static GraphDocument WithMissingGroupAlternativeData()
+    {
+        var graph = DeclaredDmGroupInputSet();
+        return new GraphDocument(
+            graph.Id,
+            graph.FormatVersion,
+            graph.Role,
+            graph.CharacterId,
+            graph.Nodes,
+            graph.DataEdges.Where(edge => edge.Source.NodeId != "group"),
+            graph.ControlEdges,
+            graph.EntryNodeIds);
+    }
+
+    public static GraphDocument WithDuplicateNamedJoinControlProducer()
+    {
+        var graph = WithFirstValidEffect();
+        return new GraphDocument(
+            graph.Id,
+            graph.FormatVersion,
+            graph.Role,
+            graph.CharacterId,
+            graph.Nodes,
+            graph.DataEdges,
+            [.. graph.ControlEdges, new ControlEdge(new PortRef("parallel", "left"), new PortRef("join", "left"))],
+            graph.EntryNodeIds);
+    }
+
+    public static GraphDocument WithNumericJoinMode()
+    {
+        var graph = WithFirstValidEffect();
+        return ReplaceNodes(graph, node => node.Id == "join"
+            ? new FlowNode(node.Id, node.Kind, node.BlockVersion, JsonSerializer.SerializeToElement(new { mode = 99, branches = new[] { "left", "right" } }))
+            : node);
+    }
+
+    public static GraphDocument WithInvalidConditionOperator()
+    {
+        var graph = WithMissingDecisionExit();
+        return ReplaceNodes(graph, node => node.Id == "condition"
+            ? new FlowNode(node.Id, node.Kind, node.BlockVersion, JsonSerializer.SerializeToElement(new { field = "value", op = "contains", value = 1 }))
+            : node);
+    }
+
     public static GraphDocument WithAwaitMissingTimeoutExit()
     {
         var graph = new GraphDocument(
@@ -202,10 +268,45 @@ internal static class FlowTestFixtures
             "filomena",
             [
                 Node("manual", "manual-input", new { }),
-                Node("await", "await", new { resumePredicate = "message.text", deadline = "2026-09-06T00:00:00Z" }),
+                Node("await", "await", new { resumePredicate = new { eventKind = "manual", conversationId = "conversation-1" }, deadline = "2026-09-06T00:00:00Z" }),
             ],
             [],
             [new ControlEdge(new PortRef("manual", "success"), new PortRef("await", "run"))],
+            ["manual"]);
+
+        return graph;
+    }
+
+    public static GraphDocument WithBooleanAwaitPredicate()
+    {
+        var graph = WithAwaitMissingTimeoutExit();
+        return ReplaceNodes(graph, node => node.Id == "await"
+            ? new FlowNode(node.Id, node.Kind, node.BlockVersion, JsonSerializer.SerializeToElement(new { resumePredicate = true, deadline = "2026-09-06T00:00:00Z" }))
+            : node);
+    }
+
+    public static GraphDocument WithUnknownAwaitPredicateField()
+    {
+        var graph = WithAwaitMissingTimeoutExit();
+        return ReplaceNodes(graph, node => node.Id == "await"
+            ? new FlowNode(node.Id, node.Kind, node.BlockVersion, JsonSerializer.SerializeToElement(new
+            {
+                resumePredicate = new { eventKind = "manual", conversationId = "conversation-1", unexpected = "value" },
+                deadline = "2026-09-06T00:00:00Z",
+            }))
+            : node);
+    }
+
+    public static GraphDocument WithBranchOverflow()
+    {
+        var graph = new GraphDocument(
+            "flow-branch-overflow",
+            1,
+            GraphRole.Character,
+            "filomena",
+            [Node("manual", "manual-input", new { }), Node("parallel", "parallel", new { branches = Enumerable.Range(0, 65).Select(index => "branch-" + index).ToArray() })],
+            [],
+            [new ControlEdge(new PortRef("manual", "success"), new PortRef("parallel", "run"))],
             ["manual"]);
 
         return graph;

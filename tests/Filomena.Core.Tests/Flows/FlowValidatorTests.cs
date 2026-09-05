@@ -140,11 +140,75 @@ public sealed class FlowValidatorTests
     }
 
     [Fact]
+    public void RejectsCrossedNamedJoinData()
+    {
+        var issues = FlowValidator.Validate(FlowTestFixtures.WithCrossedNamedJoinData(), NodeCatalog.V1);
+
+        Assert.Contains(issues, issue => issue.Code == "data.value_unavailable");
+    }
+
+    [Fact]
+    public void RequiresDataCoverageFromEveryDeclaredInputAlternative()
+    {
+        var issues = FlowValidator.Validate(FlowTestFixtures.WithMissingGroupAlternativeData(), NodeCatalog.V1);
+
+        Assert.Contains(issues, issue => issue.Code == "node.input_missing");
+    }
+
+    [Fact]
+    public void RejectsDuplicateProducerOnSameNamedJoinControlPort()
+    {
+        var issues = FlowValidator.Validate(FlowTestFixtures.WithDuplicateNamedJoinControlProducer(), NodeCatalog.V1);
+
+        Assert.Contains(issues, issue => issue.Code == "edge.target_producer_duplicate");
+    }
+
+    [Fact]
+    public void RejectsNumericJoinMode()
+    {
+        var issues = FlowValidator.Validate(FlowTestFixtures.WithNumericJoinMode(), NodeCatalog.V1);
+
+        Assert.Contains(issues, issue => issue.Code == "node.join_mode_invalid");
+    }
+
+    [Fact]
+    public void RejectsConditionOperatorForLiteralType()
+    {
+        var issues = FlowValidator.Validate(FlowTestFixtures.WithInvalidConditionOperator(), NodeCatalog.V1);
+
+        Assert.Contains(issues, issue => issue.Code == "node.condition_operator_invalid");
+    }
+
+    [Fact]
     public void RetainsAwaitContractErrors()
     {
         var issues = FlowValidator.Validate(FlowTestFixtures.WithAwaitMissingTimeoutExit(), NodeCatalog.V1);
 
         Assert.Contains(issues, issue => issue.Code == "node.await_contract_invalid" && issue.Severity == FlowIssueSeverity.Error);
+    }
+
+    [Fact]
+    public void RejectsBooleanAwaitPredicate()
+    {
+        var issues = FlowValidator.Validate(FlowTestFixtures.WithBooleanAwaitPredicate(), NodeCatalog.V1);
+
+        Assert.Contains(issues, issue => issue.Code == "node.await_predicate_invalid");
+    }
+
+    [Fact]
+    public void RejectsUnknownAwaitPredicateFields()
+    {
+        var issues = FlowValidator.Validate(FlowTestFixtures.WithUnknownAwaitPredicateField(), NodeCatalog.V1);
+
+        Assert.Contains(issues, issue => issue.Code == "node.await_predicate_invalid");
+    }
+
+    [Fact]
+    public void RejectsBranchOverflow()
+    {
+        var issues = FlowValidator.Validate(FlowTestFixtures.WithBranchOverflow(), NodeCatalog.V1);
+
+        Assert.Contains(issues, issue => issue.Code == "node.branches_invalid");
     }
 
     [Fact]

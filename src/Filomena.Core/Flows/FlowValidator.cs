@@ -21,7 +21,7 @@ public static class FlowValidator
         ValidateEntries(graph, nodes, issues, out var entries);
         ValidateDataEdges(graph, issues, nodes, states, nodeIndexes);
         ValidateControlEdges(graph, issues, nodes, states, nodeIndexes);
-        ValidateRequiredPorts(graph, issues, states, nodeIndexes);
+        ValidateRequiredPorts(graph, issues, nodes, states, nodeIndexes);
         ValidateCycles(graph, issues, nodes, nodeIndexes);
 
         var reachable = Reachable(entries, graph, nodes);
@@ -242,29 +242,67 @@ public static class FlowValidator
             return;
         }
 
-        var valid = sourceType switch
-        {
-            StringType or EnumType => literal.ValueKind == JsonValueKind.String,
-            IntegerType => literal.ValueKind == JsonValueKind.Number && literal.TryGetInt32(out _),
-            NumberType => literal.ValueKind == JsonValueKind.Number,
-            BooleanType => literal.ValueKind is JsonValueKind.True or JsonValueKind.False,
-            NullableType nullable => literal.ValueKind == JsonValueKind.Null || IsLiteralCompatible(literal, nullable.InnerType),
-            _ => literal.ValueKind == JsonValueKind.Object || literal.ValueKind == JsonValueKind.Array,
-        };
-        if (!valid)
+        var validLiteral = IsLiteralCompatible(literal, sourceType);
+        var operatorElement = config.TryGetProperty("operator", out var configuredOperator)
+            ? configuredOperator
+            : config.TryGetProperty("op", out var shorthandOperator) ? shorthandOperator : default;
+        var validOperator = operatorElement.ValueKind == JsonValueKind.String && IsOperatorCompatible(operatorElement.GetString(), sourceType, literal);
+        if (!validLiteral)
         {
             Add(issues, "node.condition_literal_type_invalid", NodePath(nodeIndex) + "/config/value", "Condition literal does not match the selected field type.");
+        }
+
+        if (!validOperator)
+        {
+            Add(issues, "node.condition_operator_invalid", NodePath(nodeIndex) + "/config/operator", "Condition operator is not valid for the selected field type and literal.");
         }
     }
 
     private static bool IsLiteralCompatible(JsonElement literal, FlowType type) => type switch
     {
-        StringType or EnumType => literal.ValueKind == JsonValueKind.String,
-        IntegerType => literal.ValueKind == JsonValueKind.Number && literal.TryGetInt32(out _),
+        StringType => literal.ValueKind == JsonValueKind.String,
+        EnumType enumType => literal.ValueKind == JsonValueKind.String && enumType.Values.Contains(literal.GetString()!, StringComparer.Ordinal),
+        IntegerType => literal.ValueKind == JsonValueKind.Number && literal.TryGetInt64(out _),
         NumberType => literal.ValueKind == JsonValueKind.Number,
         BooleanType => literal.ValueKind is JsonValueKind.True or JsonValueKind.False,
-        _ => true,
+        NullableType nullable => literal.ValueKind == JsonValueKind.Null || IsLiteralCompatible(literal, nullable.InnerType),
+        ObjectType => literal.ValueKind == JsonValueKind.Object,
+        ArrayType array => literal.ValueKind == JsonValueKind.Array && literal.EnumerateArray().All(item => IsLiteralCompatible(item, array.ElementType)),
+        _ => false,
     };
+
+    private static bool IsOperatorCompatible(string? configuredOperator, FlowType sourceType, JsonElement literal)
+    {
+        var operatorName = configuredOperator?.ToLowerInvariant() switch
+        {
+            "equals" or "eq" => "equals",
+            "notequals" or "ne" => "notequals",
+            "lessthan" or "lt" => "lessthan",
+            "lessorequal" or "lte" => "lessorequal",
+            "greaterthan" or "gt" => "greaterthan",
+            "greaterorequal" or "gte" => "greaterorequal",
+            "contains" => "contains",
+            "startswith" => "startswith",
+            "endswith" => "endswith",
+            "in" => "in",
+            _ => null,
+        };
+
+        return operatorName switch
+        {
+            "equals" or "notequals" => IsLiteralCompatible(literal, sourceType),
+            "lessthan" or "lessorequal" or "greaterthan" or "greaterorequal" => (sourceType is IntegerType or NumberType) && literal.ValueKind == JsonValueKind.Number,
+            "contains" => sourceType switch
+            {
+                StringType or EnumType => literal.ValueKind == JsonValueKind.String,
+                ArrayType array => IsLiteralCompatible(literal, array.ElementType),
+                _ => false,
+            },
+            "startswith" or "endswith" => (sourceType is StringType or EnumType) && literal.ValueKind == JsonValueKind.String,
+            "in" => literal.ValueKind == JsonValueKind.Array && literal.EnumerateArray().All(item => IsLiteralCompatible(item, sourceType)),
+            _ => false,
+        };
+    }
 
     private static void ValidateControlEdges(
         GraphDocument graph,
@@ -304,10 +342,16 @@ public static class FlowValidator
                 Add(issues, "edge.target_port_missing", path + "/target/port", "Control edge target port does not exist.");
             }
 
-            if (producers.TryGetValue((edge.Target.NodeId, edge.Target.Port), out var previousProducer) &&
-                targetNode.Kind != "join" && !IsDeclaredInputAlternative(graph, nodes, previousProducer, edge))
+            if (producers.TryGetValue((edge.Target.NodeId, edge.Target.Port), out var previousProducer))
             {
-                Add(issues, "edge.target_producer_duplicate", path + "/target/port", "A control input may have only one producer except named join branches.");
+                if (!IsDeclaredInputAlternative(graph, nodes, previousProducer, edge))
+                {
+                    Add(issues, "edge.target_producer_duplicate", path + "/target/port", "A control input may have only one producer, including each named join branch.");
+                }
+                else
+                {
+                    producers[(edge.Target.NodeId, edge.Target.Port)] = edge;
+                }
             }
             else
             {
@@ -319,6 +363,7 @@ public static class FlowValidator
     private static void ValidateRequiredPorts(
         GraphDocument graph,
         ICollection<FlowIssue> issues,
+        IReadOnlyDictionary<string, FlowNode> nodes,
         IReadOnlyDictionary<string, NodeState> states,
         IReadOnlyDictionary<string, int> nodeIndexes)
     {
@@ -331,6 +376,10 @@ public static class FlowValidator
                 if (!dataTargets.Contains(port.Name))
                 {
                     Add(issues, "node.input_missing", nodePath + "/dataInputs/" + Escape(port.Name), "Required data input is not connected.");
+                }
+                else if (!HasDeclaredAlternativeCoverage(graph, nodes, states, nodeId, port.Name))
+                {
+                    Add(issues, "node.input_missing", nodePath + "/dataInputs/" + Escape(port.Name), "Required data input must have a compatible producer from every declared input alternative.");
                 }
             }
 
@@ -358,6 +407,49 @@ public static class FlowValidator
                 }
             }
         }
+    }
+
+    private static bool HasDeclaredAlternativeCoverage(
+        GraphDocument graph,
+        IReadOnlyDictionary<string, FlowNode> nodes,
+        IReadOnlyDictionary<string, NodeState> states,
+        string targetNodeId,
+        string targetPort)
+    {
+        var alternatives = graph.EntryNodeIds
+            .Where(id => nodes.TryGetValue(id, out var node) && (node.Kind is "dm-input" or "group-input"))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (alternatives.Length <= 1)
+        {
+            return true;
+        }
+
+        var alternativeEdges = graph.DataEdges.Where(edge =>
+            alternatives.Contains(edge.Source.NodeId, StringComparer.Ordinal) &&
+            edge.Target.NodeId == targetNodeId &&
+            edge.Target.Port == targetPort).ToArray();
+        if (alternativeEdges.Length == 0)
+        {
+            return true;
+        }
+
+        return alternatives.All(alternative => alternativeEdges.Any(edge =>
+            edge.Source.NodeId == alternative &&
+            edge.FieldPath.Count == 0 &&
+            IsCompatibleDataProducer(edge, states)));
+    }
+
+    private static bool IsCompatibleDataProducer(DataEdge edge, IReadOnlyDictionary<string, NodeState> states)
+    {
+        if (!states.TryGetValue(edge.Source.NodeId, out var sourceState) || !states.TryGetValue(edge.Target.NodeId, out var targetState))
+        {
+            return false;
+        }
+
+        var source = sourceState.Resolution.DataOutputs.FirstOrDefault(port => port.Name == edge.Source.Port);
+        var target = targetState.Resolution.DataInputs.FirstOrDefault(port => port.Name == edge.Target.Port);
+        return source is not null && target is not null && (target.AcceptsAny || source.Type.IsCompatibleWith(target.Type));
     }
 
     private static void ValidateCycles(GraphDocument graph, ICollection<FlowIssue> issues, IReadOnlyDictionary<string, FlowNode> nodes, IReadOnlyDictionary<string, int> nodeIndexes)
@@ -529,10 +621,25 @@ public static class FlowValidator
                 continue;
             }
 
-            if (IsDeclaredInputAlternative(graph, nodes, edge, edge) ||
-                states.TryGetValue(edge.Target.NodeId, out var targetState) && targetState.Definition.Kind == "join" &&
+            if (IsCoveredDeclaredInputAlternative(graph, nodes, states, edge))
+            {
+                continue;
+            }
+
+            if (states.TryGetValue(edge.Target.NodeId, out var targetState) && targetState.Definition.Kind == "join" &&
                 targetState.Resolution.DataInputs.Any(port => port.Name == edge.Target.Port))
             {
+                var branchPredecessors = graph.ControlEdges
+                    .Where(control => control.Target.NodeId == edge.Target.NodeId && control.Target.Port == edge.Target.Port)
+                    .Select(control => control.Source.NodeId)
+                    .Distinct(StringComparer.Ordinal)
+                    .ToArray();
+                if (branchPredecessors.Length > 0 && branchPredecessors.Any(predecessor =>
+                    !dominators.TryGetValue(predecessor, out var branchAvailability) || !branchAvailability.Contains(edge.Source.NodeId)))
+                {
+                    Add(issues, "data.value_unavailable", "/dataEdges/" + index, "Data value is not available along the control path for the corresponding named join branch.");
+                }
+
                 continue;
             }
 
@@ -542,6 +649,17 @@ public static class FlowValidator
             }
         }
     }
+
+    private static bool IsCoveredDeclaredInputAlternative(
+        GraphDocument graph,
+        IReadOnlyDictionary<string, FlowNode> nodes,
+        IReadOnlyDictionary<string, NodeState> states,
+        DataEdge edge) =>
+        graph.EntryNodeIds.Count > 1 &&
+        graph.EntryNodeIds.Contains(edge.Source.NodeId, StringComparer.Ordinal) &&
+        nodes.TryGetValue(edge.Source.NodeId, out var sourceNode) &&
+        (sourceNode.Kind is "dm-input" or "group-input") &&
+        HasDeclaredAlternativeCoverage(graph, nodes, states, edge.Target.NodeId, edge.Target.Port);
 
     private static bool IsDeclaredInputAlternative(
         GraphDocument graph,
