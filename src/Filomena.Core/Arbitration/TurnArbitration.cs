@@ -17,7 +17,10 @@ public sealed record TurnSignals(
 public sealed record TurnArbitrationRequest(
     ConversationInfo Conversation,
     IReadOnlyList<InboundConversationEvent> Messages,
-    TurnSignals Signals);
+    TurnSignals Signals)
+{
+    public IReadOnlyList<SentConversationTurn> RecentOutbound { get; init; } = [];
+}
 
 public interface ITurnArbiter
 {

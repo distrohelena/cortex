@@ -12,6 +12,10 @@ public sealed class LmStudioOptions
 
     public int ArbitrationMaxTokens { get; set; } = 160;
 
+    public double GenerationTemperature { get; set; } = 0.7;
+
+    public int GenerationMaxTokens { get; set; } = 512;
+
     public int RequestTimeoutSeconds { get; set; } = 45;
 
     public void Validate()
@@ -28,6 +32,11 @@ public sealed class LmStudioOptions
         }
 
         ArgumentOutOfRangeException.ThrowIfLessThan(ArbitrationMaxTokens, 1);
+        if (!double.IsFinite(GenerationTemperature) || GenerationTemperature is < 0 or > 2)
+        {
+            throw new InvalidOperationException("LmStudio:GenerationTemperature must be between 0 and 2.");
+        }
+        ArgumentOutOfRangeException.ThrowIfLessThan(GenerationMaxTokens, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(RequestTimeoutSeconds, 1);
     }
 }

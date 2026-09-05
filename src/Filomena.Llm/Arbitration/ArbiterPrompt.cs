@@ -39,6 +39,18 @@ public static class ArbiterPrompt
                 .AppendLine(message.Content);
         }
 
+        if (request.RecentOutbound.Count > 0)
+        {
+            builder.AppendLine("recent_confirmed_filomena_messages:");
+            var remaining = 800;
+            foreach (var sent in request.RecentOutbound.Reverse())
+            {
+                if (remaining <= 0) break;
+                var text = sent.Content[..Math.Min(sent.Content.Length, remaining)];
+                builder.AppendLine(global::System.Text.Json.JsonSerializer.Serialize(new { sentAt = sent.SentAt, text }));
+                remaining -= text.Length;
+            }
+        }
         return builder.ToString();
     }
 

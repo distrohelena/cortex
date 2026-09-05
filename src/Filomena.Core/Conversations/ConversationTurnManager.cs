@@ -8,13 +8,18 @@ public sealed record ConversationTurnResult(
     ConversationInfo Conversation,
     IReadOnlyList<string> PendingMessageIds,
     TurnDecision Decision,
-    DateTimeOffset EvaluatedAt);
+    DateTimeOffset EvaluatedAt)
+{
+    public SentConversationTurn? SentTurn { get; init; }
+    public string? ExecutionError { get; init; }
+}
 
 public sealed class ConversationTurnManager : IAsyncDisposable
 {
     private readonly ITurnArbiter arbiter;
     private readonly ConversationTurnOptions options;
     private readonly IConversationClock clock;
+    private readonly IConversationTurnExecutor? executor;
     private readonly CancellationTokenSource shutdown = new();
     private readonly ConcurrentDictionary<string, ConversationTurnState> states =
         new(StringComparer.Ordinal);
@@ -25,7 +30,8 @@ public sealed class ConversationTurnManager : IAsyncDisposable
     public ConversationTurnManager(
         ITurnArbiter arbiter,
         ConversationTurnOptions options,
-        IConversationClock? clock = null)
+        IConversationClock? clock = null,
+        IConversationTurnExecutor? executor = null)
     {
         ArgumentNullException.ThrowIfNull(arbiter);
         ArgumentNullException.ThrowIfNull(options);
@@ -33,6 +39,7 @@ public sealed class ConversationTurnManager : IAsyncDisposable
         this.arbiter = arbiter;
         this.options = options;
         this.clock = clock ?? new TimeProviderConversationClock(TimeProvider.System);
+        this.executor = executor;
     }
 
     public ChannelReader<ConversationTurnResult> Results => results.Reader;
@@ -121,12 +128,43 @@ public sealed class ConversationTurnManager : IAsyncDisposable
                     TurnReason.WaitLimitReached);
             }
 
+            var evaluatedAt = clock.UtcNow;
+            SentConversationTurn? sent = null;
+            string? executionError = null;
+            if (decision.Decision == TurnAction.Respond && executor is not null)
+            {
+                try
+                {
+                    sent = await executor.ExecuteAsync(new ConversationGenerationRequest(
+                        state.Conversation,
+                        BuildRecentContext(state, generation: true),
+                        RecentOutbound(state, options.GenerationWindow),
+                        pending.Select(message => message.ProviderMessageId).ToArray(),
+                        decision), cancellationToken);
+                    if (sent is not null)
+                    {
+                        state.LastFilomenaTurnAt = sent.SentAt;
+                        state.OutboundHistory.Add(sent);
+                        state.OutboundHistory.RemoveAll(item => item.SentAt < clock.UtcNow - options.GenerationWindow);
+                        if (state.OutboundHistory.Count > options.GenerationMessageLimit)
+                            state.OutboundHistory.RemoveRange(0, state.OutboundHistory.Count - options.GenerationMessageLimit);
+                    }
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+                catch (Exception exception)
+                {
+                    // Never replay an uncertain send. Report the type without leaking prompt/tool content.
+                    executionError = exception.GetType().Name;
+                }
+            }
+
             await results.Writer.WriteAsync(
                 new ConversationTurnResult(
                     state.Conversation,
                     pending.Select(message => message.ProviderMessageId).ToArray(),
                     decision,
-                    clock.UtcNow),
+                    evaluatedAt)
+                { SentTurn = sent, ExecutionError = executionError },
                 cancellationToken);
         }
     }
@@ -166,7 +204,10 @@ public sealed class ConversationTurnManager : IAsyncDisposable
     {
         var recent = BuildRecentContext(state);
         var signals = BuildSignals(state, pending);
-        var request = new TurnArbitrationRequest(state.Conversation, recent, signals);
+        var request = new TurnArbitrationRequest(state.Conversation, recent, signals)
+        {
+            RecentOutbound = RecentOutbound(state, options.RecentWindow),
+        };
         return await arbiter.DecideAsync(request, cancellationToken);
     }
 
@@ -177,24 +218,31 @@ public sealed class ConversationTurnManager : IAsyncDisposable
         while (state.Inbox.Reader.TryRead(out var message))
         {
             pending.Add(message);
+            state.Conversation = message.Conversation!;
             state.History.Add(new ObservedInbound(message, message.Timestamp ?? clock.UtcNow));
+            var retainedLimit = Math.Max(options.RecentMessageLimit, options.GenerationMessageLimit);
+            if (state.History.Count > retainedLimit)
+                state.History.RemoveRange(0, state.History.Count - retainedLimit);
         }
     }
 
     private IReadOnlyList<InboundConversationEvent> BuildRecentContext(
-        ConversationTurnState state)
+        ConversationTurnState state, bool generation = false)
     {
-        var cutoff = clock.UtcNow - options.RecentWindow;
-        state.History.RemoveAll(item => item.ObservedAt < cutoff);
+        var window = generation ? options.GenerationWindow : options.RecentWindow;
+        var messageLimit = generation ? options.GenerationMessageLimit : options.RecentMessageLimit;
+        var characterLimit = generation ? options.GenerationCharacterLimit : options.RecentCharacterLimit;
+        var cutoff = clock.UtcNow - window;
 
-        var selected = new List<InboundConversationEvent>(options.RecentMessageLimit);
+        var selected = new List<InboundConversationEvent>(messageLimit);
         var characters = 0;
         for (var index = state.History.Count - 1;
-             index >= 0 && selected.Count < options.RecentMessageLimit;
+             index >= 0 && selected.Count < messageLimit;
              index--)
         {
             var message = state.History[index].Message;
-            var remaining = options.RecentCharacterLimit - characters;
+            if (state.History[index].ObservedAt < cutoff) continue;
+            var remaining = characterLimit - characters;
             if (remaining <= 0)
             {
                 break;
@@ -217,6 +265,9 @@ public sealed class ConversationTurnManager : IAsyncDisposable
         selected.Reverse();
         return selected;
     }
+
+    private IReadOnlyList<SentConversationTurn> RecentOutbound(ConversationTurnState state, TimeSpan window) =>
+        state.OutboundHistory.Where(item => item.SentAt >= clock.UtcNow - window).TakeLast(4).ToArray();
 
     private TurnSignals BuildSignals(
         ConversationTurnState state,

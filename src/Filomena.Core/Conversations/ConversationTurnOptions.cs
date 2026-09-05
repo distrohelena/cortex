@@ -28,6 +28,10 @@ public sealed record ConversationTurnOptions
 
     public TimeSpan RecentWindow { get; init; } = TimeSpan.FromMinutes(10);
 
+    public int GenerationMessageLimit { get; init; } = 30;
+    public int GenerationCharacterLimit { get; init; } = 6000;
+    public TimeSpan GenerationWindow { get; init; } = TimeSpan.FromMinutes(15);
+
     public void Validate()
     {
         ValidatePositive(AllowlistedDirectMessageQuietWindow, nameof(AllowlistedDirectMessageQuietWindow));
@@ -41,6 +45,9 @@ public sealed record ConversationTurnOptions
         ArgumentOutOfRangeException.ThrowIfLessThan(MaxWaitReevaluations, 0);
         ArgumentOutOfRangeException.ThrowIfLessThan(RecentMessageLimit, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(RecentCharacterLimit, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(GenerationMessageLimit, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(GenerationCharacterLimit, 1);
+        ValidatePositive(GenerationWindow, nameof(GenerationWindow));
     }
 
     private static void ValidatePositive(TimeSpan value, string name)

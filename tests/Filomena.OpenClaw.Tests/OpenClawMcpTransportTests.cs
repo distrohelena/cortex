@@ -8,6 +8,35 @@ namespace Filomena.OpenClaw.Tests;
 public sealed class OpenClawMcpTransportTests
 {
     [Fact]
+    public async Task SendsStandaloneThroughExactSessionRouteAndReturnsProviderReceipt()
+    {
+        await using var client = new FakeMcpToolClient();
+        client.Enqueue("messages_send", """{"result":{"messageId":"sent-1","channel":"whatsapp","runId":"gateway-id"}}""");
+        var transport = new OpenClawMcpTransport(client);
+        var receipt = await transport.SendTextAsync("opaque-route", "Filomena: oi", TestContext.Current.CancellationToken);
+        Assert.Equal("sent-1", receipt.ProviderMessageId);
+        var call = Assert.Single(client.Calls);
+        Assert.Equal("messages_send", call.Name);
+        Assert.Equal(2, call.Arguments.Count);
+        Assert.Equal("opaque-route", call.Arguments["session_key"]);
+        Assert.Equal("Filomena: oi", call.Arguments["text"]);
+    }
+
+    [Theory]
+    [InlineData("{\"result\":null}")]
+    [InlineData("{\"result\":{}}")]
+    [InlineData("{\"result\":{\"messageId\":\"\"}}")]
+    public async Task DoesNotClaimSuccessOrRetryWithoutProviderReceipt(string response)
+    {
+        await using var client = new FakeMcpToolClient();
+        client.Enqueue("messages_send", response);
+        var transport = new OpenClawMcpTransport(client);
+        await Assert.ThrowsAsync<InvalidDataException>(() => transport.SendTextAsync(
+            "route", "oi", TestContext.Current.CancellationToken));
+        Assert.Single(client.Calls);
+    }
+
+    [Fact]
     public async Task ListsAndMapsChannelBackedConversations()
     {
         await using var client = new FakeMcpToolClient();

@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace Filomena.Llm.LmStudio;
 
-public sealed class LmStudioClient : ILmStudioChatClient
+public sealed class LmStudioClient : ILmStudioChatClient, IResponseChatClient
 {
     private static readonly object ResponseFormat = new
     {
@@ -75,6 +75,29 @@ public sealed class LmStudioClient : ILmStudioChatClient
             response_format = ResponseFormat,
         };
 
+        return await CompleteAsync(payload, cancellationToken);
+    }
+
+    public Task<string> CompleteResponseAsync(
+        string systemPrompt, string userPrompt, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(systemPrompt);
+        ArgumentException.ThrowIfNullOrWhiteSpace(userPrompt);
+        return CompleteAsync(new
+        {
+            model = options.Model,
+            temperature = options.GenerationTemperature,
+            max_tokens = options.GenerationMaxTokens,
+            messages = new object[]
+            {
+                new { role = "system", content = systemPrompt },
+                new { role = "user", content = userPrompt },
+            },
+        }, cancellationToken);
+    }
+
+    private async Task<string> CompleteAsync(object payload, CancellationToken cancellationToken)
+    {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(options.RequestTimeoutSeconds));
         using var response = await httpClient.PostAsJsonAsync(

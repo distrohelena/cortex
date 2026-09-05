@@ -7,7 +7,7 @@ internal sealed class ConversationTurnState(ConversationInfo conversation)
     private readonly object startGate = new();
     private Task? processorTask;
 
-    public ConversationInfo Conversation { get; } = conversation;
+    public ConversationInfo Conversation { get; set; } = conversation;
 
     public Channel<InboundConversationEvent> Inbox { get; } = Channel.CreateUnbounded<InboundConversationEvent>(
         new UnboundedChannelOptions
@@ -18,6 +18,7 @@ internal sealed class ConversationTurnState(ConversationInfo conversation)
         });
 
     public List<ObservedInbound> History { get; } = [];
+    public List<SentConversationTurn> OutboundHistory { get; } = [];
 
     public DateTimeOffset? LastFilomenaTurnAt { get; set; }
 

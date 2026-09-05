@@ -4,7 +4,7 @@ using Filomena.Core.Conversations;
 
 namespace Filomena.OpenClaw.Mcp;
 
-public sealed class OpenClawMcpTransport
+public sealed class OpenClawMcpTransport : IConversationSender
 {
     private const int RecoveryMessageLimit = 50;
     private readonly IMcpToolClient client;
@@ -25,6 +25,26 @@ public sealed class OpenClawMcpTransport
 
     public Task<IReadOnlyList<McpToolDescriptor>> ListToolsAsync(CancellationToken cancellationToken) =>
         client.ListToolsAsync(cancellationToken);
+
+    public async Task<SendReceipt> SendTextAsync(
+        string sessionKey, string text, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(sessionKey);
+        ArgumentException.ThrowIfNullOrWhiteSpace(text);
+        cancellationToken.ThrowIfCancellationRequested();
+        var response = await client.CallToolAsync("messages_send", new Dictionary<string, object?>
+        {
+            ["session_key"] = sessionKey,
+            ["text"] = text,
+        }, cancellationToken);
+        if (!TryObject(response, "result", out var result) ||
+            !result.TryGetProperty("messageId", out var id) ||
+            id.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(id.GetString()))
+        {
+            throw new InvalidDataException("Send outcome unknown: MCP returned no provider message ID. Do not retry automatically.");
+        }
+        return new SendReceipt(id.GetString()!);
+    }
 
     public async Task<IReadOnlyList<ConversationInfo>> ListConversationsAsync(
         string? channel,

@@ -9,6 +9,20 @@ namespace Filomena.Llm.Tests;
 public sealed class LmStudioClientTests
 {
     [Fact]
+    public async Task GeneratesFreeTextWithSameModelWithoutArbitrationSchema()
+    {
+        var handler = new CapturingHandler("""{"choices":[{"message":{"content":"Oi, Helena!"}}]}""");
+        using var http = new HttpClient(handler);
+        var client = new LmStudioClient(http, new LmStudioOptions());
+        var text = await client.CompleteResponseAsync("system", "oi", TestContext.Current.CancellationToken);
+        Assert.Equal("Oi, Helena!", text);
+        using var body = JsonDocument.Parse(handler.RequestBody!);
+        Assert.Equal("google/gemma-4-e4b", body.RootElement.GetProperty("model").GetString());
+        Assert.False(body.RootElement.TryGetProperty("response_format", out _));
+        Assert.Equal(512, body.RootElement.GetProperty("max_tokens").GetInt32());
+    }
+
+    [Fact]
     public async Task UsesConfiguredLoadedModelAndRequestsStructuredJson()
     {
         var handler = new CapturingHandler("""

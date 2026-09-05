@@ -2,8 +2,11 @@ using Filomena.App;
 using Filomena.Core.Arbitration;
 using Filomena.Core.Conversations;
 using Filomena.Llm.Arbitration;
+using Filomena.Llm.Agent;
 using Filomena.Llm.LmStudio;
 using Filomena.OpenClaw.Bridge;
+using Filomena.OpenClaw.Mcp;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
@@ -14,7 +17,7 @@ builder.Services
     .Bind(builder.Configuration.GetSection(ProbeOptions.SectionName))
     .Validate(
         options => ProbeOptions.IsSupportedMode(options.Mode),
-        "Probe:Mode must be inspect, list, wait, milestone-a, or phase-b.")
+        "Probe:Mode must be inspect, list, wait, milestone-a, phase-b, or phase-c.")
     .Validate(
         options => options.WaitTimeoutSeconds is >= 1 and <= 300,
         "Probe:WaitTimeoutSeconds must be between 1 and 300.")
@@ -24,7 +27,7 @@ builder.Services
     .ValidateOnStart();
 
 var mode = builder.Configuration[$"{ProbeOptions.SectionName}:Mode"] ?? "milestone-a";
-if (string.Equals(mode, "phase-b", StringComparison.Ordinal))
+if (mode is "phase-b" or "phase-c")
 {
     builder.Services
         .AddOptions<InboundBridgeOptions>()
@@ -50,12 +53,32 @@ if (string.Equals(mode, "phase-b", StringComparison.Ordinal))
     builder.Services.AddSingleton(serviceProvider =>
         serviceProvider.GetRequiredService<IOptions<LmStudioOptions>>().Value);
     builder.Services.AddSingleton<HttpClient>();
-    builder.Services.AddSingleton<ILmStudioChatClient, LmStudioClient>();
+    builder.Services.AddSingleton<LmStudioClient>();
+    builder.Services.AddSingleton<ILmStudioChatClient>(sp => sp.GetRequiredService<LmStudioClient>());
+    if (mode == "phase-c")
+    {
+        builder.Services.AddOptions<FilomenaAgentOptions>()
+            .Bind(builder.Configuration.GetSection(FilomenaAgentOptions.SectionName))
+            .Validate(options => IsValid(options.Validate), "Invalid PhaseC generation settings.")
+            .ValidateOnStart();
+        builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<FilomenaAgentOptions>>().Value);
+        builder.Services.AddSingleton<IResponseChatClient>(sp => sp.GetRequiredService<LmStudioClient>());
+        builder.Services.AddSingleton<IConversationSender>(sp =>
+        {
+            var probe = sp.GetRequiredService<IOptions<ProbeOptions>>().Value;
+            var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
+            return new OpenClawMcpSender(async token => await OpenClawMcpClient.ConnectAsync(
+                new OpenClawMcpClientOptions(probe.OpenClawCommand, probe.EffectiveOpenClawArguments),
+                loggerFactory, token));
+        });
+        builder.Services.AddSingleton<IConversationTurnExecutor, FilomenaAgent>();
+    }
     builder.Services.AddSingleton<ITurnArbiter, GemmaTurnArbiter>();
     builder.Services.AddSingleton<OpenClawInboundBridgeReceiver>();
     builder.Services.AddSingleton(serviceProvider => new ConversationTurnManager(
         serviceProvider.GetRequiredService<ITurnArbiter>(),
-        serviceProvider.GetRequiredService<IOptions<PhaseBOptions>>().Value.Turns));
+        serviceProvider.GetRequiredService<IOptions<PhaseBOptions>>().Value.Turns,
+        executor: serviceProvider.GetService<IConversationTurnExecutor>()));
     builder.Services.AddHostedService<InboundBridgeHttpServer>();
     builder.Services.AddHostedService<FilomenaTurnWorker>();
 }

@@ -2,18 +2,21 @@ using Filomena.Core.Conversations;
 using Filomena.OpenClaw.Bridge;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace Filomena.App;
 
 public sealed class FilomenaTurnWorker(
     ILogger<FilomenaTurnWorker> logger,
     ConversationTurnManager turnManager,
-    OpenClawInboundBridgeReceiver inboundBridge) : BackgroundService
+    OpenClawInboundBridgeReceiver inboundBridge,
+    IOptions<ProbeOptions> options) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        logger.LogInformation(
-            "Filomena Phase B started: inbound observation and arbitration are active; outbound sending is disabled.");
+        logger.LogInformation(options.Value.Mode == "phase-c"
+            ? "Filomena Phase C started: standalone outbound sending is enabled for configured conversations after Respond."
+            : "Filomena Phase B started: inbound observation and arbitration are active; outbound sending is disabled.");
         var decisionLogger = LogDecisionsAsync(stoppingToken);
         try
         {
@@ -37,6 +40,7 @@ public sealed class FilomenaTurnWorker(
         }
         finally
         {
+            await turnManager.DisposeAsync();
             try
             {
                 await decisionLogger;
@@ -52,13 +56,17 @@ public sealed class FilomenaTurnWorker(
         await foreach (var result in turnManager.Results.ReadAllAsync(cancellationToken))
         {
             logger.LogInformation(
-                "Phase-B turn decision: conversation={ConversationNamespace} decision={Decision} reason={Reason} anchor={AnchorRef} target={TargetRef} messages={MessageCount}. No response was sent.",
+                "Turn decision: conversation={ConversationNamespace} decision={Decision} reason={Reason} anchor={AnchorRef} target={TargetRef} messages={MessageCount} outboundMessageId={OutboundMessageId}.",
                 result.Conversation.Id.Namespace,
                 result.Decision.Decision,
                 result.Decision.Reason,
                 result.Decision.AnchorRef,
                 result.Decision.TargetRef,
-                result.PendingMessageIds.Count);
+                result.PendingMessageIds.Count,
+                result.SentTurn?.ProviderMessageId ?? "not-sent");
+            if (result.ExecutionError is not null)
+                logger.LogWarning("Generation/send failed: conversation={ConversationNamespace} error={Error}. No automatic send retry; delivery may be uncertain.",
+                    result.Conversation.Id.Namespace, result.ExecutionError);
         }
     }
 }

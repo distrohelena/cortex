@@ -73,7 +73,17 @@ public sealed class PhaseBCompositionTests
         Assert.Equal(
             Path.GetFullPath(AppContext.BaseDirectory),
             Path.GetFullPath(builder.Environment.ContentRootPath));
-        Assert.Equal("phase-b", builder.Configuration["Probe:Mode"]);
+        Assert.Equal("phase-c", builder.Configuration["Probe:Mode"]);
+    }
+
+    [Fact]
+    public void PhaseCIsSupportedAndOutboundAllowlistIsExplicit()
+    {
+        Assert.True(ProbeOptions.IsSupportedMode("phase-c"));
+        var builder = FilomenaHostConfiguration.CreateBuilder([]);
+        Assert.Equal("whatsapp-group-5511981042361-1589823314-g-us", builder.Configuration["PhaseC:AllowedConversationNamespaces:0"]);
+        Assert.Equal("whatsapp-group-120363318973251043-g-us", builder.Configuration["PhaseC:AllowedConversationNamespaces:1"]);
+        Assert.Equal("whatsapp-dm-5511944558218-s-whatsapp-net", builder.Configuration["PhaseC:AllowedConversationNamespaces:2"]);
     }
 
     [Fact]

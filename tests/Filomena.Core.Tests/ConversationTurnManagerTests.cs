@@ -7,6 +7,76 @@ namespace Filomena.Core.Tests;
 public sealed class ConversationTurnManagerTests
 {
     [Fact]
+    public async Task GenerationBlocksOnlyItsConversationAndRecordsConfirmedTurn()
+    {
+        var clock = new ManualConversationClock();
+        var executor = new BlockingExecutor();
+        var arbiter = new RecordingArbiter(
+            new TurnDecision(TurnAction.Respond, null, null, TurnReason.UsefulContribution),
+            new TurnDecision(TurnAction.Ignore, null, null, TurnReason.NoUsefulContribution),
+            new TurnDecision(TurnAction.Ignore, null, null, TurnReason.NoUsefulContribution));
+        await using var manager = new ConversationTurnManager(arbiter, Options(), clock, executor);
+        await manager.EnqueueAsync(Message(GroupA, "a1", "oi"), TestContext.Current.CancellationToken);
+        await clock.WaitForDelayAsync();
+        clock.Advance(TimeSpan.FromSeconds(3.5));
+        await executor.Entered.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        await manager.EnqueueAsync(Message(GroupA, "a2", "mais"), TestContext.Current.CancellationToken);
+        await manager.EnqueueAsync(Message(GroupB, "b1", "outro grupo"), TestContext.Current.CancellationToken);
+        await clock.WaitForDelayAsync();
+        clock.Advance(TimeSpan.FromSeconds(3.5));
+        var other = await ReadResultAsync(manager);
+        Assert.Equal(GroupB.Id, other.Conversation.Id);
+        Assert.Equal(2, arbiter.Requests.Count);
+        executor.Release.SetResult(new SentConversationTurn("sent-1", "Filomena: oi", clock.UtcNow));
+        var sent = await ReadResultAsync(manager);
+        Assert.Equal("sent-1", sent.SentTurn?.ProviderMessageId);
+        await clock.WaitForDelayAsync();
+        clock.Advance(TimeSpan.FromSeconds(3.5));
+        _ = await ReadResultAsync(manager);
+        Assert.NotNull(arbiter.Requests[^1].Signals.SinceLastFilomenaTurn);
+        Assert.Single(arbiter.Requests[^1].RecentOutbound);
+        Assert.Single(executor.Requests);
+    }
+
+    private sealed class BlockingExecutor : IConversationTurnExecutor
+    {
+        public TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource<SentConversationTurn?> Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public List<ConversationGenerationRequest> Requests { get; } = [];
+        public async Task<SentConversationTurn?> ExecuteAsync(ConversationGenerationRequest request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            Entered.TrySetResult();
+            return await Release.Task.WaitAsync(cancellationToken);
+        }
+    }
+
+    [Fact]
+    public async Task FailedExecutionDoesNotKillConversationOrClaimConfirmedHistory()
+    {
+        var clock = new ManualConversationClock();
+        var arbiter = new RecordingArbiter(
+            new TurnDecision(TurnAction.Respond, null, null, TurnReason.UsefulContribution),
+            new TurnDecision(TurnAction.Ignore, null, null, TurnReason.NoUsefulContribution));
+        await using var manager = new ConversationTurnManager(arbiter, Options(), clock, new FailingExecutor());
+        await manager.EnqueueAsync(Message(GroupA, "first", "oi"), TestContext.Current.CancellationToken);
+        var failed = await ReadResultByAdvancingClockAsync(manager, clock);
+        Assert.Equal("IOException", failed.ExecutionError);
+        Assert.Null(failed.SentTurn);
+        await manager.EnqueueAsync(Message(GroupA, "next", "oi de novo"), TestContext.Current.CancellationToken);
+        var next = await ReadResultByAdvancingClockAsync(manager, clock);
+        Assert.Null(next.ExecutionError);
+        Assert.Null(arbiter.Requests[^1].Signals.SinceLastFilomenaTurn);
+        Assert.Empty(arbiter.Requests[^1].RecentOutbound);
+    }
+
+    private sealed class FailingExecutor : IConversationTurnExecutor
+    {
+        public Task<SentConversationTurn?> ExecuteAsync(ConversationGenerationRequest request, CancellationToken cancellationToken) =>
+            throw new IOException("test send failure");
+    }
+
+    [Fact]
     public async Task AggregatesOneConversationBurstAfterItsQuietWindow()
     {
         var clock = new ManualConversationClock();
