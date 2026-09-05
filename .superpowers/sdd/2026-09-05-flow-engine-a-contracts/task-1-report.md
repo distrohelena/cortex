@@ -126,3 +126,30 @@ rtk dotnet test tests\Filomena.Core.Tests\Filomena.Core.Tests.csproj --no-restor
 
 `git diff --check` was run on the staged round-1 diff with no whitespace errors. No runtime,
 settings, identity, Gateway, model, send, Graphiti, push, or `DREAMS.md` files were included.
+
+## Reviewer fix round 2
+
+Base commit: `66f1ba4bcef3c7d2c32ca8412361373cb9df0634`.
+
+The remaining strict-schema defect was fixed: a nullable enum schema must include JSON `null`
+in its `enum` values. `ParseNullableEnumArray` now emits the safe
+`schema.nullable_enum_invalid` issue at `/enum` when `type` includes `null` but `enum` does not.
+
+TDD evidence:
+
+- The new negative test first failed in an isolated harness with `Assert.Throws` reporting that
+  no exception was thrown.
+- After the guard, the isolated Task 1-only harness passed all 32 Flow tests with 0 warnings.
+
+Commands/results:
+
+```text
+dotnet test C:\Users\Helena\flow-task1-round2-test\FlowTask1Round2.csproj --no-restore -c Release --filter FullyQualifiedName~Filomena.Core.Tests.Flows
+32 tests passed, 0 warnings.
+```
+
+The repository’s normal focused/full Core commands are currently blocked before test execution by
+untracked pending Task 2 files (`FlowValidatorTests.cs` references missing `FlowValidator` and
+`NodeCatalog`; `FlowBindingValidator.cs` has an incomplete tuple contract). Those files were not
+edited, removed, or silently excluded from the repository. No full suite claim is made for this
+round. Staged `git diff --check` is clean.

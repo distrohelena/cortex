@@ -146,6 +146,19 @@ public sealed class FlowTypeTests
     }
 
     [Fact]
+    public void RejectsNullableEnumSchemaThatOmitsNullMember()
+    {
+        using var document = JsonDocument.Parse("""
+            {"type":["string","null"],"enum":["draft"]}
+            """);
+
+        var exception = Assert.Throws<FlowSchemaException>(() => FlowType.ParseJsonSchema(document.RootElement));
+
+        Assert.Equal("schema.nullable_enum_invalid", exception.Issue.Code);
+        Assert.Equal("/enum", exception.Issue.Path);
+    }
+
+    [Fact]
     public void AcceptsTargetOptionalFieldWhenSourceOmitsIt()
     {
         var source = new ObjectType(new Dictionary<string, FlowField>

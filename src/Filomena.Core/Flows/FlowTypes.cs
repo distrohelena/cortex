@@ -613,6 +613,14 @@ internal static class FlowSchemaCodec
             values.Add(stringValue);
         }
 
+        if (!hasNull)
+        {
+            throw new FlowSchemaException(new FlowIssue(
+                "schema.nullable_enum_invalid",
+                path,
+                "Nullable enum schemas must include null in enum values."));
+        }
+
         return values.ToArray();
     }
 
