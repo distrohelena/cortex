@@ -18,7 +18,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="../fixtures/typed-flow-slice1.json" Link="typed-flow-slice1.json" CopyToOutputDirectory="PreserveNewest" />
     <ProjectReference Include="../../src/Filomena.Core/Filomena.Core.csproj" />
     <ProjectReference Include="../../src/Filomena.Llm/Filomena.Llm.csproj" />
+    <ProjectReference Include="../../src/Filomena.App/Filomena.App.csproj" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 </Project>

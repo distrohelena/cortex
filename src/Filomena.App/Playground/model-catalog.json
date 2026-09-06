@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "providers": [
+    {
+      "id": "lmstudio",
+      "name": "LM Studio",
+      "models": [
+        { "id": "google/gemma-4-e4b", "name": "Gemma 4 E4B" },
+        { "id": "qwen/qwen3-4b-2507", "name": "Qwen3 4B 2507" }
+      ]
+    },
+    { "id": "openai", "name": "OpenAI", "models": [] },
+    { "id": "anthropic", "name": "Anthropic", "models": [] }
+  ]
+}

@@ -18,8 +18,22 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Playground/flow.html;Playground/flow.css;Playground/flow.js;Playground/flow-model.mjs" />
+    <EmbeddedResource Include="Playground/flow-layout.mjs" />
+    <EmbeddedResource Include="Playground/flow-contract.mjs;Playground/flow-typed-panel.mjs" />
+    <EmbeddedResource Include="Playground/flow-camera.mjs" />
+    <EmbeddedResource Include="Playground/flow-catalog.mjs;Playground/model-catalog.json" />
+    <None Update="Playground/model-catalog.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" TargetPath="model-catalog.json" />
     <None Update="appsettings.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+  </ItemGroup>
+  <Target Name="BuildFlowGraph" BeforeTargets="PrepareForBuild">
+    <Exec Command="node &quot;$(MSBuildProjectDirectory)/../../scripts/build-flow-graph.mjs&quot;" />
+  </Target>
+  <ItemGroup>
+    <EmbeddedResource Include="Playground/flow-graph/index.js" LogicalName="Filomena.App.Playground.flow-graph.index.js" />
+    <EmbeddedResource Include="Playground/flow-graph/camera.js" LogicalName="Filomena.App.Playground.flow-graph.camera.js" />
+    <EmbeddedResource Include="Playground/flow-graph/editor.css" LogicalName="Filomena.App.Playground.flow-graph.editor.css" />
   </ItemGroup>
 </Project>

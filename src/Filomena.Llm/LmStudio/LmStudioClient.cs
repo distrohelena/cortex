@@ -80,12 +80,17 @@ public sealed class LmStudioClient : ILmStudioChatClient, IResponseChatClient
 
     public Task<string> CompleteResponseAsync(
         string systemPrompt, string userPrompt, CancellationToken cancellationToken)
+        => CompleteResponseAsync(systemPrompt, userPrompt, options.Model, cancellationToken);
+
+    public Task<string> CompleteResponseAsync(
+        string systemPrompt, string userPrompt, string model, CancellationToken cancellationToken)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(model);
         ArgumentException.ThrowIfNullOrWhiteSpace(systemPrompt);
         ArgumentException.ThrowIfNullOrWhiteSpace(userPrompt);
         return CompleteAsync(new
         {
-            model = options.Model,
+            model,
             temperature = options.GenerationTemperature,
             max_tokens = options.GenerationMaxTokens,
             messages = new object[]
@@ -93,6 +98,19 @@ public sealed class LmStudioClient : ILmStudioChatClient, IResponseChatClient
                 new { role = "system", content = systemPrompt },
                 new { role = "user", content = userPrompt },
             },
+        }, cancellationToken);
+    }
+
+    public Task<string> CompleteStructuredAsync(string systemPrompt, string userPrompt, string model, JsonElement schema, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(model);
+        return CompleteAsync(new
+        {
+            model,
+            temperature = options.GenerationTemperature,
+            max_tokens = options.GenerationMaxTokens,
+            messages = new object[] { new { role = "system", content = systemPrompt }, new { role = "user", content = userPrompt } },
+            response_format = new { type = "json_schema", json_schema = new { name = "flow_output", strict = true, schema } },
         }, cancellationToken);
     }
 

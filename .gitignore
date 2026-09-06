@@ -33,6 +33,7 @@ backups/
 **/build/
 **/bin/
 **/obj/
+src/Filomena.App/Playground/flow-graph/
 
 # Local work areas
 .worktrees/

@@ -1,0 +1,18 @@
+.fg-viewport{position:relative;overflow:hidden;overscroll-behavior:contain;background:#171a21;background-image:radial-gradient(#343948 1px,transparent 1px);background-size:var(--grid-step,22px) var(--grid-step,22px);background-position:calc(var(--camera-x,0px) - var(--half-step,11px)) calc(var(--camera-y,0px) - var(--half-step,11px));color:#e7e8f0;font:14px/1.5 system-ui}
+.fg-viewport::before{content:'';position:absolute;inset:0;pointer-events:none;background:linear-gradient(#70798e,#70798e) 0 var(--camera-y,0px)/100% 1px no-repeat,linear-gradient(#70798e,#70798e) var(--camera-x,0px) 0/1px 100% no-repeat}
+.fg-canvas{position:relative;transform-origin:0 0;transform:translate(var(--camera-x,0px),var(--camera-y,0px)) scale(var(--camera-zoom,1))}
+.fg-wires,.fg-nodes{position:absolute;inset:0;width:100%;height:100%;overflow:visible;pointer-events:none}
+.fg-wires path{stroke:var(--accent,#c2a9ff);stroke-width:3;fill:none;pointer-events:stroke;cursor:pointer}
+.fg-wires path.execution-wire{stroke:#f1f3f8}.fg-wires path:hover,.fg-wires path:focus{stroke:#ff929e;stroke-width:7}
+.fg-viewport .node{position:absolute;width:218px;border:1px solid #555b6e;border-radius:10px;background:#242834;box-shadow:0 7px 20px #0004;pointer-events:auto;touch-action:none}
+.fg-viewport .node,.fg-viewport .node *{box-sizing:border-box;user-select:none;cursor:default}
+.fg-viewport .node.selected{border-color:var(--accent,#c2a9ff);box-shadow:0 0 0 2px #c2a9ff25}
+.fg-viewport .node-titlebar{display:flex;align-items:center;gap:8px;padding:10px;border-bottom:1px solid #ffffff12;font-weight:650}
+.fg-viewport .node-title{flex:1;min-width:0;overflow-wrap:anywhere}
+.fg-viewport .execution-ports{display:flex;flex-direction:column;gap:5px}
+.fg-viewport button.port{font:12px system-ui;padding:3px 6px;color:inherit;background:#222630;border:1px solid #414756;border-radius:12px}
+.fg-viewport button.exec-port{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:26px;border-radius:4px;min-width:25px;line-height:20px;color:#fff;border-color:#aeb4c1}
+.fg-viewport button.active{background:#675583;border-color:#fff}.fg-viewport button:disabled{opacity:.45}
+.fg-viewport .ports{display:flex;flex-direction:column;align-items:flex-start;gap:8px;padding:10px}
+.fg-viewport .ports .out{align-self:flex-end}.fg-viewport .preview{padding:12px 14px;color:var(--muted,#a8adbd);font-size:12px;white-space:pre-wrap;overflow-wrap:anywhere}
+.fg-viewport.camera-panning,.fg-viewport.camera-panning *{cursor:grabbing!important}

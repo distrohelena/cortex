@@ -11,6 +11,12 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
+if (args.Contains("--playground", StringComparer.Ordinal))
+{
+    await LocalPromptPlayground.RunAsync(args.Contains("--live-reload", StringComparer.Ordinal));
+    return;
+}
+
 var builder = FilomenaHostConfiguration.CreateBuilder(args);
 builder.Services
     .AddOptions<ProbeOptions>()

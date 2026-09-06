@@ -1,0 +1,10 @@
+{
+  "name": "@filomena/flow-graph",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }, "./camera": { "types": "./dist/camera.d.ts", "import": "./dist/camera.js" }, "./style.css": "./dist/editor.css" },
+  "files": ["dist", "README.md"],
+  "scripts": { "build": "node build.mjs", "test": "node --test tests/*.test.mjs" },
+  "devDependencies": { "typescript": "5.9.3" }
+}
