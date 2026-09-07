@@ -33,7 +33,7 @@ public static class TypedFlowRunner
     }
 
     public static Task<TypedRunResult> RunAsync(TypedFlow flow, JsonElement message, IFlowCompletion completion, CancellationToken token) =>
-        RunCoreAsync(flow, message, completion, null, TimeProvider.System, null, token);
+        RunCoreAsync(flow, message, completion, null, TimeProvider.System, null, null, token);
 
     internal static Task<TypedRunResult> RunSessionAsync(
         TypedFlow flow,
@@ -42,8 +42,9 @@ public static class TypedFlowRunner
         IReadOnlyDictionary<string, IReadOnlyDictionary<string, TypedValue>> runtimeOutputs,
         TimeProvider timeProvider,
         Action<TypedNodeExecutionTrace> observer,
+        Func<TypedNode, JsonElement?, string?, CancellationToken, Task<JsonElement>> memoryQuery,
         CancellationToken token) =>
-        RunCoreAsync(flow, message, completion, runtimeOutputs, timeProvider, observer, token);
+        RunCoreAsync(flow, message, completion, runtimeOutputs, timeProvider, observer, memoryQuery, token);
 
     private static async Task<TypedRunResult> RunCoreAsync(
         TypedFlow flow,
@@ -52,6 +53,7 @@ public static class TypedFlowRunner
         IReadOnlyDictionary<string, IReadOnlyDictionary<string, TypedValue>>? runtimeOutputs,
         TimeProvider timeProvider,
         Action<TypedNodeExecutionTrace>? observer,
+        Func<TypedNode, JsonElement?, string?, CancellationToken, Task<JsonElement>>? memoryQuery,
         CancellationToken token)
     {
         var steps = new List<TypedStep>();
@@ -119,6 +121,22 @@ public static class TypedFlowRunner
                     token.ThrowIfCancellationRequested();
                     published[current] = output!;
                     foreach (var (port, value) in output!) values[new(current, port)] = value;
+                }
+                else if (node.Source.Kind == "memory")
+                {
+                    if (memoryQuery is null) throw new InvalidDataException("Memória exige contexto de sessão.");
+                    TypedValue? OptionalInput(string id)
+                    {
+                        var port = node.Inputs.Single(p => p.Id == id);
+                        return flow.Graph.DataEdges.Any(e => e.Target == new PortRef(current, id)) ||
+                            port.Config.ValueKind == JsonValueKind.Object && port.Config.TryGetProperty("value", out _)
+                            ? Input(node, port) : null;
+                    }
+                    var response = await memoryQuery(node, OptionalInput("persons")?.Value, OptionalInput("query")?.Value.GetString(), token);
+                    FlowDomain.Check(response, new ArrayType(FlowDomain.Memory));
+                    var value = new TypedValue(new ArrayType(FlowDomain.Memory), response.Clone());
+                    published[current] = new() { ["memories"] = value };
+                    values[new(current, "memories")] = value;
                 }
                 else if (node.Source.Kind is "accumulate" or "history")
                 {

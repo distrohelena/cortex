@@ -91,12 +91,12 @@ internal sealed class PlaygroundProjectStore(string directory)
             {
                 Keys(node, "id", "kind", "x", "y", "prompt", "provider", "model", "settings", "responseFields", "inputs", "correctionRetry", "title");
                 if (!nodeIds.Add(Text(node, "id"))) throw new InvalidDataException();
-                if (!new[] { "dm", "group", "input", "prompt", "accumulate", "history", "branch", "exit", "send", "property", "switch" }.Contains(Text(node, "kind"))) throw new InvalidDataException();
+                if (!new[] { "dm", "group", "input", "prompt", "accumulate", "history", "memory", "branch", "exit", "send", "property", "switch" }.Contains(Text(node, "kind"))) throw new InvalidDataException();
                 foreach (var coordinate in new[] { "x", "y" })
                     if (!node.TryGetProperty(coordinate, out var c) || c.ValueKind != JsonValueKind.Number || !c.TryGetDouble(out var n) || !double.IsFinite(n) || n < 0 || n > 4000) throw new InvalidDataException();
                 if (node.TryGetProperty("settings", out var settings))
                 {
-                    Keys(settings, "quietSeconds", "maxMessages", "maxWaitSeconds", "maxAgeMinutes", "maxCharacters", "includeCharacterMessages", "operator", "targetStateId", "mode", "stateMapping", "path", "cases", "retiredCases", "other");
+                    Keys(settings, "quietSeconds", "maxMessages", "maxWaitSeconds", "maxAgeMinutes", "maxCharacters", "includeCharacterMessages", "operator", "targetStateId", "mode", "stateMapping", "path", "cases", "retiredCases", "other", "scope", "categories", "maxItems", "activeOnly", "queryText");
                     if (settings.TryGetProperty("cases", out _))
                         foreach (var item in Array(settings, "cases", 64).EnumerateArray()) Keys(item, "id", "value");
                 }

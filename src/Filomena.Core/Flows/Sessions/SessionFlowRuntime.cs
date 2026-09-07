@@ -1,3 +1,5 @@
+using Filomena.Core.Memory;
+
 namespace Filomena.Core.Flows.Sessions;
 
 public sealed partial class SessionFlowRuntime : IAsyncDisposable
@@ -5,19 +7,21 @@ public sealed partial class SessionFlowRuntime : IAsyncDisposable
     private readonly object administrationGate = new();
     private readonly TimeProvider timeProvider;
     private readonly Func<SessionKey, IFlowCompletion> completionFactory;
+    private readonly IMemoryReader memoryReader;
     private CompiledSessionFlowProject? project;
 
-    public SessionFlowRuntime(TimeProvider timeProvider, IFlowCompletion completion)
-        : this(timeProvider, ConstantCompletion(completion))
+    public SessionFlowRuntime(TimeProvider timeProvider, IFlowCompletion completion, IMemoryReader? memoryReader = null)
+        : this(timeProvider, ConstantCompletion(completion), memoryReader)
     {
     }
 
-    public SessionFlowRuntime(TimeProvider timeProvider, Func<SessionKey, IFlowCompletion> completionFactory)
+    public SessionFlowRuntime(TimeProvider timeProvider, Func<SessionKey, IFlowCompletion> completionFactory, IMemoryReader? memoryReader = null)
     {
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(completionFactory);
         this.timeProvider = timeProvider;
         this.completionFactory = completionFactory;
+        this.memoryReader = memoryReader ?? new UnavailableMemoryReader();
     }
 
     public SessionFlowProjectSnapshot UpdateProject(SessionFlowProject project)

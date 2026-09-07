@@ -10,6 +10,7 @@
   <ItemGroup>
     <ProjectReference Include="../Filomena.Core/Filomena.Core.csproj" />
     <ProjectReference Include="../Filomena.Llm/Filomena.Llm.csproj" />
+    <ProjectReference Include="../Filomena.Memory/Filomena.Memory.csproj" />
     <ProjectReference Include="../Filomena.OpenClaw/Filomena.OpenClaw.csproj" />
   </ItemGroup>
 

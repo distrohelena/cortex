@@ -4,6 +4,7 @@ import {createFlowGraphEditor} from './flow-graph/index.js';
 import {catalogOptions,chooseProvider,chooseModel} from './flow-catalog.mjs';
 import {migrateTypedGraph,syncSwitchCases,typeLabel,typedPorts} from './flow-contract.mjs';
 import {renderTypedPanel} from './flow-typed-panel.mjs';
+import {memoryDefaults} from './flow-model.mjs';
 const $=id=>document.getElementById(id);
 let project=initialProject(),selectedStateId=project.initialStateId;
 let graph=stateGraph(project,selectedStateId),selected='prompt',busy=false,traces=[],controller=null;
@@ -12,6 +13,7 @@ let modelCatalog=null,defaultModel='',catalogError='';
 const titles={input:'Mensagem privada',dm:'Mensagem privada',group:'Mensagem de grupo',prompt:'Instrução',accumulate:'Acumular',history:'Histórico da Sessão',exit:'Trocar Estado',branch:'Branch',send:'Enviar mensagem',property:'Obter Propriedade',switch:'Switch'};
 const portTypeLabels={text:'texto',message:'Mensagem','message[]':'Mensagem[]',actor:'Pessoa',channel:'Canal','actor|channel':'Pessoa | Canal','text|messages':'Mensagem | Mensagens[]',messages:'Mensagem[]',enum:'Enum',visual:'visual'};
 const nodeTitle=node=>node.title||(node.kind==='property'?`Obter Propriedade · ${(node.settings?.path??[]).join('.')}`:node.kind==='prompt'?`Instrução · ${node.id}`:titles[node.kind]);
+titles.memory='Consultar Memória';
 const tell=text=>$('hint').textContent=text;
 const reloadStateKey='filomena-flow-reload';
 let restoredDraft=false,projectSaving=false;
@@ -143,7 +145,7 @@ function inspect(){
   $(key+'-enabled').checked=node.settings[key]!==null;$(key+'-enabled').disabled=busy;
   $(key).value=node.settings[key]??'';$(key).disabled=busy||node.settings[key]===null;
  }
- const removable=['prompt','accumulate','history','branch','property','switch'].includes(node.kind)||isTerminal(node)||(isEntry(node)&&graph.nodes.filter(isEntry).length>1);
+ const removable=['prompt','accumulate','history','memory','branch','property','switch'].includes(node.kind)||isTerminal(node)||(isEntry(node)&&graph.nodes.filter(isEntry).length>1);
  $('remove').hidden=!removable;
  $('selected-title').textContent=nodeTitle(node);$('prompt').value=node.prompt??'';$('prompt').disabled=busy||node.kind!=='prompt';
  if(modelCatalog){
@@ -240,6 +242,12 @@ $('add-history').addEventListener('click',()=>{
  let i=1;while(graph.nodes.some(n=>n.id===`history-${i}`))i++;
  const node={id:`history-${i}`,kind:'history',settings:historyDefaults(),x:520,y:330};graph.nodes.push(node);selected=node.id;invalidate();render();
 });
+$('add-memory').addEventListener('click',()=>{
+ if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=20){tell('Limite: 20 blocos.');return;}
+ Object.assign(graph,migrateTypedGraph(graph));
+ const node={id:crypto.randomUUID(),kind:'memory',settings:memoryDefaults(),x:520,y:330};
+ graph.nodes.push(node);selected=node.id;invalidate();render();
+});
 $('add-send').addEventListener('click',()=>{
  if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=20){tell('Limite: 20 blocos.');return;}
  let id='send',i=2;while(graph.nodes.some(n=>n.id===id))id=`send-${i++}`;
@@ -333,7 +341,7 @@ for(const menu of addSubmenus){
  menu.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();menu.open=false;menu.querySelector('summary').focus();}});
 }
 $('add').addEventListener('pointerenter',event=>{if(event.pointerType==='mouse')for(const menu of addSubmenus)menu.open=false;});
-function setBusy(value){busy=value;for(const id of ['run','add','add-dm','add-group','add-accumulate','add-history','add-branch','add-exit','add-send','show-states','event-entry','open','save','message'])$(id).disabled=value;$('cancel').disabled=!value;render();}
+function setBusy(value){busy=value;for(const id of ['run','add','add-dm','add-group','add-accumulate','add-history','add-memory','add-branch','add-exit','add-send','show-states','event-entry','open','save','message'])$(id).disabled=value;$('cancel').disabled=!value;render();}
 $('cancel').addEventListener('click',()=>controller?.abort());
 function typedRequest(){return {graph,entryNodeId:$('event-entry').value,message:{texto:$('message').value,remetente:{nome:'Pessoa de teste',stableId:'fixture:person'},canal:{nome:'Conversa de teste',nativeId:'fixture:conversation'},reply:null}};}
 function projectValidationRequest(){return {project:JSON.parse(saveProject(project)).project};}
@@ -351,7 +359,7 @@ $('validate').addEventListener('click',async()=>{
 });
 $('run').addEventListener('click',async()=>{
  if(busy)return;
- if(graph.nodes.some(node=>['accumulate','history','exit'].includes(node.kind))){$('status').textContent='Acumular, Histórico da Sessão e Trocar Estado exigem a simulação de sessão; use a API de sessões fake.';return;}
+ if(graph.nodes.some(node=>['accumulate','history','memory','exit'].includes(node.kind))){$('status').textContent='Estes nodes exigem a simulação de sessão; use a API de sessões fake.';return;}
  editor.clearConnection();traces=[];controller=new AbortController();setBusy(true);
  try{
   const data=await api('/api/flow/typed/run',{...typedRequest(),responses:JSON.parse($('fake-responses').value)},controller.signal);
@@ -371,6 +379,7 @@ function describeNode(node){
  if(node.kind==='send')preview='';
  if(node.kind==='accumulate')preview=[node.settings?.quietSeconds!=null&&`${node.settings.quietSeconds}s silêncio`,node.settings?.maxMessages!=null&&`${node.settings.maxMessages} msgs`,node.settings?.maxWaitSeconds!=null&&`max ${node.settings.maxWaitSeconds}s`].filter(Boolean).join(' · ');
  if(node.kind==='history')preview=[`${node.settings?.maxMessages??'–'} msgs`,node.settings?.maxCharacters!=null&&`${node.settings.maxCharacters} car.`,node.settings?.maxAgeMinutes!=null&&`${node.settings.maxAgeMinutes} min`,node.settings?.mode==='through-current-batch'?'inclui lote':'antes do lote'].filter(Boolean).join(' · ');
+ if(node.kind==='memory')preview=`${({exact:'Exata',semantic:'Semântica',hybrid:'Híbrida'})[node.settings?.mode]??'–'} · ${node.settings?.maxItems??'–'} itens · ${node.settings?.maxCharacters??'–'} car.`;
  if(node.kind==='exit')preview=node.settings.mode==='carry'?'Carry não suportado':(project.states.find(s=>s.id===node.settings.targetStateId)?.name??'Mapeie ou escolha o estado');
  if(node.kind==='branch')preview=`A ${branchOperators[node.settings.operator].toLowerCase()} B`;
  return {

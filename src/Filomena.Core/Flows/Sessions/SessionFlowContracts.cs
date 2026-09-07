@@ -117,6 +117,7 @@ public sealed record SessionTraceEvent(
     public long BatchStateVersion => StateVersion;
     public string CurrentSessionStateId { get; init; } = StateId;
     public long CurrentSessionStateVersion { get; init; } = StateVersion;
+    public IReadOnlyDictionary<string, string>? MemoryMetadata { get; init; }
 }
 
 public sealed record SessionFlowProjectIssue(

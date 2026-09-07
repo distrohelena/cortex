@@ -2,17 +2,20 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using Filomena.Core.Flows;
 using Filomena.Core.Flows.Sessions;
+using Filomena.Core.Memory;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Filomena.App.Playground;
 
-// Test ingress only. No references to channels, Graphiti or real completion clients.
+// Test ingress and fake completion. Persistent read-only memory is explicitly opt-in.
 internal static class SessionFlowEndpoints
 {
     private const string Prefix = "/api/flow/typed/sessions";
-    public sealed record StartRequest(JsonElement Project, Dictionary<string, string[]>? Responses);
+    public sealed record StartRequest(JsonElement Project, Dictionary<string, string[]>? Responses,
+        MemoryFixture[]? Memories = null, bool UsePersistentMemory = false);
+    public sealed record MemoryFixture(string Id, string ConversationNamespace, string Content, string Category, string[] Actors);
     public sealed record ProjectRequest(JsonElement Project);
     public sealed record SessionRequest(SessionRoute Session);
     public sealed record ReceiveRequest(SessionRoute Session, MessageFixture Message);
@@ -37,7 +40,7 @@ internal static class SessionFlowEndpoints
         {
             try
             {
-                var id = await store.CreateAsync(request.Project, request.Responses);
+                var id = await store.CreateAsync(request.Project, request.Responses, request.Memories, request.UsePersistentMemory);
                 return Results.Ok(new { runtimeId = id, fake = true });
             }
             catch (SessionFlowProjectException e) { return InvalidProject(e); }
@@ -124,21 +127,23 @@ internal static class SessionFlowEndpoints
     private static IResult InvalidProject(SessionFlowProjectException error) => Results.BadRequest(new { error = "Projeto não executável.", issues = error.Issues });
 }
 
-internal sealed class SessionFlowHarnessStore : IAsyncDisposable
+internal sealed class SessionFlowHarnessStore(IMemoryReader? persistentMemory = null) : IAsyncDisposable
 {
     private readonly ConcurrentDictionary<string, SessionFlowHarness> harnesses = new(StringComparer.Ordinal);
     private readonly SemaphoreSlim administration = new(1, 1);
     private int reserved;
     private int disposed;
 
-    public async Task<string> CreateAsync(JsonElement project, Dictionary<string, string[]>? responses)
+    public async Task<string> CreateAsync(JsonElement project, Dictionary<string, string[]>? responses,
+        SessionFlowEndpoints.MemoryFixture[]? memories = null, bool usePersistentMemory = false)
     {
         await administration.WaitAsync();
-        try { return await CreateCoreAsync(project, responses); }
+        try { return await CreateCoreAsync(project, responses, memories, usePersistentMemory); }
         finally { administration.Release(); }
     }
 
-    private async Task<string> CreateCoreAsync(JsonElement project, Dictionary<string, string[]>? responses)
+    private async Task<string> CreateCoreAsync(JsonElement project, Dictionary<string, string[]>? responses,
+        SessionFlowEndpoints.MemoryFixture[]? memories, bool usePersistentMemory)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref disposed) != 0, this);
         if (Interlocked.Increment(ref reserved) > 8)
@@ -149,7 +154,10 @@ internal sealed class SessionFlowHarnessStore : IAsyncDisposable
         SessionFlowHarness? harness = null;
         try
         {
-            harness = new(new SessionFlowRuntime(TimeProvider.System, new SessionFixtureCompletion(responses)));
+            if (usePersistentMemory && memories is not null) throw new InvalidDataException("Choose fake OR persistent memory.");
+            IMemoryReader reader = usePersistentMemory ? persistentMemory ?? throw new InvalidDataException("Persistent memory is not configured.")
+                : memories is not null ? new FixtureMemoryReader(memories) : new UnavailableMemoryReader();
+            harness = new(new SessionFlowRuntime(TimeProvider.System, new SessionFixtureCompletion(responses), reader));
             harness.UpdateProject(project);
             var id = Guid.NewGuid().ToString("N");
             if (!harnesses.TryAdd(id, harness)) throw new InvalidOperationException();
@@ -182,6 +190,17 @@ internal sealed class SessionFlowHarnessStore : IAsyncDisposable
             foreach (var id in harnesses.Keys) await RemoveAsync(id);
         }
         finally { administration.Release(); }
+    }
+}
+
+internal sealed class FixtureMemoryReader(SessionFlowEndpoints.MemoryFixture[] fixtures) : IMemoryReader
+{
+    public Task<IReadOnlyList<MemoryItem>> QueryAsync(MemoryQuery query, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<IReadOnlyList<MemoryItem>>(fixtures.Where(f => f.ConversationNamespace == query.ConversationNamespace).Select(f =>
+            new MemoryItem(f.Id, f.ConversationNamespace, f.Content, MemoryCategories.Parse(f.Category),
+                f.Actors.Select(a => query.Persons.FirstOrDefault(p => p.ActorStableId == a) ?? MemoryIdentity.Person(query.ConversationNamespace, a, null)).ToArray(), "fixture")).ToArray());
     }
 }
 

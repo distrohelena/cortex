@@ -11,6 +11,7 @@ const portCatalog=Object.freeze({
  exit:{in:{default:{type:'visual',label:'entrada'}},out:{}},
  accumulate:{in:{message:{type:'message',label:'mensagem'}},out:{messages:{type:'messages',label:'output'}}},
  history:{in:{},out:{messages:{type:'messages',label:'mensagens'}}},
+ memory:{in:{persons:{type:'actor',label:'pessoas'},query:{type:'text',label:'consulta'}},out:{memories:{type:'memory[]',label:'memórias'}}},
  branch:{in:{a:{type:'visual',label:'A'},b:{type:'visual',label:'B'}},out:{true:{type:'visual',label:'Verdadeiro'},false:{type:'visual',label:'Falso'}}}
 });
 export function nodePorts(node,direction,graph){
@@ -113,6 +114,7 @@ export function accumulatorSettings(settings){
  return result;
 }
 export const historyDefaults=()=>({maxMessages:20,maxAgeMinutes:null,maxCharacters:4000,includeCharacterMessages:false,mode:'before-current-batch'});
+export const memoryDefaults=()=>({mode:'hybrid',scope:'person',categories:['limite','apelido','relacao','fato','nao_classificada'],maxItems:8,maxCharacters:1800,activeOnly:true});
 export function initialGraph(stateId='state-1') {
  return {version:2,nodes:[
  {id:'input',kind:'dm',x:60,y:150},
@@ -136,7 +138,9 @@ export function connect(graph,source,target,sourcePort,targetPort) {
   const from=graph.nodes.find(n=>n.id===source),to=graph.nodes.find(n=>n.id===target);
   const a=nodePorts(from,'out',graph).find(p=>p.id===sourcePort),b=nodePorts(to,'in',graph).find(p=>p.id===targetPort);
   if(!a||!b||source===target)throw new Error('Porta inválida.');
-  const flexible=to.kind==='property'||to.kind==='switch';
+  const memoryPersons=to.kind==='memory'&&targetPort==='persons';
+  if(memoryPersons&&!['actor','actor?','actor[]','actor?[]'].includes(a.type))throw new Error('Memória recebe Pessoa ou lista de Pessoas opcionais.');
+  const flexible=to.kind==='property'||to.kind==='switch'||memoryPersons;
   if(to.kind==='switch'&&!['text','enum'].includes(a.type))throw new Error('Switch recebe Texto ou Enum.');
   if(!flexible&&!compatibleTypes(a,b))throw new Error('As portas têm tipos incompatíveis.');
   if(Object.hasOwn(b,'value'))throw new Error('Remova o valor configurado antes de conectar.');
@@ -199,7 +203,7 @@ export function openDraft(text,stateId='state-1') {
  const ids=new Set();
  for(const node of graph.nodes){
   if(!node||typeof node.id!=='string'||!node.id.trim()||node.id.length>80||ids.has(node.id)
-   ||!['input','dm','group','prompt','send','output','accumulate','history','exit','branch','property','switch'].includes(node.kind)||!Number.isFinite(node.x)||!Number.isFinite(node.y)
+   ||!['input','dm','group','prompt','send','output','accumulate','history','memory','exit','branch','property','switch'].includes(node.kind)||!Number.isFinite(node.x)||!Number.isFinite(node.y)
    ||node.x<0||node.y<0||node.x>4000||node.y>4000
    ||(node.kind==='prompt'&&(typeof node.prompt!=='string'||node.prompt.length>16000))
    ||(node.provider!==undefined&&(typeof node.provider!=='string'||node.provider.length>120))

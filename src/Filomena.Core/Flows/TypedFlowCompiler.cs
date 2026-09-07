@@ -14,7 +14,7 @@ public sealed record TypedFlow(GraphDocument Graph, string EntryId, IReadOnlyDic
 public static class TypedFlowCompiler
 {
     private static readonly HashSet<string> ExecutableKinds =
-        ["dm", "group", "accumulate", "history", "exit", "property", "prompt", "switch"];
+        ["dm", "group", "accumulate", "history", "memory", "exit", "property", "prompt", "switch"];
 
     public static TypedFlow Compile(JsonElement source, string entryId) => CompileCore(source, entryId, true);
 
@@ -114,6 +114,16 @@ public static class TypedFlowCompiler
                             mappings.Any(item => item.Value.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(item.Value.GetString())))
                             throw new InvalidDataException("stateMapping deve corresponder exatamente aos valores do enum e apontar para IDs preenchidos.");
                         result = new(node, [Port("state", stateInput.Type)], [], []); break;
+                    case "memory":
+                        var memory = MemoryNodeSettings.Read(config);
+                        var personRequired = memory.Scope == Memory.MemoryScope.Person;
+                        var personType = data.Any(e => e.Target == new PortRef(id, "persons")) ? Incoming("persons").Type : FlowDomain.Person;
+                        if (!MemoryNodeSettings.IsPersonInput(personType)) throw new InvalidDataException("Memória recebe Pessoa, Pessoa? ou lista dessas pessoas.");
+                        var queryConfig = memory.QueryText is null ? default : JsonSerializer.SerializeToElement(new { value = memory.QueryText });
+                        if (memory.QueryText is not null && string.IsNullOrWhiteSpace(memory.QueryText)) throw new InvalidDataException("Consulta configurada vazia.");
+                        result = new(node, [Port("persons", personType, personRequired),
+                            new("query", "query", new StringType(), memory.Scope == Memory.MemoryScope.Conversation, queryConfig)],
+                            [Port("memories", new ArrayType(FlowDomain.Memory))], ["then"]); break;
                     case "property":
                         var input = Incoming("object");
                         var path = PropertyPath(config);

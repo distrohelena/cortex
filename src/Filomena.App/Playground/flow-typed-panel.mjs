@@ -31,6 +31,19 @@ export function renderTypedPanel(root,graph,node,busy,changed){
   const characters=field(box,'Incluir mensagens da personagem');characters.type='checkbox';characters.checked=!!settings.includeCharacterMessages;characters.onchange=()=>{settings.includeCharacterMessages=characters.checked;change();};
   select(box,'Janela',[['before-current-batch','Antes do lote atual'],['through-current-batch','Incluindo o lote atual']],settings.mode,v=>{settings.mode=v;change();});
  }
+ if(node.kind==='memory'){
+  const box=section(),s=node.settings;
+  select(box,'Modo',[['exact','Exato'],['semantic','Semântico'],['hybrid','Híbrido']],s.mode,v=>{s.mode=v;change();});
+  select(box,'Escopo',[['person','Pessoa nesta conversa'],['conversation','Conversa']],s.scope,v=>{s.scope=v;change();});
+  for(const [key,title] of [['maxItems','Máximo de itens'],['maxCharacters','Máximo de caracteres']]){
+   const el=field(box,title);el.type='number';el.min='1';el.step='1';el.value=s[key]??'';el.onchange=()=>{s[key]=el.value===''?null:Number(el.value);change();};
+  }
+  for(const [key,title] of [['limite','Limites'],['apelido','Apelidos'],['relacao','Relações'],['fato','Fatos'],['nao_classificada','Não classificadas']]){
+   const el=field(box,title);el.type='checkbox';el.checked=(s.categories??[]).includes(key);el.onchange=()=>{s.categories=el.checked?[...new Set([...(s.categories??[]),key])]:(s.categories??[]).filter(c=>c!==key);change();};
+  }
+  const active=field(box,'Somente ativas');active.type='checkbox';active.checked=s.activeOnly!==false;active.disabled=true;
+  const query=field(box,'Consulta configurada (opcional)','textarea');query.value=s.queryText??'';query.disabled=busy||graph.edges.some(e=>e.target===node.id&&e.targetPort==='query');query.onchange=()=>{if(query.value)s.queryText=query.value;else delete s.queryText;change();};
+ }
  if(node.kind!=='prompt')return;
  const heading=document.createElement('h3');heading.textContent='Entradas tipadas';root.append(heading);
  for(const input of node.inputs??[]){

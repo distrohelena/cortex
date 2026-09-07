@@ -1,6 +1,8 @@
 using System.Net;
 using System.Text.Json;
 using Filomena.Llm.LmStudio;
+using Filomena.Core.Memory;
+using Filomena.Memory;
 using Filomena.App.Playground;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -25,13 +27,16 @@ public static class LocalPromptPlayground
         var options = configuration.GetSection("LmStudio").Get<LmStudioOptions>() ?? new();
         using var http = new HttpClient();
         var sourceDirectory = liveReload ? PlaygroundAssets.FindDevelopmentDirectory() : null;
-        await using var app = Build(options, http, sourceDirectory: sourceDirectory);
+        var memoryEndpoint = Environment.GetEnvironmentVariable("FILOMENA_GRAPHITI_MCP_ENDPOINT");
+        await using var memoryClient = string.IsNullOrWhiteSpace(memoryEndpoint) ? null : new GraphitiReadClient(new Uri(memoryEndpoint), TimeSpan.FromSeconds(15));
+        await using var app = Build(options, http, sourceDirectory: sourceDirectory,
+            memoryReader: memoryClient is null ? null : new GraphitiMemoryReader(memoryClient));
         if (sourceDirectory is not null) Console.WriteLine($"Playground live reload: {sourceDirectory}");
         await app.RunAsync();
     }
 
     public static WebApplication Build(LmStudioOptions options, HttpClient httpClient, int port = 18793, string? sourceDirectory = null,
-        string? projectDirectory = null)
+        string? projectDirectory = null, IMemoryReader? memoryReader = null)
     {
         var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions
         {
@@ -44,7 +49,7 @@ public static class LocalPromptPlayground
             server.Limits.MaxRequestBodySize = 65536;
         });
         builder.Logging.AddSimpleConsole(logging => logging.TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff zzz ");
-        builder.Services.AddSingleton<SessionFlowHarnessStore>();
+        builder.Services.AddSingleton(new SessionFlowHarnessStore(memoryReader));
         var app = builder.Build();
         app.Use(async (context, next) =>
         {

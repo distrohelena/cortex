@@ -1,0 +1,43 @@
+{
+  "format": "filomena-local-project",
+  "project": {
+    "version": 1,
+    "stateScope": "session",
+    "initialStateId": "initial",
+    "states": [{
+      "id": "initial", "name": "Memória explícita",
+      "graph": {
+        "version": 3,
+        "nodes": [
+          {"id":"dm","kind":"dm","x":30,"y":50},
+          {"id":"group","kind":"group","x":30,"y":240},
+          {"id":"batch","kind":"accumulate","x":280,"y":120,"settings":{"quietSeconds":null,"maxMessages":2,"maxWaitSeconds":null}},
+          {"id":"history","kind":"history","x":530,"y":80,"settings":{"maxMessages":20,"maxAgeMinutes":null,"maxCharacters":2000,"includeCharacterMessages":false,"mode":"before-current-batch"}},
+          {"id":"persons","kind":"property","x":530,"y":370,"settings":{"path":["remetente"]}},
+          {"id":"memory","kind":"memory","x":790,"y":120,"settings":{"mode":"hybrid","scope":"person","categories":["limite","apelido","relacao","fato","nao_classificada"],"maxItems":8,"maxCharacters":1800,"activeOnly":true,"queryText":"Persona"}},
+          {"id":"ai","kind":"prompt","title":"Inspecionar contextos (fake)","x":1090,"y":120,"prompt":"Fixture: confira os três contextos separados. Não envie mensagens.","inputs":[
+            {"id":"batch-in","name":"mensagens","type":"message[]","required":true},
+            {"id":"history-in","name":"historico","type":"message[]","required":true},
+            {"id":"memory-in","name":"memorias","type":"memory[]","required":true}
+          ],"responseFields":[{"id":"ok","name":"ok","type":"boolean"}]}
+        ],
+        "edges": [
+          {"source":"dm","sourcePort":"message","target":"batch","targetPort":"message"},
+          {"source":"group","sourcePort":"message","target":"batch","targetPort":"message"},
+          {"source":"batch","sourcePort":"messages","target":"persons","targetPort":"object"},
+          {"source":"persons","sourcePort":"value","target":"memory","targetPort":"persons"},
+          {"source":"batch","sourcePort":"messages","target":"ai","targetPort":"batch-in"},
+          {"source":"history","sourcePort":"messages","target":"ai","targetPort":"history-in"},
+          {"source":"memory","sourcePort":"memories","target":"ai","targetPort":"memory-in"}
+        ],
+        "controlEdges": [
+          {"source":"dm","sourcePort":"then","target":"batch","targetPort":"exec"},
+          {"source":"group","sourcePort":"then","target":"batch","targetPort":"exec"},
+          {"source":"batch","sourcePort":"then","target":"history","targetPort":"exec"},
+          {"source":"history","sourcePort":"then","target":"memory","targetPort":"exec"},
+          {"source":"memory","sourcePort":"then","target":"ai","targetPort":"exec"}
+        ]
+      }
+    }]
+  }
+}

@@ -12,6 +12,8 @@ public static class FlowDomain
     public static ObjectType Reply { get; } = Object(("id", new StringType()));
     public static ObjectType Message { get; } = Object(("texto", new StringType()), ("remetente", new NullableType(Person)),
         ("canal", Channel), ("reply", new NullableType(Reply)));
+    public static ObjectType Memory { get; } = Object(("conteudo", new StringType()),
+        ("categoria", new EnumType(["limite", "apelido", "relacao", "fato", "nao_classificada"])));
 
     public static FlowType Parse(JsonElement field)
     {
@@ -34,6 +36,7 @@ public static class FlowDomain
             "message" => Message,
             "actor" => Person,
             "channel" => Channel,
+            "memory" => Memory,
             _ => throw new InvalidDataException("Tipo desconhecido."),
         };
     }
@@ -101,6 +104,11 @@ public static class FlowDomain
         if (type is ObjectType obj)
         {
             var result = new Dictionary<string, JsonElement>();
+            if (type == Memory && value.TryGetProperty("_subjects", out var subjects))
+            {
+                result["sobre"] = JsonSerializer.SerializeToElement(subjects.EnumerateArray()
+                    .Select(p => ForModel(p, Person, references)).ToArray());
+            }
             foreach (var (name, field) in obj.Fields)
             {
                 if (name is "stableId" or "nativeId" or "id")
