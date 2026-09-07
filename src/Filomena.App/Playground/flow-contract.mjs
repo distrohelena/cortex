@@ -8,6 +8,7 @@ export function compatibleTypes(source,target){
  if(b.endsWith('?'))return compatibleTypes(source,{...target,type:b.slice(0,-1)});
  if(a.endsWith('[]')||b.endsWith('[]'))return a.endsWith('[]')&&b.endsWith('[]')&&compatibleTypes({...source,type:a.slice(0,-2)},{...target,type:b.slice(0,-2)});
  if(a==='enum'&&b==='text')return true;
+ if(a==='enum'&&b==='enum'&&target.acceptsAnyEnum)return true;
  return a===b&&(a!=='enum'||(source.values??[]).every(v=>(target.values??[]).includes(v)));
 }
 const objects={message:{texto:'text',remetente:'actor?',canal:'channel',reply:'reply?'},actor:{nome:'text',stableId:'text'},channel:{nome:'text',nativeId:'text'},reply:{id:'text'}};
@@ -42,6 +43,9 @@ export function typedPorts(graph,node,direction,seen=new Set()){
  }
  if(node.kind==='switch')return direction==='in'?[{id:'value',label:'valor',type:incoming('value')?.type??'text'}]:[];
  if(['dm','group','input'].includes(node.kind))return direction==='out'?[{id:'message',label:'mensagem',type:'message'}]:[];
+ if(node.kind==='accumulate')return direction==='in'?[{id:'message',label:'mensagem',type:'message'}]:[{id:'messages',label:'mensagens',type:'message[]'}];
+ if(node.kind==='history')return direction==='out'?[{id:'messages',label:'mensagens',type:'message[]'}]:[];
+ if(node.kind==='exit')return direction==='in'?[{id:'state',label:'estado',type:'enum',acceptsAnyEnum:true}]:[];
  return null;
 }
 export function syncSwitchCases(graph,node){
@@ -56,6 +60,15 @@ export function syncSwitchCases(graph,node){
  if(inactive.length||node.settings.retiredCases)node.settings.retiredCases=inactive.filter((c,i)=>inactive.findIndex(x=>x.id===c.id)===i);
  // Wires from removed cases deliberately remain in the design for validation.
 }
+export function persistedNodeSettings(node){
+ const keys=node.kind==='accumulate'?['quietSeconds','maxMessages','maxWaitSeconds']
+  :node.kind==='history'?['maxMessages','maxAgeMinutes','maxCharacters','includeCharacterMessages','mode']
+  :node.kind==='exit'?['targetStateId','mode','stateMapping']
+  :node.kind==='branch'?['operator']
+  :node.kind==='property'?['path']
+  :node.kind==='switch'?['cases','retiredCases','other']:[];
+ return Object.fromEntries(keys.filter(key=>node.settings?.[key]!==undefined).map(key=>[key,structuredClone(node.settings[key])]));
+}
 export function serializeTypedGraph(graph){
  const clean=migrateTypedGraph(graph);
  for(const node of clean.nodes)for(const key of ['inputs','responseFields'])if(node[key]!==undefined){
@@ -67,6 +80,6 @@ export function serializeTypedGraph(graph){
    return Object.fromEntries(['id','name','description','type','values','required','value','min','max','maxWords'].filter(k=>f[k]!==undefined).map(k=>[k,f[k]]));
   });
  }
- clean.nodes=clean.nodes.map(n=>Object.fromEntries(['id','kind','x','y','prompt','provider','model','settings','inputs','responseFields','correctionRetry','title'].filter(k=>n[k]!==undefined).map(k=>[k,n[k]])));
+ clean.nodes=clean.nodes.map(n=>Object.fromEntries(['id','kind','x','y','prompt','provider','model','inputs','responseFields','correctionRetry','title'].filter(k=>n[k]!==undefined).map(k=>[k,n[k]]).concat(Object.keys(persistedNodeSettings(n)).length?[['settings',persistedNodeSettings(n)]]:[])));
  return {version:3,nodes:clean.nodes,edges:structuredClone(clean.edges),...(clean.controlEdges?{controlEdges:structuredClone(clean.controlEdges)}:{})};
 }

@@ -22,6 +22,15 @@ export function renderTypedPanel(root,graph,node,busy,changed){
   if(source?.type!=='enum')button(box,'Adicionar caso',()=>{node.settings.cases.push({id:crypto.randomUUID(),value:''});change();});
   const other=field(box,'Outro');other.type='checkbox';other.checked=!!node.settings.other;other.onchange=()=>{node.settings.other=other.checked;change();};
  }
+ if(node.kind==='history'){
+  const box=section(),settings=node.settings??={maxMessages:20,maxAgeMinutes:null,maxCharacters:4000,includeCharacterMessages:false,mode:'before-current-batch'};
+  const number=(title,key,integer=false)=>{const el=field(box,title);el.type='number';el.min='0';el.step=integer?'1':'any';el.value=settings[key]??'';el.onchange=()=>{settings[key]=el.value===''?null:Number(el.value);change();};};
+  number('Máximo de mensagens','maxMessages',true);
+  number('Idade máxima (minutos)','maxAgeMinutes');
+  number('Máximo de caracteres','maxCharacters',true);
+  const characters=field(box,'Incluir mensagens da personagem');characters.type='checkbox';characters.checked=!!settings.includeCharacterMessages;characters.onchange=()=>{settings.includeCharacterMessages=characters.checked;change();};
+  select(box,'Janela',[['before-current-batch','Antes do lote atual'],['through-current-batch','Incluindo o lote atual']],settings.mode,v=>{settings.mode=v;change();});
+ }
  if(node.kind!=='prompt')return;
  const heading=document.createElement('h3');heading.textContent='Entradas tipadas';root.append(heading);
  for(const input of node.inputs??[]){

@@ -1,4 +1,4 @@
-import {typedPorts,serializeTypedGraph,compatibleTypes} from './flow-contract.mjs';
+import {typedPorts,serializeTypedGraph,persistedNodeSettings,compatibleTypes} from './flow-contract.mjs';
 export const isEntry=node=>['dm','group','input'].includes(node.kind);
 export const isTerminal=node=>['output','exit','send'].includes(node.kind);
 const portCatalog=Object.freeze({
@@ -10,6 +10,7 @@ const portCatalog=Object.freeze({
  output:{in:{default:{type:'visual',label:'entrada'}},out:{}},
  exit:{in:{default:{type:'visual',label:'entrada'}},out:{}},
  accumulate:{in:{message:{type:'message',label:'mensagem'}},out:{messages:{type:'messages',label:'output'}}},
+ history:{in:{},out:{messages:{type:'messages',label:'mensagens'}}},
  branch:{in:{a:{type:'visual',label:'A'},b:{type:'visual',label:'B'}},out:{true:{type:'visual',label:'Verdadeiro'},false:{type:'visual',label:'Falso'}}}
 });
 export function nodePorts(node,direction,graph){
@@ -97,8 +98,9 @@ function branchSettings(settings){
  return {operator:settings.operator};
 }
 function exitSettings(settings){
- if(!settings||!['switch','carry'].includes(settings.mode)||typeof settings.targetStateId!=='string'||!settings.targetStateId.trim()||settings.targetStateId.length>80)throw new Error('Escolha um estado de destino em Trocar Estado.');
- return {targetStateId:settings.targetStateId,mode:settings.mode};
+ const result={};
+ for(const key of ['targetStateId','mode','stateMapping'])if(settings&&Object.hasOwn(settings,key))result[key]=structuredClone(settings[key]);
+ return result;
 }
 export const accumulatorDefaults=()=>({quietSeconds:3,maxMessages:10,maxWaitSeconds:30});
 export function accumulatorSettings(settings){
@@ -110,6 +112,7 @@ export function accumulatorSettings(settings){
  }
  return result;
 }
+export const historyDefaults=()=>({maxMessages:20,maxAgeMinutes:null,maxCharacters:4000,includeCharacterMessages:false,mode:'before-current-batch'});
 export function initialGraph(stateId='state-1') {
  return {version:2,nodes:[
  {id:'input',kind:'dm',x:60,y:150},
@@ -181,7 +184,7 @@ export function saveDraft(graph) {
  if(graph.version===3)return JSON.stringify({format:'filomena-local-flow',graph:serializeTypedGraph(graph)},null,2);
  // Save design references, never credentials, endpoint configuration, or execution traces.
  return JSON.stringify({format:'filomena-local-flow',graph:{version:2,
-  nodes:graph.nodes.map(n=>({id:n.id,kind:n.kind,...(n.kind==='prompt'?{prompt:n.prompt,...(n.responseFields!==undefined?{responseFields:responseFields(n.responseFields)}:{}),...(n.provider!==undefined?{provider:n.provider}:{}),...(n.model!==undefined?{model:n.model}:{})}:{}),...(n.kind==='accumulate'?{settings:accumulatorSettings(n.settings)}:{}),...(n.kind==='exit'?{settings:exitSettings(n.settings)}:{}),...(n.kind==='branch'?{settings:branchSettings(n.settings)}:{}),x:n.x,y:n.y})),
+   nodes:graph.nodes.map(n=>({id:n.id,kind:n.kind,...(n.kind==='prompt'?{prompt:n.prompt,...(n.responseFields!==undefined?{responseFields:responseFields(n.responseFields)}:{}),...(n.provider!==undefined?{provider:n.provider}:{}),...(n.model!==undefined?{model:n.model}:{})}:{}),...(n.kind==='accumulate'||n.kind==='history'||n.kind==='exit'?{settings:persistedNodeSettings(n)}:{}),...(n.kind==='branch'?{settings:branchSettings(n.settings)}:{}),x:n.x,y:n.y})),
   edges:normalizeEdges(graph),...(graph.controlEdges!==undefined?{controlEdges:normalizeControlEdges(graph)}:{})}},null,2);
 }
 
@@ -196,7 +199,7 @@ export function openDraft(text,stateId='state-1') {
  const ids=new Set();
  for(const node of graph.nodes){
   if(!node||typeof node.id!=='string'||!node.id.trim()||node.id.length>80||ids.has(node.id)
-   ||!['input','dm','group','prompt','send','output','accumulate','exit','branch','property','switch'].includes(node.kind)||!Number.isFinite(node.x)||!Number.isFinite(node.y)
+   ||!['input','dm','group','prompt','send','output','accumulate','history','exit','branch','property','switch'].includes(node.kind)||!Number.isFinite(node.x)||!Number.isFinite(node.y)
    ||node.x<0||node.y<0||node.x>4000||node.y>4000
    ||(node.kind==='prompt'&&(typeof node.prompt!=='string'||node.prompt.length>16000))
    ||(node.provider!==undefined&&(typeof node.provider!=='string'||node.provider.length>120))
@@ -208,8 +211,6 @@ export function openDraft(text,stateId='state-1') {
  for(const node of graph.nodes)if(node.kind==='input')node.kind='dm';
  for(const node of graph.nodes){
   if(node.kind==='output'){node.kind='exit';node.settings={targetStateId:stateId,mode:'switch'};}
-  // Legacy drafts without a transition target remain editable in their owning state.
-  if(node.kind==='exit'&&node.settings?.targetStateId===null)node.settings.targetStateId=stateId;
  }
  if(graph.version===3)return serializeTypedGraph(graph);
  return JSON.parse(saveDraft({...graph,edges:normalizeEdges(graph)})).graph;
@@ -245,14 +246,11 @@ function cleanProject(project){
   ids.add(state.id);
   return {id:state.id,name:stateName(state.name),graph:openDraft(JSON.stringify({format:'filomena-local-flow',graph:state.graph}),state.id)};
  });
- if(!ids.has(project.initialStateId))throw new Error('Estado inicial não encontrado.');
- for(const state of states)for(const node of state.graph.nodes){
-  if(node.kind==='exit'&&!ids.has(node.settings.targetStateId))throw new Error('O destino de Trocar Estado não existe neste projeto.');
- }
- return {version:1,stateScope:'session',initialStateId:project.initialStateId,states};
+ const initialStateId=project.initialStateId;
+ if(initialStateId!==undefined&&initialStateId!==null&&(typeof initialStateId!=='string'||initialStateId.length>80))throw new Error('Identificador de estado inicial inválido.');
+ return {version:1,stateScope:'session',initialStateId,states};
 }
 export function saveProject(project){
- for(const state of project.states??[])for(const node of state.graph?.nodes??[])if(node.kind==='exit')exitSettings(node.settings);
  const text=JSON.stringify({format:'filomena-local-project',project:cleanProject(project)},null,2);
  if(text.length>1048576)throw new Error('O projeto excede 1 MB.');
  return text;

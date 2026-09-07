@@ -10,7 +10,8 @@ public interface IFlowCompletion
 }
 public sealed record TypedValue(FlowType Type, JsonElement Value);
 public sealed record TypedStep(string NodeId, string Status, string? Exit, string? Error);
-public sealed record TypedRunResult(bool Success, IReadOnlyList<TypedStep> Steps, IReadOnlyDictionary<string, Dictionary<string, TypedValue>> Outputs);
+public sealed record TypedRunResult(bool Success, IReadOnlyList<TypedStep> Steps, IReadOnlyDictionary<string, Dictionary<string, TypedValue>> Outputs, string? TargetStateId = null);
+internal sealed record TypedNodeExecutionTrace(string NodeId, string Status, string? Exit, string? Error, DateTimeOffset Timestamp, TimeSpan Duration);
 
 public static class TypedFlowRunner
 {
@@ -31,13 +32,35 @@ public static class TypedFlowRunner
         return JsonSerializer.SerializeToElement(json);
     }
 
-    public static async Task<TypedRunResult> RunAsync(TypedFlow flow, JsonElement message, IFlowCompletion completion, CancellationToken token)
+    public static Task<TypedRunResult> RunAsync(TypedFlow flow, JsonElement message, IFlowCompletion completion, CancellationToken token) =>
+        RunCoreAsync(flow, message, completion, null, TimeProvider.System, null, token);
+
+    internal static Task<TypedRunResult> RunSessionAsync(
+        TypedFlow flow,
+        JsonElement message,
+        IFlowCompletion completion,
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, TypedValue>> runtimeOutputs,
+        TimeProvider timeProvider,
+        Action<TypedNodeExecutionTrace> observer,
+        CancellationToken token) =>
+        RunCoreAsync(flow, message, completion, runtimeOutputs, timeProvider, observer, token);
+
+    private static async Task<TypedRunResult> RunCoreAsync(
+        TypedFlow flow,
+        JsonElement message,
+        IFlowCompletion completion,
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, TypedValue>>? runtimeOutputs,
+        TimeProvider timeProvider,
+        Action<TypedNodeExecutionTrace>? observer,
+        CancellationToken token)
     {
         var steps = new List<TypedStep>();
         var published = new Dictionary<string, Dictionary<string, TypedValue>>();
         var values = new Dictionary<PortRef, TypedValue>();
         var references = new Dictionary<string, string>();
         string current = flow.EntryId;
+        DateTimeOffset nodeStartedAt = default;
+        long? nodeStartedTimestamp = null;
         TypedValue Input(TypedNode node, TypedPort port)
         {
             var edge = flow.Graph.DataEdges.SingleOrDefault(e => e.Target == new PortRef(node.Source.Id, port.Id));
@@ -63,6 +86,9 @@ public static class TypedFlowRunner
             {
                 token.ThrowIfCancellationRequested();
                 var node = flow.Nodes[current]; var exit = "then";
+                nodeStartedAt = timeProvider.GetUtcNow();
+                nodeStartedTimestamp = timeProvider.GetTimestamp();
+                observer?.Invoke(new(current, "started", null, null, nodeStartedAt, TimeSpan.Zero));
                 if (node.Source.Kind == "prompt")
                 {
                     var inputs = new Dictionary<string, JsonElement>();
@@ -94,6 +120,41 @@ public static class TypedFlowRunner
                     published[current] = output!;
                     foreach (var (port, value) in output!) values[new(current, port)] = value;
                 }
+                else if (node.Source.Kind is "accumulate" or "history")
+                {
+                    if (runtimeOutputs is null || !runtimeOutputs.TryGetValue(current, out var supplied))
+                        throw new InvalidDataException("Session runtime output is unavailable for " + node.Source.Kind + ".");
+                    var output = new Dictionary<string, TypedValue>(StringComparer.Ordinal);
+                    foreach (var port in node.Outputs)
+                    {
+                        if (!supplied.TryGetValue(port.Id, out var value)) throw new InvalidDataException("Session runtime output port is unavailable: " + port.Id);
+                        FlowDomain.Check(value.Value, port.Type);
+                        if (!value.Type.IsCompatibleWith(port.Type)) throw new InvalidDataException("Session runtime output type is incompatible: " + port.Id);
+                        output[port.Id] = new(port.Type, value.Value.Clone());
+                        values[new(current, port.Id)] = output[port.Id];
+                    }
+                    published[current] = output;
+                }
+                else if (node.Source.Kind == "exit")
+                {
+                    if (runtimeOutputs is null) throw new InvalidDataException("Exit requires session runtime context.");
+                    var settings = node.Source.Config.GetProperty("settings");
+                    string target;
+                    if (settings.TryGetProperty("targetStateId", out var configured) && configured.ValueKind == JsonValueKind.String)
+                    {
+                        target = configured.GetString()!;
+                    }
+                    else
+                    {
+                        var selected = Input(node, node.Inputs.Single()).Value.GetString()!;
+                        target = settings.GetProperty("stateMapping").GetProperty(selected).GetString()!;
+                    }
+                    var duration = timeProvider.GetElapsedTime(nodeStartedTimestamp.Value);
+                    steps.Add(new(current, "completed", null, null));
+                    observer?.Invoke(new(current, "completed", null, null, timeProvider.GetUtcNow(), duration));
+                    nodeStartedTimestamp = null;
+                    return new(true, steps, published, target);
+                }
                 else if (node.Source.Kind == "switch")
                 {
                     var value = Input(node, node.Inputs.Single()).Value.GetString();
@@ -103,16 +164,26 @@ public static class TypedFlowRunner
                     else if (TypedFlowCompiler.HasOther(node.Source.Config)) exit = "other";
                     else throw new InvalidDataException("Switch sem caso correspondente e sem Outro.");
                 }
+                var completedDuration = timeProvider.GetElapsedTime(nodeStartedTimestamp.Value);
                 steps.Add(new(current, "completed", exit, null));
+                observer?.Invoke(new(current, "completed", exit, null, timeProvider.GetUtcNow(), completedDuration));
+                nodeStartedTimestamp = null;
                 var next = flow.Graph.ControlEdges.SingleOrDefault(e => e.Source == new PortRef(current, exit));
                 if (next is null) return new(true, steps, published);
                 current = next.Target.NodeId;
             }
         }
-        catch (OperationCanceledException) { throw; }
+        catch (OperationCanceledException)
+        {
+            if (nodeStartedTimestamp is not null)
+                observer?.Invoke(new(current, "cancelled", null, "cancelled", timeProvider.GetUtcNow(), timeProvider.GetElapsedTime(nodeStartedTimestamp.Value)));
+            throw;
+        }
         catch (Exception e) when (e is InvalidDataException or JsonException or HttpRequestException or InvalidOperationException)
         {
             steps.Add(new(current, "failed", null, e is HttpRequestException ? "Serviço de modelo indisponível." : e.Message));
+            if (nodeStartedTimestamp is not null)
+                observer?.Invoke(new(current, "failed", null, e.GetType().Name, timeProvider.GetUtcNow(), timeProvider.GetElapsedTime(nodeStartedTimestamp.Value)));
             return new(false, steps, published);
         }
     }

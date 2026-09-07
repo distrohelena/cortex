@@ -21,14 +21,14 @@ test('Branch comparison survives draft and reload and rejects unknown operators'
  }
 });
 
-test('accumulator limits survive export and reload with individually disabled conditions',()=>{
+test('accumulator drafts preserve individually disabled and invalid executable conditions',()=>{
  const graph=initialGraph();
  graph.nodes.push({id:'batch',kind:'accumulate',x:100,y:300,settings:{quietSeconds:2.5,maxMessages:null,maxWaitSeconds:60}});
  assert.deepEqual(openDraft(saveDraft(graph)),graph);
  assert.deepEqual(readReloadState(saveReloadState(graph,'test','batch')).graph,graph);
  for(const settings of [{quietSeconds:-1,maxMessages:10,maxWaitSeconds:30},{quietSeconds:3,maxMessages:1.5,maxWaitSeconds:30},{quietSeconds:3,maxMessages:10,maxWaitSeconds:'forever'}]){
   const draft=JSON.parse(saveDraft(graph));draft.graph.nodes.at(-1).settings=settings;
-  assert.throws(()=>openDraft(JSON.stringify(draft)));
+  assert.deepEqual(openDraft(JSON.stringify(draft)).nodes.at(-1).settings,settings);
  }
 });
 

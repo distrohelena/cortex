@@ -39,9 +39,9 @@ test('old project preserves even incompatible wires during typed migration',()=>
  const migrated=openProject(JSON.stringify(document));
  for(const state of migrated.states){
   assert.deepEqual(state.graph.edges,graph.edges);
-  const expected=structuredClone(graph.nodes);expected.find(n=>n.kind==='exit').settings.targetStateId=state.id;
+  const expected=structuredClone(graph.nodes);
   assert.equal(state.graph.nodes[1].prompt,expected[1].prompt);
-  assert.equal(state.graph.nodes[2].settings.targetStateId,state.id);
+  assert.equal(state.graph.nodes[2].settings.targetStateId,null);
  }
  // Legacy invalid wires stay editable, never auto-repaired or removed.
  assert.deepEqual(openProject(saveProject(migrated)),migrated);

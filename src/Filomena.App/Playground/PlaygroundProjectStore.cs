@@ -61,6 +61,12 @@ internal sealed class PlaygroundProjectStore(string directory)
         return array;
     }
 
+    private static void DraftStateId(JsonElement project)
+    {
+        if (!project.TryGetProperty("initialStateId", out var value) || value.ValueKind == JsonValueKind.Null) return;
+        if (value.ValueKind != JsonValueKind.String || value.GetString()!.Length > 80) throw new InvalidDataException();
+    }
+
     // This validates a design document, not an executable workflow. No compiler or model is invoked.
     private static void Validate(JsonElement document)
     {
@@ -69,7 +75,7 @@ internal sealed class PlaygroundProjectStore(string directory)
         if (Text(document, "format") != "filomena-local-project" || !document.TryGetProperty("project", out var project)) throw new InvalidDataException();
         Keys(project, "version", "stateScope", "initialStateId", "states");
         if (!project.TryGetProperty("version", out var version) || version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var number) || number != 1 || Text(project, "stateScope") != "session") throw new InvalidDataException();
-        var initial = Text(project, "initialStateId");
+        DraftStateId(project);
         var states = Array(project, "states", 16);
         var ids = new HashSet<string>(StringComparer.Ordinal);
         foreach (var state in states.EnumerateArray())
@@ -85,12 +91,12 @@ internal sealed class PlaygroundProjectStore(string directory)
             {
                 Keys(node, "id", "kind", "x", "y", "prompt", "provider", "model", "settings", "responseFields", "inputs", "correctionRetry", "title");
                 if (!nodeIds.Add(Text(node, "id"))) throw new InvalidDataException();
-                if (!new[] { "dm", "group", "input", "prompt", "accumulate", "branch", "exit", "send", "property", "switch" }.Contains(Text(node, "kind"))) throw new InvalidDataException();
+                if (!new[] { "dm", "group", "input", "prompt", "accumulate", "history", "branch", "exit", "send", "property", "switch" }.Contains(Text(node, "kind"))) throw new InvalidDataException();
                 foreach (var coordinate in new[] { "x", "y" })
                     if (!node.TryGetProperty(coordinate, out var c) || c.ValueKind != JsonValueKind.Number || !c.TryGetDouble(out var n) || !double.IsFinite(n) || n < 0 || n > 4000) throw new InvalidDataException();
                 if (node.TryGetProperty("settings", out var settings))
                 {
-                    Keys(settings, "quietSeconds", "maxMessages", "maxWaitSeconds", "operator", "targetStateId", "mode", "path", "cases", "retiredCases", "other");
+                    Keys(settings, "quietSeconds", "maxMessages", "maxWaitSeconds", "maxAgeMinutes", "maxCharacters", "includeCharacterMessages", "operator", "targetStateId", "mode", "stateMapping", "path", "cases", "retiredCases", "other");
                     if (settings.TryGetProperty("cases", out _))
                         foreach (var item in Array(settings, "cases", 64).EnumerateArray()) Keys(item, "id", "value");
                 }
@@ -109,6 +115,5 @@ internal sealed class PlaygroundProjectStore(string directory)
                 }
             }
         }
-        if (!ids.Contains(initial)) throw new InvalidDataException();
     }
 }

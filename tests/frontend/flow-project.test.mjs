@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as model from '../../src/Filomena.App/Playground/flow-model.mjs';
 
-test('state-change nodes require a destination and new states target themselves',()=>{
+test('state-change drafts preserve a missing destination and new states target themselves',()=>{
  const project=model.initialProject(),second=model.addProjectState(project,'Segundo');
  assert.equal(second.graph.nodes.find(n=>n.kind==='exit').settings.targetStateId,second.id);
  const graph=model.initialGraph();graph.nodes.find(n=>n.kind==='exit').settings.targetStateId=null;
- assert.throws(()=>model.saveDraft(graph));
+ assert.equal(model.openDraft(model.saveDraft(graph)).nodes.find(n=>n.kind==='exit').settings.targetStateId,null);
  model.removeNode(project.states[0].graph,'output');
  assert.deepEqual(model.openProject(model.saveProject(project)),project);
 });
@@ -45,14 +45,19 @@ test('legacy single-flow JSON is preserved inside Initial state',()=>{
  assert.deepEqual(model.stateGraph(project,project.initialStateId),graph);
 });
 
-test('invalid Exit references and invalid project identity cannot be imported',()=>{
+test('project drafts preserve incomplete exits but reject invalid project identity',()=>{
  const project=model.initialProject();
  project.states[0].graph.nodes.push({id:'exit',kind:'exit',x:0,y:0,settings:{targetStateId:'state-1',mode:'switch'}});
  const valid=JSON.parse(model.saveProject(project));
  for(const mutate of [
   p=>p.states[0].graph.nodes.at(-1).settings.targetStateId='unknown',
   p=>p.states[0].graph.nodes.at(-1).settings.mode='execute-shell',
-  p=>p.initialStateId='unknown',
+  p=>p.initialStateId='unknown'
+ ]){
+  const draft=structuredClone(valid);mutate(draft.project);
+  assert.deepEqual(model.openProject(JSON.stringify(draft)).initialStateId,draft.project.initialStateId);
+ }
+ for(const mutate of [
   p=>p.stateScope='global',
   p=>p.states.push(structuredClone(p.states[0]))
  ]){

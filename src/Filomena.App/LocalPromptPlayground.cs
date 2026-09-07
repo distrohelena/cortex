@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.AspNetCore.Http.Features;
 
 namespace Filomena.App;
@@ -43,6 +44,7 @@ public static class LocalPromptPlayground
             server.Limits.MaxRequestBodySize = 65536;
         });
         builder.Logging.AddSimpleConsole(logging => logging.TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff zzz ");
+        builder.Services.AddSingleton<SessionFlowHarnessStore>();
         var app = builder.Build();
         app.Use(async (context, next) =>
         {
@@ -78,6 +80,7 @@ public static class LocalPromptPlayground
             { return Results.Json(new { error = "Não foi possível salvar o projeto." }, statusCode: 503); }
         });
         TypedFlowEndpoints.Map(app);
+        SessionFlowEndpoints.Map(app);
         var assets = new PlaygroundAssets(sourceDirectory);
         app.MapGet("/api/model", () => Results.Ok(new { model = options.Model }));
         app.MapGet("/api/model-catalog", () =>

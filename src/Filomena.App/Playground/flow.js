@@ -1,23 +1,24 @@
-import {isEntry,isTerminal,nodePorts,executionPorts,connectExecution,branchOperators,accumulatorDefaults,accumulatorSettings,connect,removeNode,initialProject,stateGraph,addProjectState,saveProject,openProject,saveProjectReloadState,readProjectReloadState} from './flow-model.mjs';
+import {isEntry,isTerminal,nodePorts,executionPorts,connectExecution,branchOperators,accumulatorDefaults,accumulatorSettings,historyDefaults,connect,removeNode,initialProject,stateGraph,addProjectState,saveProject,openProject,saveProjectReloadState,readProjectReloadState} from './flow-model.mjs';
 import {setupFlowLayout} from './flow-layout.mjs';
 import {createFlowGraphEditor} from './flow-graph/index.js';
 import {catalogOptions,chooseProvider,chooseModel} from './flow-catalog.mjs';
-import {migrateTypedGraph,syncSwitchCases,typeLabel} from './flow-contract.mjs';
+import {migrateTypedGraph,syncSwitchCases,typeLabel,typedPorts} from './flow-contract.mjs';
 import {renderTypedPanel} from './flow-typed-panel.mjs';
 const $=id=>document.getElementById(id);
 let project=initialProject(),selectedStateId=project.initialStateId;
 let graph=stateGraph(project,selectedStateId),selected='prompt',busy=false,traces=[],controller=null;
 let lastContracts=[],lastCalls=[];
 let modelCatalog=null,defaultModel='',catalogError='';
-const titles={input:'Mensagem privada',dm:'Mensagem privada',group:'Mensagem de grupo',prompt:'Instrução',accumulate:'Acumular',exit:'Trocar Estado',branch:'Branch',send:'Enviar mensagem',property:'Obter Propriedade',switch:'Switch'};
-const portTypeLabels={text:'texto',message:'Mensagem',actor:'Pessoa',channel:'Canal','actor|channel':'Pessoa | Canal','text|messages':'Mensagem | Mensagens[]',messages:'Mensagem[]',visual:'visual'};
+const titles={input:'Mensagem privada',dm:'Mensagem privada',group:'Mensagem de grupo',prompt:'Instrução',accumulate:'Acumular',history:'Histórico da Sessão',exit:'Trocar Estado',branch:'Branch',send:'Enviar mensagem',property:'Obter Propriedade',switch:'Switch'};
+const portTypeLabels={text:'texto',message:'Mensagem','message[]':'Mensagem[]',actor:'Pessoa',channel:'Canal','actor|channel':'Pessoa | Canal','text|messages':'Mensagem | Mensagens[]',messages:'Mensagem[]',enum:'Enum',visual:'visual'};
 const nodeTitle=node=>node.title||(node.kind==='property'?`Obter Propriedade · ${(node.settings?.path??[]).join('.')}`:node.kind==='prompt'?`Instrução · ${node.id}`:titles[node.kind]);
 const tell=text=>$('hint').textContent=text;
 const reloadStateKey='filomena-flow-reload';
 let restoredDraft=false,projectSaving=false;
+function editingStateId(id){return project.states.some(state=>state.id===id)?id:project.states[0].id;}
 try{
  const snapshot=sessionStorage.getItem(reloadStateKey);
- if(snapshot){const restored=readProjectReloadState(snapshot);project=restored.project;selectedStateId=restored.selectedStateId;graph=stateGraph(project,selectedStateId);selected=restored.selected;$('message').value=restored.message;sessionStorage.removeItem(reloadStateKey);restoredDraft=true;}
+  if(snapshot){const restored=readProjectReloadState(snapshot);project=restored.project;selectedStateId=editingStateId(restored.selectedStateId);graph=stateGraph(project,selectedStateId);selected=restored.selected;$('message').value=restored.message;sessionStorage.removeItem(reloadStateKey);restoredDraft=true;}
 }catch{tell('Não foi possível restaurar o rascunho após a recarga.');}
 if(!restoredDraft){
  document.body.inert=true;
@@ -25,14 +26,14 @@ if(!restoredDraft){
   const response=await fetch('/api/flow/project',{signal:AbortSignal.timeout(5000)});
   if(response.status!==204){
    if(!response.ok)throw new Error('Não foi possível carregar o projeto salvo no backend.');
-   project=openProject(await response.text());selectedStateId=project.initialStateId;graph=stateGraph(project,selectedStateId);selected=graph.nodes[0].id;
+   project=openProject(await response.text());selectedStateId=editingStateId(project.initialStateId);graph=stateGraph(project,selectedStateId);selected=graph.nodes[0].id;
    tell('Projeto salvo carregado.');
   }
  }catch(error){tell(error.message||'Não foi possível carregar o projeto.');}
  finally{document.body.inert=false;}
 }
 for(const state of project.states)state.graph=migrateTypedGraph(state.graph);
-graph=stateGraph(project,selectedStateId);
+selectedStateId=editingStateId(selectedStateId);graph=stateGraph(project,selectedStateId);
 window.addEventListener('filomena:before-reload',event=>{
  if(busy||projectSaving){event.preventDefault();return;}
  try{sessionStorage.setItem(reloadStateKey,saveProjectReloadState(project,selectedStateId,$('message').value,selected));}
@@ -85,6 +86,32 @@ $('add-response-field').addEventListener('click',()=>{
  fields.push({id:crypto.randomUUID(),name:`campo${i}`,description:'',type:'text'});contractsChanged();
 });
 function contractsChanged(){for(const node of graph.nodes.filter(n=>n.kind==='switch'))syncSwitchCases(graph,node);invalidate();render();}
+function exitEnumInput(node){
+ const edge=graph.edges.find(edge=>edge.target===node.id&&edge.targetPort==='state');
+ const source=edge&&typedPorts(graph,graph.nodes.find(candidate=>candidate.id===edge.source),'out')?.find(port=>port.id===edge.sourcePort);
+ return source?.type==='enum'?source:null;
+}
+function renderExitMapping(node){
+ const root=$('exit-state-mapping'),source=exitEnumInput(node);root.replaceChildren();root.hidden=!source;
+ if(!source)return;
+ const heading=document.createElement('label');heading.textContent='Mapeamento de estado';root.append(heading);
+ const mapping=node.settings.stateMapping??={};
+ const update=next=>{node.settings={...node.settings,targetStateId:null,mode:'switch',stateMapping:next};invalidate();render();};
+ const row=(value,labelText=value,obsolete=false)=>{
+  const label=document.createElement('label'),select=document.createElement('select');label.append(document.createTextNode(labelText),select);
+  const blank=document.createElement('option');blank.value='';blank.textContent='Selecione';select.append(blank);
+  for(const state of project.states){const option=document.createElement('option');option.value=state.id;option.textContent=state.name;select.append(option);}
+  const mapped=mapping[value];
+  if(mapped&&!project.states.some(state=>state.id===mapped)){const option=document.createElement('option');option.value=mapped;option.textContent=`${mapped} (estado inexistente)`;option.disabled=true;select.append(option);}
+  select.value=mapped??'';select.disabled=busy;
+  select.onchange=()=>{const next={...mapping};if(select.value)next[value]=select.value;else delete next[value];update(next);};
+  root.append(label);
+  if(obsolete){const remove=document.createElement('button');remove.type='button';remove.textContent='Remover mapeamento obsoleto';remove.disabled=busy;remove.onclick=()=>{const next={...mapping};delete next[value];update(next);};root.append(remove);}
+ };
+ const active=new Set(source.values??[]);
+ for(const value of active)row(value);
+ for(const value of Object.keys(mapping).filter(value=>!active.has(value)))row(value,`${value} (obsoleto)`,true);
+}
 
 function inspect(){
  const node=graph.nodes.find(n=>n.id===selected);if(!node)return;
@@ -103,17 +130,20 @@ function inspect(){
   select.value=node.settings.operator;select.disabled=busy;
  }
  if(node.kind==='exit'){
-  const target=$('exit-target');target.replaceChildren();
-  for(const state of project.states){const option=document.createElement('option');option.value=state.id;option.textContent=state.name;target.append(option);}
-  target.value=node.settings.targetStateId??'';target.disabled=busy;
-  $('exit-mode').value=node.settings.mode;$('exit-mode').disabled=busy;
-  $('exit-description').textContent=node.settings.mode==='carry'?'Muda o estado e leva os dados desta execução ao próximo fluxo. Apenas desenho por enquanto.':'Muda o estado; o próximo fluxo aguarda uma nova mensagem. Apenas desenho por enquanto.';
+   const target=$('exit-target');target.replaceChildren();
+   const blank=document.createElement('option');blank.value='';blank.textContent='Selecione';target.append(blank);
+   for(const state of project.states){const option=document.createElement('option');option.value=state.id;option.textContent=state.name;target.append(option);}
+   target.value=node.settings.targetStateId??'';target.disabled=busy;
+   renderExitMapping(node);
+   const enumInput=exitEnumInput(node);target.disabled=busy||!!enumInput;
+   $('exit-mode').value=node.settings.mode==='carry'?'carry':'switch';$('exit-mode').disabled=busy;
+   $('exit-description').textContent=node.settings.mode==='carry'?'Carry é preservado no rascunho, mas não é executável.':enumInput?'Mapeie cada valor do enum para um estado.':'Muda o estado; o próximo fluxo aguarda uma nova mensagem.';
  }
  if(node.kind==='accumulate')for(const key of Object.keys(accumulatorDefaults())){
   $(key+'-enabled').checked=node.settings[key]!==null;$(key+'-enabled').disabled=busy;
   $(key).value=node.settings[key]??'';$(key).disabled=busy||node.settings[key]===null;
  }
- const removable=['prompt','accumulate','branch','property','switch'].includes(node.kind)||isTerminal(node)||(isEntry(node)&&graph.nodes.filter(isEntry).length>1);
+ const removable=['prompt','accumulate','history','branch','property','switch'].includes(node.kind)||isTerminal(node)||(isEntry(node)&&graph.nodes.filter(isEntry).length>1);
  $('remove').hidden=!removable;
  $('selected-title').textContent=nodeTitle(node);$('prompt').value=node.prompt??'';$('prompt').disabled=busy||node.kind!=='prompt';
  if(modelCatalog){
@@ -139,7 +169,8 @@ function inspect(){
 
 function render(){
  if(graph.version!==3){const state=project.states.find(s=>s.id===selectedStateId);state.graph=migrateTypedGraph(graph);graph=state.graph;}
- for(const node of graph.nodes.filter(n=>n.kind==='switch'))syncSwitchCases(graph,node);
+  for(const node of graph.nodes.filter(n=>n.kind==='switch'))syncSwitchCases(graph,node);
+  $('editing-state').textContent=`Editando estado: ${project.states.find(state=>state.id===selectedStateId)?.name??'sem padrão válido'}`;
  const entrySelect=$('event-entry'),entryId=entrySelect.value;entrySelect.replaceChildren();
  for(const entry of graph.nodes.filter(isEntry)){const option=document.createElement('option');option.value=entry.id;option.textContent=`${nodeTitle(entry)} · ${entry.id}`;entrySelect.append(option);}
  if(graph.nodes.some(n=>isEntry(n)&&n.id===entryId))entrySelect.value=entryId;
@@ -192,16 +223,22 @@ $('add-exit').addEventListener('click',()=>{
  const node={id:`exit-${i}`,kind:'exit',settings:{targetStateId:selectedStateId,mode:'switch'},x:680,y:330};
  graph.nodes.push(node);selected=node.id;invalidate();render();
 });
-for(const id of ['exit-target','exit-mode'])$(id).addEventListener('change',()=>{
- const node=graph.nodes.find(n=>n.id===selected);if(busy||node?.kind!=='exit')return;
- const targetStateId=$('exit-target').value;if(!project.states.some(state=>state.id===targetStateId))return;
- node.settings={targetStateId,mode:$('exit-mode').value};invalidate();render();
+$('exit-target').addEventListener('change',()=>{
+  const node=graph.nodes.find(n=>n.id===selected);if(busy||node?.kind!=='exit')return;
+  const targetStateId=$('exit-target').value;
+  node.settings={...node.settings,targetStateId:targetStateId||null,mode:'switch'};delete node.settings.stateMapping;invalidate();render();
 });
+$('exit-mode').addEventListener('change',()=>{const node=graph.nodes.find(n=>n.id===selected);if(busy||node?.kind!=='exit')return;node.settings={...node.settings,mode:'switch'};invalidate();render();});
 $('add-accumulate').addEventListener('click',()=>{
  if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=20){tell('Limite: 20 blocos.');return;}
  let i=1;while(graph.nodes.some(n=>n.id===`accumulate-${i}`))i++;
  const node={id:`accumulate-${i}`,kind:'accumulate',settings:accumulatorDefaults(),x:370,y:330};
  graph.nodes.push(node);selected=node.id;invalidate();render();
+});
+$('add-history').addEventListener('click',()=>{
+ if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=20){tell('Limite: 20 blocos.');return;}
+ let i=1;while(graph.nodes.some(n=>n.id===`history-${i}`))i++;
+ const node={id:`history-${i}`,kind:'history',settings:historyDefaults(),x:520,y:330};graph.nodes.push(node);selected=node.id;invalidate();render();
 });
 $('add-send').addEventListener('click',()=>{
  if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=20){tell('Limite: 20 blocos.');return;}
@@ -296,12 +333,17 @@ for(const menu of addSubmenus){
  menu.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();menu.open=false;menu.querySelector('summary').focus();}});
 }
 $('add').addEventListener('pointerenter',event=>{if(event.pointerType==='mouse')for(const menu of addSubmenus)menu.open=false;});
-function setBusy(value){busy=value;for(const id of ['run','add','add-dm','add-group','add-accumulate','add-branch','add-exit','add-send','show-states','event-entry','open','save','message'])$(id).disabled=value;$('cancel').disabled=!value;render();}
+function setBusy(value){busy=value;for(const id of ['run','add','add-dm','add-group','add-accumulate','add-history','add-branch','add-exit','add-send','show-states','event-entry','open','save','message'])$(id).disabled=value;$('cancel').disabled=!value;render();}
 $('cancel').addEventListener('click',()=>controller?.abort());
 function typedRequest(){return {graph,entryNodeId:$('event-entry').value,message:{texto:$('message').value,remetente:{nome:'Pessoa de teste',stableId:'fixture:person'},canal:{nome:'Conversa de teste',nativeId:'fixture:conversation'},reply:null}};}
+function projectValidationRequest(){return {project:JSON.parse(saveProject(project)).project};}
+function projectIssues(issues){return issues.map(issue=>({estado:project.states.find(state=>state.id===issue.stateId)?.name??issue.stateId??'Projeto',entrada:issue.entryId,nodeId:issue.nodeId,porta:issue.port,motivo:issue.reason}));}
 $('validate').addEventListener('click',async()=>{
  if(busy)return;
- try{const data=await api('/api/flow/typed/validate',typedRequest());
+ try{
+  const projectValidation=await api('/api/flow/typed/project/validate',projectValidationRequest());
+  if(!projectValidation.valid){const issues=projectIssues(projectValidation.issues??[]);$('result').textContent=JSON.stringify(issues,null,2);$('status').textContent='Projeto não executável; corrija os estados, blocos e portas indicados.';lastContracts=[];inspect();return;}
+  const data=await api('/api/flow/typed/validate',typedRequest());
  $('result').textContent=JSON.stringify(data.valid?{valid:true}:data.issues,null,2);
  $('status').textContent=data.valid?'Fluxo executável.':'Rascunho salvo é permitido; corrija os erros para executar.';
  lastContracts=data.contracts??[];inspect();
@@ -309,6 +351,7 @@ $('validate').addEventListener('click',async()=>{
 });
 $('run').addEventListener('click',async()=>{
  if(busy)return;
+ if(graph.nodes.some(node=>['accumulate','history','exit'].includes(node.kind))){$('status').textContent='Acumular, Histórico da Sessão e Trocar Estado exigem a simulação de sessão; use a API de sessões fake.';return;}
  editor.clearConnection();traces=[];controller=new AbortController();setBusy(true);
  try{
   const data=await api('/api/flow/typed/run',{...typedRequest(),responses:JSON.parse($('fake-responses').value)},controller.signal);
@@ -326,7 +369,9 @@ function describeNode(node){
   :['in','out'].flatMap(direction=>nodePorts(node,direction,graph).map(port=>({...port,direction})));
  let preview;
  if(node.kind==='send')preview='';
- if(node.kind==='exit')preview=(project.states.find(s=>s.id===node.settings.targetStateId)?.name??'Escolha um estado')+' · '+(node.settings.mode==='carry'?'Trocar e levar':'Só trocar');
+ if(node.kind==='accumulate')preview=[node.settings?.quietSeconds!=null&&`${node.settings.quietSeconds}s silêncio`,node.settings?.maxMessages!=null&&`${node.settings.maxMessages} msgs`,node.settings?.maxWaitSeconds!=null&&`max ${node.settings.maxWaitSeconds}s`].filter(Boolean).join(' · ');
+ if(node.kind==='history')preview=[`${node.settings?.maxMessages??'–'} msgs`,node.settings?.maxCharacters!=null&&`${node.settings.maxCharacters} car.`,node.settings?.maxAgeMinutes!=null&&`${node.settings.maxAgeMinutes} min`,node.settings?.mode==='through-current-batch'?'inclui lote':'antes do lote'].filter(Boolean).join(' · ');
+ if(node.kind==='exit')preview=node.settings.mode==='carry'?'Carry não suportado':(project.states.find(s=>s.id===node.settings.targetStateId)?.name??'Mapeie ou escolha o estado');
  if(node.kind==='branch')preview=`A ${branchOperators[node.settings.operator].toLowerCase()} B`;
  return {
   title:nodeTitle(node),className:node.kind+(isEntry(node)?' input':''),preview,

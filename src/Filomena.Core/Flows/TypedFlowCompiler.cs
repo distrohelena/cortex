@@ -13,7 +13,12 @@ public sealed record TypedFlow(GraphDocument Graph, string EntryId, IReadOnlyDic
 
 public static class TypedFlowCompiler
 {
-    public static TypedFlow Compile(JsonElement source, string entryId)
+    private static readonly HashSet<string> ExecutableKinds =
+        ["dm", "group", "accumulate", "history", "exit", "property", "prompt", "switch"];
+
+    public static TypedFlow Compile(JsonElement source, string entryId) => CompileCore(source, entryId, true);
+
+    private static TypedFlow CompileCore(JsonElement source, string entryId, bool validateAlternateEntries)
     {
         var issues = new List<TypedFlowIssue>();
         void Error(string node, string port, string reason) => issues.Add(new(node, port, reason));
@@ -22,12 +27,48 @@ public static class TypedFlowCompiler
             if (source.GetProperty("version").GetInt32() != 3) throw new InvalidDataException("Use graph versão 3.");
             var raw = source.GetProperty("nodes").EnumerateArray().ToArray();
             if (raw.Length is < 1 or > 20) throw new InvalidDataException("Use 1–20 nodes.");
-            var nodes = raw.Select(n => new FlowNode(n.GetProperty("id").GetString()!, n.GetProperty("kind").GetString()!, 1, n)).ToDictionary(n => n.Id);
-            var data = source.GetProperty("edges").EnumerateArray().Select(e => new DataEdge(Ref(e, "source"), [], Ref(e, "target"))).ToArray();
-            var control = source.TryGetProperty("controlEdges", out var ce) ? ce.EnumerateArray().Select(e => new ControlEdge(Ref(e, "source"), Ref(e, "target"))).ToArray() : [];
+            var allNodes = raw.Select(n => new FlowNode(n.GetProperty("id").GetString()!, n.GetProperty("kind").GetString()!, 1, n)).ToDictionary(n => n.Id);
+            var allData = source.GetProperty("edges").EnumerateArray().Select(e => new DataEdge(Ref(e, "source"), [], Ref(e, "target"))).ToArray();
+            var allControl = source.TryGetProperty("controlEdges", out var ce) ? ce.EnumerateArray().Select(e => new ControlEdge(Ref(e, "source"), Ref(e, "target"))).ToArray() : [];
+            var nodes = allNodes;
+            var data = allData;
+            var control = allControl;
             if (data.Length > 64 || control.Length > 64) throw new InvalidDataException("Máximo de 64 fios de cada tipo.");
             var graph = new GraphDocument("local", 3, GraphRole.Character, null, nodes.Values, data, control, [entryId]);
             if (!nodes.TryGetValue(entryId, out var entry) || entry.Kind is not ("dm" or "group")) throw new InvalidDataException("Selecione uma entrada DM/grupo.");
+            ValidateGlobalStructure(allNodes, allData, allControl, issues);
+            if (issues.Count > 0) throw new TypedFlowException(issues);
+            // DM and group may intentionally feed the same typed input. Compile one
+            // deterministic entry path and retain the single-producer rule inside it.
+            var activeControlNodes = new HashSet<string>(StringComparer.Ordinal) { entryId };
+            var pending = new Queue<string>();
+            pending.Enqueue(entryId);
+            while (pending.TryDequeue(out var current))
+                foreach (var edge in allControl.Where(item => item.Source.NodeId == current))
+                    if (activeControlNodes.Add(edge.Target.NodeId)) pending.Enqueue(edge.Target.NodeId);
+
+            var inactiveEntries = allNodes.Values
+                .Where(node => node.Kind is "dm" or "group" && node.Id != entryId)
+                .Select(node => node.Id)
+                .ToHashSet(StringComparer.Ordinal);
+            var inactiveControlNodes = new HashSet<string>(inactiveEntries, StringComparer.Ordinal);
+            var inactivePending = new Queue<string>(inactiveEntries);
+            while (inactivePending.TryDequeue(out var current))
+                foreach (var edge in allControl.Where(item => item.Source.NodeId == current))
+                    if (inactiveControlNodes.Add(edge.Target.NodeId)) inactivePending.Enqueue(edge.Target.NodeId);
+            var scopedNodeIds = new HashSet<string>(activeControlNodes, StringComparer.Ordinal);
+            var dataPending = new Queue<string>(activeControlNodes);
+            while (dataPending.TryDequeue(out var target))
+                foreach (var edge in allData.Where(item => item.Target.NodeId == target &&
+                    !inactiveEntries.Contains(item.Source.NodeId) &&
+                    (!inactiveControlNodes.Contains(item.Source.NodeId) || activeControlNodes.Contains(item.Source.NodeId))))
+                    if (scopedNodeIds.Add(edge.Source.NodeId)) dataPending.Enqueue(edge.Source.NodeId);
+
+            nodes = allNodes.Where(item => scopedNodeIds.Contains(item.Key)).ToDictionary();
+            data = allData.Where(edge => scopedNodeIds.Contains(edge.Target.NodeId) && scopedNodeIds.Contains(edge.Source.NodeId)).ToArray();
+            control = allControl.Where(edge => activeControlNodes.Contains(edge.Source.NodeId)).ToArray();
+            graph = new GraphDocument("local", 3, GraphRole.Character, null, nodes.Values, data, control, [entryId]);
+
             var resolved = new Dictionary<string, TypedNode>();
             var visiting = new HashSet<string>();
             TypedNode Resolve(string id)
@@ -49,6 +90,30 @@ public static class TypedFlowCompiler
                     case "dm":
                     case "group":
                         result = new(node, [], [Port("message", FlowDomain.Message)], ["then"]); break;
+                    case "accumulate":
+                        ValidateAccumulator(config);
+                        result = new(node, [Port("message", FlowDomain.Message)], [Port("messages", new ArrayType(FlowDomain.Message))], ["then"]); break;
+                    case "history":
+                        result = new(node, [], [Port("messages", new ArrayType(FlowDomain.Message))], ["then"]); break;
+                    case "exit":
+                        var exitSettings = config.GetProperty("settings");
+                        if (exitSettings.GetProperty("mode").GetString() != "switch") throw new InvalidDataException("Trocar Estado executável aceita somente o modo switch.");
+                        var stateLinks = data.Where(edge => edge.Target == new PortRef(id, "state")).ToArray();
+                        var hasConfiguredTarget = exitSettings.TryGetProperty("targetStateId", out var targetState) && targetState.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(targetState.GetString());
+                        if (hasConfiguredTarget)
+                        {
+                            if (stateLinks.Length != 0 || exitSettings.TryGetProperty("stateMapping", out _)) throw new InvalidDataException("Use targetStateId OU a entrada enum state com stateMapping.");
+                            result = new(node, [], [], []); break;
+                        }
+                        if (stateLinks.Length != 1) throw new InvalidDataException("Conecte um enum em state ou configure targetStateId.");
+                        var stateInput = Incoming("state");
+                        if (stateInput.Type is not EnumType stateEnum) throw new InvalidDataException("A entrada state deve ser Enum.");
+                        if (!exitSettings.TryGetProperty("stateMapping", out var mapping) || mapping.ValueKind != JsonValueKind.Object) throw new InvalidDataException("Configure stateMapping para todos os valores do enum.");
+                        var mappings = mapping.EnumerateObject().ToArray();
+                        if (mappings.Length > 64 || mappings.Select(item => item.Name).ToHashSet(StringComparer.Ordinal).SetEquals(stateEnum.Values) is false ||
+                            mappings.Any(item => item.Value.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(item.Value.GetString())))
+                            throw new InvalidDataException("stateMapping deve corresponder exatamente aos valores do enum e apontar para IDs preenchidos.");
+                        result = new(node, [Port("state", stateInput.Type)], [], []); break;
                     case "property":
                         var input = Incoming("object");
                         var path = PropertyPath(config);
@@ -99,6 +164,10 @@ public static class TypedFlowCompiler
             DetectCycles(nodes.Keys, data.Select(e => (e.Source.NodeId, e.Target.NodeId)), issues);
             DetectCycles(nodes.Keys, control.Select(e => (e.Source.NodeId, e.Target.NodeId)), issues);
             if (issues.Count == 0) ValidateAvailability(graph, resolved, entryId, issues);
+            if (issues.Count == 0 && validateAlternateEntries)
+                foreach (var alternate in allNodes.Values.Where(node => node.Kind is "dm" or "group" && node.Id != entryId))
+                    try { _ = CompileCore(source, alternate.Id, false); }
+                    catch (TypedFlowException exception) { issues.AddRange(exception.Issues); }
             if (issues.Count > 0) throw new TypedFlowException(issues);
             return new(graph, entryId, resolved);
         }
@@ -106,9 +175,61 @@ public static class TypedFlowCompiler
     }
 
     private static bool ConfigurationError(Exception e) => e is InvalidDataException or InvalidOperationException or KeyNotFoundException or ArgumentException or FormatException or FlowSchemaException;
+
+    private static void ValidateGlobalStructure(
+        IReadOnlyDictionary<string, FlowNode> nodes,
+        IReadOnlyList<DataEdge> data,
+        IReadOnlyList<ControlEdge> control,
+        List<TypedFlowIssue> issues)
+    {
+        foreach (var node in nodes.Values)
+            if (!ExecutableKinds.Contains(node.Kind)) issues.Add(new(node.Id, "kind", "Node fora deste recorte executável: " + node.Kind));
+        foreach (var edge in data)
+        {
+            if (!nodes.ContainsKey(edge.Source.NodeId)) issues.Add(new(edge.Source.NodeId, edge.Source.Port, "Origem inexistente."));
+            if (!nodes.ContainsKey(edge.Target.NodeId)) issues.Add(new(edge.Target.NodeId, edge.Target.Port, "Destino inexistente."));
+        }
+        foreach (var edge in control)
+        {
+            if (!nodes.ContainsKey(edge.Source.NodeId)) issues.Add(new(edge.Source.NodeId, edge.Source.Port, "Origem inexistente."));
+            if (!nodes.ContainsKey(edge.Target.NodeId)) issues.Add(new(edge.Target.NodeId, edge.Target.Port, "Destino inexistente."));
+        }
+        foreach (var group in control.GroupBy(edge => edge.Source))
+            if (group.Count() > 1) issues.Add(new(group.Key.NodeId, group.Key.Port, "Sem fan-out: conecte apenas um próximo node."));
+        DetectCycles(nodes.Keys, data.Select(edge => (edge.Source.NodeId, edge.Target.NodeId)), issues);
+        DetectCycles(nodes.Keys, control.Select(edge => (edge.Source.NodeId, edge.Target.NodeId)), issues);
+
+        var reachable = new HashSet<string>(nodes.Values.Where(node => node.Kind is "dm" or "group").Select(node => node.Id), StringComparer.Ordinal);
+        var pending = new Queue<string>(reachable);
+        while (pending.TryDequeue(out var current))
+            foreach (var edge in control.Where(item => item.Source.NodeId == current))
+                if (reachable.Add(edge.Target.NodeId)) pending.Enqueue(edge.Target.NodeId);
+        foreach (var node in nodes.Values.Where(node => node.Kind is not ("property" or "dm" or "group")))
+            if (!reachable.Contains(node.Id)) issues.Add(new(node.Id, "exec", "Node operacional não alcançado por nenhuma entrada."));
+    }
     private static PortRef Ref(JsonElement e, string end) => new(e.GetProperty(end).GetString()!, e.GetProperty(end + "Port").GetString()!);
     public static string[] PropertyPath(JsonElement config) => config.GetProperty("settings").GetProperty("path").EnumerateArray().Select(p => p.GetString()!).ToArray();
     public static bool HasOther(JsonElement config) => config.GetProperty("settings").TryGetProperty("other", out var other) && other.ValueKind == JsonValueKind.True;
+    private static void ValidateAccumulator(JsonElement config)
+    {
+        var settings = config.GetProperty("settings");
+        var enabled = 0;
+        foreach (var key in new[] { "quietSeconds", "maxMessages", "maxWaitSeconds" })
+        {
+            var value = settings.GetProperty(key);
+            if (value.ValueKind == JsonValueKind.Null) continue;
+            if (key == "maxMessages")
+            {
+                if (!value.TryGetInt32(out var count) || count is < 1 or > 10000) throw new InvalidDataException("maxMessages deve ser inteiro positivo até 10000.");
+            }
+            else if (value.ValueKind != JsonValueKind.Number || !value.TryGetDouble(out var seconds) || !double.IsFinite(seconds) || seconds <= 0 || seconds > 86400)
+            {
+                throw new InvalidDataException(key + " deve ser positivo e no máximo 86400 segundos.");
+            }
+            enabled++;
+        }
+        if (enabled == 0) throw new InvalidDataException("Acumular precisa de ao menos um limite ativo.");
+    }
     private static TypedPort[] Fields(string nodeId, JsonElement config, string key, bool output)
     {
         if (!config.TryGetProperty(key, out var fields)) return [];

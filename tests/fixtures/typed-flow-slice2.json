@@ -1,0 +1,184 @@
+{
+  "format": "filomena-local-project",
+  "project": {
+    "version": 1,
+    "stateScope": "session",
+    "initialStateId": "inativa",
+    "states": [
+      {
+        "id": "inativa",
+        "name": "Em repouso",
+        "graph": {
+          "version": 3,
+          "nodes": [
+            { "id": "dm-in", "kind": "dm", "x": 40, "y": 80 },
+            { "id": "group-in", "kind": "group", "x": 40, "y": 220 },
+            {
+              "id": "accumulate",
+              "kind": "accumulate",
+              "settings": { "quietSeconds": 2, "maxMessages": 3, "maxWaitSeconds": 6 },
+              "x": 280,
+              "y": 150
+            },
+            {
+              "id": "history",
+              "kind": "history",
+              "settings": {
+                "maxMessages": 8,
+                "maxAgeMinutes": null,
+                "maxCharacters": 1200,
+                "includeCharacterMessages": false,
+                "mode": "before-current-batch"
+              },
+              "x": 510,
+              "y": 150
+            },
+            {
+              "id": "ai",
+              "kind": "prompt",
+              "title": "Classificar presença (fixture)",
+              "prompt": "Classifique o lote e escolha uma ação e o próximo estado.",
+              "inputs": [
+                { "id": "batch", "name": "lote", "description": "Mensagens acumuladas", "type": "message[]", "required": true },
+                { "id": "history", "name": "historico", "description": "Histórico anterior", "type": "message[]", "required": true }
+              ],
+              "responseFields": [
+                { "id": "action", "name": "acao", "description": "Ação local", "type": "enum", "values": ["calar", "esperar", "responder"] },
+                { "id": "next-state", "name": "proximo_estado", "description": "Estado estável", "type": "enum", "values": ["inativa", "atenta", "engajada"] },
+                { "id": "reason", "name": "motivo", "description": "Justificativa curta", "type": "text", "maxWords": 10 }
+              ],
+              "x": 760,
+              "y": 150
+            },
+            {
+              "id": "switch",
+              "kind": "switch",
+              "settings": {
+                "cases": [
+                  { "id": "quiet", "value": "calar" },
+                  { "id": "wait", "value": "esperar" },
+                  { "id": "respond", "value": "responder" }
+                ],
+                "other": false
+              },
+              "x": 1020,
+              "y": 150
+            },
+            {
+              "id": "exit",
+              "kind": "exit",
+              "settings": {
+                "mode": "switch",
+                "stateMapping": { "inativa": "inativa", "atenta": "atenta", "engajada": "engajada" }
+              },
+              "x": 1260,
+              "y": 150
+            }
+          ],
+          "edges": [
+            { "source": "dm-in", "sourcePort": "message", "target": "accumulate", "targetPort": "message" },
+            { "source": "group-in", "sourcePort": "message", "target": "accumulate", "targetPort": "message" },
+            { "source": "accumulate", "sourcePort": "messages", "target": "ai", "targetPort": "batch" },
+            { "source": "history", "sourcePort": "messages", "target": "ai", "targetPort": "history" },
+            { "source": "ai", "sourcePort": "action", "target": "switch", "targetPort": "value" },
+            { "source": "ai", "sourcePort": "next-state", "target": "exit", "targetPort": "state" }
+          ],
+          "controlEdges": [
+            { "source": "dm-in", "sourcePort": "then", "target": "accumulate", "targetPort": "exec" },
+            { "source": "group-in", "sourcePort": "then", "target": "accumulate", "targetPort": "exec" },
+            { "source": "accumulate", "sourcePort": "then", "target": "history", "targetPort": "exec" },
+            { "source": "history", "sourcePort": "then", "target": "ai", "targetPort": "exec" },
+            { "source": "ai", "sourcePort": "then", "target": "switch", "targetPort": "exec" },
+            { "source": "switch", "sourcePort": "respond", "target": "exit", "targetPort": "exec" }
+          ]
+        }
+      },
+      {
+        "id": "atenta",
+        "name": "Observando",
+        "graph": {
+          "version": 3,
+          "nodes": [
+            { "id": "dm-in", "kind": "dm", "x": 40, "y": 80 },
+            { "id": "group-in", "kind": "group", "x": 40, "y": 220 },
+            { "id": "accumulate", "kind": "accumulate", "settings": { "quietSeconds": 2, "maxMessages": 3, "maxWaitSeconds": 6 }, "x": 280, "y": 150 },
+            { "id": "history", "kind": "history", "settings": { "maxMessages": 8, "maxAgeMinutes": null, "maxCharacters": 1200, "includeCharacterMessages": false, "mode": "before-current-batch" }, "x": 510, "y": 150 },
+            {
+              "id": "ai", "kind": "prompt", "title": "Classificar presença (fixture)", "prompt": "Classifique o lote e escolha uma ação e o próximo estado.",
+              "inputs": [
+                { "id": "batch", "name": "lote", "description": "Mensagens acumuladas", "type": "message[]", "required": true },
+                { "id": "history", "name": "historico", "description": "Histórico anterior", "type": "message[]", "required": true }
+              ],
+              "responseFields": [
+                { "id": "action", "name": "acao", "description": "Ação local", "type": "enum", "values": ["calar", "esperar", "responder"] },
+                { "id": "next-state", "name": "proximo_estado", "description": "Estado estável", "type": "enum", "values": ["inativa", "atenta", "engajada"] },
+                { "id": "reason", "name": "motivo", "description": "Justificativa curta", "type": "text", "maxWords": 10 }
+              ], "x": 760, "y": 150
+            },
+            { "id": "switch", "kind": "switch", "settings": { "cases": [{ "id": "quiet", "value": "calar" }, { "id": "wait", "value": "esperar" }, { "id": "respond", "value": "responder" }], "other": false }, "x": 1020, "y": 150 },
+            { "id": "exit", "kind": "exit", "settings": { "mode": "switch", "stateMapping": { "inativa": "inativa", "atenta": "atenta", "engajada": "engajada" } }, "x": 1260, "y": 150 }
+          ],
+          "edges": [
+            { "source": "dm-in", "sourcePort": "message", "target": "accumulate", "targetPort": "message" },
+            { "source": "group-in", "sourcePort": "message", "target": "accumulate", "targetPort": "message" },
+            { "source": "accumulate", "sourcePort": "messages", "target": "ai", "targetPort": "batch" },
+            { "source": "history", "sourcePort": "messages", "target": "ai", "targetPort": "history" },
+            { "source": "ai", "sourcePort": "action", "target": "switch", "targetPort": "value" },
+            { "source": "ai", "sourcePort": "next-state", "target": "exit", "targetPort": "state" }
+          ],
+          "controlEdges": [
+            { "source": "dm-in", "sourcePort": "then", "target": "accumulate", "targetPort": "exec" },
+            { "source": "group-in", "sourcePort": "then", "target": "accumulate", "targetPort": "exec" },
+            { "source": "accumulate", "sourcePort": "then", "target": "history", "targetPort": "exec" },
+            { "source": "history", "sourcePort": "then", "target": "ai", "targetPort": "exec" },
+            { "source": "ai", "sourcePort": "then", "target": "switch", "targetPort": "exec" },
+            { "source": "switch", "sourcePort": "respond", "target": "exit", "targetPort": "exec" }
+          ]
+        }
+      },
+      {
+        "id": "engajada",
+        "name": "Em conversa",
+        "graph": {
+          "version": 3,
+          "nodes": [
+            { "id": "dm-in", "kind": "dm", "x": 40, "y": 80 },
+            { "id": "group-in", "kind": "group", "x": 40, "y": 220 },
+            { "id": "accumulate", "kind": "accumulate", "settings": { "quietSeconds": 2, "maxMessages": 3, "maxWaitSeconds": 6 }, "x": 280, "y": 150 },
+            { "id": "history", "kind": "history", "settings": { "maxMessages": 8, "maxAgeMinutes": null, "maxCharacters": 1200, "includeCharacterMessages": false, "mode": "before-current-batch" }, "x": 510, "y": 150 },
+            {
+              "id": "ai", "kind": "prompt", "title": "Classificar presença (fixture)", "prompt": "Classifique o lote e escolha uma ação e o próximo estado.",
+              "inputs": [
+                { "id": "batch", "name": "lote", "description": "Mensagens acumuladas", "type": "message[]", "required": true },
+                { "id": "history", "name": "historico", "description": "Histórico anterior", "type": "message[]", "required": true }
+              ],
+              "responseFields": [
+                { "id": "action", "name": "acao", "description": "Ação local", "type": "enum", "values": ["calar", "esperar", "responder"] },
+                { "id": "next-state", "name": "proximo_estado", "description": "Estado estável", "type": "enum", "values": ["inativa", "atenta", "engajada"] },
+                { "id": "reason", "name": "motivo", "description": "Justificativa curta", "type": "text", "maxWords": 10 }
+              ], "x": 760, "y": 150
+            },
+            { "id": "switch", "kind": "switch", "settings": { "cases": [{ "id": "quiet", "value": "calar" }, { "id": "wait", "value": "esperar" }, { "id": "respond", "value": "responder" }], "other": false }, "x": 1020, "y": 150 },
+            { "id": "exit", "kind": "exit", "settings": { "mode": "switch", "stateMapping": { "inativa": "inativa", "atenta": "atenta", "engajada": "engajada" } }, "x": 1260, "y": 150 }
+          ],
+          "edges": [
+            { "source": "dm-in", "sourcePort": "message", "target": "accumulate", "targetPort": "message" },
+            { "source": "group-in", "sourcePort": "message", "target": "accumulate", "targetPort": "message" },
+            { "source": "accumulate", "sourcePort": "messages", "target": "ai", "targetPort": "batch" },
+            { "source": "history", "sourcePort": "messages", "target": "ai", "targetPort": "history" },
+            { "source": "ai", "sourcePort": "action", "target": "switch", "targetPort": "value" },
+            { "source": "ai", "sourcePort": "next-state", "target": "exit", "targetPort": "state" }
+          ],
+          "controlEdges": [
+            { "source": "dm-in", "sourcePort": "then", "target": "accumulate", "targetPort": "exec" },
+            { "source": "group-in", "sourcePort": "then", "target": "accumulate", "targetPort": "exec" },
+            { "source": "accumulate", "sourcePort": "then", "target": "history", "targetPort": "exec" },
+            { "source": "history", "sourcePort": "then", "target": "ai", "targetPort": "exec" },
+            { "source": "ai", "sourcePort": "then", "target": "switch", "targetPort": "exec" },
+            { "source": "switch", "sourcePort": "respond", "target": "exit", "targetPort": "exec" }
+          ]
+        }
+      }
+    ]
+  }
+}
