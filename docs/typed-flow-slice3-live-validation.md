@@ -1,6 +1,14 @@
 # Slice 3 — Graphiti real, 2026-09-08
 
-## Resultado: parcial, não aprovado integralmente
+## Resultado atual: canários aprovados após reprocessamento autorizado
+
+Atualização: Helena autorizou reprocessar **somente** o episódio Plex já existente.
+Após essa operação, os **10 testes live passaram**, incluindo o canário original.
+Drift encontra DRIFT42, Plex encontra PLEX73 e DM encontra PRIVATE91, sem códigos
+de outras conversas. Exact passou nas três Persons canônicas; híbrido e fixture
+com memória real/completion fake também passaram. Detalhes ao final.
+
+## Primeira verificação: parcial (histórico preservado)
 
 O node executa contra Graphiti real. O fixture original passou com reader real e
 completion fake. Falta o fact `PLEX73`: ele existe apenas no episódio bruto.
@@ -109,3 +117,53 @@ Investigar/reprocessar somente o episódio Plex acima para produzir os fatos
 faltantes e repetir o positivo PLEX73. Isso exige escrita/extração; **não foi feito**.
 Não é necessário reimportar chats inteiros. Manter o limite exact de 50 candidatos;
 sem paginação nova, merge de Persons legadas ou alterações de identidade.
+
+## Reprocessamento autorizado e executado
+
+Os logs de 2026-09-04 registram processamento entre 18:52:04 e 18:52:48 como
+`Successfully processed`, porém o episódio persistiu `entity_edges: []`.
+Não há erro técnico nessa execução; os logs não guardam a resposta original da
+extração para explicar por que nenhum fact foi produzido. Não alteramos o modelo
+ou o pipeline para contornar isso.
+
+Foi usada a tool MCP existente `add_memory`, com **`uuid`** apontando para o
+episódio existente (não `episode_uuid`, que faria dedupe/no-op). Grupo, conteúdo,
+source, source_description e reference_time foram preservados. O speaker foi
+vinculado ao UUID canônico de Helena e as instruções conservadoras atuais do
+plugin foram mantidas. Foi feita uma única chamada, sem retry automático.
+
+O serviço registrou início às 05:28:05 e sucesso às 05:28:21 de 2026-09-08
+(horários dos logs). Essa reextração usou Gemma e embeddings já configurados;
+nenhuma resposta foi gerada/enviada para WhatsApp.
+
+Resultado estrutural:
+
+- Mesmo episódio: `7beb242f-34fb-584e-814b-87010e2e69e2`.
+- Novo fact ativo: `c2b584ff-510e-4277-a340-eee0851dd690`, declarando PLEX73.
+- `episodes` do fact contém exatamente o UUID original.
+- Source Person: `6824b555-ae10-53ca-958f-99f4cc832d23`.
+- Exatamente uma Person com o stable ID de Helena; aliases continuam `[Helena Assis]`.
+- `content`, `valid_at`, `created_at` e UUID do episódio permaneceram idênticos.
+- SHA-256 do conteúdo antes/depois:
+  `7b9d317e33e0f739ac7236b7ea6999f5a5be8c84c58056df29be842007a67154`.
+
+Snapshots locais do episódio e Person, fora do Git:
+`C:\Users\Helena\AppData\Local\Filomena\Backups\plex-7beb242f-before-reprocess-20260908.json`
+e arquivo correspondente `after-reprocess`.
+
+Verificação após reprocessamento:
+
+```powershell
+$env:FILOMENA_TEST_GRAPHITI = '1'
+dotnet test tests/Filomena.Llm.Tests/Filomena.Llm.Tests.csproj --no-restore --filter 'FullyQualifiedName~GraphitiLiveRead|FullyQualifiedName~GraphitiCanary' --logger 'console;verbosity=normal'
+```
+
+**10 pass / 0 fail.** Foi acrescentado exact recall do Plex. O teste de vazio
+agora usa uma seleção explícita de categorias vazia, sem depender de Plex não
+ter facts. O mesmo query contra endpoint indisponível continua gerando erro.
+Nenhuma asserção positiva de canário foi removida ou afrouxada.
+
+A precedência de limites segue comprovada pelos testes fake, pois a amostra live
+não possui limite adequado. O limite de 50 candidatos exact continua documentado.
+Nenhuma reimportação de chats, merge legacy, mudança de Graphiti Core ou operação
+de Gateway foi feita.

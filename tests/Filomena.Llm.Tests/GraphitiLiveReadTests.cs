@@ -50,6 +50,7 @@ public sealed class GraphitiLiveReadTests
 
     [Theory(SkipUnless = nameof(Enabled), Skip = "Requires existing canonical participants.")]
     [InlineData(Drift, "b4964ff3-b8e0-5a95-8e82-517ab0dc88ee", "DRIFT42")]
+    [InlineData(Plex, "6824b555-ae10-53ca-958f-99f4cc832d23", "PLEX73")]
     [InlineData(Dm, "87943b77-4bb0-555c-84a7-7443b84a674e", "PRIVATE91")]
     public async Task ExactUsesCanonicalParticipantAndActiveFacts(string ns, string uuid, string marker)
     {
@@ -89,17 +90,20 @@ public sealed class GraphitiLiveReadTests
         TestContext.Current.TestOutputHelper!.WriteLine($"Hybrid: {hybrid.Count} facts; overlap deduplicated={overlap.Length}; boundaries present={hybrid.Count(m => m.Category == MemoryCategory.Boundary)}.");
     }
 
-    [Fact(SkipUnless = nameof(Enabled), Skip = "Requires the existing Plex participant, currently without facts.")]
-    public async Task ValidEmptyNeighborhoodIsNotAnUnavailableEndpoint()
+    [Fact(SkipUnless = nameof(Enabled), Skip = "Requires existing Graphiti participants.")]
+    public async Task ValidQueryWithNoSelectedCategoriesIsNotAnUnavailableEndpoint()
     {
         await using var client = Client();
-        Assert.Empty(await new GraphitiMemoryReader(client).QueryAsync(Query(Plex, MemoryMode.Exact, "PLEX73"), Token));
+        // Plex now has a fact after authorized reprocessing. An explicitly empty category
+        // selection is a valid no-results query without depending on missing graph data.
+        var query = Query(Plex, MemoryMode.Exact, "PLEX73") with { Categories = [] };
+        Assert.Empty(await new GraphitiMemoryReader(client).QueryAsync(query, Token));
         // Reserve a local port without listening: deterministic refusal, no real service stopped.
         using var socket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         socket.Bind(new IPEndPoint(IPAddress.Loopback, 0));
         var port = ((IPEndPoint)socket.LocalEndPoint!).Port;
         await using var unavailable = new GraphitiReadClient(new Uri($"http://127.0.0.1:{port}/mcp"), TimeSpan.FromSeconds(30));
-        await Assert.ThrowsAnyAsync<Exception>(() => new GraphitiMemoryReader(unavailable).QueryAsync(Query(Drift, MemoryMode.Exact, "DRIFT42"), Token));
+        await Assert.ThrowsAnyAsync<Exception>(() => new GraphitiMemoryReader(unavailable).QueryAsync(query, Token));
     }
 
     [Fact(SkipUnless = nameof(Enabled), Skip = "Requires Graphiti; completion remains fake.")]
