@@ -176,6 +176,12 @@ public static class TypedFlowRunner
                     nodeStartedTimestamp = null;
                     return new(true, steps, published, target);
                 }
+                else if (node.Source.Kind == "branch")
+                {
+                    var left = Input(node, node.Inputs.Single(p => p.Id == "a"));
+                    var right = Input(node, node.Inputs.Single(p => p.Id == "b"));
+                    exit = TypedBranch.Compare(left, right, node.Source.Config.GetProperty("settings").GetProperty("operator").GetString()!) ? "true" : "false";
+                }
                 else if (node.Source.Kind == "switch")
                 {
                     var value = Input(node, node.Inputs.Single()).Value.GetString();

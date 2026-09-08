@@ -43,6 +43,12 @@ export function typedPorts(graph,node,direction,seen=new Set()){
  if(node.kind==='property'){
   const source=incoming('object');return direction==='in'?[{id:'object',label:'objeto',type:source?.type??'object'}]:[{id:'value',label:(node.settings?.path??[]).join('.')||'valor',type:source?propertyType(source.type,node.settings?.path??[]):'invalid',...(source?.type.startsWith('memory')&&node.settings?.path?.[0]==='categoria'?{values:memoryCategories}:{})}];
  }
+ if(node.kind==='branch')return direction==='out'?[]:['a','b'].map(id=>{
+  const source=incoming(id)??incoming(id==='a'?'b':'a');
+  const local=id==='b'&&node.settings?.b!==undefined;
+  const type=local?typeof node.settings.b==='boolean'?'boolean':typeof node.settings.b==='number'?'number':source?.type==='enum'?'enum':'text':source?.type??'boolean';
+  return {...source,id,label:id.toUpperCase(),type,...(local?{value:node.settings.b}:{})};
+ });
  if(node.kind==='switch')return direction==='in'?[{id:'value',label:'valor',type:incoming('value')?.type??'text'}]:[];
  if(['dm','group','input'].includes(node.kind))return direction==='out'?[{id:'message',label:'mensagem',type:'message'}]:[];
  if(node.kind==='accumulate')return direction==='in'?[{id:'message',label:'mensagem',type:'message'}]:[{id:'messages',label:'mensagens',type:'message[]'}];
@@ -70,7 +76,7 @@ export function persistedNodeSettings(node){
   :node.kind==='history'?['maxMessages','maxAgeMinutes','maxCharacters','includeCharacterMessages','mode']
   :node.kind==='memory'?['mode','scope','categories','maxItems','maxCharacters','activeOnly','queryText']
   :node.kind==='exit'?['targetStateId','mode','stateMapping']
-  :node.kind==='branch'?['operator']
+  :node.kind==='branch'?['operator','b']
   :node.kind==='property'?['path']
   :node.kind==='switch'?['cases','retiredCases','other']:[];
  return Object.fromEntries(keys.filter(key=>node.settings?.[key]!==undefined).map(key=>[key,structuredClone(node.settings[key])]));
@@ -86,7 +92,7 @@ export function serializeTypedGraph(graph){
    return Object.fromEntries(['id','name','description','type','values','required','value','min','max','maxWords'].filter(k=>f[k]!==undefined).map(k=>[k,f[k]]));
   });
  }
- for(const node of clean.nodes)for(const key of ['usePersonalityCore','useStateGuidance'])if(node[key]!==undefined&&typeof node[key]!=='boolean')throw new Error('Referência de instrução deve ser booleana.');
- clean.nodes=clean.nodes.map(n=>Object.fromEntries(['id','kind','x','y','prompt','provider','model','inputs','responseFields','correctionRetry','title','usePersonalityCore','useStateGuidance'].filter(k=>n[k]!==undefined).map(k=>[k,n[k]]).concat(Object.keys(persistedNodeSettings(n)).length?[['settings',persistedNodeSettings(n)]]:[])));
+ for(const node of clean.nodes)for(const key of ['usePersonalityCore','useStateGuidance','useInterestProfile'])if(node[key]!==undefined&&typeof node[key]!=='boolean')throw new Error('Referência de instrução deve ser booleana.');
+ clean.nodes=clean.nodes.map(n=>Object.fromEntries(['id','kind','x','y','prompt','provider','model','inputs','responseFields','correctionRetry','title','usePersonalityCore','useStateGuidance','useInterestProfile'].filter(k=>n[k]!==undefined).map(k=>[k,n[k]]).concat(Object.keys(persistedNodeSettings(n)).length?[['settings',persistedNodeSettings(n)]]:[])));
  return {version:3,nodes:clean.nodes,edges:structuredClone(clean.edges),...(clean.controlEdges?{controlEdges:structuredClone(clean.controlEdges)}:{})};
 }

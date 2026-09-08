@@ -1,0 +1,3702 @@
+{
+  "model": "google/gemma-4-e4b",
+  "temperature": 0.1,
+  "maxTokens": 4096,
+  "repetitions": 3,
+  "noSending": true,
+  "noMemory": true,
+  "results": [
+    {
+      "repetition": 1,
+      "Scenario": 1,
+      "Name": "conversa irrelevante",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "Situation": {
+        "ambiente": "casual",
+        "envolvimento": "nenhum",
+        "ritmo": "encerrando",
+        "necessita_cuidado": false,
+        "oportunidade_social": "fraca",
+        "resumo": "Helena pergunta a hora de chegada; Bia responde que será por volta das oito, e Helena confirma."
+      },
+      "Decision": {
+        "acao": "calar",
+        "continuar_acompanhando": false,
+        "motivo": "conversa_entre_outros"
+      },
+      "FinalState": "participation-inactive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 4968.4601,
+      "DecisionMs": 4018.1273,
+      "TotalLlmMs": 8986.5874,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 4968.4601,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 760,
+            "CompletionTokens": 628,
+            "ReasoningTokens": 534
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 4018.1273,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1489,
+            "CompletionTokens": 463,
+            "ReasoningTokens": 415
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-calar",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-follow",
+          "Exit": "false",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        }
+      ]
+    },
+    {
+      "repetition": 1,
+      "Scenario": 2,
+      "Name": "chamada direta",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 2,
+      "Situation": {
+        "ambiente": "casual",
+        "envolvimento": "direto",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": false,
+        "oportunidade_social": "forte",
+        "resumo": "Helena chama Filomena e pede sua opinião sobre uma ideia ou conteúdo."
+      },
+      "Decision": {
+        "acao": "responder",
+        "continuar_acompanhando": true,
+        "motivo": "pergunta_direta"
+      },
+      "FinalState": "participation-engaged-v1",
+      "Signal": "WOULD_RESPOND",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 5107.4761,
+      "DecisionMs": 4989.3969,
+      "TotalLlmMs": 10096.873,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 5107.4761,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 723,
+            "CompletionTokens": 631,
+            "ReasoningTokens": 544
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 4989.3969,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1452,
+            "CompletionTokens": 605,
+            "ReasoningTokens": 559
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-responder",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-transition-responder",
+          "Exit": null,
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "transition-applied",
+          "NodeId": null,
+          "Exit": null,
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 1
+        }
+      ]
+    },
+    {
+      "repetition": 1,
+      "Scenario": 3,
+      "Name": "interesse sem chamada",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "Situation": {
+        "ambiente": "tecnico",
+        "envolvimento": "nenhum",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": false,
+        "oportunidade_social": "fraca",
+        "resumo": "Debate sobre linguagem C++. Gabriel a chama de horrorosa; Bia discorda e ele reforça a crítica."
+      },
+      "Decision": {
+        "acao": "esperar",
+        "continuar_acompanhando": true,
+        "motivo": "interesse_no_assunto"
+      },
+      "FinalState": "participation-attentive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 6069.6261,
+      "DecisionMs": 4866.6419,
+      "TotalLlmMs": 10936.268,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 6069.6261,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 790,
+            "CompletionTokens": 746,
+            "ReasoningTokens": 649
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 4866.6419,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1540,
+            "CompletionTokens": 587,
+            "ReasoningTokens": 539
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-esperar",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-transition-wait",
+          "Exit": null,
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "transition-applied",
+          "NodeId": null,
+          "Exit": null,
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-attentive-v1",
+          "CurrentSessionStateVersion": 1
+        }
+      ]
+    },
+    {
+      "repetition": 1,
+      "Scenario": 4,
+      "Name": "pensamento incompleto",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "Situation": {
+        "ambiente": "casual",
+        "envolvimento": "direto",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": false,
+        "oportunidade_social": "forte",
+        "resumo": "Helena chama Filomena e avisa que vai dar uma explicação sobre o assunto."
+      },
+      "Decision": {
+        "acao": "esperar",
+        "continuar_acompanhando": true,
+        "motivo": "pensamento_incompleto"
+      },
+      "FinalState": "participation-attentive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 5681.3163,
+      "DecisionMs": 5454.5019,
+      "TotalLlmMs": 11135.818200000002,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 5681.3163,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 749,
+            "CompletionTokens": 700,
+            "ReasoningTokens": 611
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 5454.5019,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1480,
+            "CompletionTokens": 672,
+            "ReasoningTokens": 624
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-esperar",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-transition-wait",
+          "Exit": null,
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "transition-applied",
+          "NodeId": null,
+          "Exit": null,
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-attentive-v1",
+          "CurrentSessionStateVersion": 1
+        }
+      ]
+    },
+    {
+      "repetition": 1,
+      "Scenario": 5,
+      "Name": "continuidade engajada",
+      "InitialState": "participation-engaged-v1",
+      "BatchSize": 1,
+      "Situation": {
+        "ambiente": "tecnico",
+        "envolvimento": "direto",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": true,
+        "oportunidade_social": "fraca",
+        "resumo": "Gabriel contradiz publicamente a afirmação técnica de Filomena sobre uma solução."
+      },
+      "Decision": {
+        "acao": "responder",
+        "continuar_acompanhando": true,
+        "motivo": "continuidade"
+      },
+      "FinalState": "participation-engaged-v1",
+      "Signal": "WOULD_RESPOND",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 5110.5823,
+      "DecisionMs": 3652.6286,
+      "TotalLlmMs": 8763.2109,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 5110.5823,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 752,
+            "CompletionTokens": 629,
+            "ReasoningTokens": 539
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 3652.6286,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1463,
+            "CompletionTokens": 424,
+            "ReasoningTokens": 381
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-responder",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-transition-responder",
+          "Exit": null,
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "transition-applied",
+          "NodeId": null,
+          "Exit": null,
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 1
+        }
+      ]
+    },
+    {
+      "repetition": 1,
+      "Scenario": 6,
+      "Name": "conversa migrou",
+      "InitialState": "participation-engaged-v1",
+      "BatchSize": 4,
+      "Situation": {
+        "ambiente": "casual",
+        "envolvimento": "nenhum",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": false,
+        "oportunidade_social": "forte",
+        "resumo": "Bia e Helena conversam sobre planos para amanhã, definindo que Helena irá às três horas."
+      },
+      "Decision": {
+        "acao": "calar",
+        "continuar_acompanhando": false,
+        "motivo": "conversa_entre_outros"
+      },
+      "FinalState": "participation-attentive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 6602.3202,
+      "DecisionMs": 3176.136,
+      "TotalLlmMs": 9778.4562,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 6602.3202,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 807,
+            "CompletionTokens": 777,
+            "ReasoningTokens": 683
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 3176.136,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1512,
+            "CompletionTokens": 336,
+            "ReasoningTokens": 288
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-calar",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-involvement-calar",
+          "Exit": "case-nenhum",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-transition-calar",
+          "Exit": null,
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "transition-applied",
+          "NodeId": null,
+          "Exit": null,
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-attentive-v1",
+          "CurrentSessionStateVersion": 1
+        }
+      ]
+    },
+    {
+      "repetition": 1,
+      "Scenario": 7,
+      "Name": "conflito sem convite",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "Situation": {
+        "ambiente": "conflito",
+        "envolvimento": "nenhum",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": true,
+        "oportunidade_social": "fraca",
+        "resumo": "Helena acusa algo de ser 'babaca'; Bia nega veementemente, mas Helena insiste no conflito."
+      },
+      "Decision": {
+        "acao": "calar",
+        "continuar_acompanhando": false,
+        "motivo": "conflito_sem_convite"
+      },
+      "FinalState": "participation-inactive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 5551.0128,
+      "DecisionMs": 4341.4343,
+      "TotalLlmMs": 9892.447100000001,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 5551.0128,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 758,
+            "CompletionTokens": 695,
+            "ReasoningTokens": 594
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 4341.4343,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1499,
+            "CompletionTokens": 531,
+            "ReasoningTokens": 482
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-calar",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-follow",
+          "Exit": "false",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        }
+      ]
+    },
+    {
+      "repetition": 1,
+      "Scenario": 9,
+      "Name": "interesse legítimo",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "Situation": {
+        "ambiente": "tecnico",
+        "envolvimento": "nenhum",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": true,
+        "oportunidade_social": "forte",
+        "resumo": "Gabriel iniciou um projeto de engine em C++ e expressa dúvidas sobre continuar com ele."
+      },
+      "Decision": {
+        "acao": "responder",
+        "continuar_acompanhando": true,
+        "motivo": "interesse_no_assunto"
+      },
+      "FinalState": "participation-engaged-v1",
+      "Signal": "WOULD_RESPOND",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 5821.9404,
+      "DecisionMs": 5482.1494,
+      "TotalLlmMs": 11304.089800000002,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 5821.9404,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 783,
+            "CompletionTokens": 652,
+            "ReasoningTokens": 560
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 5482.1494,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1521,
+            "CompletionTokens": 619,
+            "ReasoningTokens": 572
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-responder",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-transition-responder",
+          "Exit": null,
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "transition-applied",
+          "NodeId": null,
+          "Exit": null,
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 1
+        }
+      ]
+    },
+    {
+      "repetition": 1,
+      "Scenario": 10,
+      "Name": "conversa banal",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "Situation": {
+        "ambiente": "casual",
+        "envolvimento": "nenhum",
+        "ritmo": "encerrando",
+        "necessita_cuidado": false,
+        "oportunidade_social": "fraca",
+        "resumo": "Bia pergunta sobre a chegada e recebe confirmação de Helena."
+      },
+      "Decision": {
+        "acao": "calar",
+        "continuar_acompanhando": false,
+        "motivo": "conversa_entre_outros"
+      },
+      "FinalState": "participation-inactive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 5268.1915,
+      "DecisionMs": 3842.5077,
+      "TotalLlmMs": 9110.6992,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 5268.1915,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 753,
+            "CompletionTokens": 629,
+            "ReasoningTokens": 543
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 3842.5077,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1480,
+            "CompletionTokens": 436,
+            "ReasoningTokens": 388
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-calar",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-follow",
+          "Exit": "false",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        }
+      ]
+    },
+    {
+      "repetition": 1,
+      "Scenario": 11,
+      "Name": "atualização técnica banal",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "Situation": {
+        "ambiente": "tecnico",
+        "envolvimento": "nenhum",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": false,
+        "oportunidade_social": "fraca",
+        "resumo": "Helena atualiza o Node e especifica as versões para Bia em um grupo de teste."
+      },
+      "Decision": {
+        "acao": "calar",
+        "continuar_acompanhando": false,
+        "motivo": "conversa_entre_outros"
+      },
+      "FinalState": "participation-inactive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 4689.5049,
+      "DecisionMs": 3855.5879,
+      "TotalLlmMs": 8545.0928,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 4689.5049,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 764,
+            "CompletionTokens": 565,
+            "ReasoningTokens": 472
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 3855.5879,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1493,
+            "CompletionTokens": 459,
+            "ReasoningTokens": 411
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-calar",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-follow",
+          "Exit": "false",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        }
+      ]
+    },
+    {
+      "repetition": 2,
+      "Scenario": 1,
+      "Name": "conversa irrelevante",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "Situation": {
+        "ambiente": "casual",
+        "envolvimento": "nenhum",
+        "ritmo": "encerrando",
+        "necessita_cuidado": false,
+        "oportunidade_social": "fraca",
+        "resumo": "Helena pergunta o horário de chegada; Bia responde que será por volta das oito, e Helena confirma."
+      },
+      "Decision": {
+        "acao": "calar",
+        "continuar_acompanhando": false,
+        "motivo": "conversa_entre_outros"
+      },
+      "FinalState": "participation-inactive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 5522.8915,
+      "DecisionMs": 4007.2533,
+      "TotalLlmMs": 9530.1448,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 5522.8915,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 760,
+            "CompletionTokens": 672,
+            "ReasoningTokens": 578
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 4007.2533,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1496,
+            "CompletionTokens": 455,
+            "ReasoningTokens": 407
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-calar",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-follow",
+          "Exit": "false",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        }
+      ]
+    },
+    {
+      "repetition": 2,
+      "Scenario": 2,
+      "Name": "chamada direta",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 2,
+      "Situation": {
+        "ambiente": "casual",
+        "envolvimento": "direto",
+        "ritmo": "aberto",
+        "necessita_cuidado": false,
+        "oportunidade_social": "forte",
+        "resumo": "Helena chama Filomena e pede sua opinião sobre uma ideia no grupo de teste."
+      },
+      "Decision": {
+        "acao": "responder",
+        "continuar_acompanhando": true,
+        "motivo": "pergunta_direta"
+      },
+      "FinalState": "participation-engaged-v1",
+      "Signal": "WOULD_RESPOND",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 5931.2673,
+      "DecisionMs": 4175.178,
+      "TotalLlmMs": 10106.4453,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 5931.2673,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 723,
+            "CompletionTokens": 699,
+            "ReasoningTokens": 611
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 4175.178,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1447,
+            "CompletionTokens": 528,
+            "ReasoningTokens": 482
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-responder",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-transition-responder",
+          "Exit": null,
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "transition-applied",
+          "NodeId": null,
+          "Exit": null,
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 1
+        }
+      ]
+    },
+    {
+      "repetition": 2,
+      "Scenario": 3,
+      "Name": "interesse sem chamada",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "Situation": {
+        "ambiente": "tecnico",
+        "envolvimento": "nenhum",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": false,
+        "oportunidade_social": "forte",
+        "resumo": "Debate casual sobre a linguagem de programação C++, com opiniões divergentes."
+      },
+      "Decision": {
+        "acao": "esperar",
+        "continuar_acompanhando": true,
+        "motivo": "interesse_no_assunto"
+      },
+      "FinalState": "participation-attentive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 5410.4558,
+      "DecisionMs": 4592.4294,
+      "TotalLlmMs": 10002.8852,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 5410.4558,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 790,
+            "CompletionTokens": 698,
+            "ReasoningTokens": 609
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 4592.4294,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1539,
+            "CompletionTokens": 572,
+            "ReasoningTokens": 524
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-esperar",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-transition-wait",
+          "Exit": null,
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "transition-applied",
+          "NodeId": null,
+          "Exit": null,
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-attentive-v1",
+          "CurrentSessionStateVersion": 1
+        }
+      ]
+    },
+    {
+      "repetition": 2,
+      "Scenario": 4,
+      "Name": "pensamento incompleto",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "Situation": {
+        "ambiente": "casual",
+        "envolvimento": "direto",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": true,
+        "oportunidade_social": "forte",
+        "resumo": "Helena chama Filomena e pede para esperar, anunciando que irá explicar algo."
+      },
+      "Decision": {
+        "acao": "esperar",
+        "continuar_acompanhando": true,
+        "motivo": "conversa_em_andamento"
+      },
+      "FinalState": "participation-attentive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 4829.8396,
+      "DecisionMs": 5548.1952,
+      "TotalLlmMs": 10378.034800000001,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 4829.8396,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 749,
+            "CompletionTokens": 617,
+            "ReasoningTokens": 528
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 5548.1952,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1473,
+            "CompletionTokens": 714,
+            "ReasoningTokens": 665
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-esperar",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-transition-wait",
+          "Exit": null,
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "transition-applied",
+          "NodeId": null,
+          "Exit": null,
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-attentive-v1",
+          "CurrentSessionStateVersion": 1
+        }
+      ]
+    },
+    {
+      "repetition": 2,
+      "Scenario": 5,
+      "Name": "continuidade engajada",
+      "InitialState": "participation-engaged-v1",
+      "BatchSize": 1,
+      "Situation": {
+        "ambiente": "tecnico",
+        "envolvimento": "direto",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": true,
+        "oportunidade_social": "fraca",
+        "resumo": "Gabriel contradiz diretamente Filomena sobre uma solução técnica em grupo."
+      },
+      "Decision": {
+        "acao": "responder",
+        "continuar_acompanhando": true,
+        "motivo": "interesse_no_assunto"
+      },
+      "FinalState": "participation-engaged-v1",
+      "Signal": "WOULD_RESPOND",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 4662.0653,
+      "DecisionMs": 5026.3536,
+      "TotalLlmMs": 9688.4189,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 4662.0653,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 752,
+            "CompletionTokens": 612,
+            "ReasoningTokens": 525
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 5026.3536,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1448,
+            "CompletionTokens": 658,
+            "ReasoningTokens": 611
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-responder",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-transition-responder",
+          "Exit": null,
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "transition-applied",
+          "NodeId": null,
+          "Exit": null,
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 1
+        }
+      ]
+    },
+    {
+      "repetition": 2,
+      "Scenario": 6,
+      "Name": "conversa migrou",
+      "InitialState": "participation-engaged-v1",
+      "BatchSize": 4,
+      "Situation": {
+        "ambiente": "casual",
+        "envolvimento": "nenhum",
+        "ritmo": "encerrando",
+        "necessita_cuidado": false,
+        "oportunidade_social": "fraca",
+        "resumo": "Helena e Bia conversam sobre planos para amanhã, confirmando o horário de encontro."
+      },
+      "Decision": {
+        "acao": "calar",
+        "continuar_acompanhando": false,
+        "motivo": "conversa_entre_outros"
+      },
+      "FinalState": "participation-attentive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 4860.834,
+      "DecisionMs": 3522.698,
+      "TotalLlmMs": 8383.532,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 4860.834,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 807,
+            "CompletionTokens": 634,
+            "ReasoningTokens": 541
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 3522.698,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1500,
+            "CompletionTokens": 446,
+            "ReasoningTokens": 398
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-calar",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-involvement-calar",
+          "Exit": "case-nenhum",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-transition-calar",
+          "Exit": null,
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "transition-applied",
+          "NodeId": null,
+          "Exit": null,
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-attentive-v1",
+          "CurrentSessionStateVersion": 1
+        }
+      ]
+    },
+    {
+      "repetition": 2,
+      "Scenario": 7,
+      "Name": "conflito sem convite",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "Situation": {
+        "ambiente": "conflito",
+        "envolvimento": "nenhum",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": true,
+        "oportunidade_social": "nenhuma",
+        "resumo": "Helena acusa algo de ser babaca e Bia nega veementemente. O grupo está em um debate conflituoso."
+      },
+      "Decision": {
+        "acao": "calar",
+        "continuar_acompanhando": false,
+        "motivo": "conversa_entre_outros"
+      },
+      "FinalState": "participation-inactive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 4739.5463,
+      "DecisionMs": 4292.5402,
+      "TotalLlmMs": 9032.086500000001,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 4739.5463,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 758,
+            "CompletionTokens": 621,
+            "ReasoningTokens": 518
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 4292.5402,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1496,
+            "CompletionTokens": 554,
+            "ReasoningTokens": 506
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-calar",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-follow",
+          "Exit": "false",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        }
+      ]
+    },
+    {
+      "repetition": 2,
+      "Scenario": 9,
+      "Name": "interesse legítimo",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "Situation": {
+        "ambiente": "tecnico",
+        "envolvimento": "nenhum",
+        "ritmo": "encerrando",
+        "necessita_cuidado": true,
+        "oportunidade_social": "fraca",
+        "resumo": "Gabriel iniciou um projeto de engine em C++ e expressou dúvidas sobre continuar."
+      },
+      "Decision": {
+        "acao": "responder",
+        "continuar_acompanhando": true,
+        "motivo": "interesse_no_assunto"
+      },
+      "FinalState": "participation-engaged-v1",
+      "Signal": "WOULD_RESPOND",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 5645.8043,
+      "DecisionMs": 5683.8075,
+      "TotalLlmMs": 11329.611799999999,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 5645.8043,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 783,
+            "CompletionTokens": 699,
+            "ReasoningTokens": 608
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 5683.8075,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1520,
+            "CompletionTokens": 698,
+            "ReasoningTokens": 651
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-responder",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-transition-responder",
+          "Exit": null,
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "transition-applied",
+          "NodeId": null,
+          "Exit": null,
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 1
+        }
+      ]
+    },
+    {
+      "repetition": 2,
+      "Scenario": 10,
+      "Name": "conversa banal",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "Situation": {
+        "ambiente": "casual",
+        "envolvimento": "nenhum",
+        "ritmo": "encerrando",
+        "necessita_cuidado": false,
+        "oportunidade_social": "fraca",
+        "resumo": "Bia pergunta sobre a chegada de algo; Helena confirma e Bia encerra o assunto."
+      },
+      "Decision": {
+        "acao": "calar",
+        "continuar_acompanhando": false,
+        "motivo": "conversa_entre_outros"
+      },
+      "FinalState": "participation-inactive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 4978.1591,
+      "DecisionMs": 2538.9502,
+      "TotalLlmMs": 7517.1093,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 4978.1591,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 753,
+            "CompletionTokens": 612,
+            "ReasoningTokens": 521
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 2538.9502,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1473,
+            "CompletionTokens": 322,
+            "ReasoningTokens": 274
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-calar",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-follow",
+          "Exit": "false",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        }
+      ]
+    },
+    {
+      "repetition": 2,
+      "Scenario": 11,
+      "Name": "atualização técnica banal",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "Situation": {
+        "ambiente": "tecnico",
+        "envolvimento": "nenhum",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": false,
+        "oportunidade_social": "fraca",
+        "resumo": "Helena atualizou o Node e informou a mudança de versão para Bia no grupo."
+      },
+      "Decision": {
+        "acao": "calar",
+        "continuar_acompanhando": false,
+        "motivo": "conversa_entre_outros"
+      },
+      "FinalState": "participation-inactive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 5267.3623,
+      "DecisionMs": 5346.9773,
+      "TotalLlmMs": 10614.3396,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 5267.3623,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 764,
+            "CompletionTokens": 682,
+            "ReasoningTokens": 590
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 5346.9773,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1500,
+            "CompletionTokens": 632,
+            "ReasoningTokens": 584
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-calar",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-follow",
+          "Exit": "false",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        }
+      ]
+    },
+    {
+      "repetition": 3,
+      "Scenario": 1,
+      "Name": "conversa irrelevante",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "Situation": {
+        "ambiente": "casual",
+        "envolvimento": "nenhum",
+        "ritmo": "encerrando",
+        "necessita_cuidado": false,
+        "oportunidade_social": "nenhuma",
+        "resumo": "Helena pergunta o horário de chegada. Bia responde que chegará por volta das oito horas."
+      },
+      "Decision": {
+        "acao": "calar",
+        "continuar_acompanhando": false,
+        "motivo": "conversa_entre_outros"
+      },
+      "FinalState": "participation-inactive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 6228.1398,
+      "DecisionMs": 2914.5468,
+      "TotalLlmMs": 9142.6866,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 6228.1398,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 760,
+            "CompletionTokens": 694,
+            "ReasoningTokens": 601
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 2914.5468,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1494,
+            "CompletionTokens": 356,
+            "ReasoningTokens": 308
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-calar",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-follow",
+          "Exit": "false",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        }
+      ]
+    },
+    {
+      "repetition": 3,
+      "Scenario": 2,
+      "Name": "chamada direta",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 2,
+      "Situation": {
+        "ambiente": "casual",
+        "envolvimento": "direto",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": false,
+        "oportunidade_social": "forte",
+        "resumo": "Helena chama Filomena e pede sua opinião sobre uma ideia no grupo de teste."
+      },
+      "Decision": {
+        "acao": "responder",
+        "continuar_acompanhando": true,
+        "motivo": "pergunta_direta"
+      },
+      "FinalState": "participation-engaged-v1",
+      "Signal": "WOULD_RESPOND",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 4643.4538,
+      "DecisionMs": 4550.9527,
+      "TotalLlmMs": 9194.406500000001,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 4643.4538,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 723,
+            "CompletionTokens": 572,
+            "ReasoningTokens": 483
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 4550.9527,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1448,
+            "CompletionTokens": 512,
+            "ReasoningTokens": 466
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-responder",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-transition-responder",
+          "Exit": null,
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "transition-applied",
+          "NodeId": null,
+          "Exit": null,
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 1
+        }
+      ]
+    },
+    {
+      "repetition": 3,
+      "Scenario": 3,
+      "Name": "interesse sem chamada",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "Situation": {
+        "ambiente": "casual",
+        "envolvimento": "nenhum",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": false,
+        "oportunidade_social": "forte",
+        "resumo": "Gabriel e Bia debatem em grupo se C++ é uma linguagem boa ou ruim."
+      },
+      "Decision": {
+        "acao": "esperar",
+        "continuar_acompanhando": true,
+        "motivo": "interesse_no_assunto"
+      },
+      "FinalState": "participation-attentive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 6250.0213,
+      "DecisionMs": 5443.3743,
+      "TotalLlmMs": 11693.3956,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 6250.0213,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 790,
+            "CompletionTokens": 749,
+            "ReasoningTokens": 660
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 5443.3743,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1524,
+            "CompletionTokens": 661,
+            "ReasoningTokens": 613
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-esperar",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-transition-wait",
+          "Exit": null,
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "transition-applied",
+          "NodeId": null,
+          "Exit": null,
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-attentive-v1",
+          "CurrentSessionStateVersion": 1
+        }
+      ]
+    },
+    {
+      "repetition": 3,
+      "Scenario": 4,
+      "Name": "pensamento incompleto",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "Situation": {
+        "ambiente": "casual",
+        "envolvimento": "direto",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": false,
+        "oportunidade_social": "forte",
+        "resumo": "Helena chama Filomena e pede para esperar, pois irá explicar um assunto."
+      },
+      "Decision": {
+        "acao": "responder",
+        "continuar_acompanhando": true,
+        "motivo": "chamada_direta"
+      },
+      "FinalState": "participation-engaged-v1",
+      "Signal": "WOULD_RESPOND",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 5645.9847,
+      "DecisionMs": 4399.8737,
+      "TotalLlmMs": 10045.858400000001,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 5645.9847,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 749,
+            "CompletionTokens": 686,
+            "ReasoningTokens": 598
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 4399.8737,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1472,
+            "CompletionTokens": 524,
+            "ReasoningTokens": 478
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-responder",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-transition-responder",
+          "Exit": null,
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "transition-applied",
+          "NodeId": null,
+          "Exit": null,
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 1
+        }
+      ]
+    },
+    {
+      "repetition": 3,
+      "Scenario": 5,
+      "Name": "continuidade engajada",
+      "InitialState": "participation-engaged-v1",
+      "BatchSize": 1,
+      "Situation": {
+        "ambiente": "tecnico",
+        "envolvimento": "direto",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": true,
+        "oportunidade_social": "forte",
+        "resumo": "Gabriel discorda de Filomena sobre uma solução técnica, afirmando que ela está errada."
+      },
+      "Decision": {
+        "acao": "responder",
+        "continuar_acompanhando": true,
+        "motivo": "continuidade"
+      },
+      "FinalState": "participation-engaged-v1",
+      "Signal": "WOULD_RESPOND",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 4611.0037,
+      "DecisionMs": 3861.661,
+      "TotalLlmMs": 8472.664700000001,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 4611.0037,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 752,
+            "CompletionTokens": 572,
+            "ReasoningTokens": 480
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 3861.661,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1459,
+            "CompletionTokens": 496,
+            "ReasoningTokens": 453
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-responder",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-transition-responder",
+          "Exit": null,
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "transition-applied",
+          "NodeId": null,
+          "Exit": null,
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 1
+        }
+      ]
+    },
+    {
+      "repetition": 3,
+      "Scenario": 6,
+      "Name": "conversa migrou",
+      "InitialState": "participation-engaged-v1",
+      "BatchSize": 4,
+      "Situation": {
+        "ambiente": "casual",
+        "envolvimento": "nenhum",
+        "ritmo": "encerrando",
+        "necessita_cuidado": false,
+        "oportunidade_social": "fraca",
+        "resumo": "Helena e Bia conversam sobre planos para amanhã, confirmando o encontro casualmente."
+      },
+      "Decision": {
+        "acao": "calar",
+        "continuar_acompanhando": false,
+        "motivo": "conversa_entre_outros"
+      },
+      "FinalState": "participation-attentive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 6010.6608,
+      "DecisionMs": 3061.933,
+      "TotalLlmMs": 9072.593799999999,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 6010.6608,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 807,
+            "CompletionTokens": 777,
+            "ReasoningTokens": 684
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 3061.933,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1493,
+            "CompletionTokens": 381,
+            "ReasoningTokens": 333
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-calar",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-involvement-calar",
+          "Exit": "case-nenhum",
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-transition-calar",
+          "Exit": null,
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "transition-applied",
+          "NodeId": null,
+          "Exit": null,
+          "BatchStateId": "participation-engaged-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-attentive-v1",
+          "CurrentSessionStateVersion": 1
+        }
+      ]
+    },
+    {
+      "repetition": 3,
+      "Scenario": 7,
+      "Name": "conflito sem convite",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "Situation": {
+        "ambiente": "conflito",
+        "envolvimento": "nenhum",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": true,
+        "oportunidade_social": "nenhuma",
+        "resumo": "Helena e Bia estão em um conflito acalorado sobre um evento passado. Helena faz acusações que são negadas por Bia."
+      },
+      "Decision": {
+        "acao": "calar",
+        "continuar_acompanhando": false,
+        "motivo": "conflito_sem_convite"
+      },
+      "FinalState": "participation-inactive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 4695.7818,
+      "DecisionMs": 3270.9116,
+      "TotalLlmMs": 7966.6934,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 4695.7818,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 758,
+            "CompletionTokens": 592,
+            "ReasoningTokens": 487
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 3270.9116,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1518,
+            "CompletionTokens": 395,
+            "ReasoningTokens": 346
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-calar",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-follow",
+          "Exit": "false",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        }
+      ]
+    },
+    {
+      "repetition": 3,
+      "Scenario": 9,
+      "Name": "interesse legítimo",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "Situation": {
+        "ambiente": "tecnico",
+        "envolvimento": "nenhum",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": true,
+        "oportunidade_social": "forte",
+        "resumo": "Gabriel iniciou um projeto de engine em C++, mas expressa dúvidas sobre continuar."
+      },
+      "Decision": {
+        "acao": "responder",
+        "continuar_acompanhando": true,
+        "motivo": "interesse_no_assunto"
+      },
+      "FinalState": "participation-engaged-v1",
+      "Signal": "WOULD_RESPOND",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 5489.1895,
+      "DecisionMs": 4750.9558,
+      "TotalLlmMs": 10240.1453,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 5489.1895,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 783,
+            "CompletionTokens": 676,
+            "ReasoningTokens": 586
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 4750.9558,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1520,
+            "CompletionTokens": 613,
+            "ReasoningTokens": 566
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-responder",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-transition-responder",
+          "Exit": null,
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "transition-applied",
+          "NodeId": null,
+          "Exit": null,
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-engaged-v1",
+          "CurrentSessionStateVersion": 1
+        }
+      ]
+    },
+    {
+      "repetition": 3,
+      "Scenario": 10,
+      "Name": "conversa banal",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "Situation": {
+        "ambiente": "casual",
+        "envolvimento": "nenhum",
+        "ritmo": "encerrando",
+        "necessita_cuidado": false,
+        "oportunidade_social": "fraca",
+        "resumo": "Bia perguntou sobre uma chegada e Helena confirmou o status em um bate-papo casual."
+      },
+      "Decision": {
+        "acao": "calar",
+        "continuar_acompanhando": false,
+        "motivo": "conversa_entre_outros"
+      },
+      "FinalState": "participation-inactive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 5057.3487,
+      "DecisionMs": 3049.2267,
+      "TotalLlmMs": 8106.5754,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 5057.3487,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 753,
+            "CompletionTokens": 642,
+            "ReasoningTokens": 548
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 3049.2267,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1476,
+            "CompletionTokens": 384,
+            "ReasoningTokens": 336
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-calar",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-follow",
+          "Exit": "false",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        }
+      ]
+    },
+    {
+      "repetition": 3,
+      "Scenario": 11,
+      "Name": "atualização técnica banal",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "Situation": {
+        "ambiente": "tecnico",
+        "envolvimento": "nenhum",
+        "ritmo": "encerrando",
+        "necessita_cuidado": false,
+        "oportunidade_social": "fraca",
+        "resumo": "Helena atualizou o Node e informou a mudança de versão para 24."
+      },
+      "Decision": {
+        "acao": "calar",
+        "continuar_acompanhando": false,
+        "motivo": "conversa_em_andamento"
+      },
+      "FinalState": "participation-inactive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "LlmCalls": 2,
+      "CorrectiveCalls": 0,
+      "SituationMs": 6196.5599,
+      "DecisionMs": 4102.7626,
+      "TotalLlmMs": 10299.3225,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 6196.5599,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 764,
+            "CompletionTokens": 695,
+            "ReasoningTokens": 603
+          }
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 4102.7626,
+          "Correction": false,
+          "Usage": {
+            "PromptTokens": 1500,
+            "CompletionTokens": 489,
+            "ReasoningTokens": 441
+          }
+        }
+      ],
+      "Path": [
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-entry",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-batch",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-history",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-situation",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-presence",
+          "Exit": "then",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-action",
+          "Exit": "case-calar",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        },
+        {
+          "EventName": "node-completed",
+          "NodeId": "group-follow",
+          "Exit": "false",
+          "BatchStateId": "participation-inactive-v1",
+          "BatchStateVersion": 0,
+          "CurrentSessionStateId": "participation-inactive-v1",
+          "CurrentSessionStateVersion": 0
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "count": 30,
+    "valid": 30,
+    "corrections": 0,
+    "calls": 60,
+    "situationMs": 5384.8933400000005,
+    "decisionMs": 4260.656426666666,
+    "totalMs": 9645.549766666665,
+    "situationUsage": {
+      "calls": 30,
+      "corrections": 0,
+      "promptTokens": 763.9,
+      "completionTokens": 661.7666666666667,
+      "reasoningTokens": 569.6
+    },
+    "presenceUsage": {
+      "calls": 30,
+      "corrections": 0,
+      "promptTokens": 1490.8333333333333,
+      "completionTokens": 517.4,
+      "reasoningTokens": 470.03333333333336
+    }
+  }
+}

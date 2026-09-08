@@ -3,7 +3,7 @@ using System.Text.Json;
 namespace Filomena.Core.Flows;
 
 // Immutable, administrative text captured with the compiled project and batch.
-internal sealed record InstructionContext(string PersonalityCore, string ParticipationGuidance)
+internal sealed record InstructionContext(string PersonalityCore, string ParticipationGuidance, string InterestProfile)
 {
     internal static string ReadText(JsonElement document, string name)
     {
@@ -25,13 +25,16 @@ internal sealed record InstructionContext(string PersonalityCore, string Partici
     {
         var core = Enabled(config, "usePersonalityCore");
         var guidance = Enabled(config, "useStateGuidance");
-        if ((core || guidance) && context is null)
+        var interests = Enabled(config, "useInterestProfile");
+        if ((core || guidance || interests) && context is null)
             throw new InvalidDataException("Instruction references require a project/state execution context.");
         var sections = new List<string>();
         if (core && !string.IsNullOrEmpty(context!.PersonalityCore))
             sections.Add("[Personality core]\n" + context.PersonalityCore);
         if (guidance && !string.IsNullOrEmpty(context!.ParticipationGuidance))
             sections.Add("[State participation guidance]\n" + context.ParticipationGuidance);
+        if (interests && !string.IsNullOrEmpty(context!.InterestProfile))
+            sections.Add("[Interest profile]\n" + context.InterestProfile);
         sections.Add(config.GetProperty("prompt").GetString()!);
         return string.Join("\n\n", sections);
     }

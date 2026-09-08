@@ -14,7 +14,7 @@ public sealed record TypedFlow(GraphDocument Graph, string EntryId, IReadOnlyDic
 public static class TypedFlowCompiler
 {
     private static readonly HashSet<string> ExecutableKinds =
-        ["dm", "group", "accumulate", "history", "memory", "exit", "property", "prompt", "switch"];
+        ["dm", "group", "accumulate", "history", "memory", "exit", "property", "prompt", "switch", "branch"];
 
     public static TypedFlow Compile(JsonElement source, string entryId) => CompileCore(source, entryId, true);
 
@@ -133,10 +133,21 @@ public static class TypedFlowCompiler
                         if (!config.TryGetProperty("prompt", out var prompt) || prompt.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(prompt.GetString())) throw new InvalidDataException("Preencha a instrução.");
                         InstructionContext.Enabled(config, "usePersonalityCore");
                         InstructionContext.Enabled(config, "useStateGuidance");
+                        InstructionContext.Enabled(config, "useInterestProfile");
                         var inputs = Fields(id, config, "inputs", false);
                         var outputs = Fields(id, config, "responseFields", true);
                         if (outputs.Length == 0) outputs = [Port("message", new StringType())];
                         result = new(node, inputs, outputs, ["then"]); break;
+                    case "branch":
+                        var left = Incoming("a");
+                        var branchSettings = config.GetProperty("settings");
+                        var hasLiteral = branchSettings.TryGetProperty("b", out var literal);
+                        var right = hasLiteral
+                            ? new TypedPort("b", "B", left.Type, true, JsonSerializer.SerializeToElement(new { value = literal }))
+                            : Port("b", Incoming("b").Type);
+                        TypedBranch.Validate(left.Type, right.Type, branchSettings.GetProperty("operator").GetString());
+                        if (hasLiteral) FlowDomain.Check(literal, left.Type);
+                        result = new(node, [Port("a", left.Type), right], [], ["true", "false"]); break;
                     case "switch":
                         var value = Incoming("value");
                         if (value.Type is not (StringType or EnumType)) throw new InvalidDataException("Switch recebe Texto ou Enum.");

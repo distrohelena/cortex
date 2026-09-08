@@ -42,6 +42,7 @@
    <label for="node-model">Modelo</label>
    <select id="node-model" disabled><option>Carregando catálogo…</option></select>
    <label><input id="use-personality-core" type="checkbox"> Usar personality core</label>
+   <label><input id="use-interest-profile" type="checkbox"> Usar perfil de interesses</label>
    <label><input id="use-state-guidance" type="checkbox"> Usar orientação do state</label>
    <label for="prompt">Instrução de sistema</label><textarea id="prompt" rows="8" maxlength="16000"></textarea>
    <section id="response-settings">
@@ -77,6 +78,7 @@
    </div>
    <div id="branch-settings" hidden>
     <label for="branch-operator">Comparação entre A e B</label><select id="branch-operator"></select>
+    <label for="branch-b">B</label><select id="branch-b"><option value="wire">Fio conectado</option><option value="true">Verdadeiro</option><option value="false">Falso</option></select>
    </div>
    <p id="description" class="quiet"></p><button id="remove" class="danger">Remover bloco</button>
    <details open><summary>Última execução do bloco</summary><div id="inspection" class="quiet">Execute o fluxo para ver entrada, saída e duração.</div></details>
@@ -98,6 +100,7 @@
   <button id="show-create-state">Criar estado</button>
   <div id="state-list" aria-label="Estados do projeto"></div>
   <label for="personality-core">Personalidade do personagem</label><textarea id="personality-core" rows="8" maxlength="32000"></textarea>
+  <label for="interest-profile">Perfil de interesses</label><textarea id="interest-profile" rows="6" maxlength="32000"></textarea>
   <label for="participation-guidance">Orientação do estado em edição</label><textarea id="participation-guidance" rows="6" maxlength="32000"></textarea>
   </div>
   <div id="states-create-screen" hidden>

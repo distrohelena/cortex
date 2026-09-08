@@ -23,7 +23,7 @@ internal sealed record CompiledSessionFlowProject(
 internal static class SessionFlowProjectCompiler
 {
     private static readonly HashSet<string> SupportedKinds =
-        ["dm", "group", "accumulate", "history", "memory", "prompt", "property", "switch", "exit"];
+        ["dm", "group", "accumulate", "history", "memory", "prompt", "property", "switch", "branch", "exit"];
 
     public static CompiledSessionFlowProject Compile(SessionFlowProject source)
     {
@@ -40,6 +40,7 @@ internal static class SessionFlowProjectCompiler
             var document = source.Document.Clone();
             var project = Unwrap(document);
             var personalityCore = InstructionContext.ReadText(project, "personalityCore");
+            var interestProfile = InstructionContext.ReadText(project, "interestProfile");
             if (!project.TryGetProperty("version", out var schemaVersion) || !schemaVersion.TryGetInt32(out var version) || version != 1)
                 Issue("project", null, "project", "version", "Use project schema version 1.");
             if (!project.TryGetProperty("stateScope", out var scope) || scope.ValueKind != JsonValueKind.String || scope.GetString() != "session")
@@ -109,7 +110,7 @@ internal static class SessionFlowProjectCompiler
                     }
                 }
                 compiledStates[stateId] = new(stateId,
-                    new(personalityCore, InstructionContext.ReadText(state, "participationGuidance")), compiledEntries);
+                    new(personalityCore, InstructionContext.ReadText(state, "participationGuidance"), interestProfile), compiledEntries);
             }
 
             ValidateStateTargets(compiledStates.Values, stateById.Keys.ToHashSet(StringComparer.Ordinal), Issue);

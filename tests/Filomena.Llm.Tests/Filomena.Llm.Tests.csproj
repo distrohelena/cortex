@@ -20,6 +20,8 @@
   <ItemGroup>
     <None Include="../fixtures/typed-flow-slice1.json" Link="typed-flow-slice1.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../fixtures/typed-flow-slice35*.json" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../fixtures/typed-flow-slice36*.json" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../fixtures/typed-flow-slice37.json" Link="typed-flow-slice37.json" CopyToOutputDirectory="PreserveNewest" />
     <Compile Include="../Filomena.Core.Tests/Flows/FakeTimeProvider.cs" Link="Support/FakeTimeProvider.cs" />
     <None Include="../fixtures/typed-flow-slice2.json" Link="typed-flow-slice2.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../fixtures/typed-flow-slice3.json" Link="typed-flow-slice3.json" CopyToOutputDirectory="PreserveNewest" />

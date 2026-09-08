@@ -140,7 +140,14 @@ export function connect(graph,source,target,sourcePort,targetPort) {
   if(!a||!b||source===target)throw new Error('Porta inválida.');
   const memoryPersons=to.kind==='memory'&&targetPort==='persons';
   if(memoryPersons&&!['actor','actor?','actor[]','actor?[]'].includes(a.type))throw new Error('Memória recebe Pessoa ou lista de Pessoas opcionais.');
-  const flexible=to.kind==='property'||to.kind==='switch'||memoryPersons;
+  const branchOperand=to.kind==='branch';
+  if(branchOperand){
+   if(!['boolean','number','text','enum'].includes(a.type))throw new Error('Branch recebe escalares não opcionais.');
+   const other=nodePorts(to,'in',graph).find(p=>p.id!==targetPort);
+   const otherConnected=graph.edges.some(e=>e.target===target&&e.targetPort===other.id)||Object.hasOwn(other,'value');
+   if(otherConnected&&(a.type!==other.type||!compatibleTypes(a,other)||!compatibleTypes(other,a)))throw new Error('Branch exige operandos do mesmo tipo.');
+  }
+  const flexible=to.kind==='property'||to.kind==='switch'||memoryPersons||branchOperand;
   if(to.kind==='switch'&&!['text','enum'].includes(a.type))throw new Error('Switch recebe Texto ou Enum.');
   if(!flexible&&!compatibleTypes(a,b))throw new Error('As portas têm tipos incompatíveis.');
   if(Object.hasOwn(b,'value'))throw new Error('Remova o valor configurado antes de conectar.');
@@ -252,7 +259,7 @@ function cleanProject(project){
  });
  const initialStateId=project.initialStateId;
  if(initialStateId!==undefined&&initialStateId!==null&&(typeof initialStateId!=='string'||initialStateId.length>80))throw new Error('Identificador de estado inicial inválido.');
- return {version:1,stateScope:'session',initialStateId,...optionalDesignText(project,'personalityCore'),states};
+ return {version:1,stateScope:'session',initialStateId,...optionalDesignText(project,'personalityCore'),...optionalDesignText(project,'interestProfile'),states};
 }
 function optionalDesignText(object,key){
  if(object[key]===undefined)return {};

@@ -6,11 +6,13 @@ import {readFileSync} from 'node:fs';
 import {slice35Project} from '../fixtures/slice35-project.mjs';
 
 test('personality, guidance and explicit instruction references roundtrip without runtime state',()=>{
- const project=initialProject();project.personalityCore='Core imutável';
+ const project=initialProject();project.personalityCore='Core imutável';project.interestProfile='Programação e criação';
  const state=project.states[0];state.participationGuidance='Observar primeiro';state.graph=migrateTypedGraph(state.graph);
- const instruction=state.graph.nodes.find(n=>n.kind==='prompt');instruction.usePersonalityCore=false;instruction.useStateGuidance=true;
+ const instruction=state.graph.nodes.find(n=>n.kind==='prompt');instruction.usePersonalityCore=false;instruction.useStateGuidance=true;instruction.useInterestProfile=true;
  const loaded=openProject(saveProject(project));
  assert.equal(loaded.personalityCore,project.personalityCore);
+ assert.equal(loaded.interestProfile,project.interestProfile);
+ assert.equal(loaded.states[0].graph.nodes.find(n=>n.id===instruction.id).useInterestProfile,true);
  assert.equal(loaded.states[0].participationGuidance,state.participationGuidance);
  assert.equal(loaded.states[0].graph.nodes.find(n=>n.id===instruction.id).useStateGuidance,true);
  assert.equal(loaded.states[0].graph.nodes.find(n=>n.id===instruction.id).usePersonalityCore,false);
@@ -20,6 +22,7 @@ test('personality, guidance and explicit instruction references roundtrip withou
 test('old projects do not acquire implicit personality references',()=>{
  const loaded=openProject(saveProject(initialProject()));
  assert.equal('personalityCore' in loaded,false);
+ assert.equal('interestProfile' in loaded,false);
  assert.equal('participationGuidance' in loaded.states[0],false);
 });
 

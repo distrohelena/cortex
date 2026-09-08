@@ -45,13 +45,14 @@ internal static class ParticipationExperiments
     }
 
     internal static async Task<Run> ExecuteAsync(Scenario scenario, bool withMemory, IFlowCompletion model,
-        IMemoryReader? memory, string memorySource, CancellationToken token, SessionEntryKind kind = SessionEntryKind.Group)
+        IMemoryReader? memory, string memorySource, CancellationToken token, SessionEntryKind kind = SessionEntryKind.Group,
+        JsonNode? projectOverride = null, string? projectRevision = null)
     {
-        var project = Project(withMemory, scenario.InitialState);
+        var project = projectOverride ?? Project(withMemory, scenario.InitialState);
         var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var observed = new ObservedCompletion(model);
         await using var runtime = new SessionFlowRuntime(clock, observed, memory);
-        runtime.UpdateProject(new("participation-experiment", 1, "slice35", JsonSerializer.SerializeToElement(project)));
+        runtime.UpdateProject(new("participation-experiment", 1, projectRevision ?? (projectOverride is null ? "slice35" : "slice36"), JsonSerializer.SerializeToElement(project)));
         var nativeId = kind == SessionEntryKind.Group ? "5511981042361-1589823314@g.us" : "5511944558218@s.whatsapp.net";
         var session = new SessionKey("scenario-" + scenario.Id, "filomena", "whatsapp", "fixture", nativeId);
         var index = 0;
