@@ -353,6 +353,9 @@ public sealed partial class SessionFlowRuntime
                     duration: node.Duration.TotalMilliseconds, errorCode: node.Error, timestamp: node.Timestamp)),
                 (node, persons, query, token) => QueryMemoryAsync(batch, node, persons, query, token),
                 batch.Project.States[batch.StateId].InstructionContext,
+                instructionOutput is null ? null : (nodeId, outputs, token) =>
+                    instructionOutput(new(batch.ExecutionId, batch.BatchId, batch.Session, batch.StateId,
+                        batch.StateVersion, batch.Project.ProjectRevision, nodeId, outputs), token),
                 lifetime.Token).ConfigureAwait(false);
             if (!result.Success) executionError = result.Steps.LastOrDefault(step => step.Status == "failed")?.Error ?? "flow-execution-failed";
         }

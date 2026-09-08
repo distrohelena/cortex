@@ -2,26 +2,34 @@ using Filomena.Core.Memory;
 
 namespace Filomena.Core.Flows.Sessions;
 
+public sealed record SessionInstructionOutput(
+    string ExecutionId, string BatchId, SessionKey Session, string StateId, long StateVersion,
+    string ProjectRevision, string NodeId, IReadOnlyDictionary<string, TypedValue> Outputs);
+
 public sealed partial class SessionFlowRuntime : IAsyncDisposable
 {
     private readonly object administrationGate = new();
     private readonly TimeProvider timeProvider;
     private readonly Func<SessionKey, IFlowCompletion> completionFactory;
     private readonly IMemoryReader memoryReader;
+    private readonly Func<SessionInstructionOutput, CancellationToken, Task>? instructionOutput;
     private CompiledSessionFlowProject? project;
 
-    public SessionFlowRuntime(TimeProvider timeProvider, IFlowCompletion completion, IMemoryReader? memoryReader = null)
-        : this(timeProvider, ConstantCompletion(completion), memoryReader)
+    public SessionFlowRuntime(TimeProvider timeProvider, IFlowCompletion completion, IMemoryReader? memoryReader = null,
+        Func<SessionInstructionOutput, CancellationToken, Task>? instructionOutput = null)
+        : this(timeProvider, ConstantCompletion(completion), memoryReader, instructionOutput)
     {
     }
 
-    public SessionFlowRuntime(TimeProvider timeProvider, Func<SessionKey, IFlowCompletion> completionFactory, IMemoryReader? memoryReader = null)
+    public SessionFlowRuntime(TimeProvider timeProvider, Func<SessionKey, IFlowCompletion> completionFactory, IMemoryReader? memoryReader = null,
+        Func<SessionInstructionOutput, CancellationToken, Task>? instructionOutput = null)
     {
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(completionFactory);
         this.timeProvider = timeProvider;
         this.completionFactory = completionFactory;
         this.memoryReader = memoryReader ?? new UnavailableMemoryReader();
+        this.instructionOutput = instructionOutput;
     }
 
     public SessionFlowProjectSnapshot UpdateProject(SessionFlowProject project)

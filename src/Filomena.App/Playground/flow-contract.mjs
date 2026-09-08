@@ -93,6 +93,6 @@ export function serializeTypedGraph(graph){
   });
  }
  for(const node of clean.nodes)for(const key of ['usePersonalityCore','useStateGuidance','useInterestProfile'])if(node[key]!==undefined&&typeof node[key]!=='boolean')throw new Error('Referência de instrução deve ser booleana.');
- clean.nodes=clean.nodes.map(n=>Object.fromEntries(['id','kind','x','y','prompt','provider','model','inputs','responseFields','correctionRetry','title','usePersonalityCore','useStateGuidance','useInterestProfile'].filter(k=>n[k]!==undefined).map(k=>[k,n[k]]).concat(Object.keys(persistedNodeSettings(n)).length?[['settings',persistedNodeSettings(n)]]:[])));
+ clean.nodes=clean.nodes.map(n=>Object.fromEntries(['id','kind','x','y','prompt','provider','model','inputs','responseFields','correctionRetry','title','usePersonalityCore','useStateGuidance','useInterestProfile','outputMode'].filter(k=>n[k]!==undefined).map(k=>[k,n[k]]).concat(Object.keys(persistedNodeSettings(n)).length?[['settings',persistedNodeSettings(n)]]:[])));
  return {version:3,nodes:clean.nodes,edges:structuredClone(clean.edges),...(clean.controlEdges?{controlEdges:structuredClone(clean.controlEdges)}:{})};
 }

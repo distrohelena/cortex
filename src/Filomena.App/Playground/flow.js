@@ -57,6 +57,7 @@ function invalidate(){traces=[];lastContracts=[];lastCalls=[];$('contract-conten
 function wireRender(){editor.redrawWires();}
 
 function renderResponseFields(node){
+ $('response-heading').textContent=node.outputMode==='text'?'Saída textual':'Estrutura JSON';
  const list=$('response-fields');list.replaceChildren();
  const fields=node.kind==='prompt'?(node.responseFields??[]):[];
  $('add-response-field').disabled=busy||node.kind!=='prompt'||fields.length>=32;
@@ -118,6 +119,7 @@ function renderExitMapping(node){
 function inspect(){
  const node=graph.nodes.find(n=>n.id===selected);if(!node)return;
  $('node-model-settings').hidden=node.kind!=='prompt';
+ $('output-mode').value=node.outputMode??'structured';$('output-mode').disabled=busy;
  $('use-personality-core').checked=node.usePersonalityCore===true;$('use-personality-core').disabled=busy;
  $('use-interest-profile').checked=node.useInterestProfile===true;$('use-interest-profile').disabled=busy;
  $('use-state-guidance').checked=node.useStateGuidance===true;$('use-state-guidance').disabled=busy;
@@ -185,7 +187,7 @@ function render(){
 }
 
 $('prompt').addEventListener('input',()=>{if(busy)return;const node=graph.nodes.find(n=>n.id===selected);node.prompt=$('prompt').value;invalidate();$('inspection').textContent='Instrução alterada. Execute novamente.';});
-for(const [id,key] of [['use-personality-core','usePersonalityCore'],['use-state-guidance','useStateGuidance'],['use-interest-profile','useInterestProfile']])$(id).addEventListener('change',()=>{if(busy)return;const node=graph.nodes.find(n=>n.id===selected);if(node?.kind==='prompt'){node[key]=$(id).checked;invalidate();inspect();}});
+for(const [id,key] of [['use-personality-core','usePersonalityCore'],['use-state-guidance','useStateGuidance'],['use-interest-profile','useInterestProfile'],['output-mode','outputMode']])$(id).addEventListener('change',()=>{if(busy)return;const node=graph.nodes.find(n=>n.id===selected);if(node?.kind==='prompt'){node[key]=key==='outputMode'?$(id).value:$(id).checked;invalidate();inspect();}});
 $('personality-core').addEventListener('input',()=>{if(busy)return;project.personalityCore=$('personality-core').value;invalidate();inspect();});
  $('interest-profile').addEventListener('input',()=>{if(busy)return;project.interestProfile=$('interest-profile').value;invalidate();inspect();});
 $('participation-guidance').addEventListener('input',()=>{if(busy)return;project.states.find(s=>s.id===selectedStateId).participationGuidance=$('participation-guidance').value;invalidate();inspect();});

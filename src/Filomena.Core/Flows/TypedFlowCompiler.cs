@@ -13,6 +13,14 @@ public sealed record TypedFlow(GraphDocument Graph, string EntryId, IReadOnlyDic
 
 public static class TypedFlowCompiler
 {
+    internal static bool IsTextOutput(JsonElement config)
+    {
+        if (!config.TryGetProperty("outputMode", out var mode)) return false;
+        if (mode.ValueKind != JsonValueKind.String || mode.GetString() is not ("text" or "structured"))
+            throw new InvalidDataException("Formato da saída deve ser text ou structured.");
+        return mode.GetString() == "text";
+    }
+
     private static readonly HashSet<string> ExecutableKinds =
         ["dm", "group", "accumulate", "history", "memory", "exit", "property", "prompt", "switch", "branch"];
 
@@ -137,6 +145,8 @@ public static class TypedFlowCompiler
                         var inputs = Fields(id, config, "inputs", false);
                         var outputs = Fields(id, config, "responseFields", true);
                         if (outputs.Length == 0) outputs = [Port("message", new StringType())];
+                        if (IsTextOutput(config) && (outputs.Length != 1 || outputs[0].Type is not StringType))
+                            throw new InvalidDataException("Saída Texto exige exatamente um campo Texto.");
                         result = new(node, inputs, outputs, ["then"]); break;
                     case "branch":
                         var left = Incoming("a");

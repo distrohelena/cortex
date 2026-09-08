@@ -92,7 +92,8 @@ internal sealed class PlaygroundProjectStore(string directory)
             var nodeIds = new HashSet<string>(StringComparer.Ordinal);
             foreach (var node in Array(graph, "nodes", 32).EnumerateArray())
             {
-                Keys(node, "id", "kind", "x", "y", "prompt", "provider", "model", "settings", "responseFields", "inputs", "correctionRetry", "title", "usePersonalityCore", "useStateGuidance", "useInterestProfile");
+                Keys(node, "id", "kind", "x", "y", "prompt", "provider", "model", "settings", "responseFields", "inputs", "correctionRetry", "title", "usePersonalityCore", "useStateGuidance", "useInterestProfile", "outputMode");
+                if (node.TryGetProperty("outputMode", out _)) Text(node, "outputMode", 32);
                 foreach (var flag in new[] { "usePersonalityCore", "useStateGuidance", "useInterestProfile" })
                     if (node.TryGetProperty(flag, out var enabled) && enabled.ValueKind is not (JsonValueKind.True or JsonValueKind.False)) throw new InvalidDataException();
                 if (!nodeIds.Add(Text(node, "id"))) throw new InvalidDataException();

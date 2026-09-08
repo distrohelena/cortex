@@ -17,6 +17,7 @@ public static class TypedFlowRunner
 {
     public static JsonElement? ResponseSchema(TypedNode node)
     {
+        if (TypedFlowCompiler.IsTextOutput(node.Source.Config)) return null;
         if (!node.Source.Config.TryGetProperty("responseFields", out var fields) || fields.GetArrayLength() == 0) return null;
         var schema = new ObjectType(node.Outputs.ToDictionary(p => p.Name, p => new FlowField(p.Type, true))).ToJsonSchema();
         var json = JsonNode.Parse(schema.GetRawText())!;
@@ -33,7 +34,7 @@ public static class TypedFlowRunner
     }
 
     public static Task<TypedRunResult> RunAsync(TypedFlow flow, JsonElement message, IFlowCompletion completion, CancellationToken token) =>
-        RunCoreAsync(flow, message, completion, null, TimeProvider.System, null, null, null, token);
+        RunCoreAsync(flow, message, completion, null, TimeProvider.System, null, null, null, null, token);
 
     internal static Task<TypedRunResult> RunSessionAsync(
         TypedFlow flow,
@@ -44,8 +45,9 @@ public static class TypedFlowRunner
         Action<TypedNodeExecutionTrace> observer,
         Func<TypedNode, JsonElement?, string?, CancellationToken, Task<JsonElement>> memoryQuery,
         InstructionContext instructionContext,
+        Func<string, IReadOnlyDictionary<string, TypedValue>, CancellationToken, Task>? instructionOutput,
         CancellationToken token) =>
-        RunCoreAsync(flow, message, completion, runtimeOutputs, timeProvider, observer, memoryQuery, instructionContext, token);
+        RunCoreAsync(flow, message, completion, runtimeOutputs, timeProvider, observer, memoryQuery, instructionContext, instructionOutput, token);
 
     private static async Task<TypedRunResult> RunCoreAsync(
         TypedFlow flow,
@@ -56,6 +58,7 @@ public static class TypedFlowRunner
         Action<TypedNodeExecutionTrace>? observer,
         Func<TypedNode, JsonElement?, string?, CancellationToken, Task<JsonElement>>? memoryQuery,
         InstructionContext? instructionContext,
+        Func<string, IReadOnlyDictionary<string, TypedValue>, CancellationToken, Task>? instructionOutput,
         CancellationToken token)
     {
         var steps = new List<TypedStep>();
@@ -122,6 +125,13 @@ public static class TypedFlowRunner
                         }
                     }
                     token.ThrowIfCancellationRequested();
+                    if (instructionOutput is not null)
+                    {
+                        var snapshot = new System.Collections.ObjectModel.ReadOnlyDictionary<string, TypedValue>(
+                            output!.ToDictionary(p => p.Key, p => p.Value with { Value = p.Value.Value.Clone() }));
+                        await instructionOutput(current, snapshot, token);
+                        token.ThrowIfCancellationRequested();
+                    }
                     published[current] = output!;
                     foreach (var (port, value) in output!) values[new(current, port)] = value;
                 }
@@ -222,7 +232,11 @@ public static class TypedFlowRunner
         if (!structured)
         {
             if (string.IsNullOrWhiteSpace(text)) throw new InvalidDataException("Texto vazio.");
-            return new() { ["message"] = new(new StringType(), JsonSerializer.SerializeToElement(text)) };
+            var port = node.Outputs.Single();
+            if (port.Config.ValueKind == JsonValueKind.Object && port.Config.TryGetProperty("maxWords", out var words)
+                && text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length > words.GetInt32())
+                throw new InvalidDataException("Limite de palavras excedido: " + port.Name);
+            return new() { [port.Id] = new(new StringType(), JsonSerializer.SerializeToElement(text)) };
         }
         using var document = JsonDocument.Parse(text);
         var root = document.RootElement;

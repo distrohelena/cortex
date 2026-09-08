@@ -41,12 +41,14 @@
    <select id="node-provider" disabled><option>Carregando catálogo…</option></select>
    <label for="node-model">Modelo</label>
    <select id="node-model" disabled><option>Carregando catálogo…</option></select>
+   <label for="output-mode">Formato da saída</label>
+   <select id="output-mode"><option value="structured">Contrato JSON (texto sem campos)</option><option value="text">Texto · um campo Texto</option></select>
    <label><input id="use-personality-core" type="checkbox"> Usar personality core</label>
    <label><input id="use-interest-profile" type="checkbox"> Usar perfil de interesses</label>
    <label><input id="use-state-guidance" type="checkbox"> Usar orientação do state</label>
    <label for="prompt">Instrução de sistema</label><textarea id="prompt" rows="8" maxlength="16000"></textarea>
    <section id="response-settings">
-    <h3>Estrutura JSON</h3>
+    <h3 id="response-heading">Estrutura JSON</h3>
     <div id="response-fields"></div>
     <button id="add-response-field" type="button">Adicionar campo</button>
    </section>

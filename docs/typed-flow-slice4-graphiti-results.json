@@ -1,0 +1,99 @@
+{
+  "transport": "http://127.0.0.1:8000/mcp",
+  "readOnly": true,
+  "noTransport": true,
+  "results": [
+    {
+      "Scenario": 1,
+      "Name": "A casual",
+      "InitialState": "participation-inactive-v1",
+      "FinalState": "participation-engaged-v1",
+      "MemoryEnabled": true,
+      "MemorySource": "real-read-only",
+      "Signal": "WOULD_SEND",
+      "Text": "Depende de quem está perguntando e, mais importante, do porquê você sente que precisa da minha opinião sobre isso. Tenta primeiro convencer a si mesma antes de vir aqui nos grupos para pedir um carimbo de aprovação.",
+      "Success": true,
+      "Error": null,
+      "Situation": {
+        "ambiente": "casual",
+        "envolvimento": "direto",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": true,
+        "oportunidade_social": "forte",
+        "resumo": "Helena pergunta diretamente a Filomena se uma ideia é muito burra no grupo."
+      },
+      "Decision": {
+        "acao": "responder",
+        "continuar_acompanhando": true,
+        "motivo": "pergunta_direta"
+      },
+      "BatchSize": 1,
+      "MemoryItems": 2,
+      "SituationMs": 5377.1235,
+      "PresenceMs": 4164.7408,
+      "MemoryMs": 456.5607,
+      "GenerationMs": 5885.75,
+      "BatchToWouldSendMs": 15932.6219,
+      "Calls": 3,
+      "Retries": 0,
+      "Path": [
+        "node-completed:group-entry:then:",
+        "node-completed:group-batch:then:",
+        "node-completed:group-history:then:",
+        "node-completed:group-situation:then:",
+        "node-completed:group-presence:then:",
+        "node-completed:group-action:case-responder:",
+        "node-completed:group-response-memory:then:",
+        "node-completed:group-generation:then:",
+        "node-completed:group-transition-responder::",
+        "transition-applied:::participation-engaged-v1"
+      ]
+    },
+    {
+      "Scenario": 8,
+      "Name": "H limite trabalho",
+      "InitialState": "participation-engaged-v1",
+      "FinalState": "participation-engaged-v1",
+      "MemoryEnabled": true,
+      "MemorySource": "real-read-only",
+      "Signal": "WOULD_SEND",
+      "Text": "Respira. Não adianta entrar em pânico, Helena. O erro já aconteceu e o que importa agora é como você gerencia a crise, não o quão mal você se sente por ela.\n\nPrimeiro, pare de tentar consertar *sem* piorar; isso só vai te fazer parecer mais confusa. Você precisa ser cirúrgica.\n\nO ideal é enviar uma comunicação imediata — um e-mail ou mensagem direta para quem recebeu a versão errada, explicando que houve um lapso na entrega e anexando imediatamente o arquivo correto. Não se desculpe demais; assuma o erro de forma profissional. Algo como: \"Peço desculpa pelo envio incorreto do relatório anterior. Segue em anexo a versão final revisada.\"\n\nDepois disso, não dê mais explicações longas no grupo. Apenas resolva e siga em frente. O foco tem que ser na solução, nunca no drama. É um erro de processo, não um fracasso pessoal. Agora vai lá e resolve isso com elegância.",
+      "Success": true,
+      "Error": null,
+      "Situation": {
+        "ambiente": "serio",
+        "envolvimento": "direto",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": true,
+        "oportunidade_social": "fraca",
+        "resumo": "Helena pergunta a Filomena como corrigir um erro sério em relatório de trabalho."
+      },
+      "Decision": {
+        "acao": "responder",
+        "continuar_acompanhando": true,
+        "motivo": "pergunta_direta"
+      },
+      "BatchSize": 1,
+      "MemoryItems": 2,
+      "SituationMs": 5705.5879,
+      "PresenceMs": 4956.3991,
+      "MemoryMs": 215.4574,
+      "GenerationMs": 6847.1107,
+      "BatchToWouldSendMs": 17726.4235,
+      "Calls": 3,
+      "Retries": 0,
+      "Path": [
+        "node-completed:group-entry:then:",
+        "node-completed:group-batch:then:",
+        "node-completed:group-history:then:",
+        "node-completed:group-situation:then:",
+        "node-completed:group-presence:then:",
+        "node-completed:group-action:case-responder:",
+        "node-completed:group-response-memory:then:",
+        "node-completed:group-generation:then:",
+        "node-completed:group-transition-responder::",
+        "transition-applied:::participation-engaged-v1"
+      ]
+    }
+  ]
+}

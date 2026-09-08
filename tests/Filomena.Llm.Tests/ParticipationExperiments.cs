@@ -46,12 +46,14 @@ internal static class ParticipationExperiments
 
     internal static async Task<Run> ExecuteAsync(Scenario scenario, bool withMemory, IFlowCompletion model,
         IMemoryReader? memory, string memorySource, CancellationToken token, SessionEntryKind kind = SessionEntryKind.Group,
-        JsonNode? projectOverride = null, string? projectRevision = null)
+        JsonNode? projectOverride = null, string? projectRevision = null,
+        Func<SessionInstructionOutput, CancellationToken, Task>? instructionOutput = null,
+        Action? batchClosing = null)
     {
         var project = projectOverride ?? Project(withMemory, scenario.InitialState);
         var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var observed = new ObservedCompletion(model);
-        await using var runtime = new SessionFlowRuntime(clock, observed, memory);
+        await using var runtime = new SessionFlowRuntime(clock, observed, memory, instructionOutput);
         runtime.UpdateProject(new("participation-experiment", 1, projectRevision ?? (projectOverride is null ? "slice35" : "slice36"), JsonSerializer.SerializeToElement(project)));
         var nativeId = kind == SessionEntryKind.Group ? "5511981042361-1589823314@g.us" : "5511944558218@s.whatsapp.net";
         var session = new SessionKey("scenario-" + scenario.Id, "filomena", "whatsapp", "fixture", nativeId);
@@ -63,6 +65,7 @@ internal static class ParticipationExperiments
             await Receive(line, SessionMessageDirection.Inbound);
             clock.Advance(TimeSpan.FromMilliseconds(200));
         }
+        batchClosing?.Invoke();
         clock.Advance(TimeSpan.FromSeconds(kind == SessionEntryKind.Dm ? 1.5 : 2.5));
         await runtime.WaitForIdleAsync(session, token);
         var outcome = runtime.ReadOutcomes(session).Single();

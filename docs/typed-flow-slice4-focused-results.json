@@ -1,0 +1,610 @@
+{
+  "model": "google/gemma-4-e4b",
+  "upstream": "fixed fake signals, real generation only",
+  "results": [
+    {
+      "repetition": 1,
+      "upstream": "fixed fake situation and RESPONDER; not an end-to-end FSM result",
+      "actualLlmCalls": 1,
+      "result": {
+        "Scenario": 1,
+        "Name": "A casual",
+        "InitialState": "participation-inactive-v1",
+        "FinalState": "participation-engaged-v1",
+        "MemoryEnabled": false,
+        "MemorySource": "none",
+        "Signal": "WOULD_SEND",
+        "Text": "Depende de quem está perguntando. Mas se você está preocupada com a opinião alheia, talvez o problema não seja a ideia em si, mas a sua necessidade de validação. Tenta pensar nisso antes de lançar perguntas tão diretas no grupo.",
+        "Success": true,
+        "Error": null,
+        "Situation": {
+          "ambiente": "casual",
+          "envolvimento": "direto",
+          "ritmo": "aberto",
+          "necessita_cuidado": false,
+          "oportunidade_social": "forte",
+          "resumo": "Helena chamou Filomena"
+        },
+        "Decision": {
+          "acao": "responder",
+          "continuar_acompanhando": false,
+          "motivo": "chamada_direta"
+        },
+        "BatchSize": 1,
+        "MemoryItems": 0,
+        "SituationMs": 0.482,
+        "PresenceMs": 2.2503,
+        "MemoryMs": 0,
+        "GenerationMs": 5387.3346,
+        "BatchToWouldSendMs": 5421.702,
+        "Calls": 3,
+        "Retries": 0,
+        "Path": [
+          "node-completed:group-entry:then:",
+          "node-completed:group-batch:then:",
+          "node-completed:group-history:then:",
+          "node-completed:group-situation:then:",
+          "node-completed:group-presence:then:",
+          "node-completed:group-action:case-responder:",
+          "node-completed:group-generation:then:",
+          "node-completed:group-transition-responder::",
+          "transition-applied:::participation-engaged-v1"
+        ]
+      }
+    },
+    {
+      "repetition": 1,
+      "upstream": "fixed fake situation and RESPONDER; not an end-to-end FSM result",
+      "actualLlmCalls": 1,
+      "result": {
+        "Scenario": 5,
+        "Name": "E flerte",
+        "InitialState": "participation-engaged-v1",
+        "FinalState": "participation-engaged-v1",
+        "MemoryEnabled": false,
+        "MemorySource": "none",
+        "Signal": "WOULD_SEND",
+        "Text": "Você está me interpretando de forma bem dramática, Helena. Não é que eu esteja te provocando; é só que você tem uma tendência a levar tudo para o lado pessoal. E sobre aceitar um café... Eu não faço nada por \"medo\". Faço coisas porque quero ou porque acho interessante.\n\nMe convence primeiro que vale meu tempo.",
+        "Success": true,
+        "Error": null,
+        "Situation": {
+          "ambiente": "casual",
+          "envolvimento": "direto",
+          "ritmo": "aberto",
+          "necessita_cuidado": false,
+          "oportunidade_social": "forte",
+          "resumo": "Helena chamou Filomena"
+        },
+        "Decision": {
+          "acao": "responder",
+          "continuar_acompanhando": false,
+          "motivo": "chamada_direta"
+        },
+        "BatchSize": 1,
+        "MemoryItems": 0,
+        "SituationMs": 0.0027,
+        "PresenceMs": 0.0079,
+        "MemoryMs": 0,
+        "GenerationMs": 5854.6177,
+        "BatchToWouldSendMs": 5855.7627,
+        "Calls": 3,
+        "Retries": 0,
+        "Path": [
+          "node-completed:group-entry:then:",
+          "node-completed:group-batch:then:",
+          "node-completed:group-history:then:",
+          "node-completed:group-situation:then:",
+          "node-completed:group-presence:then:",
+          "node-completed:group-action:case-responder:",
+          "node-completed:group-generation:then:",
+          "node-completed:group-transition-responder::",
+          "transition-applied:::participation-engaged-v1"
+        ]
+      }
+    },
+    {
+      "repetition": 1,
+      "upstream": "fixed fake situation and RESPONDER; not an end-to-end FSM result",
+      "actualLlmCalls": 1,
+      "result": {
+        "Scenario": 8,
+        "Name": "H limite trabalho",
+        "InitialState": "participation-engaged-v1",
+        "FinalState": "participation-engaged-v1",
+        "MemoryEnabled": true,
+        "MemorySource": "fake",
+        "Signal": "WOULD_SEND",
+        "Text": "Olha, Helena. Duas horas é um tempo considerável para perder com... bem, com o drama de uma versão errada. Mas respira. O pânico nunca conserta nada.\n\nO que você precisa fazer agora não é tentar apagar o erro, mas sim gerenciar a narrativa. A transparência é sempre mais elegante do que a negação. Reconheça o lapso imediatamente, assuma total responsabilidade e apresente um plano de ação claro para corrigir *e* prevenir que aconteça de novo.\n\nParece clichê, mas em situações assim, quem demonstra controle da situação — mesmo que seja só verbalmente — sempre ganha pontos. E por favor, não tente esconder isso. Deixe o erro à mostra e mostre como você vai consertá-lo. É muito mais profissional do que fingir que nada aconteceu.\n\nAgora, se me der licença, vou tomar um café. Esse grupo de teste está ficando dramático demais para a minha boa vontade.",
+        "Success": true,
+        "Error": null,
+        "Situation": {
+          "ambiente": "casual",
+          "envolvimento": "direto",
+          "ritmo": "aberto",
+          "necessita_cuidado": false,
+          "oportunidade_social": "forte",
+          "resumo": "Helena chamou Filomena"
+        },
+        "Decision": {
+          "acao": "responder",
+          "continuar_acompanhando": false,
+          "motivo": "chamada_direta"
+        },
+        "BatchSize": 1,
+        "MemoryItems": 1,
+        "SituationMs": 0.0026,
+        "PresenceMs": 0.0101,
+        "MemoryMs": 0.8647,
+        "GenerationMs": 7206.5782,
+        "BatchToWouldSendMs": 7232.8187,
+        "Calls": 3,
+        "Retries": 0,
+        "Path": [
+          "node-completed:group-entry:then:",
+          "node-completed:group-batch:then:",
+          "node-completed:group-history:then:",
+          "node-completed:group-situation:then:",
+          "node-completed:group-presence:then:",
+          "node-completed:group-action:case-responder:",
+          "node-completed:group-response-memory:then:",
+          "node-completed:group-generation:then:",
+          "node-completed:group-transition-responder::",
+          "transition-applied:::participation-engaged-v1"
+        ]
+      }
+    },
+    {
+      "repetition": 1,
+      "upstream": "fixed fake situation and RESPONDER; not an end-to-end FSM result",
+      "actualLlmCalls": 1,
+      "result": {
+        "Scenario": 8,
+        "Name": "H limite trabalho",
+        "InitialState": "participation-engaged-v1",
+        "FinalState": "participation-engaged-v1",
+        "MemoryEnabled": false,
+        "MemorySource": "none",
+        "Signal": "WOULD_SEND",
+        "Text": "Duas horas? Calma lá. O pânico nunca resolve nada, Helena. Mas entendo o desastre. Não tente esconder ou minimizar. A melhor coisa é ser proativa e elegante sobre o erro.\n\nPrimeiro: não entre em pânico na frente de todo mundo. Segundo: mande um e-mail rápido (não por mensagem instantânea) para seu gestor, reconhecendo que houve uma falha no envio da versão correta. Não peça desculpas demais; apenas assuma a responsabilidade pelo erro processual e anexe o arquivo certo com um breve comentário como: \"Peço desculpa pela confusão de versões. Segue em anexo o relatório final revisado.\"\n\nÉ sobre controlar a narrativa, não sobre apagar o rastro do erro. Agora vai resolver isso antes que eu tenha que dar aulas de gestão de crise para você.",
+        "Success": true,
+        "Error": null,
+        "Situation": {
+          "ambiente": "casual",
+          "envolvimento": "direto",
+          "ritmo": "aberto",
+          "necessita_cuidado": false,
+          "oportunidade_social": "forte",
+          "resumo": "Helena chamou Filomena"
+        },
+        "Decision": {
+          "acao": "responder",
+          "continuar_acompanhando": false,
+          "motivo": "chamada_direta"
+        },
+        "BatchSize": 1,
+        "MemoryItems": 0,
+        "SituationMs": 0.0024,
+        "PresenceMs": 0.0092,
+        "MemoryMs": 0,
+        "GenerationMs": 6244.5562,
+        "BatchToWouldSendMs": 6245.1629,
+        "Calls": 3,
+        "Retries": 0,
+        "Path": [
+          "node-completed:group-entry:then:",
+          "node-completed:group-batch:then:",
+          "node-completed:group-history:then:",
+          "node-completed:group-situation:then:",
+          "node-completed:group-presence:then:",
+          "node-completed:group-action:case-responder:",
+          "node-completed:group-generation:then:",
+          "node-completed:group-transition-responder::",
+          "transition-applied:::participation-engaged-v1"
+        ]
+      }
+    },
+    {
+      "repetition": 1,
+      "upstream": "fixed fake situation and RESPONDER; not an end-to-end FSM result",
+      "actualLlmCalls": 1,
+      "result": {
+        "Scenario": 9,
+        "Name": "I apelido",
+        "InitialState": "participation-engaged-v1",
+        "FinalState": "participation-engaged-v1",
+        "MemoryEnabled": true,
+        "MemorySource": "fake",
+        "Signal": "WOULD_SEND",
+        "Text": "Ah, Professor. Não precisa se desculpar por nada. É só um cache de DNS. Achei que fosse algo mais complicado, sabe? Decepcionante, na verdade. Mas fico feliz que tenha dado certo.",
+        "Success": true,
+        "Error": null,
+        "Situation": {
+          "ambiente": "casual",
+          "envolvimento": "direto",
+          "ritmo": "aberto",
+          "necessita_cuidado": false,
+          "oportunidade_social": "forte",
+          "resumo": "Helena chamou Filomena"
+        },
+        "Decision": {
+          "acao": "responder",
+          "continuar_acompanhando": false,
+          "motivo": "chamada_direta"
+        },
+        "BatchSize": 1,
+        "MemoryItems": 1,
+        "SituationMs": 0.0027,
+        "PresenceMs": 0.0097,
+        "MemoryMs": 0.0087,
+        "GenerationMs": 4973.1737,
+        "BatchToWouldSendMs": 4974.243,
+        "Calls": 3,
+        "Retries": 0,
+        "Path": [
+          "node-completed:group-entry:then:",
+          "node-completed:group-batch:then:",
+          "node-completed:group-history:then:",
+          "node-completed:group-situation:then:",
+          "node-completed:group-presence:then:",
+          "node-completed:group-action:case-responder:",
+          "node-completed:group-response-memory:then:",
+          "node-completed:group-generation:then:",
+          "node-completed:group-transition-responder::",
+          "transition-applied:::participation-engaged-v1"
+        ]
+      }
+    },
+    {
+      "repetition": 1,
+      "upstream": "fixed fake situation and RESPONDER; not an end-to-end FSM result",
+      "actualLlmCalls": 1,
+      "result": {
+        "Scenario": 9,
+        "Name": "I apelido",
+        "InitialState": "participation-engaged-v1",
+        "FinalState": "participation-engaged-v1",
+        "MemoryEnabled": false,
+        "MemorySource": "none",
+        "Signal": "WOULD_SEND",
+        "Text": "Pelo menos foi algo simples, então. Não precisa fazer um drama por causa de um cache de DNS. Mas olha só, Gabriel, você tem que admitir que quase nos fez perder o dia inteiro com isso. Agora que resolveu, podemos voltar ao trabalho, ou prefere mais aplausos?",
+        "Success": true,
+        "Error": null,
+        "Situation": {
+          "ambiente": "casual",
+          "envolvimento": "direto",
+          "ritmo": "aberto",
+          "necessita_cuidado": false,
+          "oportunidade_social": "forte",
+          "resumo": "Helena chamou Filomena"
+        },
+        "Decision": {
+          "acao": "responder",
+          "continuar_acompanhando": false,
+          "motivo": "chamada_direta"
+        },
+        "BatchSize": 1,
+        "MemoryItems": 0,
+        "SituationMs": 0.0027,
+        "PresenceMs": 0.0068,
+        "MemoryMs": 0,
+        "GenerationMs": 5307.5475,
+        "BatchToWouldSendMs": 5308.0642,
+        "Calls": 3,
+        "Retries": 0,
+        "Path": [
+          "node-completed:group-entry:then:",
+          "node-completed:group-batch:then:",
+          "node-completed:group-history:then:",
+          "node-completed:group-situation:then:",
+          "node-completed:group-presence:then:",
+          "node-completed:group-action:case-responder:",
+          "node-completed:group-generation:then:",
+          "node-completed:group-transition-responder::",
+          "transition-applied:::participation-engaged-v1"
+        ]
+      }
+    },
+    {
+      "repetition": 2,
+      "upstream": "fixed fake situation and RESPONDER; not an end-to-end FSM result",
+      "actualLlmCalls": 1,
+      "result": {
+        "Scenario": 1,
+        "Name": "A casual",
+        "InitialState": "participation-inactive-v1",
+        "FinalState": "participation-engaged-v1",
+        "MemoryEnabled": false,
+        "MemorySource": "none",
+        "Signal": "WOULD_SEND",
+        "Text": "Depende de quem está perguntando e do contexto, claro. Mas se você tá me pedindo uma opinião sobre algo que *você* criou, eu diria que o problema não é a ideia em si, mas talvez a sua autoconfiança ao apresentá-la. Me mostra aí para eu dar um parecer mais... útil.",
+        "Success": true,
+        "Error": null,
+        "Situation": {
+          "ambiente": "casual",
+          "envolvimento": "direto",
+          "ritmo": "aberto",
+          "necessita_cuidado": false,
+          "oportunidade_social": "forte",
+          "resumo": "Helena chamou Filomena"
+        },
+        "Decision": {
+          "acao": "responder",
+          "continuar_acompanhando": false,
+          "motivo": "chamada_direta"
+        },
+        "BatchSize": 1,
+        "MemoryItems": 0,
+        "SituationMs": 0.0028,
+        "PresenceMs": 0.0117,
+        "MemoryMs": 0,
+        "GenerationMs": 5494.0846,
+        "BatchToWouldSendMs": 5494.7669,
+        "Calls": 3,
+        "Retries": 0,
+        "Path": [
+          "node-completed:group-entry:then:",
+          "node-completed:group-batch:then:",
+          "node-completed:group-history:then:",
+          "node-completed:group-situation:then:",
+          "node-completed:group-presence:then:",
+          "node-completed:group-action:case-responder:",
+          "node-completed:group-generation:then:",
+          "node-completed:group-transition-responder::",
+          "transition-applied:::participation-engaged-v1"
+        ]
+      }
+    },
+    {
+      "repetition": 2,
+      "upstream": "fixed fake situation and RESPONDER; not an end-to-end FSM result",
+      "actualLlmCalls": 1,
+      "result": {
+        "Scenario": 5,
+        "Name": "E flerte",
+        "InitialState": "participation-engaged-v1",
+        "FinalState": "participation-engaged-v1",
+        "MemoryEnabled": false,
+        "MemorySource": "none",
+        "Signal": "WOULD_SEND",
+        "Text": "Você sempre tem um talento para transformar uma conversa simples em um interrogatório dramático. E você acha que eu estou com medo? Não é questão de aceitar ou não, Helena. É mais sobre se o seu tempo vale a minha atenção. Se quiser saber disso, me manda algo que realmente mereça meu interesse.",
+        "Success": true,
+        "Error": null,
+        "Situation": {
+          "ambiente": "casual",
+          "envolvimento": "direto",
+          "ritmo": "aberto",
+          "necessita_cuidado": false,
+          "oportunidade_social": "forte",
+          "resumo": "Helena chamou Filomena"
+        },
+        "Decision": {
+          "acao": "responder",
+          "continuar_acompanhando": false,
+          "motivo": "chamada_direta"
+        },
+        "BatchSize": 1,
+        "MemoryItems": 0,
+        "SituationMs": 0.0021,
+        "PresenceMs": 0.0092,
+        "MemoryMs": 0,
+        "GenerationMs": 5821.8138,
+        "BatchToWouldSendMs": 5822.3228,
+        "Calls": 3,
+        "Retries": 0,
+        "Path": [
+          "node-completed:group-entry:then:",
+          "node-completed:group-batch:then:",
+          "node-completed:group-history:then:",
+          "node-completed:group-situation:then:",
+          "node-completed:group-presence:then:",
+          "node-completed:group-action:case-responder:",
+          "node-completed:group-generation:then:",
+          "node-completed:group-transition-responder::",
+          "transition-applied:::participation-engaged-v1"
+        ]
+      }
+    },
+    {
+      "repetition": 2,
+      "upstream": "fixed fake situation and RESPONDER; not an end-to-end FSM result",
+      "actualLlmCalls": 1,
+      "result": {
+        "Scenario": 8,
+        "Name": "H limite trabalho",
+        "InitialState": "participation-engaged-v1",
+        "FinalState": "participation-engaged-v1",
+        "MemoryEnabled": true,
+        "MemorySource": "fake",
+        "Signal": "WOULD_SEND",
+        "Text": "Olha, respira fundo. Não adianta entrar em pânico; isso só piora a situação para qualquer um que esteja olhando.\n\nO erro já aconteceu, e o mais importante agora é como você vai gerenciar a *reação* ao erro. Em vez de tentar apagar o passado, você precisa controlar o presente.\n\nSe for algo profissional, não tente esconder. O melhor caminho é sempre assumir com clareza cirúrgica: envie um comunicado rápido (e-mail ou mensagem) reconhecendo que houve uma falha na versão enviada e imediatamente anexe a correção correta, explicando brevemente onde estava o equívoco.\n\nA chave aqui não é pedir desculpas por ser humana; é mostrar que você já tem o controle da situação e sabe exatamente como consertar. Foca em resolver, Helena. A gente se vira.",
+        "Success": true,
+        "Error": null,
+        "Situation": {
+          "ambiente": "casual",
+          "envolvimento": "direto",
+          "ritmo": "aberto",
+          "necessita_cuidado": false,
+          "oportunidade_social": "forte",
+          "resumo": "Helena chamou Filomena"
+        },
+        "Decision": {
+          "acao": "responder",
+          "continuar_acompanhando": false,
+          "motivo": "chamada_direta"
+        },
+        "BatchSize": 1,
+        "MemoryItems": 1,
+        "SituationMs": 0.0032,
+        "PresenceMs": 0.009,
+        "MemoryMs": 0.0034,
+        "GenerationMs": 6459.4519,
+        "BatchToWouldSendMs": 6460.2976,
+        "Calls": 3,
+        "Retries": 0,
+        "Path": [
+          "node-completed:group-entry:then:",
+          "node-completed:group-batch:then:",
+          "node-completed:group-history:then:",
+          "node-completed:group-situation:then:",
+          "node-completed:group-presence:then:",
+          "node-completed:group-action:case-responder:",
+          "node-completed:group-response-memory:then:",
+          "node-completed:group-generation:then:",
+          "node-completed:group-transition-responder::",
+          "transition-applied:::participation-engaged-v1"
+        ]
+      }
+    },
+    {
+      "repetition": 2,
+      "upstream": "fixed fake situation and RESPONDER; not an end-to-end FSM result",
+      "actualLlmCalls": 1,
+      "result": {
+        "Scenario": 8,
+        "Name": "H limite trabalho",
+        "InitialState": "participation-engaged-v1",
+        "FinalState": "participation-engaged-v1",
+        "MemoryEnabled": false,
+        "MemorySource": "none",
+        "Signal": "WOULD_SEND",
+        "Text": "Não é um desastre, Helena. É só... um erro de processo. A primeira coisa que você faz é notificar imediatamente quem recebeu o arquivo errado e pedir desculpas por engano. Depois, envie a versão correta com uma nota clara dizendo: \"Por favor, desconsidere o anexo anterior; esta é a revisão final.\"\n\nÉ simples assim. Não precisa de drama. Só exige um pouco mais de atenção aos detalhes antes de apertar 'enviar'.",
+        "Success": true,
+        "Error": null,
+        "Situation": {
+          "ambiente": "casual",
+          "envolvimento": "direto",
+          "ritmo": "aberto",
+          "necessita_cuidado": false,
+          "oportunidade_social": "forte",
+          "resumo": "Helena chamou Filomena"
+        },
+        "Decision": {
+          "acao": "responder",
+          "continuar_acompanhando": false,
+          "motivo": "chamada_direta"
+        },
+        "BatchSize": 1,
+        "MemoryItems": 0,
+        "SituationMs": 0.002,
+        "PresenceMs": 0.0081,
+        "MemoryMs": 0,
+        "GenerationMs": 5061.1645,
+        "BatchToWouldSendMs": 5061.6615,
+        "Calls": 3,
+        "Retries": 0,
+        "Path": [
+          "node-completed:group-entry:then:",
+          "node-completed:group-batch:then:",
+          "node-completed:group-history:then:",
+          "node-completed:group-situation:then:",
+          "node-completed:group-presence:then:",
+          "node-completed:group-action:case-responder:",
+          "node-completed:group-generation:then:",
+          "node-completed:group-transition-responder::",
+          "transition-applied:::participation-engaged-v1"
+        ]
+      }
+    },
+    {
+      "repetition": 2,
+      "upstream": "fixed fake situation and RESPONDER; not an end-to-end FSM result",
+      "actualLlmCalls": 1,
+      "result": {
+        "Scenario": 9,
+        "Name": "I apelido",
+        "InitialState": "participation-engaged-v1",
+        "FinalState": "participation-engaged-v1",
+        "MemoryEnabled": true,
+        "MemorySource": "fake",
+        "Signal": "WOULD_SEND",
+        "Text": "Drama? Por favor. Achear um DNS em cache é só o básico que deveria ter sido notado na primeira hora. Mas parabéns, Professor. Pelo menos alguém aqui conseguiu fazer funcionar sem precisar de uma mágica hollywoodiana.",
+        "Success": true,
+        "Error": null,
+        "Situation": {
+          "ambiente": "casual",
+          "envolvimento": "direto",
+          "ritmo": "aberto",
+          "necessita_cuidado": false,
+          "oportunidade_social": "forte",
+          "resumo": "Helena chamou Filomena"
+        },
+        "Decision": {
+          "acao": "responder",
+          "continuar_acompanhando": false,
+          "motivo": "chamada_direta"
+        },
+        "BatchSize": 1,
+        "MemoryItems": 1,
+        "SituationMs": 0.0014,
+        "PresenceMs": 0.0099,
+        "MemoryMs": 0.0037,
+        "GenerationMs": 5181.4839,
+        "BatchToWouldSendMs": 5182.3792,
+        "Calls": 3,
+        "Retries": 0,
+        "Path": [
+          "node-completed:group-entry:then:",
+          "node-completed:group-batch:then:",
+          "node-completed:group-history:then:",
+          "node-completed:group-situation:then:",
+          "node-completed:group-presence:then:",
+          "node-completed:group-action:case-responder:",
+          "node-completed:group-response-memory:then:",
+          "node-completed:group-generation:then:",
+          "node-completed:group-transition-responder::",
+          "transition-applied:::participation-engaged-v1"
+        ]
+      }
+    },
+    {
+      "repetition": 2,
+      "upstream": "fixed fake situation and RESPONDER; not an end-to-end FSM result",
+      "actualLlmCalls": 1,
+      "result": {
+        "Scenario": 9,
+        "Name": "I apelido",
+        "InitialState": "participation-engaged-v1",
+        "FinalState": "participation-engaged-v1",
+        "MemoryEnabled": false,
+        "MemorySource": "none",
+        "Signal": "WOULD_SEND",
+        "Text": "Ah, o clássico \"bug de cache\". É quase um ritual, não é? Não se preocupe em merecer nada por isso, Gabriel. Apenas tente lembrar que a gente prefere soluções mais... elegantes. Mas parabéns pelo achado, eu acho. Agora, podemos voltar ao assunto principal ou vamos ficar aqui celebrando DNS?",
+        "Success": true,
+        "Error": null,
+        "Situation": {
+          "ambiente": "casual",
+          "envolvimento": "direto",
+          "ritmo": "aberto",
+          "necessita_cuidado": false,
+          "oportunidade_social": "forte",
+          "resumo": "Helena chamou Filomena"
+        },
+        "Decision": {
+          "acao": "responder",
+          "continuar_acompanhando": false,
+          "motivo": "chamada_direta"
+        },
+        "BatchSize": 1,
+        "MemoryItems": 0,
+        "SituationMs": 0.0016,
+        "PresenceMs": 0.0061,
+        "MemoryMs": 0,
+        "GenerationMs": 5158.0529,
+        "BatchToWouldSendMs": 5158.4971,
+        "Calls": 3,
+        "Retries": 0,
+        "Path": [
+          "node-completed:group-entry:then:",
+          "node-completed:group-batch:then:",
+          "node-completed:group-history:then:",
+          "node-completed:group-situation:then:",
+          "node-completed:group-presence:then:",
+          "node-completed:group-action:case-responder:",
+          "node-completed:group-generation:then:",
+          "node-completed:group-transition-responder::",
+          "transition-applied:::participation-engaged-v1"
+        ]
+      }
+    }
+  ]
+}
