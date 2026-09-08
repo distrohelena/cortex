@@ -30,6 +30,7 @@ public sealed class TypedFlowIntegrationTests
         Assert.True(jsonSchema.GetProperty("strict").GetBoolean());
         Assert.True(JsonElement.DeepEquals(schema!.Value, jsonSchema.GetProperty("schema")));
         Assert.Contains("Corrija enum", payload.GetProperty("messages")[0].GetProperty("content").GetString());
+        Assert.Contains(schema.Value.GetRawText(), payload.GetProperty("messages")[0].GetProperty("content").GetString());
         using var inputs = JsonDocument.Parse(payload.GetProperty("messages")[1].GetProperty("content").GetString()!);
         Assert.Equal("oi", inputs.RootElement.GetProperty("mensagem").GetString());
     }

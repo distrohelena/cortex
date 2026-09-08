@@ -1,0 +1,485 @@
+{
+  "experiment": "typed-flow-slice35",
+  "date": "2026-09-08",
+  "model": "google/gemma-4-e4b",
+  "temperature": 0.1,
+  "maxTokens": 4096,
+  "sending": false,
+  "graphitiWrites": false,
+  "round": "final; explicit output contract; real memory only for existing canonical participants",
+  "reports": [
+    {
+      "Scenario": 1,
+      "Name": "conversa irrelevante",
+      "Conversation": "5511981042361-1589823314@g.us",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "MemoryEnabled": false,
+      "MemorySource": "none",
+      "MemoryItems": 0,
+      "Situation": {
+        "ambiente": "casual",
+        "envolvimento": "nenhum",
+        "ritmo": "encerrando",
+        "necessita_cuidado": false,
+        "oportunidade_social": "fraca",
+        "resumo": "O grupo está coordenando horários de chegada e a conversa se encerra com confirmação."
+      },
+      "Presence": {
+        "acao": "calar",
+        "proximo_estado": "atenta",
+        "motivo": "A conversa está encerrando naturalmente; é melhor observar o desfecho."
+      },
+      "Action": "calar",
+      "CurrentState": "participation-attentive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "SituationMilliseconds": 4977.0723,
+      "PresenceMilliseconds": 3750.6656,
+      "LlmCalls": 2,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 4977.0723,
+          "Correction": false
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 3750.6656,
+          "Correction": false
+        }
+      ]
+    },
+    {
+      "Scenario": 2,
+      "Name": "chamada direta",
+      "Conversation": "5511981042361-1589823314@g.us",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 2,
+      "MemoryEnabled": false,
+      "MemorySource": "none",
+      "MemoryItems": 0,
+      "Situation": {
+        "ambiente": "casual",
+        "envolvimento": "direto",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": true,
+        "oportunidade_social": "forte",
+        "resumo": "Helena mostra algo e pede a opinião de Filomena sobre uma ideia."
+      },
+      "Presence": {
+        "acao": "responder",
+        "proximo_estado": "atenta",
+        "motivo": "Helena chamou seu nome e pediu explicitamente sua opinião."
+      },
+      "Action": "responder",
+      "CurrentState": "participation-attentive-v1",
+      "Signal": "WOULD_RESPOND",
+      "Success": true,
+      "Error": null,
+      "SituationMilliseconds": 5090.3787,
+      "PresenceMilliseconds": 4388.1275,
+      "LlmCalls": 2,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 5090.3787,
+          "Correction": false
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 4388.1275,
+          "Correction": false
+        }
+      ]
+    },
+    {
+      "Scenario": 3,
+      "Name": "interesse sem chamada",
+      "Conversation": "5511981042361-1589823314@g.us",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "MemoryEnabled": false,
+      "MemorySource": "none",
+      "MemoryItems": 0,
+      "Situation": {
+        "ambiente": "tecnico",
+        "envolvimento": "nenhum",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": false,
+        "oportunidade_social": "fraca",
+        "resumo": "Gabriel e Bia debatem em um grupo sobre a qualidade da linguagem de programação C++."
+      },
+      "Presence": {
+        "acao": "calar",
+        "proximo_estado": "atenta",
+        "motivo": "A conversa está fluindo naturalmente entre Gabriel e Bia."
+      },
+      "Action": "calar",
+      "CurrentState": "participation-attentive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "SituationMilliseconds": 5231.5669,
+      "PresenceMilliseconds": 3650.0573,
+      "LlmCalls": 2,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 5231.5669,
+          "Correction": false
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 3650.0573,
+          "Correction": false
+        }
+      ]
+    },
+    {
+      "Scenario": 4,
+      "Name": "pensamento incompleto",
+      "Conversation": "5511981042361-1589823314@g.us",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "MemoryEnabled": false,
+      "MemorySource": "none",
+      "MemoryItems": 0,
+      "Situation": {
+        "ambiente": "casual",
+        "envolvimento": "nenhum",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": true,
+        "oportunidade_social": "fraca",
+        "resumo": "Helena pede atenção e explica algo para o grupo de teste."
+      },
+      "Presence": {
+        "acao": "esperar",
+        "proximo_estado": "atenta",
+        "motivo": "Helena está explicando algo; é melhor esperar o fim da fala."
+      },
+      "Action": "esperar",
+      "CurrentState": "participation-attentive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "SituationMilliseconds": 5616.8726,
+      "PresenceMilliseconds": 3710.6155,
+      "LlmCalls": 2,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 5616.8726,
+          "Correction": false
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 3710.6155,
+          "Correction": false
+        }
+      ]
+    },
+    {
+      "Scenario": 5,
+      "Name": "continuidade engajada",
+      "Conversation": "5511981042361-1589823314@g.us",
+      "InitialState": "participation-engaged-v1",
+      "BatchSize": 1,
+      "MemoryEnabled": false,
+      "MemorySource": "none",
+      "MemoryItems": 0,
+      "Situation": {
+        "ambiente": "tecnico",
+        "envolvimento": "direto",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": true,
+        "oportunidade_social": "fraca",
+        "resumo": "Filomena fez uma sugestão técnica que foi imediatamente contestada por Gabriel em um grupo de teste."
+      },
+      "Presence": {
+        "acao": "responder",
+        "proximo_estado": "engajada",
+        "motivo": "Gabriel contestou diretamente a sugestão técnica de Filomena."
+      },
+      "Action": "responder",
+      "CurrentState": "participation-engaged-v1",
+      "Signal": "WOULD_RESPOND",
+      "Success": true,
+      "Error": null,
+      "SituationMilliseconds": 4591.798,
+      "PresenceMilliseconds": 3064.6183,
+      "LlmCalls": 2,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 4591.798,
+          "Correction": false
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 3064.6183,
+          "Correction": false
+        }
+      ]
+    },
+    {
+      "Scenario": 6,
+      "Name": "conversa migrou",
+      "Conversation": "5511981042361-1589823314@g.us",
+      "InitialState": "participation-engaged-v1",
+      "BatchSize": 4,
+      "MemoryEnabled": false,
+      "MemorySource": "none",
+      "MemoryItems": 0,
+      "Situation": {
+        "ambiente": "casual",
+        "envolvimento": "nenhum",
+        "ritmo": "encerrando",
+        "necessita_cuidado": false,
+        "oportunidade_social": "fraca",
+        "resumo": "Bia perguntou sobre planos para amanhã, e Helena confirmou a presença."
+      },
+      "Presence": {
+        "acao": "esperar",
+        "proximo_estado": "atenta",
+        "motivo": "A conversa está encerrando e o assunto principal foi resolvido."
+      },
+      "Action": "esperar",
+      "CurrentState": "participation-attentive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "SituationMilliseconds": 5115.7379,
+      "PresenceMilliseconds": 2946.1608,
+      "LlmCalls": 2,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 5115.7379,
+          "Correction": false
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 2946.1608,
+          "Correction": false
+        }
+      ]
+    },
+    {
+      "Scenario": 7,
+      "Name": "conflito sem convite",
+      "Conversation": "5511981042361-1589823314@g.us",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "MemoryEnabled": false,
+      "MemorySource": "none",
+      "MemoryItems": 0,
+      "Situation": {
+        "ambiente": "conflito",
+        "envolvimento": "nenhum",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": true,
+        "oportunidade_social": "nenhuma",
+        "resumo": "Discussão acalorada em grupo sobre um evento passado. Acusações e negações estão sendo trocadas."
+      },
+      "Presence": {
+        "acao": "calar",
+        "proximo_estado": "atenta",
+        "motivo": "O conflito está muito acalorado; é melhor observar a dinâmica."
+      },
+      "Action": "calar",
+      "CurrentState": "participation-attentive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "SituationMilliseconds": 5026.3712,
+      "PresenceMilliseconds": 3008.0297,
+      "LlmCalls": 2,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 5026.3712,
+          "Correction": false
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 3008.0297,
+          "Correction": false
+        }
+      ]
+    },
+    {
+      "Scenario": 8,
+      "Name": "limite sobre trabalho",
+      "Conversation": "5511981042361-1589823314@g.us",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 2,
+      "MemoryEnabled": false,
+      "MemorySource": "none",
+      "MemoryItems": 0,
+      "Situation": {
+        "ambiente": "brincadeira",
+        "envolvimento": "direto",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": false,
+        "oportunidade_social": "forte",
+        "resumo": "Helena reclama do trabalho. Bia pede diretamente a Filomena para fazer uma piada sobre o assunto."
+      },
+      "Presence": {
+        "acao": "responder",
+        "proximo_estado": "engajada",
+        "motivo": "Bia pediu diretamente uma piada sobre o trabalho da Helena."
+      },
+      "Action": "responder",
+      "CurrentState": "participation-engaged-v1",
+      "Signal": "WOULD_RESPOND",
+      "Success": true,
+      "Error": null,
+      "SituationMilliseconds": 3881.3474,
+      "PresenceMilliseconds": 2879.2506,
+      "LlmCalls": 2,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 3881.3474,
+          "Correction": false
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 2879.2506,
+          "Correction": false
+        }
+      ]
+    },
+    {
+      "Scenario": 8,
+      "Name": "limite sobre trabalho",
+      "Conversation": "5511981042361-1589823314@g.us",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 2,
+      "MemoryEnabled": true,
+      "MemorySource": "synthetic-boundary",
+      "MemoryItems": 1,
+      "Situation": {
+        "ambiente": "casual",
+        "envolvimento": "direto",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": true,
+        "oportunidade_social": "forte",
+        "resumo": "Helena desabafa sobre o trabalho. Bia pede a Filomena que faça uma piada."
+      },
+      "Presence": {
+        "acao": "responder",
+        "proximo_estado": "atenta",
+        "motivo": "Bia pediu piada, mas é preciso respeitar o limite de Helena."
+      },
+      "Action": "responder",
+      "CurrentState": "participation-attentive-v1",
+      "Signal": "WOULD_RESPOND",
+      "Success": true,
+      "Error": null,
+      "SituationMilliseconds": 4554.9662,
+      "PresenceMilliseconds": 4784.4598,
+      "LlmCalls": 2,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 4554.9662,
+          "Correction": false
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 4784.4598,
+          "Correction": false
+        }
+      ]
+    },
+    {
+      "Scenario": 2,
+      "Name": "chamada direta",
+      "Conversation": "5511981042361-1589823314@g.us",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 2,
+      "MemoryEnabled": true,
+      "MemorySource": "graphiti-exact",
+      "MemoryItems": 2,
+      "Situation": {
+        "ambiente": "casual",
+        "envolvimento": "direto",
+        "ritmo": "aberto",
+        "necessita_cuidado": true,
+        "oportunidade_social": "forte",
+        "resumo": "Helena chamou Filomena e pediu opinião sobre uma ideia no grupo."
+      },
+      "Presence": {
+        "acao": "responder",
+        "proximo_estado": "atenta",
+        "motivo": "Helena chamou o nome e pediu opinião sobre a ideia no grupo."
+      },
+      "Action": "responder",
+      "CurrentState": "participation-attentive-v1",
+      "Signal": "WOULD_RESPOND",
+      "Success": true,
+      "Error": null,
+      "SituationMilliseconds": 5393.8983,
+      "PresenceMilliseconds": 4888.6241,
+      "LlmCalls": 2,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 5393.8983,
+          "Correction": false
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 4888.6241,
+          "Correction": false
+        }
+      ]
+    },
+    {
+      "Scenario": 4,
+      "Name": "pensamento incompleto",
+      "Conversation": "5511981042361-1589823314@g.us",
+      "InitialState": "participation-inactive-v1",
+      "BatchSize": 3,
+      "MemoryEnabled": true,
+      "MemorySource": "graphiti-exact",
+      "MemoryItems": 2,
+      "Situation": {
+        "ambiente": "casual",
+        "envolvimento": "indireto",
+        "ritmo": "aberto",
+        "necessita_cuidado": true,
+        "oportunidade_social": "fraca",
+        "resumo": "Helena está pausando a conversa e se preparando para dar uma explicação detalhada."
+      },
+      "Presence": {
+        "acao": "esperar",
+        "proximo_estado": "atenta",
+        "motivo": "Helena está se preparando para explicar; é melhor observar o fluxo."
+      },
+      "Action": "esperar",
+      "CurrentState": "participation-attentive-v1",
+      "Signal": "SILENT",
+      "Success": true,
+      "Error": null,
+      "SituationMilliseconds": 4745.4505,
+      "PresenceMilliseconds": 3864.4957,
+      "LlmCalls": 2,
+      "Calls": [
+        {
+          "NodeId": "group-situation",
+          "Milliseconds": 4745.4505,
+          "Correction": false
+        },
+        {
+          "NodeId": "group-presence",
+          "Milliseconds": 3864.4957,
+          "Correction": false
+        }
+      ]
+    }
+  ]
+}

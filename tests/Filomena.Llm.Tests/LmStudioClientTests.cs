@@ -9,6 +9,16 @@ namespace Filomena.Llm.Tests;
 public sealed class LmStudioClientTests
 {
     [Fact]
+    public async Task InfiniteRequestDeadlineStillHonorsExplicitCancellation()
+    {
+        using var http = new HttpClient(new CapturingHandler("{}")) { Timeout = Timeout.InfiniteTimeSpan };
+        var client = new LmStudioClient(http, new LmStudioOptions { RequestTimeoutSeconds = -1 });
+        using var cancellation = new CancellationTokenSource();
+        await cancellation.CancelAsync();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.CompleteResponseAsync("system", "fixture", cancellation.Token));
+    }
+
+    [Fact]
     public async Task GeneratesFreeTextWithSameModelWithoutArbitrationSchema()
     {
         var handler = new CapturingHandler("""{"choices":[{"message":{"content":"Oi, Helena!"}}]}""");

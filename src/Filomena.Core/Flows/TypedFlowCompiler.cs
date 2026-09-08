@@ -26,7 +26,7 @@ public static class TypedFlowCompiler
         {
             if (source.GetProperty("version").GetInt32() != 3) throw new InvalidDataException("Use graph versão 3.");
             var raw = source.GetProperty("nodes").EnumerateArray().ToArray();
-            if (raw.Length is < 1 or > 20) throw new InvalidDataException("Use 1–20 nodes.");
+            if (raw.Length is < 1 or > 32) throw new InvalidDataException("Use 1–32 nodes.");
             var allNodes = raw.Select(n => new FlowNode(n.GetProperty("id").GetString()!, n.GetProperty("kind").GetString()!, 1, n)).ToDictionary(n => n.Id);
             var allData = source.GetProperty("edges").EnumerateArray().Select(e => new DataEdge(Ref(e, "source"), [], Ref(e, "target"))).ToArray();
             var allControl = source.TryGetProperty("controlEdges", out var ce) ? ce.EnumerateArray().Select(e => new ControlEdge(Ref(e, "source"), Ref(e, "target"))).ToArray() : [];
@@ -131,6 +131,8 @@ public static class TypedFlowCompiler
                         result = new(node, [Port("object", input.Type)], [Port("value", FlowDomain.PropertyType(input.Type, path))], []); break;
                     case "prompt":
                         if (!config.TryGetProperty("prompt", out var prompt) || prompt.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(prompt.GetString())) throw new InvalidDataException("Preencha a instrução.");
+                        InstructionContext.Enabled(config, "usePersonalityCore");
+                        InstructionContext.Enabled(config, "useStateGuidance");
                         var inputs = Fields(id, config, "inputs", false);
                         var outputs = Fields(id, config, "responseFields", true);
                         if (outputs.Length == 0) outputs = [Port("message", new StringType())];

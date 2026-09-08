@@ -4,6 +4,7 @@ namespace Filomena.Core.Flows.Sessions;
 
 internal sealed record CompiledSessionFlowState(
     string Id,
+    InstructionContext InstructionContext,
     IReadOnlyDictionary<SessionEntryKind, TypedFlow> Entries);
 
 internal sealed record CompiledSessionFlowProject(
@@ -38,6 +39,7 @@ internal static class SessionFlowProjectCompiler
         {
             var document = source.Document.Clone();
             var project = Unwrap(document);
+            var personalityCore = InstructionContext.ReadText(project, "personalityCore");
             if (!project.TryGetProperty("version", out var schemaVersion) || !schemaVersion.TryGetInt32(out var version) || version != 1)
                 Issue("project", null, "project", "version", "Use project schema version 1.");
             if (!project.TryGetProperty("stateScope", out var scope) || scope.ValueKind != JsonValueKind.String || scope.GetString() != "session")
@@ -106,7 +108,8 @@ internal static class SessionFlowProjectCompiler
                         foreach (var issue in exception.Issues) Issue(stateId, entryId, issue.NodeId, issue.Port, issue.Reason);
                     }
                 }
-                compiledStates[stateId] = new(stateId, compiledEntries);
+                compiledStates[stateId] = new(stateId,
+                    new(personalityCore, InstructionContext.ReadText(state, "participationGuidance")), compiledEntries);
             }
 
             ValidateStateTargets(compiledStates.Values, stateById.Keys.ToHashSet(StringComparer.Ordinal), Issue);

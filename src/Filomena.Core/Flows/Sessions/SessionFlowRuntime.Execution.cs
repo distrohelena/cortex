@@ -352,6 +352,7 @@ public sealed partial class SessionFlowRuntime
                 node => AddTrace(batch.Session, Trace(batch, "node-" + node.Status, node.NodeId, node.Exit,
                     duration: node.Duration.TotalMilliseconds, errorCode: node.Error, timestamp: node.Timestamp)),
                 (node, persons, query, token) => QueryMemoryAsync(batch, node, persons, query, token),
+                batch.Project.States[batch.StateId].InstructionContext,
                 lifetime.Token).ConfigureAwait(false);
             if (!result.Success) executionError = result.Steps.LastOrDefault(step => step.Status == "failed")?.Error ?? "flow-execution-failed";
         }

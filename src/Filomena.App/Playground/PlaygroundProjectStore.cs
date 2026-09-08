@@ -73,23 +73,27 @@ internal sealed class PlaygroundProjectStore(string directory)
         if (System.Text.Encoding.UTF8.GetByteCount(document.GetRawText()) > 1048576) throw new InvalidDataException();
         Keys(document, "format", "project");
         if (Text(document, "format") != "filomena-local-project" || !document.TryGetProperty("project", out var project)) throw new InvalidDataException();
-        Keys(project, "version", "stateScope", "initialStateId", "states");
+        Keys(project, "version", "stateScope", "initialStateId", "states", "personalityCore");
+        OptionalDesignText(project, "personalityCore");
         if (!project.TryGetProperty("version", out var version) || version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var number) || number != 1 || Text(project, "stateScope") != "session") throw new InvalidDataException();
         DraftStateId(project);
         var states = Array(project, "states", 16);
         var ids = new HashSet<string>(StringComparer.Ordinal);
         foreach (var state in states.EnumerateArray())
         {
-            Keys(state, "id", "name", "graph");
+            Keys(state, "id", "name", "graph", "participationGuidance");
+            OptionalDesignText(state, "participationGuidance");
             if (!ids.Add(Text(state, "id"))) throw new InvalidDataException();
             Text(state, "name");
             if (!state.TryGetProperty("graph", out var graph)) throw new InvalidDataException();
             Keys(graph, "version", "nodes", "edges", "controlEdges");
             if (!graph.TryGetProperty("version", out var gv) || gv.ValueKind != JsonValueKind.Number || !gv.TryGetInt32(out var gn) || gn is not (2 or 3)) throw new InvalidDataException();
             var nodeIds = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var node in Array(graph, "nodes", 20).EnumerateArray())
+            foreach (var node in Array(graph, "nodes", 32).EnumerateArray())
             {
-                Keys(node, "id", "kind", "x", "y", "prompt", "provider", "model", "settings", "responseFields", "inputs", "correctionRetry", "title");
+                Keys(node, "id", "kind", "x", "y", "prompt", "provider", "model", "settings", "responseFields", "inputs", "correctionRetry", "title", "usePersonalityCore", "useStateGuidance");
+                foreach (var flag in new[] { "usePersonalityCore", "useStateGuidance" })
+                    if (node.TryGetProperty(flag, out var enabled) && enabled.ValueKind is not (JsonValueKind.True or JsonValueKind.False)) throw new InvalidDataException();
                 if (!nodeIds.Add(Text(node, "id"))) throw new InvalidDataException();
                 if (!new[] { "dm", "group", "input", "prompt", "accumulate", "history", "memory", "branch", "exit", "send", "property", "switch" }.Contains(Text(node, "kind"))) throw new InvalidDataException();
                 foreach (var coordinate in new[] { "x", "y" })
@@ -115,5 +119,11 @@ internal sealed class PlaygroundProjectStore(string directory)
                 }
             }
         }
+    }
+
+    private static void OptionalDesignText(JsonElement owner, string key)
+    {
+        if (owner.TryGetProperty(key, out var value) &&
+            (value.ValueKind != JsonValueKind.String || value.GetString()!.Length > 32000)) throw new InvalidDataException();
     }
 }

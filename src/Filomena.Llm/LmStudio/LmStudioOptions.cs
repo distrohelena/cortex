@@ -37,6 +37,6 @@ public sealed class LmStudioOptions
             throw new InvalidOperationException("LmStudio:GenerationTemperature must be between 0 and 2.");
         }
         ArgumentOutOfRangeException.ThrowIfLessThan(GenerationMaxTokens, 1);
-        ArgumentOutOfRangeException.ThrowIfLessThan(RequestTimeoutSeconds, 1);
+        if (RequestTimeoutSeconds != Timeout.Infinite) ArgumentOutOfRangeException.ThrowIfLessThan(RequestTimeoutSeconds, 1);
     }
 }

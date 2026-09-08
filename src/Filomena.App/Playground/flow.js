@@ -118,10 +118,13 @@ function renderExitMapping(node){
 function inspect(){
  const node=graph.nodes.find(n=>n.id===selected);if(!node)return;
  $('node-model-settings').hidden=node.kind!=='prompt';
+ $('use-personality-core').checked=node.usePersonalityCore===true;$('use-personality-core').disabled=busy;
+ $('use-state-guidance').checked=node.useStateGuidance===true;$('use-state-guidance').disabled=busy;
  renderTypedPanel($('typed-settings'),graph,node,busy,contractsChanged);
  $('contract-preview').hidden=node.kind!=='prompt';
  const contract=lastContracts.find(n=>n.nodeId===selected),calls=lastCalls.filter(n=>n.nodeId===selected);
- $('contract-content').textContent=contract||calls.length?JSON.stringify({contract,calls},null,2):'Valide para ver o contrato. Simule para ver o payload seguro.';
+ const references={personalityCore:node.usePersonalityCore?project.personalityCore??'':undefined,participationGuidance:node.useStateGuidance?project.states.find(s=>s.id===selectedStateId)?.participationGuidance??'':undefined};
+ $('contract-content').textContent=JSON.stringify({references,...(contract?{contract}:{}),...(calls.length?{calls}:{})},null,2);
  renderResponseFields(node);
  $('accumulate-settings').hidden=node.kind!=='accumulate';
  $('exit-settings').hidden=node.kind!=='exit';
@@ -180,6 +183,9 @@ function render(){
 }
 
 $('prompt').addEventListener('input',()=>{if(busy)return;const node=graph.nodes.find(n=>n.id===selected);node.prompt=$('prompt').value;invalidate();$('inspection').textContent='Instrução alterada. Execute novamente.';});
+for(const [id,key] of [['use-personality-core','usePersonalityCore'],['use-state-guidance','useStateGuidance']])$(id).addEventListener('change',()=>{if(busy)return;const node=graph.nodes.find(n=>n.id===selected);if(node?.kind==='prompt'){node[key]=$(id).checked;invalidate();inspect();}});
+$('personality-core').addEventListener('input',()=>{if(busy)return;project.personalityCore=$('personality-core').value;invalidate();inspect();});
+$('participation-guidance').addEventListener('input',()=>{if(busy)return;project.states.find(s=>s.id===selectedStateId).participationGuidance=$('participation-guidance').value;invalidate();inspect();});
 for(const [field,choose] of [['node-provider',chooseProvider],['node-model',chooseModel]]){
  $(field).addEventListener('change',()=>{
   if(busy||!modelCatalog)return;const node=graph.nodes.find(n=>n.id===selected);if(node?.kind!=='prompt')return;
@@ -188,7 +194,7 @@ for(const [field,choose] of [['node-provider',chooseProvider],['node-model',choo
  });
 }
 $('add').addEventListener('click',()=>{
- if(busy)return;if(graph.nodes.length>=20){tell('Limite: 20 blocos.');return;}
+ if(busy)return;if(graph.nodes.length>=32){tell('Limite: 32 blocos.');return;}
  $('add-menu').open=false;
  if(graph.nodes.filter(n=>n.kind==='prompt').length>=8){tell('Limite deste recorte: 8 instruções.');return;}
  let i=2;while(graph.nodes.some(n=>n.id===`prompt-${i}`))i++;
@@ -197,7 +203,7 @@ $('add').addEventListener('click',()=>{
 });
 for(const kind of ['dm','group'])$('add-'+kind).addEventListener('click',()=>{
  if(busy)return;$('add-menu').open=false;
- if(graph.nodes.length>=20){tell('Limite: 20 blocos.');return;}
+ if(graph.nodes.length>=32){tell('Limite: 32 blocos.');return;}
  let i=1;while(graph.nodes.some(n=>n.id===`${kind}-${i}`))i++;
  const node={id:`${kind}-${i}`,kind,x:60,y:Math.min(3800,150+graph.nodes.filter(isEntry).length*130)};
  graph.nodes.push(node);selected=node.id;invalidate();render();$('event-entry').value=node.id;
@@ -205,12 +211,12 @@ for(const kind of ['dm','group'])$('add-'+kind).addEventListener('click',()=>{
 });
 $('event-entry').addEventListener('change',()=>{invalidate();inspect();});
 for(const kind of ['property','switch'])$('add-'+kind).addEventListener('click',()=>{
- if(busy||graph.nodes.length>=20)return;$('add-menu').open=false;
+ if(busy||graph.nodes.length>=32)return;$('add-menu').open=false;
  const node={id:crypto.randomUUID(),kind,x:370,y:330,settings:kind==='property'?{path:[]}:{cases:[],other:false}};
  graph.nodes.push(node);selected=node.id;contractsChanged();
 });
 $('add-branch').addEventListener('click',()=>{
- if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=20){tell('Limite: 20 blocos.');return;}
+ if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=32){tell('Limite: 32 blocos.');return;}
  let i=1;while(graph.nodes.some(n=>n.id===`branch-${i}`))i++;
  const node={id:`branch-${i}`,kind:'branch',settings:{operator:'eq'},x:370,y:330};graph.nodes.push(node);selected=node.id;invalidate();render();
 });
@@ -220,7 +226,7 @@ $('branch-operator').addEventListener('change',()=>{
  node.settings={operator};invalidate();render();
 });
 $('add-exit').addEventListener('click',()=>{
- if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=20){tell('Limite: 20 blocos.');return;}
+ if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=32){tell('Limite: 32 blocos.');return;}
  let i=1;while(graph.nodes.some(n=>n.id===`exit-${i}`))i++;
  const node={id:`exit-${i}`,kind:'exit',settings:{targetStateId:selectedStateId,mode:'switch'},x:680,y:330};
  graph.nodes.push(node);selected=node.id;invalidate();render();
@@ -232,24 +238,24 @@ $('exit-target').addEventListener('change',()=>{
 });
 $('exit-mode').addEventListener('change',()=>{const node=graph.nodes.find(n=>n.id===selected);if(busy||node?.kind!=='exit')return;node.settings={...node.settings,mode:'switch'};invalidate();render();});
 $('add-accumulate').addEventListener('click',()=>{
- if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=20){tell('Limite: 20 blocos.');return;}
+ if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=32){tell('Limite: 32 blocos.');return;}
  let i=1;while(graph.nodes.some(n=>n.id===`accumulate-${i}`))i++;
  const node={id:`accumulate-${i}`,kind:'accumulate',settings:accumulatorDefaults(),x:370,y:330};
  graph.nodes.push(node);selected=node.id;invalidate();render();
 });
 $('add-history').addEventListener('click',()=>{
- if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=20){tell('Limite: 20 blocos.');return;}
+ if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=32){tell('Limite: 32 blocos.');return;}
  let i=1;while(graph.nodes.some(n=>n.id===`history-${i}`))i++;
  const node={id:`history-${i}`,kind:'history',settings:historyDefaults(),x:520,y:330};graph.nodes.push(node);selected=node.id;invalidate();render();
 });
 $('add-memory').addEventListener('click',()=>{
- if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=20){tell('Limite: 20 blocos.');return;}
+ if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=32){tell('Limite: 32 blocos.');return;}
  Object.assign(graph,migrateTypedGraph(graph));
  const node={id:crypto.randomUUID(),kind:'memory',settings:memoryDefaults(),x:520,y:330};
  graph.nodes.push(node);selected=node.id;invalidate();render();
 });
 $('add-send').addEventListener('click',()=>{
- if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=20){tell('Limite: 20 blocos.');return;}
+ if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=32){tell('Limite: 32 blocos.');return;}
  let id='send',i=2;while(graph.nodes.some(n=>n.id===id))id=`send-${i++}`;
  const node={id,kind:'send',x:680,y:330};graph.nodes.push(node);selected=node.id;invalidate();render();
  tell('Enviar mensagem criado. Conecte Mensagem e Para antes de ativar.');
@@ -279,6 +285,8 @@ async function api(path,body,signal){
 let contextStateId=null;
 function closeStateMenu(){ $('state-context-menu').hidePopover();contextStateId=null; }
 function renderStates(){
+ $('personality-core').value=project.personalityCore??'';$('personality-core').disabled=busy;
+ $('participation-guidance').value=project.states.find(s=>s.id===selectedStateId)?.participationGuidance??'';$('participation-guidance').disabled=busy;
  closeStateMenu();const list=$('state-list');list.replaceChildren();
  for(const state of project.states){
   const button=document.createElement('button');button.textContent=state.name+(state.id===project.initialStateId?' · padrão':'');button.setAttribute('aria-pressed',String(state.id===selectedStateId));

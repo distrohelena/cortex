@@ -33,7 +33,7 @@ public static class TypedFlowRunner
     }
 
     public static Task<TypedRunResult> RunAsync(TypedFlow flow, JsonElement message, IFlowCompletion completion, CancellationToken token) =>
-        RunCoreAsync(flow, message, completion, null, TimeProvider.System, null, null, token);
+        RunCoreAsync(flow, message, completion, null, TimeProvider.System, null, null, null, token);
 
     internal static Task<TypedRunResult> RunSessionAsync(
         TypedFlow flow,
@@ -43,8 +43,9 @@ public static class TypedFlowRunner
         TimeProvider timeProvider,
         Action<TypedNodeExecutionTrace> observer,
         Func<TypedNode, JsonElement?, string?, CancellationToken, Task<JsonElement>> memoryQuery,
+        InstructionContext instructionContext,
         CancellationToken token) =>
-        RunCoreAsync(flow, message, completion, runtimeOutputs, timeProvider, observer, memoryQuery, token);
+        RunCoreAsync(flow, message, completion, runtimeOutputs, timeProvider, observer, memoryQuery, instructionContext, token);
 
     private static async Task<TypedRunResult> RunCoreAsync(
         TypedFlow flow,
@@ -54,6 +55,7 @@ public static class TypedFlowRunner
         TimeProvider timeProvider,
         Action<TypedNodeExecutionTrace>? observer,
         Func<TypedNode, JsonElement?, string?, CancellationToken, Task<JsonElement>>? memoryQuery,
+        InstructionContext? instructionContext,
         CancellationToken token)
     {
         var steps = new List<TypedStep>();
@@ -104,11 +106,12 @@ public static class TypedFlowRunner
                     }
                     var config = node.Source.Config;
                     var schema = ResponseSchema(node);
+                    var system = InstructionContext.Compose(config, instructionContext);
                     string? correction = null; Dictionary<string, TypedValue>? output = null;
                     var retries = config.TryGetProperty("correctionRetry", out var retry) && retry.ValueKind == JsonValueKind.False ? 0 : 1;
                     for (var attempt = 0; attempt <= retries; attempt++)
                     {
-                        var request = new FlowCompletionRequest(current, config.GetProperty("prompt").GetString()!, JsonSerializer.SerializeToElement(inputs), schema,
+                        var request = new FlowCompletionRequest(current, system, JsonSerializer.SerializeToElement(inputs), schema,
                             OptionalText(config, "model"), OptionalText(config, "provider"), correction);
                         var text = await completion.CompleteAsync(request, token);
                         try { output = ValidateOutput(node, text, schema is not null); break; }

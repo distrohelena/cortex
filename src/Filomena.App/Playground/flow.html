@@ -41,6 +41,8 @@
    <select id="node-provider" disabled><option>Carregando catálogo…</option></select>
    <label for="node-model">Modelo</label>
    <select id="node-model" disabled><option>Carregando catálogo…</option></select>
+   <label><input id="use-personality-core" type="checkbox"> Usar personality core</label>
+   <label><input id="use-state-guidance" type="checkbox"> Usar orientação do state</label>
    <label for="prompt">Instrução de sistema</label><textarea id="prompt" rows="8" maxlength="16000"></textarea>
    <section id="response-settings">
     <h3>Estrutura JSON</h3>
@@ -95,6 +97,8 @@
   <div id="states-list-screen">
   <button id="show-create-state">Criar estado</button>
   <div id="state-list" aria-label="Estados do projeto"></div>
+  <label for="personality-core">Personalidade do personagem</label><textarea id="personality-core" rows="8" maxlength="32000"></textarea>
+  <label for="participation-guidance">Orientação do estado em edição</label><textarea id="participation-guidance" rows="6" maxlength="32000"></textarea>
   </div>
   <div id="states-create-screen" hidden>
    <label for="new-state-name">Nome do estado</label>

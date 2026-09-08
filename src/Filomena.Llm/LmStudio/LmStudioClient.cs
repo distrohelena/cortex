@@ -117,7 +117,7 @@ public sealed class LmStudioClient : ILmStudioChatClient, IResponseChatClient
     private async Task<string> CompleteAsync(object payload, CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(options.RequestTimeoutSeconds));
+        if (options.RequestTimeoutSeconds != Timeout.Infinite) timeout.CancelAfter(TimeSpan.FromSeconds(options.RequestTimeoutSeconds));
         using var response = await httpClient.PostAsJsonAsync(
             "chat/completions",
             payload,

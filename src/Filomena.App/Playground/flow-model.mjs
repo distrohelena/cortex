@@ -196,7 +196,7 @@ export function openDraft(text,stateId='state-1') {
  if(text.length>65536)throw new Error('O arquivo excede 64 KB.');
  const document=JSON.parse(text),graph=document?.graph;
  if(document?.format!=='filomena-local-flow'||![1,2,3].includes(graph?.version)||!Array.isArray(graph.nodes)||!Array.isArray(graph.edges)
-  ||graph.nodes.length<2||graph.nodes.length>20||graph.edges.length>64)throw new Error('Arquivo de fluxo local inválido ou versão não suportada.');
+  ||graph.nodes.length<2||graph.nodes.length>32||graph.edges.length>64)throw new Error('Arquivo de fluxo local inválido ou versão não suportada.');
  // Explicit design reset requested for structured messages. Apply once on old drafts.
  const legacy=graph.version===1;
  if(legacy)graph.version=3;
@@ -248,11 +248,16 @@ function cleanProject(project){
  const states=project.states.map(state=>{
   if(!state||typeof state.id!=='string'||!state.id.trim()||state.id.length>80||ids.has(state.id))throw new Error('Identificador de estado inválido ou duplicado.');
   ids.add(state.id);
-  return {id:state.id,name:stateName(state.name),graph:openDraft(JSON.stringify({format:'filomena-local-flow',graph:state.graph}),state.id)};
+  return {id:state.id,name:stateName(state.name),...optionalDesignText(state,'participationGuidance'),graph:openDraft(JSON.stringify({format:'filomena-local-flow',graph:state.graph}),state.id)};
  });
  const initialStateId=project.initialStateId;
  if(initialStateId!==undefined&&initialStateId!==null&&(typeof initialStateId!=='string'||initialStateId.length>80))throw new Error('Identificador de estado inicial inválido.');
- return {version:1,stateScope:'session',initialStateId,states};
+ return {version:1,stateScope:'session',initialStateId,...optionalDesignText(project,'personalityCore'),states};
+}
+function optionalDesignText(object,key){
+ if(object[key]===undefined)return {};
+ if(typeof object[key]!=='string'||object[key].length>32000)throw new Error(`${key}: use texto com até 32000 caracteres.`);
+ return {[key]:object[key]};
 }
 export function saveProject(project){
  const text=JSON.stringify({format:'filomena-local-project',project:cleanProject(project)},null,2);
