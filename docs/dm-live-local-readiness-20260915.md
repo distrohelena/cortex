@@ -65,3 +65,7 @@ only its receipt metadata additions and fixture edit if necessary.
 DM Live remains **NOT READY**. Real sending requires the remaining gates, explicit
 host arming, an exact-DM operational window and separate user authorization.
 Shadow remains incapable of enabling outbound. No canary or send is requested now.
+
+Update, same day: the three implementation gates above now have a tested local slice
+(fake transports only); see `dm-live-local-preparation-20260915.md` for what is proven
+locally and what remains before any real send.

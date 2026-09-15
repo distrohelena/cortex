@@ -66,7 +66,7 @@ public sealed class ShadowRuntimeTests : IDisposable
         if (scenario == "outage") Assert.Equal(0, completion.Calls);
     }
 
-    internal static SessionFlowProject Project(bool copy, bool duplicate = false)
+    internal static SessionFlowProject Project(bool copy, bool duplicate = false, string sendExit = "shadowed", bool history = false, long version = 1, bool engagedWithoutDm = false)
     {
         var graph = JsonNode.Parse("""
             {"version":3,"nodes":[
@@ -94,6 +94,12 @@ public sealed class ShadowRuntimeTests : IDisposable
             "controlEdges":[]}
             """)!.AsObject();
         var sequence = new List<string> { "dm", "batch", "recall", "compile", "generate", "enforce" };
+        if (history)
+        {
+            // Same shape as the frozen brain's history nodes: before-current-batch, character messages included.
+            graph["nodes"]!.AsArray().Add(JsonNode.Parse("""{"id":"history","kind":"history","settings":{"maxMessages":20,"maxAgeMinutes":15,"maxCharacters":5000,"includeCharacterMessages":true,"mode":"before-current-batch"},"x":0,"y":0}"""));
+            sequence.Insert(2, "history");
+        }
         if (copy)
         {
             var copier = graph["nodes"]!.AsArray().Single(n => n!["id"]!.GetValue<string>() == "generate")!.DeepClone();
@@ -110,11 +116,13 @@ public sealed class ShadowRuntimeTests : IDisposable
             sequence.Add("send2");
         }
         sequence.Add("exit");
-        for (var i = 1; i < sequence.Count; i++) graph["controlEdges"]!.AsArray().Add(JsonSerializer.SerializeToNode(new { source = sequence[i - 1], sourcePort = sequence[i - 1].StartsWith("send", StringComparison.Ordinal) ? "shadowed" : "then", target = sequence[i], targetPort = "exec" }));
-        return new("shadow-tests", 1, "v1", JsonSerializer.SerializeToElement(new
+        for (var i = 1; i < sequence.Count; i++) graph["controlEdges"]!.AsArray().Add(JsonSerializer.SerializeToNode(new { source = sequence[i - 1], sourcePort = sequence[i - 1].StartsWith("send", StringComparison.Ordinal) ? sendExit : "then", target = sequence[i], targetPort = "exec" }));
+        // A group-only graph: the engaged state then has no DM entry at all.
+        JsonNode engagedGraph = engagedWithoutDm ? JsonNode.Parse("""{"version":3,"nodes":[{"id":"group","kind":"group","x":0,"y":0}],"edges":[],"controlEdges":[]}""")! : graph;
+        return new("shadow-tests", version, "v" + version, JsonSerializer.SerializeToElement(new
         {
             version = 1, stateScope = "session", initialStateId = "initial",
-            states = new[] { new { id = "initial", name = "Initial", graph }, new { id = "engaged", name = "Engaged", graph } }
+            states = new[] { new { id = "initial", name = "Initial", graph = (JsonNode)graph }, new { id = "engaged", name = "Engaged", graph = engagedGraph } }
         }));
     }
 

@@ -99,7 +99,7 @@ public static class TypedFlowCompiler
                     case "send":
                         Outbound.SendNodeContract.Validate(config);
                         result = new(node, [Port("message", new StringType())],
-                            [Port("status", new EnumType(["disabled", "shadowed", "blocked", "failed"])), Port("diagnostico", new StringType())], ["disabled", "shadowed", "blocked", "failed"]); break;
+                            [Port("status", new EnumType(Outbound.SendNodeContract.Statuses)), Port("diagnostico", new StringType())], Outbound.SendNodeContract.Statuses); break;
                     case "dm":
                     case "group":
                         result = new(node, [], [Port("message", FlowDomain.Message)], ["then"]); break;

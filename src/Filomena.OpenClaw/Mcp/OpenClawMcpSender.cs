@@ -1,19 +1,32 @@
 using Filomena.Core.Conversations;
+using Filomena.Core.Outbound;
 
 namespace Filomena.OpenClaw.Mcp;
 
 /// <summary>One shared stdio connection; uncertain sends are never replayed.</summary>
 public sealed class OpenClawMcpSender(
-    Func<CancellationToken, Task<IMcpToolClient>> connect) : IConversationSender, IAsyncDisposable
+    Func<CancellationToken, Task<IMcpToolClient>> connect) : IOutboundTransport, IAsyncDisposable
 {
     private readonly SemaphoreSlim connectionGate = new(1, 1);
     private Connection? current;
     private bool disposed;
 
-    public async Task<SendReceipt> SendTextAsync(string sessionKey, string text, CancellationToken cancellationToken)
+    public Task<SendReceipt> SendTextAsync(string sessionKey, string text, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sessionKey);
         ArgumentException.ThrowIfNullOrWhiteSpace(text);
+        return UseConnectionAsync(transport => transport.SendTextAsync(sessionKey, text, cancellationToken), cancellationToken);
+    }
+
+    // Evidence read on the same connection the send would use. It does not pin the route: the bridge resolves it again.
+    public Task<TransportRouteDescription> DescribeRouteAsync(string route, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(route);
+        return UseConnectionAsync(transport => transport.DescribeRouteAsync(route, cancellationToken), cancellationToken);
+    }
+
+    private async Task<T> UseConnectionAsync<T>(Func<OpenClawMcpTransport, Task<T>> operation, CancellationToken cancellationToken)
+    {
         Connection connection;
         await connectionGate.WaitAsync(cancellationToken);
         try
@@ -28,7 +41,7 @@ public sealed class OpenClawMcpSender(
         var failed = false;
         try
         {
-            return await new OpenClawMcpTransport(connection.Client).SendTextAsync(sessionKey, text, cancellationToken);
+            return await operation(new OpenClawMcpTransport(connection.Client));
         }
         catch
         {

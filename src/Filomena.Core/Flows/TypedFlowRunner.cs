@@ -13,7 +13,10 @@ public interface IFlowCompletion
 }
 public sealed record TypedValue(FlowType Type, JsonElement Value);
 public sealed record TypedStep(string NodeId, string Status, string? Exit, string? Error);
-public sealed record TypedRunResult(bool Success, IReadOnlyList<TypedStep> Steps, IReadOnlyDictionary<string, Dictionary<string, TypedValue>> Outputs, string? TargetStateId = null);
+// Provider-accepted speech from this run. Only the session runtime turns it into history, exactly once.
+public sealed record ConfirmedSend(string NodeId, string ProviderMessageId, string Text, OutboundSpeaker Speaker);
+public sealed record TypedRunResult(bool Success, IReadOnlyList<TypedStep> Steps, IReadOnlyDictionary<string, Dictionary<string, TypedValue>> Outputs, string? TargetStateId = null,
+    ConfirmedSend? ConfirmedSend = null);
 internal sealed record TypedNodeExecutionTrace(string NodeId, string Status, string? Exit, string? Error, DateTimeOffset Timestamp, TimeSpan Duration,
     IReadOnlyDictionary<string, string>? Metadata = null);
 
@@ -75,6 +78,7 @@ public static class TypedFlowRunner
         var values = new Dictionary<PortRef, TypedValue>();
         var references = new Dictionary<string, string>();
         var sendAttempted = false;
+        ConfirmedSend? confirmed = null;
         string current = flow.EntryId;
         DateTimeOffset nodeStartedAt = default;
         long? nodeStartedTimestamp = null;
@@ -217,9 +221,12 @@ public static class TypedFlowRunner
                 {
                     var candidate = Input(node, node.Inputs.Single());
                     FlowDomain.Check(candidate.Value, new StringType());
-                    var result = outbound is not null ? outbound.Send(candidate)
+                    var result = outbound is not null ? await outbound.SendAsync(candidate, token)
                         : sendAttempted ? new ShadowSendResult("blocked", "duplicate_attempt") : new ShadowSendResult("disabled", "outbound_host_unavailable");
                     sendAttempted = true;
+                    // Only a provider-accepted receipt with a host-owned speaker is confirmed speech. WOULD_SEND never is.
+                    if (result.Status == "sent" && result.ProviderMessageId is not null && result.Speaker is not null && confirmed is null)
+                        confirmed = new(current, result.ProviderMessageId, candidate.Value.GetString()!, result.Speaker);
                     exit = result.Status;
                     published[current] = new()
                     {
@@ -263,10 +270,12 @@ public static class TypedFlowRunner
                     steps.Add(new(current, "completed", null, null));
                     observer?.Invoke(new(current, "completed", null, null, timeProvider.GetUtcNow(), duration));
                     nodeStartedTimestamp = null;
-                    if (sendAttempted)
+                    // After a send attempt, only confirmed speech may reach a transition; every other outcome stays hypothetical.
+                    var hypothetical = sendAttempted && confirmed is null;
+                    if (hypothetical)
                         observer?.Invoke(new(current, "hypothetical-transition", null, null, timeProvider.GetUtcNow(), TimeSpan.Zero,
                             new Dictionary<string, string> { ["wouldTransitionTo"] = target, ["applied"] = "false" }));
-                    return new(true, steps, published, sendAttempted ? null : target);
+                    return new(true, steps, published, hypothetical ? null : target, confirmed);
                 }
                 else if (node.Source.Kind == "branch")
                 {
@@ -288,7 +297,7 @@ public static class TypedFlowRunner
                 observer?.Invoke(new(current, "completed", exit, null, timeProvider.GetUtcNow(), completedDuration));
                 nodeStartedTimestamp = null;
                 var next = flow.Graph.ControlEdges.SingleOrDefault(e => e.Source == new PortRef(current, exit));
-                if (next is null) return new(true, steps, published);
+                if (next is null) return new(true, steps, published, null, confirmed);
                 current = next.Target.NodeId;
             }
         }
@@ -312,7 +321,8 @@ public static class TypedFlowRunner
                         ["expectedKind"] = BoundaryAdmission.Kind,
                         ["template"] = "no_teasing_about_topic:v1"
                     } : null));
-            return new(false, steps, published);
+            // A failure after a confirmed send does not un-send it: the speech still reaches history, without a transition.
+            return new(false, steps, published, null, confirmed);
         }
     }
 

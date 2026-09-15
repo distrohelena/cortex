@@ -336,10 +336,72 @@ public sealed partial class SessionFlowRuntime
         }
     }
 
+    // Nothing was generated or dispatched. The inbound stays in history and the inbox records the failure for reconciliation.
+    private void BlockStaleBatchLocked(RuntimeSession state, FlowBatch batch, string diagnostic, DateTimeOffset at)
+    {
+        state.PendingExecutions--;
+        state.Outcomes.Add(new(
+            batch.ExecutionId, batch.BatchId, batch.Session,
+            batch.Project.ProjectId, batch.Project.ProjectVersion, batch.Project.ProjectRevision,
+            batch.StateId, batch.StateVersion, batch.EntryKind, batch.CloseReason,
+            batch.Messages.Select(item => item.Envelope.ProviderMessageId).ToArray(),
+            at, at, false, diagnostic, null, false,
+            new Dictionary<string, IReadOnlyDictionary<string, JsonElement>>(StringComparer.Ordinal)));
+        AddTraceLocked(state, Trace(batch, "batch-blocked-stale", targetStateId: state.CurrentStateId, errorCode: diagnostic, timestamp: at));
+        AddTraceLocked(state, Trace(batch, "execution-failed", errorCode: diagnostic, timestamp: at));
+    }
+
     private async Task ExecuteBatchAsync(FlowBatch batch)
     {
         var startedAt = timeProvider.GetUtcNow();
         AddTrace(batch.Session, Trace(batch, "execution-started", timestamp: startedAt));
+        // Outbound commit frontier: executions are serialized per session, so every confirmed send of a predecessor
+        // is already in the session history when this one starts. Only that speech is added to the frozen snapshot;
+        // inbound admitted after the batch closed stays out, and the pinned project/state are untouched.
+        if (sessions.TryGetValue(batch.Session, out var frontierState))
+        {
+            AdmittedMessage[] frontier;
+            lock (frontierState.Gate)
+            {
+                // A predecessor confirmed a transition after this batch closed. A batch whose flow can act externally
+                // (it contains a send node) is never executed under that stale decision: with its pinned project it is
+                // reprocessed against the confirmed state, or blocked explicitly when that state cannot take this entry.
+                // Flows without an external effect keep their state snapshot. Executions are serialized, so this happens once.
+                var stale = frontierState.StateVersion != batch.StateVersion || !StringComparer.Ordinal.Equals(frontierState.CurrentStateId, batch.StateId);
+                if (stale && batch.Flow.Nodes.Values.Any(node => node.Source.Kind == "send"))
+                {
+                    var (fromStateId, fromStateVersion) = (batch.StateId, batch.StateVersion);
+                    var flow = batch.Project.States.TryGetValue(frontierState.CurrentStateId, out var confirmedState)
+                        && confirmedState.Entries.TryGetValue(batch.EntryKind, out var entry) ? entry : null;
+                    var accumulator = flow?.Nodes.Values.SingleOrDefault(node => node.Source.Kind == "accumulate");
+                    var diagnostic = flow is null ? "stale-state-entry-unavailable"
+                        : (accumulator is null) != (batch.AccumulatorNodeId is null) ? "stale-state-batch-shape-mismatch" : null;
+                    if (diagnostic is not null)
+                    {
+                        BlockStaleBatchLocked(frontierState, batch, diagnostic, startedAt);
+                        return;
+                    }
+                    batch = batch with { Flow = flow!, StateId = frontierState.CurrentStateId, StateVersion = frontierState.StateVersion, AccumulatorNodeId = accumulator?.Source.Id };
+                    AddTraceLocked(frontierState, Trace(batch, "batch-repinned", targetStateId: batch.StateId, timestamp: startedAt) with
+                    {
+                        MemoryMetadata = new Dictionary<string, string>
+                        {
+                            ["fromStateId"] = fromStateId,
+                            ["fromStateVersion"] = fromStateVersion.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                        }
+                    });
+                }
+                frontier = frontierState.History.Where(item => item.ConfirmedSendOf is not null && item.Watermark > batch.HistoryWatermark).ToArray();
+            }
+            if (frontier.Length > 0)
+            {
+                batch = batch with { History = batch.History.Concat(frontier).ToArray() };
+                AddTrace(batch.Session, Trace(batch, "history-frontier", timestamp: startedAt) with
+                { MemoryMetadata = new Dictionary<string, string> { ["confirmedPredecessorSpeech"] = frontier.Length.ToString(System.Globalization.CultureInfo.InvariantCulture) } });
+            }
+        }
+        var outbound = outboundHost?.Begin(batch.Project.Document, batch.ExecutionId, batch.Session, batch.EntryKind,
+            batch.Messages.Select(item => item.Envelope.ProviderMessageId));
         TypedRunResult? result = null;
         string? executionError = null;
         try
@@ -363,9 +425,7 @@ public sealed partial class SessionFlowRuntime
                 nodeStarting is null ? null : (nodeId, outputs, token) =>
                     nodeStarting(new(batch.ExecutionId, batch.BatchId, batch.Session, batch.StateId,
                         batch.StateVersion, batch.Project.ProjectRevision, nodeId, outputs), token),
-                boundaryRegistry, lifetime.Token,
-                outboundHost?.Begin(batch.Project.Document, batch.ExecutionId, batch.Session, batch.EntryKind,
-                    batch.Messages.Select(item => item.Envelope.ProviderMessageId))).ConfigureAwait(false);
+                boundaryRegistry, lifetime.Token, outbound).ConfigureAwait(false);
             if (!result.Success) executionError = result.Steps.LastOrDefault(step => step.Status == "failed")?.Error ?? "flow-execution-failed";
         }
         catch (OperationCanceledException)
@@ -382,12 +442,30 @@ public sealed partial class SessionFlowRuntime
         var transitionApplied = false;
         var success = result?.Success == true && executionError is null;
         if (!sessions.TryGetValue(batch.Session, out var state)) return;
+        var confirmed = result?.ConfirmedSend;
         lock (state.Gate)
         {
             if (Volatile.Read(ref disposed))
             {
                 success = false;
                 executionError = "cancelled";
+            }
+            // Provider-accepted speech is a fact regardless of how the run ended: append it once, keyed by provider ID.
+            if (confirmed is not null && state.ProviderMessageIds.Add(confirmed.ProviderMessageId))
+            {
+                var first = batch.Messages[0].Envelope;
+                var speech = new SessionMessageEnvelope(confirmed.ProviderMessageId, first.ChannelId, first.AccountId, first.NativeConversationId,
+                    completedAt, SessionMessageDirection.Outbound, batch.EntryKind,
+                    JsonSerializer.SerializeToElement(new
+                    {
+                        texto = confirmed.Text,
+                        remetente = new { nome = confirmed.Speaker.Name, stableId = confirmed.Speaker.StableId },
+                        canal = new { nome = first.Message.GetProperty("canal").GetProperty("nome").GetString(), nativeId = first.NativeConversationId },
+                        reply = (object?)null,
+                    }));
+                state.History.Add(new(++state.AdmissionWatermark, speech, batch.ExecutionId));
+                TrimRetainedHistory(state);
+                AddTraceLocked(state, Trace(batch, "speech-committed", confirmed.NodeId, timestamp: completedAt));
             }
             if (success && target is not null)
             {
@@ -419,6 +497,8 @@ public sealed partial class SessionFlowRuntime
             AddTraceLocked(state, Trace(batch, success ? "execution-completed" : "execution-failed",
                 targetStateId: target, errorCode: ErrorCode(executionError), timestamp: completedAt));
         }
+        // Closes the durable attempt: speech is in local history and the transition decision is final.
+        if (confirmed is not null) outbound?.HistoryCommitted(transitionApplied);
     }
 
     private IReadOnlyDictionary<string, IReadOnlyDictionary<string, TypedValue>> RuntimeOutputs(FlowBatch batch)
@@ -457,8 +537,9 @@ public sealed partial class SessionFlowRuntime
         if (settings.TryGetProperty("maxAgeMinutes", out var age) && age.ValueKind != JsonValueKind.Null)
             oldest = batch.ClosedAt - TimeSpan.FromMinutes(age.GetDouble());
 
+        // Confirmed predecessor speech past the batch watermark is part of the effective history; future inbound is not.
         var eligible = batch.History
-            .Where(item => item.Watermark <= boundary)
+            .Where(item => item.Watermark <= boundary || item.ConfirmedSendOf is not null)
             .Where(item => includeCharacter || item.Envelope.Direction != SessionMessageDirection.Outbound)
             .Where(item => oldest is null || item.Envelope.Timestamp >= oldest)
             .ToArray();
@@ -562,7 +643,7 @@ public sealed partial class SessionFlowRuntime
     private static string? ErrorCode(string? error) => error switch
     {
         null => null,
-        "cancelled" or "stale-state-transition" or "flow-execution-failed" => error,
+        "cancelled" or "stale-state-transition" or "stale-state-entry-unavailable" or "stale-state-batch-shape-mismatch" or "flow-execution-failed" => error,
         "HttpRequestException" or "InvalidDataException" or "InvalidOperationException" or "JsonException" or
         "KeyNotFoundException" or "SessionFlowProjectException" => error,
         _ => "flow-execution-failed",
@@ -592,7 +673,8 @@ public sealed partial class SessionFlowRuntime
         public int PendingExecutions { get; set; }
     }
 
-    private sealed record AdmittedMessage(long Watermark, SessionMessageEnvelope Envelope);
+    // ConfirmedSendOf marks provider-accepted speech committed by this runtime for the named execution.
+    private sealed record AdmittedMessage(long Watermark, SessionMessageEnvelope Envelope, string? ConfirmedSendOf = null);
 
     private sealed record BufferKey(
         string ProjectId,

@@ -87,6 +87,42 @@ public sealed class OpenClawMcpTransportTests
     }
 
     [Fact]
+    public async Task DescribesRouteFromConversationGetWithoutInferringMissingFields()
+    {
+        await using var client = new FakeMcpToolClient();
+        client.Enqueue("conversation_get", """
+            {"conversation":{"sessionKey":"opaque-route","channel":"whatsapp","to":"5511944558218@s.whatsapp.net","accountId":"default","displayName":"Helena"}}
+            """);
+        client.Enqueue("conversation_get", """
+            {"conversation":{"sessionKey":"opaque-route","channel":"whatsapp","to":"5511944558218@s.whatsapp.net"}}
+            """);
+        Filomena.Core.Outbound.IOutboundTransport transport = new OpenClawMcpTransport(client);
+
+        var described = await transport.DescribeRouteAsync("opaque-route", TestContext.Current.CancellationToken);
+        Assert.Equal(("whatsapp", "default", "5511944558218@s.whatsapp.net"), (described.Channel, described.AccountId, described.Recipient));
+        var call = Assert.Single(client.Calls);
+        Assert.Equal("conversation_get", call.Name);
+        Assert.Equal("opaque-route", Assert.Single(call.Arguments).Value);
+
+        var partial = await transport.DescribeRouteAsync("opaque-route", TestContext.Current.CancellationToken);
+        Assert.Null(partial.AccountId);
+        Assert.Equal("5511944558218@s.whatsapp.net", partial.Recipient);
+    }
+
+    [Theory]
+    [InlineData("""{"conversation":null}""")]
+    [InlineData("""{}""")]
+    [InlineData("""{"conversation":{"sessionKey":"opaque-route","channel":42,"to":"x"}}""")]
+    public async Task UnresolvedOrMalformedRouteDescriptionFailsClosed(string response)
+    {
+        await using var client = new FakeMcpToolClient();
+        client.Enqueue("conversation_get", response);
+        var transport = new OpenClawMcpTransport(client);
+        await Assert.ThrowsAsync<InvalidDataException>(() => transport.DescribeRouteAsync("opaque-route", TestContext.Current.CancellationToken));
+        Assert.Equal("conversation_get", Assert.Single(client.Calls).Name);
+    }
+
+    [Fact]
     public async Task ListsAndMapsChannelBackedConversations()
     {
         await using var client = new FakeMcpToolClient();

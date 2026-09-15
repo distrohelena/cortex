@@ -54,14 +54,17 @@ public sealed class PinnedShadowProject
     }
 }
 
-// Internal handoff shared with the explicit manual harness; no transport listener is started here.
-// Opening a future live source requires a separate reviewed change after all preflight proofs pass.
-internal sealed class ShadowRuntimeHandoff : IAsyncDisposable
+// Common composition (pinned project, trusted inbox, host, serial admission) behind two fixed ceilings.
+// The Shadow wrapper requires an effective Shadow host and therefore can never send; the Live wrapper requires an
+// effective Enabled host, which only exists with complete capabilities and an administratively bound route.
+// Neither starts a transport listener; opening a live source remains a separate reviewed change.
+internal abstract class RuntimeHandoffCore : IAsyncDisposable
 {
-    private readonly SessionFlowRuntime runtime;
-    private readonly ShadowSessionBinding binding;
+    private protected readonly SessionFlowRuntime runtime;
+    private protected readonly ShadowSessionBinding binding;
+    private protected readonly ShadowOutboundHost host;
     private readonly ShadowInboundJournal inbox;
-    private readonly ShadowOutboundHost host;
+    private readonly OutboundMode ceiling;
     private readonly SemaphoreSlim admissionGate = new(1);
     private readonly HashSet<string> completed = new(StringComparer.Ordinal);
     private readonly System.Collections.Concurrent.ConcurrentQueue<ShadowIngressAudit> audit = new();
@@ -70,17 +73,22 @@ internal sealed class ShadowRuntimeHandoff : IAsyncDisposable
     internal IReadOnlyList<SessionHistoryEntry> History => runtime.ReadHistory(binding.Session);
     internal IReadOnlyList<SessionTraceEvent> Trace => runtime.ReadTrace(binding.Session);
     internal SessionSnapshot? Snapshot => runtime.ReadSession(binding.Session);
+    private bool Armed => host.EffectiveMode == ceiling;
 
-    internal ShadowRuntimeHandoff(PinnedShadowProject project, ShadowSessionBinding binding, ShadowInboundJournal inbox,
+    private protected RuntimeHandoffCore(OutboundMode ceiling, PinnedShadowProject project, ShadowSessionBinding binding, ShadowInboundJournal inbox,
         ShadowOutboundHost host, IFlowCompletion completion, IMemoryReader memory)
     {
+        if (ceiling is not (OutboundMode.Shadow or OutboundMode.Enabled)) throw new ArgumentOutOfRangeException(nameof(ceiling));
         if (!inbox.IsBoundTo(binding, project.Project.ProjectRevision)) throw new InvalidOperationException("Inbox binding mismatch.");
         if (inbox.RequiresRuntimeRestore) throw new InvalidOperationException("Runtime context restoration required; no automatic replay.");
-        if (host.EffectiveMode != OutboundMode.Shadow) throw new InvalidOperationException("Shadow ceiling required.");
-        this.binding = binding; this.inbox = inbox; this.host = host;
+        if (host.EffectiveMode != ceiling)
+            throw new InvalidOperationException(ceiling == OutboundMode.Shadow ? "Shadow ceiling required." : "Effective Enabled host required for live admission.");
+        this.ceiling = ceiling; this.binding = binding; this.inbox = inbox; this.host = host;
         runtime = new(TimeProvider.System, completion, memory, outboundHost: host);
         runtime.UpdateProject(project.Project);
     }
+
+    private protected void RecordAudit(ShadowIngressAudit item) => audit.Enqueue(item);
 
     internal async Task<ShadowInboundDecision> AcceptAsync(CanonicalShadowInbound input, CancellationToken cancellationToken)
     {
@@ -91,7 +99,7 @@ internal sealed class ShadowRuntimeHandoff : IAsyncDisposable
             if (observed.CanonicalRef is { } inputRef) audit.Enqueue(new(observed.Status, binding.OpaqueRef, inputRef, null, null));
             if (observed.Status != "observed") return observed;
             // Once durably observed, cancellation/failure leaves an unresolved record, never a hidden retry.
-            if (host.EffectiveMode != OutboundMode.Shadow || host.RequiresReconciliation(binding.Session))
+            if (!Armed || host.RequiresReconciliation(binding.Session))
             {
                 inbox.RequireReconciliation(input.Message.ProviderMessageId);
                 return new("preserved", "deployment_disarmed_or_unresolved", observed.CanonicalRef);
@@ -131,4 +139,54 @@ internal sealed class ShadowRuntimeHandoff : IAsyncDisposable
         finally { admissionGate.Release(); }
     }
     public async ValueTask DisposeAsync() { await runtime.DisposeAsync(); admissionGate.Dispose(); }
+}
+
+// Shadow: no sender can be reached from here. The host's effective mode must be Shadow at construction and at every admission.
+internal sealed class ShadowRuntimeHandoff(PinnedShadowProject project, ShadowSessionBinding binding, ShadowInboundJournal inbox,
+    ShadowOutboundHost host, IFlowCompletion completion, IMemoryReader memory)
+    : RuntimeHandoffCore(OutboundMode.Shadow, project, binding, inbox, host, completion, memory);
+
+// Live: requires an effective Enabled host. Before admitting anything it completes durable receipts whose speech
+// never reached local history (once, keyed by provider ID, without any resend) and refuses to start while an
+// attempt still needs explicit reconciliation. The FSM transition of a recovered speech is not reapplied: the
+// session context is not restored across restarts, so it is recorded as not applied.
+internal sealed class LiveRuntimeHandoff : RuntimeHandoffCore
+{
+    internal LiveRuntimeHandoff(PinnedShadowProject project, ShadowSessionBinding binding, ShadowInboundJournal inbox,
+        ShadowOutboundHost host, IFlowCompletion completion, IMemoryReader memory)
+        : base(OutboundMode.Enabled, project, binding, inbox, host, completion, memory)
+    {
+        foreach (var commit in host.PendingSpeechCommits(binding.Session))
+        {
+            var speech = new SessionMessageEnvelope(commit.ProviderMessageId, binding.Session.ChannelId, binding.Session.AccountId,
+                binding.Session.NativeConversationId, DateTimeOffset.UtcNow, SessionMessageDirection.Outbound, SessionEntryKind.Dm,
+                JsonSerializer.SerializeToElement(new
+                {
+                    texto = commit.Text,
+                    remetente = new { nome = commit.Speaker.Name, stableId = commit.Speaker.StableId },
+                    canal = new { nome = "DM", nativeId = binding.Session.NativeConversationId },
+                    reply = (object?)null
+                }));
+            var admission = runtime.ReceiveAsync(binding.Session, speech).AsTask().GetAwaiter().GetResult();
+            if (admission.Status == SessionAdmissionStatus.Rejected)
+                throw new InvalidOperationException("Durable speech could not be restored into history: " + admission.Reason);
+            host.CompleteSpeechCommit(binding.Session, commit.AttemptRef, transitionApplied: false);
+            RecordAudit(new("speech_recovered", binding.OpaqueRef, ShadowSessionBinding.Ref(binding.OpaqueRef + "\n" + commit.ProviderMessageId), null, commit.AttemptRef));
+        }
+        if (host.RequiresReconciliation(binding.Session))
+            throw new InvalidOperationException("Explicit reconciliation of an uncertain attempt is required before live admission.");
+    }
+}
+
+public static class LiveRouteBindings
+{
+    // Everything except the opaque transport route, the speaker's display name and the verified single-part ceiling
+    // comes from the reviewed session binding. Nothing is transcribed by hand or inferred from a session label.
+    public static LiveRouteBinding FromShadow(ShadowSessionBinding binding, string transportRoute, string nativeRecipient, string speakerName, int maxSinglePartCharacters)
+    {
+        ArgumentNullException.ThrowIfNull(binding);
+        if (binding.SelfActorIds.Count != 1) throw new InvalidOperationException("Exactly one host self identity is required for a live route.");
+        return new(binding.Session, transportRoute, binding.Session.ChannelId, binding.Session.AccountId, nativeRecipient,
+            new(speakerName, binding.SelfActorIds.Single()), maxSinglePartCharacters);
+    }
 }

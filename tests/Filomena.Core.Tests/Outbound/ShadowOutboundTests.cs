@@ -133,7 +133,8 @@ public sealed class ShadowOutboundTests : IDisposable
             using var host = new ShadowOutboundHost(Path.Combine(directory, singlePart + ".jsonl"), Project, Bindings, [Session], new(true, true, true, true, true, true, singlePart));
             host.Rearm(OutboundMode.Enabled);
             var execution = Begin(host);
-            Assert.Equal(singlePart ? "phase0_dispatch_unavailable" : "transport_capabilities_incomplete", execution.Send(Approve(execution)).DiagnosticCode);
+            // Complete capabilities without an administrative live route binding still cannot dispatch anything.
+            Assert.Equal(singlePart ? "route_not_bound" : "transport_capabilities_incomplete", execution.Send(Approve(execution)).DiagnosticCode);
         }
         Assert.DoesNotContain(typeof(ShadowOutboundHost).GetConstructors().SelectMany(c => c.GetParameters()), p => p.ParameterType.Name.Contains("Sender", StringComparison.Ordinal) || p.ParameterType.Name.Contains("TransportAdapter", StringComparison.Ordinal));
     }

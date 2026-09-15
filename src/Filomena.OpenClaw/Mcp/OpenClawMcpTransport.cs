@@ -1,10 +1,11 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Filomena.Core.Conversations;
+using Filomena.Core.Outbound;
 
 namespace Filomena.OpenClaw.Mcp;
 
-public sealed class OpenClawMcpTransport : IConversationSender
+public sealed class OpenClawMcpTransport : IOutboundTransport
 {
     private const int RecoveryMessageLimit = 50;
     private readonly IMcpToolClient client;
@@ -50,6 +51,23 @@ public sealed class OpenClawMcpTransport : IConversationSender
             Recipient = ReceiptString(result, "toJid"),
             GatewayRunId = ReceiptString(result, "runId"),
         };
+    }
+
+    // Pre-send evidence only. The native bridge resolves sessions.describe again inside messages_send with a fresh
+    // idempotency key, so this cannot pin the destination atomically; a mismatch here proves nothing was dispatched.
+    public async Task<TransportRouteDescription> DescribeRouteAsync(string route, CancellationToken cancellationToken)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(route);
+        var response = await client.CallToolAsync("conversation_get", new Dictionary<string, object?>
+        {
+            ["session_key"] = route,
+        }, cancellationToken);
+        if (!TryObject(response, "conversation", out var conversation))
+            throw new InvalidDataException("Route unresolved: MCP returned no conversation for the bound route.");
+        return new TransportRouteDescription(
+            ReceiptString(conversation, "channel"),
+            ReceiptString(conversation, "accountId"),
+            ReceiptString(conversation, "to"));
     }
 
     private static string? ReceiptString(JsonElement result, string name)

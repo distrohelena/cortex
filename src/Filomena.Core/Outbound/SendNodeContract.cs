@@ -4,6 +4,9 @@ namespace Filomena.Core.Outbound;
 
 public static class SendNodeContract
 {
+    // Flat status/exit vocabulary. "sent" is the only continuation that may drive a speech-dependent transition.
+    public static readonly string[] Statuses = ["disabled", "shadowed", "sent", "blocked", "failed", "indeterminate"];
+
     public static void Validate(JsonElement config)
     {
         foreach (var property in config.EnumerateObject())

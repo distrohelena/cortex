@@ -13,6 +13,8 @@ public sealed class ShadowSessionBinding
     public string OpaqueRef => Ref(JsonSerializer.Serialize(Session));
     private readonly HashSet<string> self;
     private readonly HashSet<string> peers;
+    // Host-owned identities of the account itself; used to name the host's own speech, never handed to a model.
+    public IReadOnlyCollection<string> SelfActorIds => self.Order(StringComparer.Ordinal).ToArray();
     internal string AuthorityRef => Ref(JsonSerializer.Serialize(new { Session, ConversationNamespace, self = self.Order(StringComparer.Ordinal), peers = peers.Order(StringComparer.Ordinal) }));
 
     public ShadowSessionBinding(SessionKey session, string conversationNamespace, IEnumerable<string> selfActors, IEnumerable<string> peerActors)
