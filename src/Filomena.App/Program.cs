@@ -11,6 +11,26 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
+if (args.Contains("--native-shadow", StringComparer.Ordinal))
+{
+    using var cancellation = new CancellationTokenSource();
+    Console.CancelKeyPress += (_, e) => { e.Cancel = true; cancellation.Cancel(); };
+    Environment.ExitCode = await NativeShadowCommand.RunAsync(args, Console.In, Console.Out, cancellation.Token);
+    return;
+}
+
+if (args.Contains("--manual-shadow", StringComparer.Ordinal))
+{
+    Environment.ExitCode = await ManualShadowCommand.RunAsync(args, Console.In, Console.Out, CancellationToken.None);
+    return;
+}
+
+if (args.Contains("--shadow-preflight", StringComparer.Ordinal))
+{
+    Environment.ExitCode = await ShadowPreflightCommand.RunAsync(args, Console.Out, CancellationToken.None);
+    return;
+}
+
 if (args.Contains("--playground", StringComparer.Ordinal))
 {
     await LocalPromptPlayground.RunAsync(args.Contains("--live-reload", StringComparer.Ordinal));

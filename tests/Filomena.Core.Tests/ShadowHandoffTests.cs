@@ -1,0 +1,128 @@
+using System.Text.Json;
+using Filomena.Core.Flows;
+using Filomena.Core.Flows.Sessions;
+using Filomena.Core.Identity;
+using Filomena.Core.Outbound;
+using Filomena.Core.Shadow;
+using Filomena.Core.Tests.Outbound;
+using Xunit;
+
+namespace Filomena.Core.Tests;
+
+public sealed class ShadowHandoffTests : IDisposable
+{
+    private readonly string directory = Path.Combine(Path.GetTempPath(), "shadow-handoff-" + Guid.NewGuid());
+    private static readonly SessionKey Session = new("runtime", "character", "whatsapp", "default", "5511944558218@s.whatsapp.net");
+    public ShadowHandoffTests() => Directory.CreateDirectory(directory);
+    private static CanonicalShadowInbound Input(long sequence, string id) => new("epoch", sequence, Session, SessionEntryKind.Dm,
+        FilomenaIdentity.WhatsAppConversationNamespace(Session.NativeConversationId), "whatsapp:5511944558218@s.whatsapp.net",
+        new(id, Session.ChannelId, Session.AccountId, Session.NativeConversationId, DateTimeOffset.UtcNow, SessionMessageDirection.Inbound, SessionEntryKind.Dm,
+            JsonSerializer.SerializeToElement(new { texto = "O trabalho demorou.", remetente = new { nome = "Helena", stableId = "whatsapp:5511944558218@s.whatsapp.net" }, canal = new { nome = "DM", nativeId = Session.NativeConversationId }, reply = (object?)null })));
+
+    [Theory]
+    [InlineData("boundary")]
+    [InlineData("empty")]
+    [InlineData("outage")]
+    public async Task Normal_runtime_with_pinned_project_durable_ingress_and_no_send(string scenario)
+    {
+        var project = ShadowRuntimeTests.Project(false);
+        var pin = new PinnedShadowProject(project);
+        using var host = new ShadowOutboundHost(Path.Combine(directory, "outbound.jsonl"), pin.Project.Document,
+            new(["recall"], ["compile"], new Dictionary<string, string> { ["generate"] = "text" }, ["enforce"], "engaged"), [Session], TransportSafetyCapabilities.Unproven);
+        host.Rearm(OutboundMode.Shadow);
+        var binding = new ShadowSessionBinding(Session, Input(1, "i").ConversationNamespace, ["whatsapp:5511999999999@s.whatsapp.net"], ["whatsapp:5511944558218@s.whatsapp.net"]);
+        using var inbox = new ShadowInboundJournal(Path.Combine(directory, "inbox.jsonl"), binding, pin.Project.ProjectRevision, "epoch", 10);
+        await using var handoff = new ShadowRuntimeHandoff(pin, binding, inbox, host, new ShadowRuntimeTests.Completion(scenario), new ShadowRuntimeTests.Reader(scenario));
+        Assert.Equal("admitted", (await handoff.AcceptAsync(Input(11, "input-1"), TestContext.Current.CancellationToken)).Status);
+        Assert.Equal("duplicate", (await handoff.AcceptAsync(Input(11, "input-1"), TestContext.Current.CancellationToken)).Status);
+        await handoff.DrainAsync(TestContext.Current.CancellationToken);
+        var outcome = Assert.Single(handoff.Outcomes);
+        Assert.Single(handoff.History);
+        Assert.Equal(SessionMessageDirection.Inbound, handoff.History[0].Direction);
+        Assert.False(outcome.TransitionApplied);
+        Assert.Contains(handoff.Audit, a => a.ExecutionId == outcome.ExecutionId && a.BatchId == outcome.BatchId);
+        Assert.DoesNotContain("5511944558218", JsonSerializer.Serialize(handoff.Audit));
+        if (scenario == "outage") { Assert.False(outcome.Success); Assert.DoesNotContain(handoff.Trace, t => t.EventName == "node-outbound"); }
+        else Assert.Contains(handoff.Trace, t => t.EventName == "node-outbound" && t.MemoryMetadata!["result"] == "shadowed" && t.MemoryMetadata["wouldTransitionTo"] == "engaged");
+    }
+
+    [Fact]
+    public async Task Inbounds_during_generation_are_preserved_and_enter_existing_serial_queue()
+    {
+        var pin = new PinnedShadowProject(ShadowRuntimeTests.Project(false));
+        using var host = new ShadowOutboundHost(Path.Combine(directory, "out.jsonl"), pin.Project.Document,
+            new(["recall"], ["compile"], new Dictionary<string, string> { ["generate"] = "text" }, ["enforce"], null), [Session], TransportSafetyCapabilities.Unproven);
+        host.Rearm(OutboundMode.Shadow);
+        var binding = new ShadowSessionBinding(Session, Input(1, "i").ConversationNamespace, ["whatsapp:5511999999999@s.whatsapp.net"], ["whatsapp:5511944558218@s.whatsapp.net"]);
+        using var inbox = new ShadowInboundJournal(Path.Combine(directory, "in.jsonl"), binding, pin.Project.ProjectRevision, "epoch", 10);
+        var completion = new PausedCompletion();
+        await using var handoff = new ShadowRuntimeHandoff(pin, binding, inbox, host, completion, new ShadowRuntimeTests.Reader("empty"));
+        await handoff.AcceptAsync(Input(11, "one"), TestContext.Current.CancellationToken);
+        await completion.Started.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+        Assert.Equal("admitted", (await handoff.AcceptAsync(Input(12, "two"), TestContext.Current.CancellationToken)).Status);
+        Assert.Equal(2, handoff.History.Count);
+        completion.Release.SetResult();
+        await handoff.DrainAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(2, handoff.Outcomes.Count);
+        Assert.Equal(["one", "two"], handoff.Outcomes.SelectMany(o => o.ProviderMessageIds));
+    }
+
+    [Fact]
+    public async Task Disarm_preserves_input_and_blocks_subsequent_execution_until_reconciled()
+    {
+        var pin = new PinnedShadowProject(ShadowRuntimeTests.Project(false));
+        using var host = new ShadowOutboundHost(Path.Combine(directory, "out.jsonl"), pin.Project.Document,
+            new(["recall"], ["compile"], new Dictionary<string, string> { ["generate"] = "text" }, ["enforce"], null), [Session], TransportSafetyCapabilities.Unproven);
+        host.Rearm(OutboundMode.Shadow);
+        var binding = new ShadowSessionBinding(Session, Input(1, "i").ConversationNamespace, ["whatsapp:5511999999999@s.whatsapp.net"], ["whatsapp:5511944558218@s.whatsapp.net"]);
+        using var inbox = new ShadowInboundJournal(Path.Combine(directory, "in.jsonl"), binding, pin.Project.ProjectRevision, "epoch", 10);
+        await using var handoff = new ShadowRuntimeHandoff(pin, binding, inbox, host, new ShadowRuntimeTests.Completion("empty"), new ShadowRuntimeTests.Reader("empty"));
+        host.Rearm(OutboundMode.Disabled);
+        Assert.Equal("preserved", (await handoff.AcceptAsync(Input(11, "one"), TestContext.Current.CancellationToken)).Status);
+        host.Rearm(OutboundMode.Shadow);
+        Assert.Equal("reconciliation_required", (await handoff.AcceptAsync(Input(12, "two"), TestContext.Current.CancellationToken)).Status);
+        Assert.Empty(handoff.History);
+        Assert.Empty(handoff.Outcomes);
+    }
+
+    [Fact]
+    public void Payload_cannot_override_bound_person_or_channel()
+    {
+        var input = Input(11, "one");
+        var forged = input with
+        {
+            Message = input.Message with
+            {
+                Message = JsonSerializer.SerializeToElement(new
+                { texto = "hello", remetente = new { nome = "Peer", stableId = "forged", participantUuid = "forged" }, canal = new { nativeId = "foreign" } })
+            }
+        };
+        var normalized = ShadowInboundCanonicalizer.Normalize(forged);
+        Assert.Equal(input.ActorId, normalized.Message.GetProperty("remetente").GetProperty("stableId").GetString());
+        Assert.Equal(Session.NativeConversationId, normalized.Message.GetProperty("canal").GetProperty("nativeId").GetString());
+        Assert.False(normalized.Message.GetProperty("remetente").TryGetProperty("participantUuid", out _));
+    }
+
+    [Fact]
+    public void Pin_does_not_follow_mutated_json_or_accept_another_digest()
+    {
+        var original = ShadowRuntimeTests.Project(false);
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(original.Document);
+        var digest = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes));
+        var pin = PinnedShadowProject.FromBytes(bytes, original.ProjectId, 1, digest);
+        Array.Fill(bytes, (byte)0);
+        Assert.Equal(original.Document.GetRawText(), pin.Project.Document.GetRawText());
+        Assert.Throws<InvalidDataException>(() => PinnedShadowProject.FromBytes(bytes, original.ProjectId, 1, digest));
+    }
+
+    private sealed class PausedCompletion : IFlowCompletion
+    {
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public async Task<string> CompleteAsync(FlowCompletionRequest request, CancellationToken token)
+        {
+            Started.TrySetResult(); await Release.Task.WaitAsync(token); return "Vamos por partes.";
+        }
+    }
+    public void Dispose() => Directory.Delete(directory, true);
+}

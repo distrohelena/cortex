@@ -34,14 +34,14 @@ internal static class GenerationExperiments
         string[] Path);
 
     internal static async Task<(Result Result, Run Run)> Execute(Scenario scenario, bool memory, IFlowCompletion model,
-        IMemoryReader? reader, string source, CancellationToken token)
+        IMemoryReader? reader, string source, CancellationToken token, System.Text.Json.Nodes.JsonNode? projectOverride = null)
     {
         long started = 0;
         double? elapsed = null;
         string? text = null;
         var measuredMemory = reader is null ? null : new MeasuredMemory(reader);
         var run = await ExecuteAsync(scenario, memory, model, measuredMemory, source, token,
-            projectOverride: GenerationTests.Fixture(memory, scenario.InitialState), projectRevision: "slice4",
+            projectOverride: projectOverride ?? GenerationTests.Fixture(memory, scenario.InitialState), projectRevision: projectOverride is null ? "slice4" : "slice41",
             instructionOutput: (output, cancellation) =>
             {
                 cancellation.ThrowIfCancellationRequested();

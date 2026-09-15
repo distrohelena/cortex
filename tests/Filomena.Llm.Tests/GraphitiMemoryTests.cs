@@ -14,6 +14,58 @@ public sealed class GraphitiMemoryTests
     private static MemoryQuery Query() => new(Ns, FilomenaIdentity.AgentUuid(Ns), MemoryMode.Hybrid, MemoryScope.Person,
         [Person], "Persona", Enum.GetValues<MemoryCategory>(), 8, 1800);
 
+    [Theory]
+    [InlineData(MemoryMode.Exact, "exact")]
+    [InlineData(MemoryMode.Semantic, "semantic")]
+    [InlineData(MemoryMode.Hybrid, "exact")]
+    public async Task Live_success_shape_preserves_identity_namespace_subject_episodes_and_source(MemoryMode mode, string source)
+    {
+        // Sanitized structural reproduction of the observed live FactSearchResponse, not live evidence.
+        var fact = JsonSerializer.SerializeToNode(Fact("sanitized-native-edge", "LIKES"))!;
+        fact["created_at"] = "2026-09-01T00:00:00Z";
+        fact["valid_at"] = "2026-09-01T00:00:00Z";
+        fact["invalid_at"] = null; fact["expired_at"] = null;
+        fact["episodes"] = new JsonArray("sanitized-episode");
+        fact["attributes"] = new JsonObject();
+        var envelope = JsonSerializer.SerializeToElement(new { result = new { message = "Neighborhood retrieved successfully", facts = new[] { fact } } });
+        var query = Query() with { Mode = mode, Scope = mode == MemoryMode.Semantic ? MemoryScope.Conversation : MemoryScope.Person };
+        var result = Assert.Single(await new GraphitiMemoryReader(new FakeClient(envelope)).QueryAsync(query, TestContext.Current.CancellationToken));
+        Assert.Equal("sanitized-native-edge", result.Id);
+        Assert.Equal(Ns, result.ConversationNamespace);
+        Assert.Equal(source, result.SourceKind);
+        Assert.Equal(Person.ParticipantUuid, Assert.Single(result.Subjects).ParticipantUuid);
+        Assert.Contains("sanitized-episode", result.EvidenceEpisodeIds!);
+    }
+
+    [Theory]
+    [InlineData(null, "namespace_provenance_missing")]
+    [InlineData("", "namespace_provenance_missing")]
+    [InlineData("foreign", "confirmed_cross_namespace_leakage")]
+    public async Task Missing_provenance_is_not_a_foreign_namespace(string? ns, string code)
+    {
+        var fact = JsonSerializer.SerializeToNode(Fact("id", "LIKES"))!;
+        fact["group_id"] = ns;
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() => new GraphitiMemoryReader(new FakeClient(
+            JsonSerializer.SerializeToElement(new { facts = new[] { fact } }))).QueryAsync(Query(), TestContext.Current.CancellationToken));
+        Assert.Equal(code, error.Data["graphiti_code"]);
+    }
+
+    [Fact]
+    public async Task Hybrid_backend_error_cannot_return_partial_exact_memories()
+    {
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() => new GraphitiMemoryReader(new HybridOutageClient()).QueryAsync(Query(), TestContext.Current.CancellationToken));
+        Assert.Equal("backend_read_error", error.Data["graphiti_code"]);
+        Assert.DoesNotContain("Connection error", error.Message);
+    }
+
+    private sealed class HybridOutageClient : IGraphitiReadClient
+    {
+        public Task<JsonElement> GetEntityNeighborhoodAsync(string ns, Guid person, int limit, CancellationToken token) =>
+            Task.FromResult(JsonSerializer.SerializeToElement(new { facts = new[] { Fact("f", "LIKES") } }));
+        public Task<JsonElement> SearchFactsAsync(string ns, string text, int limit, CancellationToken token) =>
+            Task.FromResult(JsonSerializer.SerializeToElement(new { result = new { error = "Error searching facts: Connection error." } }));
+    }
+
     [Fact]
     public async Task HybridCallsOnlyReadOperationsWithOneNamespaceAndCanonicalPerson()
     {

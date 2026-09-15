@@ -34,7 +34,8 @@ internal static class ParticipationExperiments
         string? Action, string CurrentState, string Signal, bool Success, string? Error,
         double SituationMilliseconds, double PresenceMilliseconds, int LlmCalls, IReadOnlyList<Call> Calls,
         IReadOnlyList<SessionTraceEvent> Trace);
-    internal sealed record Run(Report Report, IReadOnlyList<FlowCompletionRequest> Requests, SessionFlowOutcome Outcome);
+    internal sealed record Run(Report Report, IReadOnlyList<FlowCompletionRequest> Requests, SessionFlowOutcome Outcome,
+        IReadOnlyList<SessionHistoryEntry> History);
 
     internal static JsonNode Project(bool memory, string initialState = Inactive)
     {
@@ -48,12 +49,13 @@ internal static class ParticipationExperiments
         IMemoryReader? memory, string memorySource, CancellationToken token, SessionEntryKind kind = SessionEntryKind.Group,
         JsonNode? projectOverride = null, string? projectRevision = null,
         Func<SessionInstructionOutput, CancellationToken, Task>? instructionOutput = null,
-        Action? batchClosing = null)
+        Action? batchClosing = null,
+        Func<SessionNodeVisit, CancellationToken, Task>? nodeStarting = null)
     {
         var project = projectOverride ?? Project(withMemory, scenario.InitialState);
         var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
         var observed = new ObservedCompletion(model);
-        await using var runtime = new SessionFlowRuntime(clock, observed, memory, instructionOutput);
+        await using var runtime = new SessionFlowRuntime(clock, observed, memory, instructionOutput, nodeStarting);
         runtime.UpdateProject(new("participation-experiment", 1, projectRevision ?? (projectOverride is null ? "slice35" : "slice36"), JsonSerializer.SerializeToElement(project)));
         var nativeId = kind == SessionEntryKind.Group ? "5511981042361-1589823314@g.us" : "5511944558218@s.whatsapp.net";
         var session = new SessionKey("scenario-" + scenario.Id, "filomena", "whatsapp", "fixture", nativeId);
@@ -85,7 +87,7 @@ internal static class ParticipationExperiments
             observed.Calls.Where(c => c.NodeId == prefix + "situation").Sum(c => c.Milliseconds),
             observed.Calls.Where(c => c.NodeId == prefix + "presence").Sum(c => c.Milliseconds),
             observed.Calls.Count, observed.Calls, trace);
-        return new(report, observed.Requests, outcome);
+        return new(report, observed.Requests, outcome, runtime.ReadHistory(session));
 
         async Task Receive(Line line, SessionMessageDirection direction)
         {

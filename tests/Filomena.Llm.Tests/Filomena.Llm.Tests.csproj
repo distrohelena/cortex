@@ -18,6 +18,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="../fixtures/boundary-interpreter-corpus.json" Link="boundary-interpreter-corpus.json" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="../fixtures/validator-hardset.json" Link="validator-hardset.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../fixtures/typed-flow-slice4*.json" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../fixtures/typed-flow-slice1.json" Link="typed-flow-slice1.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../fixtures/typed-flow-slice35*.json" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
