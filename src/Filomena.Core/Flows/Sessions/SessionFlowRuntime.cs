@@ -6,6 +6,10 @@ public sealed record SessionInstructionOutput(
     string ExecutionId, string BatchId, SessionKey Session, string StateId, long StateVersion,
     string ProjectRevision, string NodeId, IReadOnlyDictionary<string, TypedValue> Outputs);
 
+public sealed record SessionNodeVisit(
+    string ExecutionId, string BatchId, SessionKey Session, string StateId, long StateVersion,
+    string ProjectRevision, string NodeId, IReadOnlyDictionary<string, IReadOnlyDictionary<string, TypedValue>> Outputs);
+
 public sealed partial class SessionFlowRuntime : IAsyncDisposable
 {
     private readonly object administrationGate = new();
@@ -13,16 +17,22 @@ public sealed partial class SessionFlowRuntime : IAsyncDisposable
     private readonly Func<SessionKey, IFlowCompletion> completionFactory;
     private readonly IMemoryReader memoryReader;
     private readonly Func<SessionInstructionOutput, CancellationToken, Task>? instructionOutput;
+    private readonly Func<SessionNodeVisit, CancellationToken, Task>? nodeStarting;
+    private readonly Outbound.ShadowOutboundHost? outboundHost;
     private CompiledSessionFlowProject? project;
 
     public SessionFlowRuntime(TimeProvider timeProvider, IFlowCompletion completion, IMemoryReader? memoryReader = null,
-        Func<SessionInstructionOutput, CancellationToken, Task>? instructionOutput = null)
-        : this(timeProvider, ConstantCompletion(completion), memoryReader, instructionOutput)
+        Func<SessionInstructionOutput, CancellationToken, Task>? instructionOutput = null,
+        Func<SessionNodeVisit, CancellationToken, Task>? nodeStarting = null,
+        Outbound.ShadowOutboundHost? outboundHost = null)
+        : this(timeProvider, ConstantCompletion(completion), memoryReader, instructionOutput, nodeStarting, outboundHost)
     {
     }
 
     public SessionFlowRuntime(TimeProvider timeProvider, Func<SessionKey, IFlowCompletion> completionFactory, IMemoryReader? memoryReader = null,
-        Func<SessionInstructionOutput, CancellationToken, Task>? instructionOutput = null)
+        Func<SessionInstructionOutput, CancellationToken, Task>? instructionOutput = null,
+        Func<SessionNodeVisit, CancellationToken, Task>? nodeStarting = null,
+        Outbound.ShadowOutboundHost? outboundHost = null)
     {
         ArgumentNullException.ThrowIfNull(timeProvider);
         ArgumentNullException.ThrowIfNull(completionFactory);
@@ -30,6 +40,8 @@ public sealed partial class SessionFlowRuntime : IAsyncDisposable
         this.completionFactory = completionFactory;
         this.memoryReader = memoryReader ?? new UnavailableMemoryReader();
         this.instructionOutput = instructionOutput;
+        this.nodeStarting = nodeStarting;
+        this.outboundHost = outboundHost;
     }
 
     public SessionFlowProjectSnapshot UpdateProject(SessionFlowProject project)

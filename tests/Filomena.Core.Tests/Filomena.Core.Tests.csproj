@@ -19,5 +19,6 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Filomena.Core/Filomena.Core.csproj" />
+    <ProjectReference Include="../../src/Filomena.Llm/Filomena.Llm.csproj" />
   </ItemGroup>
 </Project>

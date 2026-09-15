@@ -23,7 +23,7 @@ internal sealed record CompiledSessionFlowProject(
 internal static class SessionFlowProjectCompiler
 {
     private static readonly HashSet<string> SupportedKinds =
-        ["dm", "group", "accumulate", "history", "memory", "prompt", "property", "switch", "branch", "exit"];
+        ["dm", "group", "accumulate", "history", "memory", "interpretBoundaries", "prompt", "property", "count", "switch", "branch", "exit", "send"];
 
     public static CompiledSessionFlowProject Compile(SessionFlowProject source)
     {

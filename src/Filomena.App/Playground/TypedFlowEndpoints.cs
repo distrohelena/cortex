@@ -22,7 +22,9 @@ internal static class TypedFlowEndpoints
                     contracts = flow.Nodes.Values.Where(n => n.Source.Kind == "prompt").Select(n => new
                     {
                         nodeId = n.Source.Id,
-                        system = n.Source.Config.GetProperty("prompt").GetString(),
+                        system = Filomena.Core.Boundaries.BoundaryEnforcementProfile.Enabled(n.Source.Config)
+                            ? Filomena.Core.Boundaries.BoundaryDetectionTemplates.Read(n.Source.Config).SemanticContractDefinition
+                            : n.Source.Config.GetProperty("prompt").GetString(),
                         inputs = n.Inputs.Select(p => new { p.Id, p.Name, type = p.Type.ToJsonSchema(), p.Required }),
                         responseSchema = TypedFlowRunner.ResponseSchema(n),
                     })

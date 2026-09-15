@@ -2,13 +2,14 @@ using System.Globalization;
 using System.Text.Json;
 using Filomena.Core.Identity;
 using Filomena.Core.Memory;
+using Filomena.Core.Boundaries;
 
 namespace Filomena.Core.Flows.Sessions;
 
 public sealed partial class SessionFlowRuntime
 {
     private async Task<JsonElement> QueryMemoryAsync(FlowBatch batch, TypedNode node, JsonElement? suppliedPersons,
-        string? text, CancellationToken token)
+        string? text, BoundaryExecutionRegistry boundaryRegistry, CancellationToken token)
     {
         var settings = MemoryNodeSettings.Read(node.Source.Config);
         var ns = ConversationNamespace(batch.Session);
@@ -50,7 +51,7 @@ public sealed partial class SessionFlowRuntime
         AddTrace(batch.Session, Trace(batch, "MemoryQueryCompleted", node.Source.Id,
             duration: timeProvider.GetElapsedTime(start).TotalMilliseconds) with
         { MemoryMetadata = metadata });
-        return MemoryValues.Serialize(result);
+        return boundaryRegistry.RegisterMemories(result);
     }
 
     private static string ConversationNamespace(SessionKey session)

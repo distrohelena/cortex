@@ -111,18 +111,18 @@ test('removed sender port is rejected without changing the graph',()=>{
 test('whole message cannot be used as a Person or Channel recipient',()=>{
  const graph=typedGraph();graph.nodes.push({id:'group',kind:'group',x:0,y:300});
  connect(graph,'prompt','send','message','message');
- assert.throws(()=>connect(graph,'dm','send','message','to'),/tipos incompatíveis/);
- assert.throws(()=>connect(graph,'group','send','message','to'),/tipos incompatíveis/);
+ assert.throws(()=>connect(graph,'dm','send','message','to'),/Conector desconhecido/);
+ assert.throws(()=>connect(graph,'group','send','message','to'),/Conector desconhecido/);
  assert.deepEqual(graph.edges.filter(edge=>edge.targetPort==='to'),[]);
  assert.equal(graph.edges.filter(edge=>edge.targetPort==='message').length,1);
  assert.deepEqual(openDraft(saveDraft(graph)),graph);
  assert.deepEqual(readReloadState(saveReloadState(graph,'test','send')).graph,graph);
  const before=saveDraft(graph);
- assert.throws(()=>connect(graph,'group','send','message','to'),/tipos incompatíveis/);
+ assert.throws(()=>connect(graph,'group','send','message','to'),/Conector desconhecido/);
  assert.equal(saveDraft(graph),before);
 });
 
-for(const target of ['prompt','send'])test(`${target} content still accepts text OR message list`,()=>{
+for(const target of ['prompt'])test(`${target} content still accepts text OR message list`,()=>{
  const graph=typedGraph();
  graph.nodes.push({id:'batch',kind:'accumulate',x:0,y:300,settings:{quietSeconds:2,maxMessages:10,maxWaitSeconds:30}});
  connect(graph,'prompt-2',target,'message','message');
@@ -134,11 +134,20 @@ for(const target of ['prompt','send'])test(`${target} content still accepts text
  assert.deepEqual(readReloadState(saveReloadState(graph,'test',target)).graph,graph);
  const before=saveDraft(graph);
  assert.throws(()=>connect(graph,'dm',target,'message','message'),/tipos incompatíveis/);
- assert.throws(()=>connect(graph,'batch','send','messages','to'),/tipos incompatíveis/);
+ assert.throws(()=>connect(graph,'batch','send','messages','to'),/Conector desconhecido/);
  assert.equal(saveDraft(graph),before);
  connect(graph,'prompt-2',target,'message','message');
  assert.equal(graph.edges.filter(edge=>edge.target===target&&edge.targetPort==='message').length,1);
  assert.equal(graph.edges.find(edge=>edge.target===target&&edge.targetPort==='message').source,'prompt-2');
+});
+
+test('send accepts only text, not a message list',()=>{
+ const graph=typedGraph();
+ graph.nodes.push({id:'batch',kind:'accumulate',x:0,y:300,settings:{quietSeconds:2,maxMessages:10,maxWaitSeconds:30}});
+ connect(graph,'prompt-2','send','message','message');
+ const before=saveDraft(graph);
+ assert.throws(()=>connect(graph,'batch','send','messages','message'),/tipos incompatíveis/);
+ assert.equal(saveDraft(graph),before);
 });
 
 test('legacy wires remain intact for explicit typed validation',()=>{

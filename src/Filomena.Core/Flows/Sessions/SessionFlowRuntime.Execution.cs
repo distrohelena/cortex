@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text.Json;
+using Filomena.Core.Boundaries;
 
 namespace Filomena.Core.Flows.Sessions;
 
@@ -343,6 +344,8 @@ public sealed partial class SessionFlowRuntime
         string? executionError = null;
         try
         {
+            var boundaryRegistry = new BoundaryExecutionRegistry(batch.Flow.Nodes.Values.Any(node => node.Source.Kind is "memory" or "interpretBoundaries")
+                ? ConversationNamespace(batch.Session) : "", timeProvider);
             result = await TypedFlowRunner.RunSessionAsync(
                 batch.Flow,
                 batch.Messages[0].Envelope.Message,
@@ -350,13 +353,19 @@ public sealed partial class SessionFlowRuntime
                 RuntimeOutputs(batch),
                 timeProvider,
                 node => AddTrace(batch.Session, Trace(batch, "node-" + node.Status, node.NodeId, node.Exit,
-                    duration: node.Duration.TotalMilliseconds, errorCode: node.Error, timestamp: node.Timestamp)),
-                (node, persons, query, token) => QueryMemoryAsync(batch, node, persons, query, token),
+                    duration: node.Duration.TotalMilliseconds, errorCode: node.Error, timestamp: node.Timestamp) with
+                { MemoryMetadata = node.Metadata }),
+                (node, persons, query, token) => QueryMemoryAsync(batch, node, persons, query, boundaryRegistry, token),
                 batch.Project.States[batch.StateId].InstructionContext,
                 instructionOutput is null ? null : (nodeId, outputs, token) =>
                     instructionOutput(new(batch.ExecutionId, batch.BatchId, batch.Session, batch.StateId,
                         batch.StateVersion, batch.Project.ProjectRevision, nodeId, outputs), token),
-                lifetime.Token).ConfigureAwait(false);
+                nodeStarting is null ? null : (nodeId, outputs, token) =>
+                    nodeStarting(new(batch.ExecutionId, batch.BatchId, batch.Session, batch.StateId,
+                        batch.StateVersion, batch.Project.ProjectRevision, nodeId, outputs), token),
+                boundaryRegistry, lifetime.Token,
+                outboundHost?.Begin(batch.Project.Document, batch.ExecutionId, batch.Session, batch.EntryKind,
+                    batch.Messages.Select(item => item.Envelope.ProviderMessageId))).ConfigureAwait(false);
             if (!result.Success) executionError = result.Steps.LastOrDefault(step => step.Status == "failed")?.Error ?? "flow-execution-failed";
         }
         catch (OperationCanceledException)

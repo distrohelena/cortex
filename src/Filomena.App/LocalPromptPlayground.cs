@@ -88,6 +88,36 @@ public static class LocalPromptPlayground
         SessionFlowEndpoints.Map(app);
         var assets = new PlaygroundAssets(sourceDirectory);
         app.MapGet("/api/model", () => Results.Ok(new { model = options.Model }));
+        app.MapGet("/api/boundary-enforcement", (string? semanticVersion, string? evaluatorVersion, string? templateVersion) =>
+        {
+            try
+            {
+                // Absent query preserves the historical endpoint; explicit v2 selection is never a latest alias.
+                var template = Filomena.Core.Boundaries.BoundaryDetectionTemplates.Resolve(templateVersion ?? "no_teasing_about_topic:v1",
+                    semanticVersion ?? "boundary-semantic-features:v1", evaluatorVersion ?? "no_teasing_about_topic:evaluator-v1");
+                return Results.Ok(new
+                {
+                    executionProfile = Filomena.Core.Boundaries.BoundaryEnforcementProfile.Id,
+                    semanticContractVersion = template.SemanticVersion,
+                    boundaryEvaluatorVersion = template.EvaluatorVersion,
+                    boundaryTemplateVersion = template.TemplateId,
+                    prompt = template.SemanticContractDefinition,
+                    modelOutputs = template.SemanticSchema.ToJsonSchema(),
+                    enforcementOutputs = new[] { "resultado", "diagnostico", "explicacao" }
+                });
+            }
+            catch (InvalidDataException) { return Results.BadRequest(new { error = "Versões de detector/evaluator não suportadas." }); }
+        });
+        app.MapGet("/api/boundary-policies", () => Results.Ok(new
+        {
+            taxonomyVersion = "v1",
+            grammarVersion = Filomena.Core.Boundaries.BoundarySourceParserV1.Version,
+            supportedForms = Filomena.Core.Boundaries.BoundarySourceParserV1.SupportedForms,
+            supportedTopics = Filomena.Core.Boundaries.BoundarySourceParserV1.SupportedTopics,
+            templatesVersion = "v1",
+            policy = Filomena.Core.Boundaries.BoundaryPolicies.TopicV1,
+            disclosure = Filomena.Core.Boundaries.BoundaryPolicies.DisclosureV1
+        }));
         app.MapGet("/api/model-catalog", () =>
         {
             try { return Results.Ok(PlaygroundModelCatalog.Read(sourceDirectory)); }

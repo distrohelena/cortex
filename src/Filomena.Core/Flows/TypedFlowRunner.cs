@@ -1,9 +1,12 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Filomena.Core.Boundaries;
+using Filomena.Core.Outbound;
 
 namespace Filomena.Core.Flows;
 
-public sealed record FlowCompletionRequest(string NodeId, string System, JsonElement Inputs, JsonElement? ResponseSchema, string? Model, string? Provider, string? Correction);
+public sealed record FlowCompletionRequest(string NodeId, string System, JsonElement Inputs, JsonElement? ResponseSchema, string? Model, string? Provider, string? Correction,
+    string? ReasoningEffort = null, int? MaxOutputTokens = null);
 public interface IFlowCompletion
 {
     Task<string> CompleteAsync(FlowCompletionRequest request, CancellationToken token);
@@ -11,12 +14,14 @@ public interface IFlowCompletion
 public sealed record TypedValue(FlowType Type, JsonElement Value);
 public sealed record TypedStep(string NodeId, string Status, string? Exit, string? Error);
 public sealed record TypedRunResult(bool Success, IReadOnlyList<TypedStep> Steps, IReadOnlyDictionary<string, Dictionary<string, TypedValue>> Outputs, string? TargetStateId = null);
-internal sealed record TypedNodeExecutionTrace(string NodeId, string Status, string? Exit, string? Error, DateTimeOffset Timestamp, TimeSpan Duration);
+internal sealed record TypedNodeExecutionTrace(string NodeId, string Status, string? Exit, string? Error, DateTimeOffset Timestamp, TimeSpan Duration,
+    IReadOnlyDictionary<string, string>? Metadata = null);
 
 public static class TypedFlowRunner
 {
     public static JsonElement? ResponseSchema(TypedNode node)
     {
+        if (BoundaryEnforcementProfile.Enabled(node.Source.Config)) return BoundaryDetectionTemplates.Read(node.Source.Config).SemanticSchema.ToJsonSchema();
         if (TypedFlowCompiler.IsTextOutput(node.Source.Config)) return null;
         if (!node.Source.Config.TryGetProperty("responseFields", out var fields) || fields.GetArrayLength() == 0) return null;
         var schema = new ObjectType(node.Outputs.ToDictionary(p => p.Name, p => new FlowField(p.Type, true))).ToJsonSchema();
@@ -34,7 +39,7 @@ public static class TypedFlowRunner
     }
 
     public static Task<TypedRunResult> RunAsync(TypedFlow flow, JsonElement message, IFlowCompletion completion, CancellationToken token) =>
-        RunCoreAsync(flow, message, completion, null, TimeProvider.System, null, null, null, null, token);
+        RunCoreAsync(flow, message, completion, null, TimeProvider.System, null, null, null, null, null, null, token, null);
 
     internal static Task<TypedRunResult> RunSessionAsync(
         TypedFlow flow,
@@ -46,8 +51,10 @@ public static class TypedFlowRunner
         Func<TypedNode, JsonElement?, string?, CancellationToken, Task<JsonElement>> memoryQuery,
         InstructionContext instructionContext,
         Func<string, IReadOnlyDictionary<string, TypedValue>, CancellationToken, Task>? instructionOutput,
-        CancellationToken token) =>
-        RunCoreAsync(flow, message, completion, runtimeOutputs, timeProvider, observer, memoryQuery, instructionContext, instructionOutput, token);
+        Func<string, IReadOnlyDictionary<string, IReadOnlyDictionary<string, TypedValue>>, CancellationToken, Task>? nodeStarting,
+        BoundaryExecutionRegistry boundaryRegistry,
+        CancellationToken token, OutboundExecution? outbound = null) =>
+        RunCoreAsync(flow, message, completion, runtimeOutputs, timeProvider, observer, memoryQuery, instructionContext, instructionOutput, nodeStarting, boundaryRegistry, token, outbound);
 
     private static async Task<TypedRunResult> RunCoreAsync(
         TypedFlow flow,
@@ -59,15 +66,31 @@ public static class TypedFlowRunner
         Func<TypedNode, JsonElement?, string?, CancellationToken, Task<JsonElement>>? memoryQuery,
         InstructionContext? instructionContext,
         Func<string, IReadOnlyDictionary<string, TypedValue>, CancellationToken, Task>? instructionOutput,
-        CancellationToken token)
+        Func<string, IReadOnlyDictionary<string, IReadOnlyDictionary<string, TypedValue>>, CancellationToken, Task>? nodeStarting,
+        BoundaryExecutionRegistry? boundaryRegistry,
+        CancellationToken token, OutboundExecution? outbound)
     {
         var steps = new List<TypedStep>();
         var published = new Dictionary<string, Dictionary<string, TypedValue>>();
         var values = new Dictionary<PortRef, TypedValue>();
         var references = new Dictionary<string, string>();
+        var sendAttempted = false;
         string current = flow.EntryId;
         DateTimeOffset nodeStartedAt = default;
         long? nodeStartedTimestamp = null;
+        JsonElement SerializeInput(JsonElement value, FlowType type)
+        {
+            if (type is NullableType nullable)
+                return value.ValueKind == JsonValueKind.Null ? value.Clone() : SerializeInput(value, nullable.InnerType);
+            if (type is ArrayType array)
+                return JsonSerializer.SerializeToElement(value.EnumerateArray().Select(item => SerializeInput(item, array.ElementType)).ToArray());
+            if (type == FlowDomain.Boundary)
+            {
+                if (boundaryRegistry is null) throw new InvalidDataException("Boundary exige contexto de execução confiável.");
+                return boundaryRegistry.ForModel(JsonSerializer.SerializeToElement(new[] { value }), timeProvider.GetUtcNow(), references)[0].Clone();
+            }
+            return FlowDomain.ForModel(value, type, references);
+        }
         TypedValue Input(TypedNode node, TypedPort port)
         {
             var edge = flow.Graph.DataEdges.SingleOrDefault(e => e.Target == new PortRef(node.Source.Id, port.Id));
@@ -79,9 +102,11 @@ public static class TypedFlowRunner
         {
             if (values.TryGetValue(key, out var existing)) return existing;
             var node = flow.Nodes[key.NodeId];
-            if (node.Source.Kind != "property") throw new InvalidDataException("Output operacional ainda não disponível.");
+            if (node.Source.Kind is not ("property" or "count")) throw new InvalidDataException("Output operacional ainda não disponível.");
             var input = Input(node, node.Inputs.Single());
-            var projected = FlowDomain.Project(input.Value, input.Type, TypedFlowCompiler.PropertyPath(node.Source.Config));
+            var projected = node.Source.Kind == "count"
+                ? FlowDomain.CountItems(input.Value, input.Type)
+                : FlowDomain.Project(input.Value, input.Type, TypedFlowCompiler.PropertyPath(node.Source.Config));
             var value = new TypedValue(node.Outputs.Single().Type, projected);
             values[key] = value; return value;
         }
@@ -96,7 +121,31 @@ public static class TypedFlowRunner
                 nodeStartedAt = timeProvider.GetUtcNow();
                 nodeStartedTimestamp = timeProvider.GetTimestamp();
                 observer?.Invoke(new(current, "started", null, null, nodeStartedAt, TimeSpan.Zero));
-                if (node.Source.Kind == "prompt")
+                if (nodeStarting is not null)
+                    await nodeStarting(current, published.ToDictionary(pair => pair.Key,
+                        pair => (IReadOnlyDictionary<string, TypedValue>)pair.Value.AsReadOnly()).AsReadOnly(), token);
+                if (node.Source.Kind == "prompt" && BoundaryEnforcementProfile.Enabled(node.Source.Config))
+                {
+                    if (boundaryRegistry is null) throw new InvalidDataException("Boundary enforcement requires trusted execution context.");
+                    TypedValue ProfileInput(string name)
+                    {
+                        var port = node.Inputs.Single(p => p.Name == name);
+                        var value = Input(node, port);
+                        FlowDomain.Check(value.Value, port.Type);
+                        return value;
+                    }
+                    var output = await BoundaryEnforcementProfile.RunAsync(node, ProfileInput("limites").Value,
+                        ProfileInput("resposta").Value.GetString()!, ProfileInput("mensagens").Value,
+                        boundaryRegistry, completion, timeProvider,
+                        metadata => observer?.Invoke(new(current, "boundary-policy", null, null, timeProvider.GetUtcNow(), TimeSpan.Zero, metadata)), token);
+                    outbound?.Enforced(current, ProfileInput("resposta"), ProfileInput("limites"),
+                        output["resultado"].Value.GetString() == "permitir", ShadowOutboundHost.Fingerprint(node.Source.Config));
+                    if (instructionOutput is not null) await instructionOutput(current, output.AsReadOnly(), token);
+                    token.ThrowIfCancellationRequested();
+                    published[current] = output;
+                    foreach (var (port, value) in output) values[new(current, port)] = value;
+                }
+                else if (node.Source.Kind == "prompt")
                 {
                     var inputs = new Dictionary<string, JsonElement>();
                     foreach (var port in node.Inputs)
@@ -105,7 +154,7 @@ public static class TypedFlowRunner
                         var configured = port.Config.ValueKind == JsonValueKind.Object && port.Config.TryGetProperty("value", out _);
                         if (!port.Required && !connected && !configured) continue;
                         var value = Input(node, port); FlowDomain.Check(value.Value, port.Type);
-                        inputs[port.Name] = FlowDomain.ForModel(value.Value, port.Type, references);
+                        inputs[port.Name] = SerializeInput(value.Value, port.Type);
                     }
                     var config = node.Source.Config;
                     var schema = ResponseSchema(node);
@@ -115,7 +164,8 @@ public static class TypedFlowRunner
                     for (var attempt = 0; attempt <= retries; attempt++)
                     {
                         var request = new FlowCompletionRequest(current, system, JsonSerializer.SerializeToElement(inputs), schema,
-                            OptionalText(config, "model"), OptionalText(config, "provider"), correction);
+                            OptionalText(config, "model"), OptionalText(config, "provider"), correction,
+                            OptionalText(config, "reasoningEffort"), config.TryGetProperty("maxOutputTokens", out var budget) ? budget.GetInt32() : null);
                         var text = await completion.CompleteAsync(request, token);
                         try { output = ValidateOutput(node, text, schema is not null); break; }
                         catch (Exception e) when (e is JsonException or InvalidDataException)
@@ -133,7 +183,18 @@ public static class TypedFlowRunner
                         token.ThrowIfCancellationRequested();
                     }
                     published[current] = output!;
+                    outbound?.Generated(current, output!);
                     foreach (var (port, value) in output!) values[new(current, port)] = value;
+                }
+                else if (node.Source.Kind == "interpretBoundaries")
+                {
+                    if (boundaryRegistry is null) throw new InvalidDataException("Interpretar Limites exige contexto de execução confiável.");
+                    var output = await boundaryRegistry.CompileAsync(Input(node, node.Inputs.Single()).Value,
+                        BoundaryCompilerSettings.Read(node.Source.Config), timeProvider.GetUtcNow(), token);
+                    var value = new TypedValue(new ArrayType(FlowDomain.Boundary), output);
+                    outbound?.Compiled(current, Input(node, node.Inputs.Single()), value);
+                    published[current] = new() { ["boundaries"] = value };
+                    values[new(current, "boundaries")] = value;
                 }
                 else if (node.Source.Kind == "memory")
                 {
@@ -148,8 +209,26 @@ public static class TypedFlowRunner
                     var response = await memoryQuery(node, OptionalInput("persons")?.Value, OptionalInput("query")?.Value.GetString(), token);
                     FlowDomain.Check(response, new ArrayType(FlowDomain.Memory));
                     var value = new TypedValue(new ArrayType(FlowDomain.Memory), response.Clone());
+                    outbound?.Recall(current, value);
                     published[current] = new() { ["memories"] = value };
                     values[new(current, "memories")] = value;
+                }
+                else if (node.Source.Kind == "send")
+                {
+                    var candidate = Input(node, node.Inputs.Single());
+                    FlowDomain.Check(candidate.Value, new StringType());
+                    var result = outbound is not null ? outbound.Send(candidate)
+                        : sendAttempted ? new ShadowSendResult("blocked", "duplicate_attempt") : new ShadowSendResult("disabled", "outbound_host_unavailable");
+                    sendAttempted = true;
+                    exit = result.Status;
+                    published[current] = new()
+                    {
+                        ["status"] = new(node.Outputs.Single(p => p.Id == "status").Type, JsonSerializer.SerializeToElement(result.Status)),
+                        ["diagnostico"] = new(new StringType(), JsonSerializer.SerializeToElement(result.DiagnosticCode))
+                    };
+                    foreach (var (port, value) in published[current]) values[new(current, port)] = value;
+                    observer?.Invoke(new(current, "outbound", null, null, timeProvider.GetUtcNow(), timeProvider.GetElapsedTime(nodeStartedTimestamp.Value),
+                        outbound?.Trace(result) ?? new Dictionary<string, string> { ["result"] = result.Status, ["diagnosticCode"] = result.DiagnosticCode }));
                 }
                 else if (node.Source.Kind is "accumulate" or "history")
                 {
@@ -184,7 +263,10 @@ public static class TypedFlowRunner
                     steps.Add(new(current, "completed", null, null));
                     observer?.Invoke(new(current, "completed", null, null, timeProvider.GetUtcNow(), duration));
                     nodeStartedTimestamp = null;
-                    return new(true, steps, published, target);
+                    if (sendAttempted)
+                        observer?.Invoke(new(current, "hypothetical-transition", null, null, timeProvider.GetUtcNow(), TimeSpan.Zero,
+                            new Dictionary<string, string> { ["wouldTransitionTo"] = target, ["applied"] = "false" }));
+                    return new(true, steps, published, sendAttempted ? null : target);
                 }
                 else if (node.Source.Kind == "branch")
                 {
@@ -216,11 +298,20 @@ public static class TypedFlowRunner
                 observer?.Invoke(new(current, "cancelled", null, "cancelled", timeProvider.GetUtcNow(), timeProvider.GetElapsedTime(nodeStartedTimestamp.Value)));
             throw;
         }
-        catch (Exception e) when (e is InvalidDataException or JsonException or HttpRequestException or InvalidOperationException)
+        catch (Exception e) when (e is InvalidDataException or JsonException or HttpRequestException or InvalidOperationException or BoundaryCompilationException)
         {
             steps.Add(new(current, "failed", null, e is HttpRequestException ? "Serviço de modelo indisponível." : e.Message));
             if (nodeStartedTimestamp is not null)
-                observer?.Invoke(new(current, "failed", null, e.GetType().Name, timeProvider.GetUtcNow(), timeProvider.GetElapsedTime(nodeStartedTimestamp.Value)));
+                observer?.Invoke(new(current, "failed", null, e.GetType().Name, timeProvider.GetUtcNow(), timeProvider.GetElapsedTime(nodeStartedTimestamp.Value),
+                    e is BoundaryCompilationException failure ? new Dictionary<string, string>
+                    {
+                        ["sourceMemoryId"] = failure.SourceMemoryId,
+                        ["status"] = failure.Status,
+                        ["diagnosticCode"] = failure.DiagnosticCode,
+                        ["taxonomyVersion"] = "v1",
+                        ["expectedKind"] = BoundaryAdmission.Kind,
+                        ["template"] = "no_teasing_about_topic:v1"
+                    } : null));
             return new(false, steps, published);
         }
     }

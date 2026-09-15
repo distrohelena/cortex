@@ -6,12 +6,13 @@ const portCatalog=Object.freeze({
  input:{in:{},out:{message:{type:'message',label:'mensagem'}}},
  group:{in:{},out:{message:{type:'message',label:'mensagem'}}},
  prompt:{in:{message:{type:'text|messages',label:'mensagem'}},out:{message:{type:'text',label:'mensagem'}}},
- send:{in:{message:{type:'text|messages',label:'mensagem'},to:{type:'actor|channel',label:'para'}},out:{}},
+ send:{in:{message:{type:'text',label:'mensagem'}},out:{}},
  output:{in:{default:{type:'visual',label:'entrada'}},out:{}},
  exit:{in:{default:{type:'visual',label:'entrada'}},out:{}},
  accumulate:{in:{message:{type:'message',label:'mensagem'}},out:{messages:{type:'messages',label:'output'}}},
  history:{in:{},out:{messages:{type:'messages',label:'mensagens'}}},
  memory:{in:{persons:{type:'actor',label:'pessoas'},query:{type:'text',label:'consulta'}},out:{memories:{type:'memory[]',label:'memórias'}}},
+ interpretBoundaries:{in:{memories:{type:'memory[]',label:'limites'}},out:{boundaries:{type:'boundary[]',label:'boundaries'}}},
  branch:{in:{a:{type:'visual',label:'A'},b:{type:'visual',label:'B'}},out:{true:{type:'visual',label:'Verdadeiro'},false:{type:'visual',label:'Falso'}}}
 });
 export function nodePorts(node,direction,graph){
@@ -20,7 +21,8 @@ export function nodePorts(node,direction,graph){
  return Object.entries(ports).map(([id,port])=>({id,...port}));
 }
 export function executionPorts(node,direction){
- if(node?.kind==='property')return [];
+ if(node?.kind==='send')return direction==='in'?[{id:'exec',label:'Executar'}]:['disabled','shadowed','blocked','failed'].map(id=>({id,label:id}));
+ if(['property','count'].includes(node?.kind))return [];
  if(node?.kind==='switch')return direction==='in'?[{id:'exec',label:'Executar'}]:[...(node.settings?.cases??[]).map(c=>({id:c.id,label:c.value})),...(node.settings?.other?[{id:'other',label:'Outro'}]:[])];
  if(!portCatalog[node?.kind])return [];
  if(direction==='in')return isEntry(node)?[]:[{id:'exec',label:'Executar'}];
@@ -29,7 +31,7 @@ export function executionPorts(node,direction){
 }
 function normalizeControlEdges(graph){
  const edges=graph.controlEdges===undefined?[]:graph.controlEdges;
- if(!Array.isArray(edges)||edges.length>64)throw new Error('Conexões de execução inválidas.');
+ if(!Array.isArray(edges)||edges.length>128)throw new Error('Conexões de execução inválidas.');
  const occupied=new Set();
  return edges.map(edge=>{
   const from=graph.nodes.find(node=>node.id===edge?.source),to=graph.nodes.find(node=>node.id===edge?.target);
@@ -147,7 +149,8 @@ export function connect(graph,source,target,sourcePort,targetPort) {
    const otherConnected=graph.edges.some(e=>e.target===target&&e.targetPort===other.id)||Object.hasOwn(other,'value');
    if(otherConnected&&(a.type!==other.type||!compatibleTypes(a,other)||!compatibleTypes(other,a)))throw new Error('Branch exige operandos do mesmo tipo.');
   }
-  const flexible=to.kind==='property'||to.kind==='switch'||memoryPersons||branchOperand;
+  if(to.kind==='count'&&!a.type.endsWith('[]'))throw new Error('Contar Itens exige Lista não opcional.');
+  const flexible=to.kind==='property'||to.kind==='count'||to.kind==='switch'||memoryPersons||branchOperand;
   if(to.kind==='switch'&&!['text','enum'].includes(a.type))throw new Error('Switch recebe Texto ou Enum.');
   if(!flexible&&!compatibleTypes(a,b))throw new Error('As portas têm tipos incompatíveis.');
   if(Object.hasOwn(b,'value'))throw new Error('Remova o valor configurado antes de conectar.');
@@ -200,17 +203,17 @@ export function saveDraft(graph) {
 }
 
 export function openDraft(text,stateId='state-1') {
- if(text.length>65536)throw new Error('O arquivo excede 64 KB.');
+ if(text.length>262144)throw new Error('O arquivo excede 256 KB.');
  const document=JSON.parse(text),graph=document?.graph;
  if(document?.format!=='filomena-local-flow'||![1,2,3].includes(graph?.version)||!Array.isArray(graph.nodes)||!Array.isArray(graph.edges)
-  ||graph.nodes.length<2||graph.nodes.length>32||graph.edges.length>64)throw new Error('Arquivo de fluxo local inválido ou versão não suportada.');
+  ||graph.nodes.length<2||graph.nodes.length>64||graph.edges.length>128)throw new Error('Arquivo de fluxo local inválido ou versão não suportada.');
  // Explicit design reset requested for structured messages. Apply once on old drafts.
  const legacy=graph.version===1;
  if(legacy)graph.version=3;
  const ids=new Set();
  for(const node of graph.nodes){
   if(!node||typeof node.id!=='string'||!node.id.trim()||node.id.length>80||ids.has(node.id)
-   ||!['input','dm','group','prompt','send','output','accumulate','history','memory','exit','branch','property','switch'].includes(node.kind)||!Number.isFinite(node.x)||!Number.isFinite(node.y)
+   ||!['input','dm','group','prompt','send','output','accumulate','history','memory','interpretBoundaries','exit','branch','property','count','switch'].includes(node.kind)||!Number.isFinite(node.x)||!Number.isFinite(node.y)
    ||node.x<0||node.y<0||node.x>4000||node.y>4000
    ||(node.kind==='prompt'&&(typeof node.prompt!=='string'||node.prompt.length>16000))
    ||(node.provider!==undefined&&(typeof node.provider!=='string'||node.provider.length>120))

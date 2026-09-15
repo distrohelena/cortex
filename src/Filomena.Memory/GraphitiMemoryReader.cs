@@ -25,11 +25,8 @@ public sealed class GraphitiMemoryReader(IGraphitiReadClient client, TimeProvide
 
         void Read(JsonElement response, string source, Guid? required)
         {
-            if (response.ValueKind == JsonValueKind.Object && response.TryGetProperty("result", out var result) && response.EnumerateObject().Count() == 1)
-                response = result;
-            if (response.ValueKind != JsonValueKind.Object || response.TryGetProperty("error", out _) ||
-                !response.TryGetProperty("facts", out var facts) || facts.ValueKind != JsonValueKind.Array)
-                throw new InvalidDataException("Graphiti did not return a successful facts response.");
+            response = GraphitiResponseValidation.Facts(response, query.ConversationNamespace);
+            var facts = response.GetProperty("facts");
             foreach (var fact in facts.EnumerateArray())
             {
                 if (Text(fact, "group_id") != query.ConversationNamespace) throw new InvalidDataException("Graphiti returned a different namespace.");

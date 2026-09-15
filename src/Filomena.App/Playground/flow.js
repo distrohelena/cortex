@@ -10,10 +10,11 @@ let project=initialProject(),selectedStateId=project.initialStateId;
 let graph=stateGraph(project,selectedStateId),selected='prompt',busy=false,traces=[],controller=null;
 let lastContracts=[],lastCalls=[];
 let modelCatalog=null,defaultModel='',catalogError='';
-const titles={input:'Mensagem privada',dm:'Mensagem privada',group:'Mensagem de grupo',prompt:'Instrução',accumulate:'Acumular',history:'Histórico da Sessão',exit:'Trocar Estado',branch:'Branch',send:'Enviar mensagem',property:'Obter Propriedade',switch:'Switch'};
+const titles={count:'Contar Itens',input:'Mensagem privada',dm:'Mensagem privada',group:'Mensagem de grupo',prompt:'Instrução',accumulate:'Acumular',history:'Histórico da Sessão',exit:'Trocar Estado',branch:'Branch',send:'Enviar mensagem',property:'Obter Propriedade',switch:'Switch'};
 const portTypeLabels={text:'texto',message:'Mensagem','message[]':'Mensagem[]',actor:'Pessoa',channel:'Canal','actor|channel':'Pessoa | Canal','text|messages':'Mensagem | Mensagens[]',messages:'Mensagem[]',enum:'Enum',visual:'visual'};
 const nodeTitle=node=>node.title||(node.kind==='property'?`Obter Propriedade · ${(node.settings?.path??[]).join('.')}`:node.kind==='prompt'?`Instrução · ${node.id}`:titles[node.kind]);
 titles.memory='Consultar Memória';
+titles.interpretBoundaries='Compilar Limites';
 const tell=text=>$('hint').textContent=text;
 const reloadStateKey='filomena-flow-reload';
 let restoredDraft=false,projectSaving=false;
@@ -57,6 +58,9 @@ function invalidate(){traces=[];lastContracts=[];lastCalls=[];$('contract-conten
 function wireRender(){editor.redrawWires();}
 
 function renderResponseFields(node){
+ if(node.executionProfile==='boundary_enforcement_v1'){
+  $('response-heading').textContent='Saídas derivadas pelo evaluator';$('response-fields').textContent='resultado · diagnostico · explicacao (determinísticos)';$('add-response-field').disabled=true;return;
+ }
  $('response-heading').textContent=node.outputMode==='text'?'Saída textual':'Estrutura JSON';
  const list=$('response-fields');list.replaceChildren();
  const fields=node.kind==='prompt'?(node.responseFields??[]):[];
@@ -123,7 +127,8 @@ function inspect(){
  $('use-personality-core').checked=node.usePersonalityCore===true;$('use-personality-core').disabled=busy;
  $('use-interest-profile').checked=node.useInterestProfile===true;$('use-interest-profile').disabled=busy;
  $('use-state-guidance').checked=node.useStateGuidance===true;$('use-state-guidance').disabled=busy;
- renderTypedPanel($('typed-settings'),graph,node,busy,contractsChanged);
+ if(node.executionProfile==='boundary_enforcement_v1')for(const id of ['output-mode','use-personality-core','use-interest-profile','use-state-guidance'])$(id).disabled=true;
+ renderTypedPanel($('typed-settings'),graph,node,busy,contractsChanged,modelCatalog);
  $('contract-preview').hidden=node.kind!=='prompt';
  const contract=lastContracts.find(n=>n.nodeId===selected),calls=lastCalls.filter(n=>n.nodeId===selected);
  const references={personalityCore:node.usePersonalityCore?project.personalityCore??'':undefined,interestProfile:node.useInterestProfile?project.interestProfile??'':undefined,participationGuidance:node.useStateGuidance?project.states.find(s=>s.id===selectedStateId)?.participationGuidance??'':undefined};
@@ -152,7 +157,7 @@ function inspect(){
   $(key+'-enabled').checked=node.settings[key]!==null;$(key+'-enabled').disabled=busy;
   $(key).value=node.settings[key]??'';$(key).disabled=busy||node.settings[key]===null;
  }
- const removable=['prompt','accumulate','history','memory','branch','property','switch'].includes(node.kind)||isTerminal(node)||(isEntry(node)&&graph.nodes.filter(isEntry).length>1);
+ const removable=['prompt','accumulate','history','memory','interpretBoundaries','branch','property','count','switch'].includes(node.kind)||isTerminal(node)||(isEntry(node)&&graph.nodes.filter(isEntry).length>1);
  $('remove').hidden=!removable;
  $('selected-title').textContent=nodeTitle(node);$('prompt').value=node.prompt??'';$('prompt').disabled=busy||node.kind!=='prompt';
  if(modelCatalog){
@@ -199,7 +204,7 @@ for(const [field,choose] of [['node-provider',chooseProvider],['node-model',choo
  });
 }
 $('add').addEventListener('click',()=>{
- if(busy)return;if(graph.nodes.length>=32){tell('Limite: 32 blocos.');return;}
+ if(busy)return;if(graph.nodes.length>=64){tell('Limite: 64 blocos.');return;}
  $('add-menu').open=false;
  if(graph.nodes.filter(n=>n.kind==='prompt').length>=8){tell('Limite deste recorte: 8 instruções.');return;}
  let i=2;while(graph.nodes.some(n=>n.id===`prompt-${i}`))i++;
@@ -208,20 +213,20 @@ $('add').addEventListener('click',()=>{
 });
 for(const kind of ['dm','group'])$('add-'+kind).addEventListener('click',()=>{
  if(busy)return;$('add-menu').open=false;
- if(graph.nodes.length>=32){tell('Limite: 32 blocos.');return;}
+ if(graph.nodes.length>=64){tell('Limite: 64 blocos.');return;}
  let i=1;while(graph.nodes.some(n=>n.id===`${kind}-${i}`))i++;
  const node={id:`${kind}-${i}`,kind,x:60,y:Math.min(3800,150+graph.nodes.filter(isEntry).length*130)};
  graph.nodes.push(node);selected=node.id;invalidate();render();$('event-entry').value=node.id;
  tell('Entrada criada. Conecte a saída ao caminho desejado.');
 });
 $('event-entry').addEventListener('change',()=>{invalidate();inspect();});
-for(const kind of ['property','switch'])$('add-'+kind).addEventListener('click',()=>{
- if(busy||graph.nodes.length>=32)return;$('add-menu').open=false;
- const node={id:crypto.randomUUID(),kind,x:370,y:330,settings:kind==='property'?{path:[]}:{cases:[],other:false}};
+for(const kind of ['property','switch','count'])$('add-'+kind).addEventListener('click',()=>{
+ if(busy||graph.nodes.length>=64)return;$('add-menu').open=false;
+ const node={id:crypto.randomUUID(),kind,x:370,y:330,settings:kind==='property'?{path:[]}:kind==='switch'?{cases:[],other:false}:{}};
  graph.nodes.push(node);selected=node.id;contractsChanged();
 });
 $('add-branch').addEventListener('click',()=>{
- if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=32){tell('Limite: 32 blocos.');return;}
+ if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=64){tell('Limite: 64 blocos.');return;}
  let i=1;while(graph.nodes.some(n=>n.id===`branch-${i}`))i++;
  const node={id:`branch-${i}`,kind:'branch',settings:{operator:'eq'},x:370,y:330};graph.nodes.push(node);selected=node.id;invalidate();render();
 });
@@ -231,7 +236,7 @@ $('branch-operator').addEventListener('change',()=>{
  node.settings={...node.settings,operator};invalidate();render();
 });
 $('add-exit').addEventListener('click',()=>{
- if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=32){tell('Limite: 32 blocos.');return;}
+ if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=64){tell('Limite: 64 blocos.');return;}
  let i=1;while(graph.nodes.some(n=>n.id===`exit-${i}`))i++;
  const node={id:`exit-${i}`,kind:'exit',settings:{targetStateId:selectedStateId,mode:'switch'},x:680,y:330};
  graph.nodes.push(node);selected=node.id;invalidate();render();
@@ -243,27 +248,32 @@ $('exit-target').addEventListener('change',()=>{
 });
 $('exit-mode').addEventListener('change',()=>{const node=graph.nodes.find(n=>n.id===selected);if(busy||node?.kind!=='exit')return;node.settings={...node.settings,mode:'switch'};invalidate();render();});
 $('add-accumulate').addEventListener('click',()=>{
- if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=32){tell('Limite: 32 blocos.');return;}
+ if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=64){tell('Limite: 64 blocos.');return;}
  let i=1;while(graph.nodes.some(n=>n.id===`accumulate-${i}`))i++;
  const node={id:`accumulate-${i}`,kind:'accumulate',settings:accumulatorDefaults(),x:370,y:330};
  graph.nodes.push(node);selected=node.id;invalidate();render();
 });
 $('add-history').addEventListener('click',()=>{
- if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=32){tell('Limite: 32 blocos.');return;}
+ if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=64){tell('Limite: 64 blocos.');return;}
  let i=1;while(graph.nodes.some(n=>n.id===`history-${i}`))i++;
  const node={id:`history-${i}`,kind:'history',settings:historyDefaults(),x:520,y:330};graph.nodes.push(node);selected=node.id;invalidate();render();
 });
 $('add-memory').addEventListener('click',()=>{
- if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=32){tell('Limite: 32 blocos.');return;}
+ if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=64){tell('Limite: 64 blocos.');return;}
  Object.assign(graph,migrateTypedGraph(graph));
  const node={id:crypto.randomUUID(),kind:'memory',settings:memoryDefaults(),x:520,y:330};
  graph.nodes.push(node);selected=node.id;invalidate();render();
 });
+$('add-interpretBoundaries').addEventListener('click',()=>{
+ if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=64){tell('Limite: 64 blocos.');return;}
+ const node={id:crypto.randomUUID(),kind:'interpretBoundaries',settings:{taxonomyVersion:'v1',grammarVersion:'v1',templatesVersion:'v1'},x:650,y:330};
+ graph.nodes.push(node);selected=node.id;invalidate();render();
+});
 $('add-send').addEventListener('click',()=>{
- if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=32){tell('Limite: 32 blocos.');return;}
+ if(busy)return;$('add-menu').open=false;if(graph.nodes.length>=64){tell('Limite: 64 blocos.');return;}
  let id='send',i=2;while(graph.nodes.some(n=>n.id===id))id=`send-${i++}`;
  const node={id,kind:'send',x:680,y:330};graph.nodes.push(node);selected=node.id;invalidate();render();
- tell('Enviar mensagem criado. Conecte Mensagem e Para antes de ativar.');
+ tell('Enviar criado. Conecte a candidate aprovada em Mensagem. Destino e autorização pertencem ao host; Fase 0 sem envio real.');
 });
 for(const key of Object.keys(accumulatorDefaults()))for(const id of [key,key+'-enabled'])$(id).addEventListener('change',()=>{
  const node=graph.nodes.find(n=>n.id===selected);if(busy||node?.kind!=='accumulate')return;

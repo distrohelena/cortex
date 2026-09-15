@@ -5,6 +5,12 @@ namespace Filomena.Core.Flows;
 // Domain aliases reuse the existing type algebra; provider objects are never reflected.
 public static class FlowDomain
 {
+    public static JsonElement CountItems(JsonElement value, FlowType type)
+    {
+        if (type is not ArrayType) throw new InvalidDataException("Contar Itens exige Lista não opcional.");
+        Check(value, type);
+        return JsonSerializer.SerializeToElement(value.GetArrayLength());
+    }
     private static ObjectType Object(params (string Name, FlowType Type)[] fields) =>
         new(fields.ToDictionary(f => f.Name, f => new FlowField(f.Type, true)));
     public static ObjectType Person { get; } = Object(("nome", new StringType()), ("stableId", new StringType()));
@@ -14,6 +20,9 @@ public static class FlowDomain
         ("canal", Channel), ("reply", new NullableType(Reply)));
     public static ObjectType Memory { get; } = Object(("conteudo", new StringType()),
         ("categoria", new EnumType(["limite", "apelido", "relacao", "fato", "nao_classificada"])));
+    public static ObjectType Boundary { get; } = Object(("status", new EnumType(["compiled"])),
+        ("kind", new EnumType(["no_teasing_about_topic"])), ("originalText", new StringType()),
+        ("topicEvidence", new StringType()), ("constraintEvidence", new StringType()));
 
     public static FlowType Parse(JsonElement field)
     {
@@ -37,6 +46,7 @@ public static class FlowDomain
             "actor" => Person,
             "channel" => Channel,
             "memory" => Memory,
+            "boundary" => Boundary,
             _ => throw new InvalidDataException("Tipo desconhecido."),
         };
     }
@@ -97,6 +107,7 @@ public static class FlowDomain
 
     public static JsonElement ForModel(JsonElement value, FlowType type, IDictionary<string, string> references)
     {
+        if (type == Boundary) throw new InvalidDataException("Boundary exige artefato confiável da execution.");
         Check(value, type);
         if (value.ValueKind == JsonValueKind.Null) return value.Clone();
         if (type is NullableType nullable) return ForModel(value, nullable.InnerType, references);

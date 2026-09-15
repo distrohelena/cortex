@@ -26,7 +26,8 @@ test('Branch has two independent execution outcomes and send can continue',()=>{
  model.connectExecution(graph,'branch','prompt','true');
  model.connectExecution(graph,'branch','output','false');
  model.connectExecution(graph,'branch','send','true');
- model.connectExecution(graph,'send','output');
+ assert.throws(()=>model.connectExecution(graph,'send','output'));
+ model.connectExecution(graph,'send','output','shadowed');
  assert.equal(graph.controlEdges.find(edge=>edge.source==='branch'&&edge.sourcePort==='true').target,'send');
  assert.equal(graph.controlEdges.find(edge=>edge.source==='branch'&&edge.sourcePort==='false').target,'output');
  assert.equal(graph.controlEdges.length,4);

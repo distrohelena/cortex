@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Filomena.Core.Boundaries;
 
 namespace Filomena.Core.Flows;
 
@@ -22,7 +23,7 @@ public static class TypedFlowCompiler
     }
 
     private static readonly HashSet<string> ExecutableKinds =
-        ["dm", "group", "accumulate", "history", "memory", "exit", "property", "prompt", "switch", "branch"];
+        ["dm", "group", "accumulate", "history", "memory", "interpretBoundaries", "exit", "property", "count", "prompt", "switch", "branch", "send"];
 
     public static TypedFlow Compile(JsonElement source, string entryId) => CompileCore(source, entryId, true);
 
@@ -34,14 +35,14 @@ public static class TypedFlowCompiler
         {
             if (source.GetProperty("version").GetInt32() != 3) throw new InvalidDataException("Use graph versão 3.");
             var raw = source.GetProperty("nodes").EnumerateArray().ToArray();
-            if (raw.Length is < 1 or > 32) throw new InvalidDataException("Use 1–32 nodes.");
+            if (raw.Length is < 1 or > 64) throw new InvalidDataException("Use 1–64 nodes.");
             var allNodes = raw.Select(n => new FlowNode(n.GetProperty("id").GetString()!, n.GetProperty("kind").GetString()!, 1, n)).ToDictionary(n => n.Id);
             var allData = source.GetProperty("edges").EnumerateArray().Select(e => new DataEdge(Ref(e, "source"), [], Ref(e, "target"))).ToArray();
             var allControl = source.TryGetProperty("controlEdges", out var ce) ? ce.EnumerateArray().Select(e => new ControlEdge(Ref(e, "source"), Ref(e, "target"))).ToArray() : [];
             var nodes = allNodes;
             var data = allData;
             var control = allControl;
-            if (data.Length > 64 || control.Length > 64) throw new InvalidDataException("Máximo de 64 fios de cada tipo.");
+            if (data.Length > 128 || control.Length > 128) throw new InvalidDataException("Máximo de 128 fios de cada tipo.");
             var graph = new GraphDocument("local", 3, GraphRole.Character, null, nodes.Values, data, control, [entryId]);
             if (!nodes.TryGetValue(entryId, out var entry) || entry.Kind is not ("dm" or "group")) throw new InvalidDataException("Selecione uma entrada DM/grupo.");
             ValidateGlobalStructure(allNodes, allData, allControl, issues);
@@ -95,6 +96,10 @@ public static class TypedFlowCompiler
                 TypedNode result;
                 switch (node.Kind)
                 {
+                    case "send":
+                        Outbound.SendNodeContract.Validate(config);
+                        result = new(node, [Port("message", new StringType())],
+                            [Port("status", new EnumType(["disabled", "shadowed", "blocked", "failed"])), Port("diagnostico", new StringType())], ["disabled", "shadowed", "blocked", "failed"]); break;
                     case "dm":
                     case "group":
                         result = new(node, [], [Port("message", FlowDomain.Message)], ["then"]); break;
@@ -132,17 +137,36 @@ public static class TypedFlowCompiler
                         result = new(node, [Port("persons", personType, personRequired),
                             new("query", "query", new StringType(), memory.Scope == Memory.MemoryScope.Conversation, queryConfig)],
                             [Port("memories", new ArrayType(FlowDomain.Memory))], ["then"]); break;
+                    case "count":
+                        var list = Incoming("list");
+                        if (list.Type is not ArrayType) throw new InvalidDataException("Contar Itens exige Lista não opcional.");
+                        result = new(node, [Port("list", list.Type)], [Port("count", new NumberType())], []); break;
+                    case "interpretBoundaries":
+                        _ = BoundaryCompilerSettings.Read(config);
+                        result = new(node, [Port("memories", new ArrayType(FlowDomain.Memory))],
+                            [Port("boundaries", new ArrayType(FlowDomain.Boundary))], ["then"]); break;
                     case "property":
                         var input = Incoming("object");
                         var path = PropertyPath(config);
                         if (path.Length == 0) throw new InvalidDataException("Escolha uma propriedade.");
                         result = new(node, [Port("object", input.Type)], [Port("value", FlowDomain.PropertyType(input.Type, path))], []); break;
                     case "prompt":
+                        if (config.TryGetProperty("reasoningEffort", out var effort) &&
+                            (effort.ValueKind != JsonValueKind.String || effort.GetString() is not ("low" or "medium" or "high")))
+                            throw new InvalidDataException("Reasoning effort inválido.");
+                        if (config.TryGetProperty("maxOutputTokens", out var maxTokens) &&
+                            (maxTokens.ValueKind != JsonValueKind.Number || !maxTokens.TryGetInt32(out var budget) || budget < 1))
+                            throw new InvalidDataException("Budget de saída deve ser inteiro positivo.");
                         if (!config.TryGetProperty("prompt", out var prompt) || prompt.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(prompt.GetString())) throw new InvalidDataException("Preencha a instrução.");
                         InstructionContext.Enabled(config, "usePersonalityCore");
                         InstructionContext.Enabled(config, "useStateGuidance");
                         InstructionContext.Enabled(config, "useInterestProfile");
                         var inputs = Fields(id, config, "inputs", false);
+                        if (BoundaryEnforcementProfile.Enabled(config))
+                        {
+                            BoundaryEnforcementProfile.Validate(config, inputs);
+                            result = new(node, inputs, BoundaryEnforcementProfile.Outputs, ["then"]); break;
+                        }
                         var outputs = Fields(id, config, "responseFields", true);
                         if (outputs.Length == 0) outputs = [Port("message", new StringType())];
                         if (IsTextOutput(config) && (outputs.Length != 1 || outputs[0].Type is not StringType))
@@ -191,7 +215,7 @@ public static class TypedFlowCompiler
             foreach (var edge in control)
             {
                 if (!resolved.TryGetValue(edge.Source.NodeId, out var from) || !from.Exits.Contains(edge.Source.Port)) Error(edge.Source.NodeId, edge.Source.Port, "Saída de execução inexistente.");
-                if (!resolved.TryGetValue(edge.Target.NodeId, out var to) || to.Source.Kind is "property" or "dm" or "group" || edge.Target.Port != "exec") Error(edge.Target.NodeId, edge.Target.Port, "Entrada de execução inexistente.");
+                if (!resolved.TryGetValue(edge.Target.NodeId, out var to) || to.Source.Kind is "property" or "count" or "dm" or "group" || edge.Target.Port != "exec") Error(edge.Target.NodeId, edge.Target.Port, "Entrada de execução inexistente.");
             }
             foreach (var group in control.GroupBy(e => e.Source)) if (group.Count() > 1) Error(group.Key.NodeId, group.Key.Port, "Sem fan-out: conecte apenas um próximo node.");
             DetectCycles(nodes.Keys, data.Select(e => (e.Source.NodeId, e.Target.NodeId)), issues);
@@ -207,7 +231,7 @@ public static class TypedFlowCompiler
         catch (Exception e) when (ConfigurationError(e)) { throw new TypedFlowException([new("graph", "config", e.Message)]); }
     }
 
-    private static bool ConfigurationError(Exception e) => e is InvalidDataException or InvalidOperationException or KeyNotFoundException or ArgumentException or FormatException or FlowSchemaException;
+    private static bool ConfigurationError(Exception e) => e is InvalidDataException or InvalidOperationException or KeyNotFoundException or ArgumentException or FormatException or FlowSchemaException or BoundaryCompilationException;
 
     private static void ValidateGlobalStructure(
         IReadOnlyDictionary<string, FlowNode> nodes,
@@ -237,7 +261,7 @@ public static class TypedFlowCompiler
         while (pending.TryDequeue(out var current))
             foreach (var edge in control.Where(item => item.Source.NodeId == current))
                 if (reachable.Add(edge.Target.NodeId)) pending.Enqueue(edge.Target.NodeId);
-        foreach (var node in nodes.Values.Where(node => node.Kind is not ("property" or "dm" or "group")))
+        foreach (var node in nodes.Values.Where(node => node.Kind is not ("property" or "count" or "dm" or "group")))
             if (!reachable.Contains(node.Id)) issues.Add(new(node.Id, "exec", "Node operacional não alcançado por nenhuma entrada."));
     }
     private static PortRef Ref(JsonElement e, string end) => new(e.GetProperty(end).GetString()!, e.GetProperty(end + "Port").GetString()!);
@@ -321,14 +345,14 @@ public static class TypedFlowCompiler
         Walk(entry, []);
         IEnumerable<string> Producers(string id)
         {
-            if (nodes[id].Source.Kind != "property") return [id];
+            if (nodes[id].Source.Kind is not ("property" or "count")) return [id];
             return graph.DataEdges.Where(e => e.Target.NodeId == id).SelectMany(e => Producers(e.Source.NodeId));
         }
         foreach (var consumer in paths.Keys)
             foreach (var edge in graph.DataEdges.Where(e => e.Target.NodeId == consumer))
                 foreach (var producer in Producers(edge.Source.NodeId))
                     if (!paths[consumer].Contains(producer)) issues.Add(new(consumer, edge.Target.Port, "Produtor não executa em todos os caminhos anteriores: " + producer));
-        foreach (var node in nodes.Values.Where(n => n.Source.Kind is not ("property" or "dm" or "group")))
+        foreach (var node in nodes.Values.Where(n => n.Source.Kind is not ("property" or "count" or "dm" or "group")))
             if (!paths.ContainsKey(node.Source.Id)) issues.Add(new(node.Source.Id, "exec", "Node operacional não alcançado pela entrada selecionada."));
     }
 }

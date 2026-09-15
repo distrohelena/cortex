@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Filomena.App.Playground;
 
@@ -15,7 +16,7 @@ internal sealed class PlaygroundProjectStore(string directory)
             if (!File.Exists(path)) return null;
             using var document = JsonDocument.Parse(await File.ReadAllTextAsync(path, token));
             Validate(document.RootElement);
-            return document.RootElement.Clone();
+            return MigrateBoundaryCompiler(document.RootElement);
         }
         finally { gate.Release(); }
     }
@@ -23,6 +24,7 @@ internal sealed class PlaygroundProjectStore(string directory)
     public async Task SaveAsync(JsonElement document, CancellationToken token)
     {
         Validate(document);
+        document = MigrateBoundaryCompiler(document);
         await gate.WaitAsync(token);
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
@@ -36,6 +38,21 @@ internal sealed class PlaygroundProjectStore(string directory)
             try { if (File.Exists(temporary)) File.Delete(temporary); }
             finally { gate.Release(); }
         }
+    }
+
+    private static JsonElement MigrateBoundaryCompiler(JsonElement document)
+    {
+        var root = JsonNode.Parse(document.GetRawText())!;
+        foreach (var state in root["project"]!["states"]!.AsArray())
+            foreach (var node in state!["graph"]!["nodes"]!.AsArray())
+            {
+                if (node!["kind"]!.GetValue<string>() != "interpretBoundaries") continue;
+                foreach (var field in new[] { "provider", "model", "reasoningEffort", "maxOutputTokens" }) node.AsObject().Remove(field);
+                if (node["settings"] is not JsonObject settings) continue;
+                if (!settings.ContainsKey("grammarVersion") && settings["interpreterContractVersion"]?.ToString() == "v1") settings["grammarVersion"] = "v1";
+                settings.Remove("interpreterContractVersion");
+            }
+        return JsonSerializer.SerializeToElement(root);
     }
 
     private static void Keys(JsonElement value, params string[] allowed)
@@ -90,19 +107,20 @@ internal sealed class PlaygroundProjectStore(string directory)
             Keys(graph, "version", "nodes", "edges", "controlEdges");
             if (!graph.TryGetProperty("version", out var gv) || gv.ValueKind != JsonValueKind.Number || !gv.TryGetInt32(out var gn) || gn is not (2 or 3)) throw new InvalidDataException();
             var nodeIds = new HashSet<string>(StringComparer.Ordinal);
-            foreach (var node in Array(graph, "nodes", 32).EnumerateArray())
+            foreach (var node in Array(graph, "nodes", 64).EnumerateArray())
             {
-                Keys(node, "id", "kind", "x", "y", "prompt", "provider", "model", "settings", "responseFields", "inputs", "correctionRetry", "title", "usePersonalityCore", "useStateGuidance", "useInterestProfile", "outputMode");
+                Keys(node, "id", "kind", "x", "y", "prompt", "provider", "model", "settings", "responseFields", "inputs", "correctionRetry", "title", "usePersonalityCore", "useStateGuidance", "useInterestProfile", "outputMode", "reasoningEffort", "maxOutputTokens", "executionProfile", "semanticContractVersion", "boundaryEvaluatorVersion", "boundaryTemplateVersion", "enforcementStrategy", "complementaryContractVersion", "aggregationPolicyVersion");
+                if (Text(node, "kind") == "send") Filomena.Core.Outbound.SendNodeContract.Validate(node);
                 if (node.TryGetProperty("outputMode", out _)) Text(node, "outputMode", 32);
                 foreach (var flag in new[] { "usePersonalityCore", "useStateGuidance", "useInterestProfile" })
                     if (node.TryGetProperty(flag, out var enabled) && enabled.ValueKind is not (JsonValueKind.True or JsonValueKind.False)) throw new InvalidDataException();
                 if (!nodeIds.Add(Text(node, "id"))) throw new InvalidDataException();
-                if (!new[] { "dm", "group", "input", "prompt", "accumulate", "history", "memory", "branch", "exit", "send", "property", "switch" }.Contains(Text(node, "kind"))) throw new InvalidDataException();
+                if (!new[] { "dm", "group", "input", "prompt", "accumulate", "history", "memory", "interpretBoundaries", "branch", "exit", "send", "property", "count", "switch" }.Contains(Text(node, "kind"))) throw new InvalidDataException();
                 foreach (var coordinate in new[] { "x", "y" })
                     if (!node.TryGetProperty(coordinate, out var c) || c.ValueKind != JsonValueKind.Number || !c.TryGetDouble(out var n) || !double.IsFinite(n) || n < 0 || n > 4000) throw new InvalidDataException();
                 if (node.TryGetProperty("settings", out var settings))
                 {
-                    Keys(settings, "quietSeconds", "maxMessages", "maxWaitSeconds", "maxAgeMinutes", "maxCharacters", "includeCharacterMessages", "operator", "b", "targetStateId", "mode", "stateMapping", "path", "cases", "retiredCases", "other", "scope", "categories", "maxItems", "activeOnly", "queryText");
+                    Keys(settings, "quietSeconds", "maxMessages", "maxWaitSeconds", "maxAgeMinutes", "maxCharacters", "includeCharacterMessages", "operator", "b", "targetStateId", "mode", "stateMapping", "path", "cases", "retiredCases", "other", "scope", "categories", "maxItems", "activeOnly", "queryText", "taxonomyVersion", "interpreterContractVersion", "grammarVersion", "templatesVersion");
                     if (settings.TryGetProperty("cases", out _))
                         foreach (var item in Array(settings, "cases", 64).EnumerateArray()) Keys(item, "id", "value");
                 }
@@ -114,7 +132,7 @@ internal sealed class PlaygroundProjectStore(string directory)
             foreach (var key in new[] { "edges", "controlEdges" })
             {
                 if (key == "controlEdges" && !graph.TryGetProperty(key, out _)) continue;
-                foreach (var edge in Array(graph, key, 64).EnumerateArray())
+                foreach (var edge in Array(graph, key, 128).EnumerateArray())
                 {
                     Keys(edge, "source", "target", "sourcePort", "targetPort");
                     if (!nodeIds.Contains(Text(edge, "source")) || !nodeIds.Contains(Text(edge, "target"))) throw new InvalidDataException();
