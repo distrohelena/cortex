@@ -43,7 +43,22 @@ public sealed class OpenClawMcpTransport : IConversationSender
         {
             throw new InvalidDataException("Send outcome unknown: MCP returned no provider message ID. Do not retry automatically.");
         }
-        return new SendReceipt(id.GetString()!);
+        return new SendReceipt(id.GetString()!)
+        {
+            Channel = ReceiptString(result, "channel"),
+            AccountId = ReceiptString(result, "accountId"),
+            Recipient = ReceiptString(result, "toJid"),
+            GatewayRunId = ReceiptString(result, "runId"),
+        };
+    }
+
+    private static string? ReceiptString(JsonElement result, string name)
+    {
+        if (!result.TryGetProperty(name, out var value) || value.ValueKind == JsonValueKind.Null)
+            return null;
+        if (value.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(value.GetString()))
+            throw new InvalidDataException("Send outcome unknown: MCP returned malformed receipt metadata. Do not retry automatically.");
+        return value.GetString();
     }
 
     public async Task<IReadOnlyList<ConversationInfo>> ListConversationsAsync(

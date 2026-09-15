@@ -61,11 +61,11 @@ public sealed class OpenClawInboundBridgeReceiverTests
     [Fact]
     public async Task InvalidActorIdentityFailsClosedInsteadOfThrowing()
     {
-        using var payload = JsonDocument.Parse(
-            ValidPayload.Replace(
-                "5511944558218@s.whatsapp.net\",\n    \"stableId\": \"whatsapp:5511944558218@s.whatsapp.net",
-                "not-a-jid\",\n    \"stableId\": \"whatsapp:not-a-jid",
-                StringComparison.Ordinal));
+        var invalid = System.Text.Json.Nodes.JsonNode.Parse(ValidPayload)!;
+        invalid["sender"]!["nativeId"] = "not-a-jid";
+        invalid["sender"]!["stableId"] = "whatsapp:not-a-jid";
+        using var payload = JsonDocument.Parse(invalid.ToJsonString());
+        Assert.Equal("not-a-jid", payload.RootElement.GetProperty("sender").GetProperty("nativeId").GetString());
         var receiver = new OpenClawInboundBridgeReceiver();
 
         var result = await receiver.AcceptAsync(payload.RootElement, CancellationToken.None);

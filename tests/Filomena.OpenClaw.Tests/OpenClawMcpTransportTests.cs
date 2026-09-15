@@ -8,6 +8,56 @@ namespace Filomena.OpenClaw.Tests;
 public sealed class OpenClawMcpTransportTests
 {
     [Fact]
+    public async Task PreservesObservedReceiptMetadataWithoutInferringMissingRouteFields()
+    {
+        await using var client = new FakeMcpToolClient();
+        client.Enqueue("messages_send", """
+            {"result":{"messageId":"provider-1","channel":"whatsapp","accountId":"account-a",
+              "toJid":"12345@lid","runId":"gateway-run-1"}}
+            """);
+        var receipt = await new OpenClawMcpTransport(client).SendTextAsync(
+            "opaque-route", "exact candidate", TestContext.Current.CancellationToken);
+        var value = JsonSerializer.SerializeToElement(receipt);
+        Assert.True(value.TryGetProperty("Channel", out var channel));
+        Assert.Equal("whatsapp", channel.GetString());
+        Assert.Equal("account-a", value.GetProperty("AccountId").GetString());
+        Assert.Equal("12345@lid", value.GetProperty("Recipient").GetString());
+        Assert.Equal("gateway-run-1", value.GetProperty("GatewayRunId").GetString());
+        Assert.Equal("provider-1", receipt.ProviderMessageId);
+        Assert.Single(client.Calls);
+    }
+
+    [Theory]
+    [InlineData("\"channel\":42")]
+    [InlineData("\"accountId\":{}")]
+    [InlineData("\"toJid\":[]")]
+    [InlineData("\"runId\":false")]
+    [InlineData("\"channel\":\" \"")]
+    public async Task MalformedReceiptMetadataIsUncertainAndNeverRetried(string field)
+    {
+        await using var client = new FakeMcpToolClient();
+        client.Enqueue("messages_send", "{\"result\":{\"messageId\":\"provider-1\"," + field + "}}");
+        await Assert.ThrowsAsync<InvalidDataException>(() => new OpenClawMcpTransport(client)
+            .SendTextAsync("opaque-route", "exact candidate", TestContext.Current.CancellationToken));
+        Assert.Single(client.Calls);
+    }
+
+    [Fact]
+    public async Task IdOnlyReceiptDoesNotInventAccountOrRecipientFromOpaqueRoute()
+    {
+        await using var client = new FakeMcpToolClient();
+        client.Enqueue("messages_send", """{"result":{"messageId":"provider-1"}}""");
+        var receipt = await new OpenClawMcpTransport(client).SendTextAsync(
+            "account-and-peer-looking-route", "exact candidate", TestContext.Current.CancellationToken);
+        var value = JsonSerializer.SerializeToElement(receipt);
+        Assert.True(value.TryGetProperty("AccountId", out var account));
+        Assert.Equal(JsonValueKind.Null, account.ValueKind);
+        Assert.Equal(JsonValueKind.Null, value.GetProperty("Recipient").ValueKind);
+        Assert.Equal(JsonValueKind.Null, value.GetProperty("Channel").ValueKind);
+        Assert.Equal(JsonValueKind.Null, value.GetProperty("GatewayRunId").ValueKind);
+    }
+
+    [Fact]
     public async Task SendsStandaloneThroughExactSessionRouteAndReturnsProviderReceipt()
     {
         await using var client = new FakeMcpToolClient();
