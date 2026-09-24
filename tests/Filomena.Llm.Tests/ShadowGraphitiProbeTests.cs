@@ -34,6 +34,52 @@ public sealed class ShadowGraphitiProbeTests
     private const string Ns = "whatsapp-dm-5511000000000-s-whatsapp-net";
     private static readonly MemoryPerson Person = MemoryIdentity.Person(Ns, "whatsapp:5511000000000@s.whatsapp.net", null);
     private static ShadowGraphitiProbeRequest Request => new(Ns, Person.ActorStableId, "local-canary", "foreign-ns", "foreign-canary");
+    private static ShadowGraphitiNewDmProbeRequest NewDmRequest => new(Ns, Person.ActorStableId, "foreign-ns", "foreign-canary");
+
+    [Fact]
+    public async Task New_DM_requires_exact_subject_absence_and_keeps_empty_recalls_scoped_and_honest()
+    {
+        var client = new Client("newdm_valid");
+        var checks = await new ShadowGraphitiProbe(client).RunNewDmAsync(NewDmRequest, TestContext.Current.CancellationToken);
+        Assert.Contains(checks, c => c.Id == "graphiti_participant_absent" && c.Passed && c.Diagnostic == "exact_subject_absent_v1");
+        Assert.Contains(checks, c => c.Id == "graphiti_new_dm_ready" && c.Passed);
+        Assert.Contains(checks, c => c.Id == "graphiti_boundary_recall" && c.Passed && c.Diagnostic == "success_empty");
+        Assert.Contains(checks, c => c.Id == "graphiti_social_recall" && c.Passed && c.Diagnostic == "success_empty");
+        Assert.Contains(checks, c => c.Id == "empty_vs_outage" && c.Passed);
+        Assert.Contains(client.Queries, q => q.Contains("limites", StringComparison.Ordinal));
+        Assert.Contains(client.Queries, q => q.Contains("social", StringComparison.Ordinal));
+        Assert.DoesNotContain(checks, c => c.Diagnostic.Contains("namespace_empty", StringComparison.Ordinal));
+
+        var established = await new ShadowGraphitiProbe(new Client("newdm_valid"))
+            .RunAsync(Request, TestContext.Current.CancellationToken);
+        Assert.Contains(established, c => c.Id == "graphiti_participant" && !c.Passed);
+    }
+
+    [Theory]
+    [InlineData("newdm_bare_empty")]
+    [InlineData("newdm_wrong_namespace")]
+    [InlineData("newdm_wrong_subject")]
+    [InlineData("newdm_wrong_version")]
+    [InlineData("newdm_nonempty_absence")]
+    [InlineData("newdm_error")]
+    [InlineData("newdm_timeout")]
+    [InlineData("newdm_recall_error")]
+    [InlineData("newdm_recall_timeout")]
+    [InlineData("newdm_missing_foreign_positive")]
+    [InlineData("newdm_leak")]
+    public async Task New_DM_is_not_ready_without_exact_provenance_and_controls(string mode)
+    {
+        var client = new Client(mode);
+        var checks = await new ShadowGraphitiProbe(client).RunNewDmAsync(NewDmRequest, TestContext.Current.CancellationToken);
+        Assert.Contains(checks, c => c.Id == "graphiti_new_dm_ready" && !c.Passed
+            && c.Phase == "not_ready");
+        Assert.DoesNotContain(checks, c => c.Diagnostic.Contains("private-error", StringComparison.Ordinal));
+        if (mode == "newdm_leak")
+            Assert.Contains(checks, c => c.Id == "graphiti_canary_isolation" && !c.Passed
+                && c.Diagnostic == "confirmed_cross_namespace_leakage");
+        if (mode is "newdm_error" or "newdm_timeout" or "newdm_recall_error" or "newdm_recall_timeout")
+            Assert.DoesNotContain(checks, c => c.Passed && c.Diagnostic == "success_empty");
+    }
 
     [Theory]
     [InlineData("healthy", true)]
@@ -73,6 +119,21 @@ public sealed class ShadowGraphitiProbeTests
         {
             Calls++;
             Assert.Equal(Person.ParticipantUuid, participant);
+            if (mode.StartsWith("newdm_", StringComparison.Ordinal))
+            {
+                if (mode == "newdm_timeout") throw new OperationCanceledException("private-error");
+                if (mode == "newdm_error") return Task.FromResult(JsonSerializer.SerializeToElement(new { error = "private-error" }));
+                if (mode == "newdm_bare_empty") return Task.FromResult(JsonSerializer.SerializeToElement(new { facts = Array.Empty<object>() }));
+                var absence = new
+                {
+                    status = "entity_not_found",
+                    version = mode == "newdm_wrong_version" ? "future" : "entity-neighborhood-absence:v1",
+                    group_id = mode == "newdm_wrong_namespace" ? "foreign" : Ns,
+                    entity_uuid = mode == "newdm_wrong_subject" ? Guid.NewGuid() : Person.ParticipantUuid,
+                    facts = mode == "newdm_nonempty_absence" ? new[] { Fact(Ns, "unexpected") } : Array.Empty<object>()
+                };
+                return Task.FromResult(JsonSerializer.SerializeToElement(absence));
+            }
             if (mode == "outage") throw new HttpRequestException("private-error");
             if (mode.StartsWith("entity_", StringComparison.Ordinal))
             {
@@ -96,6 +157,21 @@ public sealed class ShadowGraphitiProbeTests
         {
             Calls++;
             Queries.Add(query);
+            if (mode.StartsWith("newdm_", StringComparison.Ordinal))
+            {
+                if (mode == "newdm_recall_timeout" && query.Contains("limites", StringComparison.Ordinal))
+                    throw new OperationCanceledException("private-error");
+                if (mode == "newdm_recall_error" && query.Contains("limites", StringComparison.Ordinal))
+                    return Task.FromResult(JsonSerializer.SerializeToElement(new { error = "private-error" }));
+                if (query == "foreign-canary")
+                {
+                    if (ns == "foreign-ns" && mode != "newdm_missing_foreign_positive")
+                        return Task.FromResult(JsonSerializer.SerializeToElement(new { facts = new[] { Fact(ns, "foreign-canary") } }));
+                    if (ns != "foreign-ns" && mode == "newdm_leak")
+                        return Task.FromResult(JsonSerializer.SerializeToElement(new { facts = new[] { Fact(ns, "foreign-canary") } }));
+                }
+                return Task.FromResult(JsonSerializer.SerializeToElement(new { facts = Array.Empty<object>() }));
+            }
             // Sanitized actual live failure: valid MCP success envelope containing backend ErrorResponse.
             if (mode == "backend_error") return Task.FromResult(JsonSerializer.SerializeToElement(new { result = new { error = "Error searching facts: Connection error." } }));
             if (mode == "invalid_schema") return Task.FromResult(JsonSerializer.SerializeToElement(new { facts = "not-an-array" }));

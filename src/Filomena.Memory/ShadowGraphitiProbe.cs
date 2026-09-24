@@ -10,11 +10,18 @@ namespace Filomena.Memory;
 public sealed record ShadowGraphitiProbeRequest(string ConversationNamespace, string ParticipantStableId,
     string LocalCanary, string ForeignNamespace, string ForeignCanary);
 
+// Explicit readiness path for a canonical participant whose exact Person node is not yet present.
+// It deliberately has no local positive canary: absence is scoped to this subject only.
+public sealed record ShadowGraphitiNewDmProbeRequest(string ConversationNamespace, string ParticipantStableId,
+    string ForeignNamespace, string ForeignCanary);
+
 /// <summary>Only existing Graphiti read APIs. No models, mutations, canary creation or fallback memories.</summary>
 public sealed class ShadowGraphitiProbe(IGraphitiReadClient client)
 {
     public static IReadOnlyList<string> CheckIds { get; } = Array.AsReadOnly(new[] { "graphiti_reachable", "graphiti_namespace", "graphiti_participant",
         "graphiti_boundary_recall", "graphiti_social_recall", "graphiti_canary_isolation", "empty_vs_outage" });
+    private static readonly string[] NewDmCheckIds = ["graphiti_reachable", "graphiti_namespace", "graphiti_participant_absent",
+        "graphiti_boundary_recall", "graphiti_social_recall", "graphiti_canary_isolation", "empty_vs_outage", "graphiti_new_dm_ready"];
 
     public async Task<IReadOnlyList<ShadowPreflightCheck>> RunAsync(ShadowGraphitiProbeRequest request, CancellationToken cancellationToken)
     {
@@ -27,7 +34,7 @@ public sealed class ShadowGraphitiProbe(IGraphitiReadClient client)
                 || request.ConversationNamespace == request.ForeignNamespace || request.LocalCanary == request.ForeignCanary)
                 throw new ArgumentException("Invalid probe binding.");
             var person = MemoryIdentity.Person(request.ConversationNamespace, request.ParticipantStableId, null);
-            var validating = new NamespaceClient(client, Set);
+            var validating = new NamespaceClient(client, Set, person.ParticipantUuid);
             var neighborhood = await validating.GetEntityNeighborhoodAsync(request.ConversationNamespace, person.ParticipantUuid, 50, cancellationToken);
             Set("graphiti_reachable", true, "read_succeeded");
             var root = Unwrap(neighborhood);
@@ -86,6 +93,83 @@ public sealed class ShadowGraphitiProbe(IGraphitiReadClient client)
             .Concat(checks.Where(p => !CheckIds.Contains(p.Key)).Select(p => p.Value)).ToArray();
     }
 
+    public async Task<IReadOnlyList<ShadowPreflightCheck>> RunNewDmAsync(
+        ShadowGraphitiNewDmProbeRequest request, CancellationToken cancellationToken)
+    {
+        var checks = new Dictionary<string, ShadowPreflightCheck>();
+        var watch = Stopwatch.StartNew();
+        void Set(string id, bool pass, string diagnostic) => checks[id] = new(id, pass, "new_dm_read_only", diagnostic, watch.Elapsed.TotalMilliseconds);
+        try
+        {
+            if (new[] { request.ConversationNamespace, request.ParticipantStableId, request.ForeignNamespace, request.ForeignCanary }
+                    .Any(string.IsNullOrWhiteSpace)
+                || request.ConversationNamespace == request.ForeignNamespace)
+                throw new ArgumentException("Invalid new-DM probe binding.");
+
+            var person = MemoryIdentity.Person(request.ConversationNamespace, request.ParticipantStableId, null);
+            var validating = new NamespaceClient(client, Set, person.ParticipantUuid);
+            var neighborhood = await validating.GetEntityNeighborhoodAsync(
+                request.ConversationNamespace, person.ParticipantUuid, 50, cancellationToken);
+            Set("graphiti_reachable", true, "read_succeeded");
+            var neighborhoodRoot = Unwrap(neighborhood);
+            var exactSubjectAbsent = neighborhoodRoot.ValueKind == JsonValueKind.Object
+                && neighborhoodRoot.TryGetProperty("status", out var status)
+                && status.ValueKind == JsonValueKind.String && status.GetString() == "entity_not_found";
+            if (!exactSubjectAbsent)
+                throw GraphitiResponseValidation.Failure("new_dm_readiness", "exact_subject_absence_unproven");
+            Set("graphiti_participant_absent", true, "exact_subject_absent_v1");
+
+            // The negative search catches a known foreign marker crossing into this scoped DM query.
+            var negative = await validating.SearchFactsAsync(request.ConversationNamespace, request.ForeignCanary, 50, cancellationToken);
+            if (FactText(negative).Contains(request.ForeignCanary, StringComparison.Ordinal))
+                throw GraphitiResponseValidation.Failure("canary_isolation", "confirmed_cross_namespace_leakage");
+            var foreign = await validating.SearchFactsAsync(request.ForeignNamespace, request.ForeignCanary, 50, cancellationToken);
+            if (!FactText(foreign).Contains(request.ForeignCanary, StringComparison.Ordinal))
+                throw GraphitiResponseValidation.Failure("canary_isolation", "foreign_positive_control_not_found");
+            Set("graphiti_canary_isolation", true, "foreign_positive_control_and_dm_negative_query");
+
+            // Use the regular memory reader/compiler path. Empty results mean these scoped
+            // recalls succeeded with no selected memories; they do not prove namespace emptiness.
+            var reader = new GraphitiMemoryReader(validating);
+            var query = new MemoryQuery(request.ConversationNamespace, FilomenaIdentity.AgentUuid(request.ConversationNamespace),
+                MemoryMode.Hybrid, MemoryScope.Person, [person], "limites pedidos de interação", [MemoryCategory.Boundary], 8, 1800);
+            var boundaries = await reader.QueryAsync(query, cancellationToken);
+            Set("graphiti_boundary_recall", true, boundaries.Count == 0 ? "success_empty" : "success_with_memory");
+            var social = await reader.QueryAsync(query with
+            {
+                Text = "memória social",
+                Categories = [MemoryCategory.Nickname, MemoryCategory.Relationship, MemoryCategory.Fact]
+            }, cancellationToken);
+            Set("graphiti_social_recall", true, social.Count == 0 ? "success_empty" : "success_with_memory");
+            Set("graphiti_namespace", true, "exact_subject_scope_and_scoped_recall_facts_validated");
+            Set("empty_vs_outage", true, "successful_empty_recalls_distinguished_from_errors");
+            Set("graphiti_new_dm_ready", true, "exact_subject_absence_and_required_reads_validated");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception error)
+        {
+            // No raw exception text, endpoint, facts or IDs in the report.
+            var code = error.Data["graphiti_code"] as string ?? (error switch
+            {
+                OperationCanceledException => "timeout",
+                HttpRequestException => "backend_unavailable",
+                JsonException => "response_schema_invalid",
+                InvalidDataException => "memory_validation_failed",
+                ArgumentException => "invalid_probe_binding",
+                _ => "probe_failure"
+            });
+            if (error.Data["graphiti_stage"] as string is { } stage) Set("failure_" + stage, false, code);
+            if (!checks.ContainsKey("graphiti_participant_absent"))
+                checks["graphiti_participant_absent"] = new("graphiti_participant_absent", false, "not_ready", code, watch.Elapsed.TotalMilliseconds);
+            if (!checks.ContainsKey("graphiti_new_dm_ready"))
+                checks["graphiti_new_dm_ready"] = new("graphiti_new_dm_ready", false, "not_ready", code, watch.Elapsed.TotalMilliseconds);
+            foreach (var id in NewDmCheckIds.Where(id => !checks.ContainsKey(id)))
+                checks[id] = new(id, false, "not_run", code, watch.Elapsed.TotalMilliseconds);
+        }
+        return NewDmCheckIds.Select(id => checks[id])
+            .Concat(checks.Where(p => !NewDmCheckIds.Contains(p.Key)).Select(p => p.Value)).ToArray();
+    }
+
     private static JsonElement Unwrap(JsonElement value) => value.ValueKind == JsonValueKind.Object && value.EnumerateObject().Count() == 1
         && value.TryGetProperty("result", out var result) ? result : value;
     private static string FactText(JsonElement value) => string.Join('\n', Unwrap(value).GetProperty("facts").EnumerateArray()
@@ -108,11 +192,12 @@ public sealed class ShadowGraphitiProbe(IGraphitiReadClient client)
         && labels.EnumerateArray().Any(l => l.ValueKind == JsonValueKind.String && l.GetString() == "Person")
         && (value.TryGetProperty("group_id", out var group)
             ? group.ValueKind == JsonValueKind.String && group.GetString() == ns : !requireNamespace);
-    private sealed class NamespaceClient(IGraphitiReadClient inner, Action<string, bool, string> report) : IGraphitiReadClient
+    private sealed class NamespaceClient(IGraphitiReadClient inner, Action<string, bool, string> report,
+        Guid expectedParticipant) : IGraphitiReadClient
     {
         public async Task<JsonElement> GetEntityNeighborhoodAsync(string ns, Guid person, int limit, CancellationToken token) =>
             GraphitiResponseValidation.Facts(await inner.GetEntityNeighborhoodAsync(ns, person, limit, token), ns,
-                (stage, pass, code) => report("exact_" + stage, pass, code));
+                (stage, pass, code) => report("exact_" + stage, pass, code), expectedParticipant);
         public async Task<JsonElement> SearchFactsAsync(string ns, string query, int limit, CancellationToken token) =>
             GraphitiResponseValidation.Facts(await inner.SearchFactsAsync(ns, query, limit, token), ns,
                 (stage, pass, code) => report("semantic_" + stage, pass, code));
