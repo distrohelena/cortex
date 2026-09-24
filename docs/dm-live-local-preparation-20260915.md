@@ -1,5 +1,12 @@
 # DM Live — local implementation slice, still not enabled
 
+> Historical implementation report. The 2026-09-21 review supersedes the live
+> sender and receipt claims below: Enabled now requires `IBoundOutboundTransport`,
+> not legacy describe-then-send, and a confirmed receipt must include the matching
+> account. Legacy MCP adapters do not implement that bound contract. The separate
+> `OpenClawBoundMcpTransport` and its isolated native wiring are described in
+> `native-bound-sender-local-20260921.md`; no active deployment or DM Live occurred.
+
 Date: 2026-09-15. Follows `dm-live-local-readiness-20260915.md`. Local source and tests
 only: no deployment, Gateway/config change, capture arming, real `messages_send`, model
 call, Graphiti call or memory write. Brain v3 unchanged (SHA256

@@ -1,0 +1,14 @@
+{
+  "state": { "message": "Filomena, can you help me understand this code?" },
+  "questions": {
+    "involvement": {
+      "type": "choice",
+      "instructions": "Is the current message directed to Filomena? Classify involvement, not topic interest.",
+      "criteria": {
+        "direct": "Addresses Filomena or clearly replies to her",
+        "indirect": "Continues her recent contribution without addressing her",
+        "none": "Conversation belongs to other people"
+      }
+    }
+  }
+}

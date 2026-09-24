@@ -299,7 +299,9 @@ public static class TypedFlowCompiler
                 var id = field.GetProperty("id").GetString()!; var name = field.GetProperty("name").GetString()!;
                 if (string.IsNullOrWhiteSpace(id) || string.IsNullOrWhiteSpace(name) || !ids.Add(id) || !names.Add(name)) throw new InvalidDataException("IDs e nomes de campos devem ser únicos e preenchidos.");
                 var type = FlowDomain.Parse(field);
-                if (output && type is not (StringType or NumberType or BooleanType or EnumType)) throw new InvalidDataException("Resposta JSON deve ser flat/escalar.");
+                if (output && type is not (StringType or NumberType or BooleanType or EnumType
+                    or NullableType { InnerType: StringType or NumberType or BooleanType or EnumType }))
+                    throw new InvalidDataException("Resposta JSON deve ser flat/escalar.");
                 if (type is EnumType en && en.Values.Any(string.IsNullOrWhiteSpace)) throw new InvalidDataException("Enum vazio.");
                 foreach (var bound in new[] { "min", "max" }) if (field.TryGetProperty(bound, out var v) && (type is not NumberType || v.ValueKind != JsonValueKind.Number || !v.TryGetDouble(out var d) || !double.IsFinite(d))) throw new InvalidDataException("Limite numérico inválido.");
                 if (field.TryGetProperty("min", out var min) && field.TryGetProperty("max", out var max) && min.GetDouble() > max.GetDouble()) throw new InvalidDataException("Mínimo maior que máximo.");

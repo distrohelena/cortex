@@ -227,11 +227,12 @@ public sealed class LiveRuntimeTests : IDisposable
 
     public void Dispose() => Directory.Delete(directory, true);
 
-    internal sealed class SequencedTransport : IOutboundTransport
+    internal sealed class SequencedTransport : IBoundOutboundTransport
     {
         private int sequence;
         public TransportRouteDescription? Description { get; init; }
         public Exception? SendError { get; init; }
+        public string ProviderPrefix { get; init; } = "provider-";
         public List<(string Route, string Text)> Sends { get; } = [];
         public int Describes { get; private set; }
         public Task<TransportRouteDescription> DescribeRouteAsync(string route, CancellationToken cancellationToken)
@@ -240,11 +241,14 @@ public sealed class LiveRuntimeTests : IDisposable
             return Task.FromResult(Description ?? new("whatsapp", "default", Session.NativeConversationId));
         }
         public Task<SendReceipt> SendTextAsync(string sessionKey, string text, CancellationToken cancellationToken)
+            => throw new InvalidOperationException("Legacy send must not be reached by the live runtime.");
+
+        public Task<SendReceipt> SendBoundTextAsync(BoundSendRequest request, CancellationToken cancellationToken)
         {
-            lock (Sends) Sends.Add((sessionKey, text));
+            lock (Sends) Sends.Add((request.TransportRoute, request.Text));
             if (SendError is not null) throw SendError;
-            var id = "provider-" + Interlocked.Increment(ref sequence);
-            return Task.FromResult(new SendReceipt(id) { Channel = "whatsapp", Recipient = Session.NativeConversationId, GatewayRunId = "run-" + id });
+            var id = ProviderPrefix + Interlocked.Increment(ref sequence);
+            return Task.FromResult(new SendReceipt(id) { Channel = "whatsapp", AccountId = "default", Recipient = Session.NativeConversationId, GatewayRunId = "run-" + id });
         }
     }
 

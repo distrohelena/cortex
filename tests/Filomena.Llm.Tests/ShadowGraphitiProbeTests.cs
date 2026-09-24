@@ -44,6 +44,11 @@ public sealed class ShadowGraphitiProbeTests
     [InlineData("leak", false)]
     [InlineData("missing_positive_control", false)]
     [InlineData("missing_person", false)]
+    [InlineData("entity_empty", true)]
+    [InlineData("entity_missing_namespace", false)]
+    [InlineData("entity_wrong_namespace", false)]
+    [InlineData("entity_wrong_actor", false)]
+    [InlineData("entity_wrong_uuid", false)]
     public async Task Read_only_probe_distinguishes_evidence_from_empty_and_outage(string mode, bool pass)
     {
         var fake = new Client(mode);
@@ -69,6 +74,18 @@ public sealed class ShadowGraphitiProbeTests
             Calls++;
             Assert.Equal(Person.ParticipantUuid, participant);
             if (mode == "outage") throw new HttpRequestException("private-error");
+            if (mode.StartsWith("entity_", StringComparison.Ordinal))
+            {
+                var entity = new Dictionary<string, object>
+                {
+                    ["uuid"] = mode == "entity_wrong_uuid" ? Guid.Empty : Person.ParticipantUuid,
+                    ["stable_id"] = mode == "entity_wrong_actor" ? "other" : Person.ActorStableId,
+                    ["labels"] = new[] { "Entity", "Person" }
+                };
+                if (mode != "entity_missing_namespace")
+                    entity["group_id"] = mode == "entity_wrong_namespace" ? "foreign" : Ns;
+                return Task.FromResult(JsonSerializer.SerializeToElement(new { entity, facts = Array.Empty<object>() }));
+            }
             return Task.FromResult(JsonSerializer.SerializeToElement(new
             {
                 nodes = mode == "missing_person" ? Array.Empty<object>() : new object[] { new { uuid = Person.ParticipantUuid, stable_id = Person.ActorStableId, group_id = mode == "wrong_node_namespace" ? "foreign" : Ns, labels = new[] { "Person" } } },

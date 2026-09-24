@@ -11,6 +11,22 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 
+if (args.Contains("--system-one", StringComparer.Ordinal))
+{
+    using var cancellation = new CancellationTokenSource();
+    Console.CancelKeyPress += (_, e) => { e.Cancel = true; cancellation.Cancel(); };
+    Environment.ExitCode = await SystemOneCommand.RunAsync(args, Console.Out, cancellation.Token);
+    return;
+}
+
+if (args.Contains("--native-live", StringComparer.Ordinal))
+{
+    using var cancellation = new CancellationTokenSource();
+    Console.CancelKeyPress += (_, e) => { e.Cancel = true; cancellation.Cancel(); };
+    Environment.ExitCode = await NativeLiveCommand.RunAsync(args, Console.In, Console.Out, cancellation.Token);
+    return;
+}
+
 if (args.Contains("--native-shadow", StringComparer.Ordinal))
 {
     using var cancellation = new CancellationTokenSource();

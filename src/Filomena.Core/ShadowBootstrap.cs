@@ -16,17 +16,18 @@ internal static class ShadowInboundCanonicalizer
             throw new InvalidDataException("Inbound text missing.");
         var person = MemoryIdentity.Person(input.ConversationNamespace, input.ActorId, null);
         var name = payload.TryGetProperty("remetente", out var sender) && sender.ValueKind == JsonValueKind.Object
-            && sender.TryGetProperty("nome", out var label) && label.ValueKind == JsonValueKind.String ? label.GetString() : "Pessoa";
+            && sender.TryGetProperty("nome", out var label) && label.ValueKind == JsonValueKind.String ? label.GetString() : "";
         // Only display text is retained. Structural refs are exclusively from the trusted binding.
-        // Rich reply provenance is deliberately deferred, never guessed from transcript text.
+        var reply = payload.TryGetProperty("reply", out var quote) ? quote.Clone() : JsonSerializer.SerializeToElement<object?>(null);
+        FlowDomain.Check(reply, new NullableType(FlowDomain.Reply));
         return input.Message with
         {
             Message = JsonSerializer.SerializeToElement(new
             {
                 texto = text.GetString(),
                 remetente = new { nome = name, stableId = person.ActorStableId },
-                canal = new { nome = "DM", nativeId = input.Session.NativeConversationId },
-                reply = (object?)null
+                canal = new { nome = input.Kind == SessionEntryKind.Group ? "Grupo" : "DM", nativeId = input.Session.NativeConversationId },
+                reply
             })
         };
     }
@@ -73,6 +74,8 @@ internal abstract class RuntimeHandoffCore : IAsyncDisposable
     internal IReadOnlyList<SessionHistoryEntry> History => runtime.ReadHistory(binding.Session);
     internal IReadOnlyList<SessionTraceEvent> Trace => runtime.ReadTrace(binding.Session);
     internal SessionSnapshot? Snapshot => runtime.ReadSession(binding.Session);
+    internal SessionRuntimeContext? CaptureContext() => runtime.CaptureContext(binding.Session);
+    internal void RestoreContext(SessionRuntimeContext context) => runtime.RestoreContext(binding.Session, context, binding.Kind);
     private bool Armed => host.EffectiveMode == ceiling;
 
     private protected RuntimeHandoffCore(OutboundMode ceiling, PinnedShadowProject project, ShadowSessionBinding binding, ShadowInboundJournal inbox,
@@ -159,13 +162,13 @@ internal sealed class LiveRuntimeHandoff : RuntimeHandoffCore
         foreach (var commit in host.PendingSpeechCommits(binding.Session))
         {
             var speech = new SessionMessageEnvelope(commit.ProviderMessageId, binding.Session.ChannelId, binding.Session.AccountId,
-                binding.Session.NativeConversationId, DateTimeOffset.UtcNow, SessionMessageDirection.Outbound, SessionEntryKind.Dm,
+                binding.Session.NativeConversationId, DateTimeOffset.UtcNow, SessionMessageDirection.Outbound, binding.Kind,
                 JsonSerializer.SerializeToElement(new
                 {
                     texto = commit.Text,
                     remetente = new { nome = commit.Speaker.Name, stableId = commit.Speaker.StableId },
-                    canal = new { nome = "DM", nativeId = binding.Session.NativeConversationId },
-                    reply = (object?)null
+                    canal = new { nome = binding.Kind == SessionEntryKind.Group ? "Grupo" : "DM", nativeId = binding.Session.NativeConversationId },
+                    reply = commit.ReplyToMessageId is null ? null : new { id = commit.ReplyToMessageId }
                 }));
             var admission = runtime.ReceiveAsync(binding.Session, speech).AsTask().GetAwaiter().GetResult();
             if (admission.Status == SessionAdmissionStatus.Rejected)

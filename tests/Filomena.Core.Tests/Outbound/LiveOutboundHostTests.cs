@@ -19,6 +19,24 @@ public sealed class LiveOutboundHostTests : IDisposable
     private static readonly OutboundSpeaker Speaker = new("Filomena", "character:filomena");
     private static readonly LiveRouteBinding Binding = new(Session, "opaque-route", "whatsapp", "account", "dm-exact", Speaker, 1000);
     public LiveOutboundHostTests() => Directory.CreateDirectory(directory);
+    [Theory]
+    [InlineData(false, "blocked")]
+    [InlineData(true, "sent")]
+    public async Task ExactGroupDeliveryRequiresSeparateHostAuthority(bool approved, string status)
+    {
+        var session = Session with { NativeConversationId = "120300000001@g.us" };
+        var transport = new FakeTransport
+        {
+            Description = new("whatsapp", "account", session.NativeConversationId),
+            Receipt = new("group-provider-id") { Channel = "whatsapp", AccountId = "account", Recipient = session.NativeConversationId }
+        };
+        using var host = Host(Complete, session);
+        host.BindLiveRoute(Binding with { Session = session, Recipient = session.NativeConversationId, AllowExactGroupDelivery = approved }, transport);
+        host.Rearm(OutboundMode.Enabled);
+        var execution = host.Begin(Project, "group-execution", session, SessionEntryKind.Group, ["group-input"]);
+        Assert.Equal(status, (await execution.SendAsync(Approve(execution), Token)).Status);
+        Assert.Equal(approved ? 1 : 0, transport.Sends.Count);
+    }
     private string JournalPath => Path.Combine(directory, "journal.jsonl");
     private ShadowOutboundHost Host(TransportSafetyCapabilities? capabilities = null, params SessionKey[] sessions) =>
         new(JournalPath, Project, Bindings, sessions.Length == 0 ? [Session] : sessions, capabilities ?? Complete);
@@ -66,6 +84,10 @@ public sealed class LiveOutboundHostTests : IDisposable
         Assert.Equal(Speaker, result.Speaker);
         Assert.Equal("engaged", result.WouldTransitionTo);
         Assert.Equal(("opaque-route", "candidate"), Assert.Single(transport.Sends));
+        var bound = Assert.Single(transport.BoundRequests);
+        Assert.Equal(result.JournalRef, bound.AttemptRef);
+        Assert.Equal(("opaque-route", "whatsapp", "account", "dm-exact", "candidate", 1000),
+            (bound.TransportRoute, bound.Channel, bound.AccountId, bound.Recipient, bound.Text, bound.MaxSinglePartCharacters));
         Assert.Equal("duplicate_attempt", (await execution.SendAsync(candidate, Token)).DiagnosticCode);
         Assert.Single(transport.Sends);
         Assert.Equal(new[] { "pending", "sent" }, JournalStatuses());
@@ -379,15 +401,87 @@ public sealed class LiveOutboundHostTests : IDisposable
     }
 
     [Fact]
-    public async Task ReceiptWithoutAccountIsAcceptedOnlyWhenChannelAndRecipientMatch()
+    public async Task ReceiptWithoutAccountDoesNotProveTheBoundAccount()
     {
-        // The native gateway payload carries no accountId; the account guarantee is the pre-send binding.
+        // A separate route lookup cannot attest the account that actually sent.
         var transport = new FakeTransport { Receipt = new SendReceipt("provider-1") { Channel = "whatsapp", Recipient = "dm-exact" } };
         using var host = Armed(Host(), transport);
         var execution = Begin(host);
         var result = await execution.SendAsync(Approve(execution), Token);
-        Assert.Equal("sent", result.Status);
-        Assert.Equal("unattested", execution.Trace(result)["receiptAccount"]);
+        Assert.Equal("indeterminate", result.Status);
+        Assert.Equal("receipt_route_unverified", result.DiagnosticCode);
+        Assert.True(host.RequiresReconciliation(Session));
+    }
+
+    [Fact]
+    public async Task LegacyDescribeThenSendCannotBeEnabledByCapabilityBooleans()
+    {
+        var legacy = new LegacyTransport();
+        using var host = Host();
+        host.BindLiveRoute(Binding, legacy);
+        host.Rearm(OutboundMode.Enabled);
+        var execution = Begin(host);
+        var result = await execution.SendAsync(Approve(execution), Token);
+        Assert.Equal("bound_transport_required", result.DiagnosticCode);
+        Assert.Equal(OutboundMode.Disabled, host.EffectiveMode);
+        Assert.Equal(0, legacy.Calls);
+        Assert.Empty(JournalLines());
+    }
+
+    private sealed class LegacyTransport : IOutboundTransport
+    {
+        public int Calls { get; private set; }
+        public Task<TransportRouteDescription> DescribeRouteAsync(string route, CancellationToken cancellationToken)
+        {
+            Calls++;
+            return Task.FromResult(new TransportRouteDescription("whatsapp", "account", "dm-exact"));
+        }
+        public Task<SendReceipt> SendTextAsync(string sessionKey, string text, CancellationToken cancellationToken)
+        {
+            Calls++;
+            return Task.FromResult(new SendReceipt("legacy") { Channel = "whatsapp", AccountId = "account", Recipient = "dm-exact" });
+        }
+    }
+
+    [Fact]
+    public async Task DestinationExpectationSurvivesRouteChangeAfterDescribe()
+    {
+        var transport = new ChangedRouteTransport();
+        using var host = Host();
+        host.BindLiveRoute(Binding, transport);
+        host.Rearm(OutboundMode.Enabled);
+        var execution = Begin(host);
+        var result = await execution.SendAsync(Approve(execution), Token);
+        Assert.Equal("dm-exact", transport.ExpectedRecipient);
+        Assert.Equal(0, transport.PhysicalSends);
+        Assert.Equal("indeterminate", result.Status);
+        Assert.True(host.RequiresReconciliation(Session));
+    }
+
+    // Models the native contract boundary, not a separate successful pre-send lookup.
+    private sealed class ChangedRouteTransport : IBoundOutboundTransport
+    {
+        private string destination = "dm-exact";
+        public string? ExpectedRecipient { get; private set; }
+        public int PhysicalSends { get; private set; }
+        public Task<TransportRouteDescription> DescribeRouteAsync(string route, CancellationToken cancellationToken)
+        {
+            var observed = new TransportRouteDescription("whatsapp", "account", destination);
+            destination = "other-dm";
+            return Task.FromResult(observed);
+        }
+        public Task<SendReceipt> SendTextAsync(string sessionKey, string text, CancellationToken cancellationToken)
+        {
+            PhysicalSends++;
+            throw new InvalidOperationException("Unsafe legacy send was invoked.");
+        }
+        public Task<SendReceipt> SendBoundTextAsync(BoundSendRequest request, CancellationToken cancellationToken)
+        {
+            ExpectedRecipient = request.Recipient;
+            if (request.Recipient != destination) throw new InvalidOperationException("Destination changed before dispatch.");
+            PhysicalSends++;
+            return Task.FromResult(new SendReceipt("provider") { Channel = "whatsapp", AccountId = "account", Recipient = destination });
+        }
     }
 
     [Fact]
@@ -430,7 +524,7 @@ public sealed class LiveOutboundHostTests : IDisposable
 
     public void Dispose() => Directory.Delete(directory, true);
 
-    internal sealed class FakeTransport : IOutboundTransport
+    internal sealed class FakeTransport : IBoundOutboundTransport
     {
         public TransportRouteDescription Description { get; init; } = new("whatsapp", "account", "dm-exact");
         public Exception? DescribeError { get; init; }
@@ -439,6 +533,7 @@ public sealed class LiveOutboundHostTests : IDisposable
         public Exception? SendError { get; init; }
         public Func<CancellationToken, Task<SendReceipt>>? SendBehavior { get; init; }
         public List<(string Route, string Text)> Sends { get; } = [];
+        public List<BoundSendRequest> BoundRequests { get; } = [];
         public int Describes { get; private set; }
         public TaskCompletionSource SendStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -450,8 +545,12 @@ public sealed class LiveOutboundHostTests : IDisposable
         }
 
         public Task<SendReceipt> SendTextAsync(string sessionKey, string text, CancellationToken cancellationToken)
+            => throw new InvalidOperationException("The host must use the bound operation, never the legacy send.");
+
+        public Task<SendReceipt> SendBoundTextAsync(BoundSendRequest request, CancellationToken cancellationToken)
         {
-            Sends.Add((sessionKey, text));
+            BoundRequests.Add(request);
+            Sends.Add((request.TransportRoute, request.Text));
             SendStarted.TrySetResult();
             if (SendError is not null) throw SendError;
             return SendBehavior is not null ? SendBehavior(cancellationToken) : Task.FromResult(Receipt);

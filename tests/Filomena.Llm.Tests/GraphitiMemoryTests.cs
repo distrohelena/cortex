@@ -15,6 +15,28 @@ public sealed class GraphitiMemoryTests
         [Person], "Persona", Enum.GetValues<MemoryCategory>(), 8, 1800);
 
     [Theory]
+    [InlineData("valid", true)]
+    [InlineData("foreign_namespace", false)]
+    [InlineData("foreign_subject", false)]
+    [InlineData("unsupported", false)]
+    [InlineData("error", false)]
+    [InlineData("facts", false)]
+    public async Task New_participant_absence_requires_explicit_exact_read_provenance(string mutation, bool valid)
+    {
+        var payload = JsonSerializer.SerializeToNode(new {
+            status = "entity_not_found", version = mutation == "unsupported" ? "future" : "entity-neighborhood-absence:v1",
+            group_id = mutation == "foreign_namespace" ? "foreign" : Ns,
+            entity_uuid = mutation == "foreign_subject" ? Guid.NewGuid() : Person.ParticipantUuid,
+            facts = Array.Empty<object>() })!;
+        if (mutation == "error") payload["error"] = "backend unavailable";
+        if (mutation == "facts") payload["facts"] = JsonSerializer.SerializeToNode(new[] { Fact("f", "LIKES") });
+        var client = new FakeClient(JsonSerializer.SerializeToElement(new { result = payload }));
+        var query = Query() with { Mode = MemoryMode.Exact };
+        if (valid) Assert.Empty(await new GraphitiMemoryReader(client).QueryAsync(query, TestContext.Current.CancellationToken));
+        else await Assert.ThrowsAsync<InvalidDataException>(() => new GraphitiMemoryReader(client).QueryAsync(query, TestContext.Current.CancellationToken));
+    }
+
+    [Theory]
     [InlineData(MemoryMode.Exact, "exact")]
     [InlineData(MemoryMode.Semantic, "semantic")]
     [InlineData(MemoryMode.Hybrid, "exact")]

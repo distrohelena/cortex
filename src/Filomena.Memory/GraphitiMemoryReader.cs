@@ -25,7 +25,7 @@ public sealed class GraphitiMemoryReader(IGraphitiReadClient client, TimeProvide
 
         void Read(JsonElement response, string source, Guid? required)
         {
-            response = GraphitiResponseValidation.Facts(response, query.ConversationNamespace);
+            response = GraphitiResponseValidation.Facts(response, query.ConversationNamespace, expectedParticipant: required);
             var facts = response.GetProperty("facts");
             foreach (var fact in facts.EnumerateArray())
             {

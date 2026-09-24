@@ -159,6 +159,48 @@ public sealed class LiveHandoffTests : IDisposable
         Assert.True(inbox.ReconciliationRequired);
     }
 
+    [Fact]
+    public async Task GroupReceiptRecoveryPreservesGroupKindWithoutResending()
+    {
+        var pin = new PinnedShadowProject(ShadowRuntimeTests.Project(false, sendExit: "sent"));
+        var session = Session with { NativeConversationId = "120300000001@g.us" };
+        var binding = new ShadowSessionBinding(session, FilomenaIdentity.WhatsAppConversationNamespace(session.NativeConversationId),
+            [Self], [Peer], SessionEntryKind.Group);
+        var route = LiveRouteBindings.FromShadow(binding, "group-route", session.NativeConversationId, "Filomena", 1000)
+            with { AllowExactGroupDelivery = true };
+        var transport = new GroupReceiptTransport();
+        ShadowOutboundHost CreateHost() => new(Path.Combine(directory, "group-outbound.jsonl"), pin.Project.Document, Roles, [session], Complete);
+        using (var crashed = CreateHost())
+        {
+            crashed.BindLiveRoute(route, transport);
+            crashed.Rearm(OutboundMode.Enabled);
+            var execution = crashed.Begin(pin.Project.Document, "group-execution", session, SessionEntryKind.Group, ["group-input"]);
+            Assert.Equal("sent", (await execution.SendAsync(Approve(execution), Token)).Status);
+        }
+        using var host = CreateHost();
+        host.BindLiveRoute(route, transport);
+        host.Rearm(OutboundMode.Enabled);
+        using var inbox = new ShadowInboundJournal(Path.Combine(directory, "group-inbox.jsonl"), binding, pin.Project.ProjectRevision, "epoch", 10);
+        await using var handoff = new LiveRuntimeHandoff(pin, binding, inbox, host, new ShadowRuntimeTests.Completion("empty"), new ShadowRuntimeTests.Reader("empty"));
+        var speech = Assert.Single(handoff.History);
+        Assert.Equal("Grupo", speech.Message.GetProperty("canal").GetProperty("nome").GetString());
+        Assert.Equal(1, transport.Calls);
+        Assert.Empty(host.PendingSpeechCommits(session));
+    }
+
+    private sealed class GroupReceiptTransport : IBoundOutboundTransport
+    {
+        public int Calls { get; private set; }
+        public Task<TransportRouteDescription> DescribeRouteAsync(string route, CancellationToken token) =>
+            Task.FromResult(new TransportRouteDescription("whatsapp", "default", "120300000001@g.us"));
+        public Task<SendReceipt> SendTextAsync(string route, string text, CancellationToken token) => throw new NotSupportedException();
+        public Task<SendReceipt> SendBoundTextAsync(BoundSendRequest request, CancellationToken token)
+        {
+            Calls++;
+            return Task.FromResult(new SendReceipt("group-receipt") { Channel = request.Channel, AccountId = request.AccountId, Recipient = request.Recipient });
+        }
+    }
+
     private static TypedValue Approve(OutboundExecution execution)
     {
         var recall = new TypedValue(new ArrayType(FlowDomain.Memory), JsonSerializer.SerializeToElement(Array.Empty<object>()));

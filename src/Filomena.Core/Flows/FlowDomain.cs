@@ -15,9 +15,21 @@ public static class FlowDomain
         new(fields.ToDictionary(f => f.Name, f => new FlowField(f.Type, true)));
     public static ObjectType Person { get; } = Object(("nome", new StringType()), ("stableId", new StringType()));
     public static ObjectType Channel { get; } = Object(("nome", new StringType()), ("nativeId", new StringType()));
-    public static ObjectType Reply { get; } = Object(("id", new StringType()));
-    public static ObjectType Message { get; } = Object(("texto", new StringType()), ("remetente", new NullableType(Person)),
-        ("canal", Channel), ("reply", new NullableType(Reply)));
+    public static ObjectType Reply { get; } = new(new Dictionary<string, FlowField>
+    {
+        ["id"] = new(new StringType(), true),
+        ["texto"] = new(new NullableType(new StringType()), false),
+        ["remetente"] = new(new NullableType(Person), false),
+        ["origem"] = new(new StringType(), false)
+    });
+    public static ObjectType Message { get; } = new(new Dictionary<string, FlowField>
+    {
+        ["texto"] = new(new StringType(), true),
+        ["remetente"] = new(new NullableType(Person), true),
+        ["canal"] = new(Channel, true),
+        ["reply"] = new(new NullableType(Reply), true),
+        ["id"] = new(new StringType(), false),
+    });
     public static ObjectType Memory { get; } = Object(("conteudo", new StringType()),
         ("categoria", new EnumType(["limite", "apelido", "relacao", "fato", "nao_classificada"])));
     public static ObjectType Boundary { get; } = Object(("status", new EnumType(["compiled"])),
@@ -100,7 +112,11 @@ public static class FlowDomain
         if (type is ArrayType a) foreach (var item in value.EnumerateArray()) Check(item, a.ElementType);
         if (type is ObjectType o) foreach (var (name, field) in o.Fields)
         {
-            if (!value.TryGetProperty(name, out var item)) throw new InvalidDataException("Campo ausente: " + name);
+            if (!value.TryGetProperty(name, out var item))
+            {
+                if (field.Required) throw new InvalidDataException("Campo ausente: " + name);
+                continue;
+            }
             Check(item, field.Type);
         }
     }
@@ -122,9 +138,10 @@ public static class FlowDomain
             }
             foreach (var (name, field) in obj.Fields)
             {
+                if (!field.Required && !value.TryGetProperty(name, out _)) continue;
                 if (name is "stableId" or "nativeId" or "id")
                 {
-                    var key = name + ":" + value.GetProperty(name).GetString();
+                    var key = (type == Message && name == "id" ? "message" : name) + ":" + value.GetProperty(name).GetString();
                     if (!references.TryGetValue(key, out var reference)) references[key] = reference = "ref" + (references.Count + 1);
                     result["ref"] = JsonSerializer.SerializeToElement(reference);
                 }

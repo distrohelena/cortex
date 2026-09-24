@@ -8,6 +8,25 @@ namespace Filomena.Core.Tests;
 public sealed class ShadowInboxTests : IDisposable
 {
     [Fact]
+    public void Non_text_is_durably_skipped_without_blocking_the_next_text_or_replaying_after_restart()
+    {
+        var json = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(Event()))!;
+        json["SkipNonText"] = true;
+        var media = json.Deserialize<CanonicalShadowInbound>()!;
+        using (var inbox = new ShadowInboundJournal(PathName, Binding(), "revision", "epoch", 10))
+        {
+            Assert.Equal("ignored", inbox.Observe(media).Status);
+            Assert.False(inbox.ReconciliationRequired);
+            Assert.Equal("observed", inbox.Observe(Event(12, "next-text")).Status);
+            inbox.Admitted("next-text", 1);
+            inbox.Completed("next-text", "batch", "execution", true);
+        }
+        using var reopened = ShadowInboundJournal.StartNonResumableRun(PathName, Binding(), "revision", "epoch", 10);
+        Assert.Equal("duplicate", reopened.Observe(media).Status);
+        Assert.False(reopened.ReconciliationRequired);
+    }
+
+    [Fact]
     public void New_non_resumable_shadow_run_keeps_seen_ids_but_never_resumes_old_work()
     {
         using (var previous = new ShadowInboundJournal(PathName, Binding(), "revision", "epoch", 10))

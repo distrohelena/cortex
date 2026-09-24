@@ -8,6 +8,7 @@ public sealed record SendReceipt(string ProviderMessageId)
     public string? AccountId { get; init; }
     public string? Recipient { get; init; }
     public string? GatewayRunId { get; init; }
+    public string? ReplyToMessageId { get; init; }
 }
 
 public interface IConversationSender

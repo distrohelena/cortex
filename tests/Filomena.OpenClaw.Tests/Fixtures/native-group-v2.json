@@ -1,0 +1,617 @@
+{
+  "provenance": "compiled-native-reader-http/synthetic-local-only",
+  "binding": {
+    "channel": "whatsapp",
+    "account": "contract-test",
+    "group": "15550000000-1580000000@g.us",
+    "alice": "15550000001@s.whatsapp.net",
+    "aliceLid": "100001@lid",
+    "bob": "15550000002@s.whatsapp.net",
+    "self": "15550000003@s.whatsapp.net",
+    "sessionRef": "2b7f64d0f3e86cf30cb2b5b65bb7107601bfe995d8c7fb7ee9b089640eb66868"
+  },
+  "off": {
+    "version": "inbound-observation:v2",
+    "health": "healthy",
+    "journalHealth": "healthy",
+    "readerAvailable": true,
+    "captureState": "off",
+    "sessionRef": "2b7f64d0f3e86cf30cb2b5b65bb7107601bfe995d8c7fb7ee9b089640eb66868",
+    "capabilities": {
+      "stableNativeMessageId": true,
+      "durableObservationCursor": true,
+      "replayableObservation": true,
+      "exactSessionBinding": true,
+      "actorIdentity": true,
+      "fromMe": true,
+      "selfIdentity": true,
+      "dispatchInspection": true
+    },
+    "bootstrap": null,
+    "channel": "whatsapp",
+    "kind": "group",
+    "dispatch": {
+      "version": "dispatch-inspection:v1",
+      "status": "inactive",
+      "effectiveSnapshotProof": {
+        "status": "valid",
+        "version": "effective-runtime-config:v1",
+        "revision": "fixture-R1"
+      },
+      "effectiveConfigRevision": "fixture-R1:registry-1:isolation-8be60b2c-af76-4c32-a0d1-d5e34864e26c",
+      "capturedAt": 1,
+      "diagnostic": "native_exact_dm_ingress_isolated",
+      "paths": [
+        {
+          "family": "commands",
+          "status": "excluded",
+          "rawStatus": "active",
+          "effectiveConfigRevision": "fixture-R1",
+          "exclusionStatus": "excluded_by_gate",
+          "placementProof": "whatsapp-receiver:pre-approval-and-durable-replay:v1",
+          "effectiveStatus": "excluded"
+        },
+        {
+          "family": "runtime_registry_live_inbound",
+          "status": "excluded",
+          "rawStatus": "unknown",
+          "effectiveConfigRevision": "fixture-R1",
+          "diagnostic": "native_runtime_dispatch_requires_origin_admission",
+          "exclusionStatus": "excluded_by_gate",
+          "placementProof": "native-channel-origin:pre-ingest-and-callback:v1",
+          "effectiveStatus": "excluded"
+        },
+        {
+          "family": "runtime_registry_restart_recovery",
+          "status": "excluded",
+          "rawStatus": "unknown",
+          "effectiveConfigRevision": "fixture-R1",
+          "diagnostic": "native_runtime_dispatch_requires_origin_admission",
+          "exclusionStatus": "excluded_by_gate",
+          "placementProof": "native-persisted-recovery:pre-mutation-quarantine:v1",
+          "effectiveStatus": "excluded"
+        },
+        {
+          "family": "runtime_registry_imperative",
+          "status": "excluded",
+          "rawStatus": "unknown",
+          "effectiveConfigRevision": "fixture-R1",
+          "diagnostic": "native_runtime_dispatch_requires_origin_admission",
+          "exclusionStatus": "excluded_by_gate",
+          "placementProof": "native-host-origin:admission-and-actual-settlement:v1",
+          "effectiveStatus": "excluded"
+        }
+      ],
+      "producerStatus": "active",
+      "producerDiagnostic": "synthetic_config_real_reducer",
+      "isolationGate": {
+        "gateVersion": "native-group-isolation:v1",
+        "gateInstanceRevision": "8be60b2c-af76-4c32-a0d1-d5e34864e26c",
+        "approvedEffectiveConfigRevision": "fixture-R1",
+        "accountRef": "efede04442c9a12fb7c3095fccf6175393f3ac6da8cddedcdfb5f0bdd180cdbc",
+        "sessionRef": "2e8f64a8a35db5c2c22922898afba1804e6585f4fb3e89956c5fddadf0055669",
+        "coveredPathIds": [
+          "allow_rules",
+          "approval_reactions",
+          "commands",
+          "plugins",
+          "agents",
+          "route_bindings",
+          "transport_only",
+          "runtime_registry_live_inbound",
+          "runtime_registry_restart_recovery",
+          "runtime_registry_imperative"
+        ],
+        "placementProof": "whatsapp-receiver:pre-approval-and-durable-replay:v1",
+        "runtimePlacements": {
+          "runtime_registry_live_inbound": "native-channel-origin:pre-ingest-and-callback:v1",
+          "runtime_registry_restart_recovery": "native-persisted-recovery:pre-mutation-quarantine:v1",
+          "runtime_registry_imperative": "native-host-origin:admission-and-actual-settlement:v1"
+        },
+        "lifecycleState": "armed"
+      }
+    },
+    "routeBindingRef": "3ed29ce36e601a767368278f03a4972869acfa79756502f0fc2f837786a5f8fd",
+    "selfIdentityRef": "c11c823b0067b8ebdc78ed2ad9f10e0fc29e627b9d84225c2b1646036dad7d31",
+    "participantActorRefs": [
+      "54a0ac777624e6258cf353b688b8e1bc2d6eca71d334a5a1f9fe76ef394ea5dc",
+      "7b8bb3d91a3f339d3c5902297f609710b9816a010baa2984b7139e06ed344c32",
+      "f2a6628d1beb7f36bab361c0b2dbed1bb19f768c7baffb33f73d5e52485c09bd"
+    ]
+  },
+  "status": {
+    "version": "inbound-observation:v2",
+    "health": "healthy",
+    "journalHealth": "healthy",
+    "readerAvailable": true,
+    "captureState": "armed",
+    "activeEpoch": "190cf156-31db-4fa5-b81e-ad9021c56f5f",
+    "sessionRef": "2b7f64d0f3e86cf30cb2b5b65bb7107601bfe995d8c7fb7ee9b089640eb66868",
+    "journalEpoch": "190cf156-31db-4fa5-b81e-ad9021c56f5f",
+    "capabilities": {
+      "stableNativeMessageId": true,
+      "durableObservationCursor": true,
+      "replayableObservation": true,
+      "exactSessionBinding": true,
+      "actorIdentity": true,
+      "fromMe": true,
+      "selfIdentity": true,
+      "dispatchInspection": true
+    },
+    "bootstrap": null,
+    "channel": "whatsapp",
+    "kind": "group",
+    "dispatch": {
+      "version": "dispatch-inspection:v1",
+      "status": "inactive",
+      "effectiveSnapshotProof": {
+        "status": "valid",
+        "version": "effective-runtime-config:v1",
+        "revision": "fixture-R1"
+      },
+      "effectiveConfigRevision": "fixture-R1:registry-1:isolation-8be60b2c-af76-4c32-a0d1-d5e34864e26c",
+      "capturedAt": 1,
+      "diagnostic": "native_exact_dm_ingress_isolated",
+      "paths": [
+        {
+          "family": "commands",
+          "status": "excluded",
+          "rawStatus": "active",
+          "effectiveConfigRevision": "fixture-R1",
+          "exclusionStatus": "excluded_by_gate",
+          "placementProof": "whatsapp-receiver:pre-approval-and-durable-replay:v1",
+          "effectiveStatus": "excluded"
+        },
+        {
+          "family": "runtime_registry_live_inbound",
+          "status": "excluded",
+          "rawStatus": "unknown",
+          "effectiveConfigRevision": "fixture-R1",
+          "diagnostic": "native_runtime_dispatch_requires_origin_admission",
+          "exclusionStatus": "excluded_by_gate",
+          "placementProof": "native-channel-origin:pre-ingest-and-callback:v1",
+          "effectiveStatus": "excluded"
+        },
+        {
+          "family": "runtime_registry_restart_recovery",
+          "status": "excluded",
+          "rawStatus": "unknown",
+          "effectiveConfigRevision": "fixture-R1",
+          "diagnostic": "native_runtime_dispatch_requires_origin_admission",
+          "exclusionStatus": "excluded_by_gate",
+          "placementProof": "native-persisted-recovery:pre-mutation-quarantine:v1",
+          "effectiveStatus": "excluded"
+        },
+        {
+          "family": "runtime_registry_imperative",
+          "status": "excluded",
+          "rawStatus": "unknown",
+          "effectiveConfigRevision": "fixture-R1",
+          "diagnostic": "native_runtime_dispatch_requires_origin_admission",
+          "exclusionStatus": "excluded_by_gate",
+          "placementProof": "native-host-origin:admission-and-actual-settlement:v1",
+          "effectiveStatus": "excluded"
+        }
+      ],
+      "producerStatus": "active",
+      "producerDiagnostic": "synthetic_config_real_reducer",
+      "isolationGate": {
+        "gateVersion": "native-group-isolation:v1",
+        "gateInstanceRevision": "8be60b2c-af76-4c32-a0d1-d5e34864e26c",
+        "approvedEffectiveConfigRevision": "fixture-R1",
+        "accountRef": "efede04442c9a12fb7c3095fccf6175393f3ac6da8cddedcdfb5f0bdd180cdbc",
+        "sessionRef": "2e8f64a8a35db5c2c22922898afba1804e6585f4fb3e89956c5fddadf0055669",
+        "coveredPathIds": [
+          "allow_rules",
+          "approval_reactions",
+          "commands",
+          "plugins",
+          "agents",
+          "route_bindings",
+          "transport_only",
+          "runtime_registry_live_inbound",
+          "runtime_registry_restart_recovery",
+          "runtime_registry_imperative"
+        ],
+        "placementProof": "whatsapp-receiver:pre-approval-and-durable-replay:v1",
+        "runtimePlacements": {
+          "runtime_registry_live_inbound": "native-channel-origin:pre-ingest-and-callback:v1",
+          "runtime_registry_restart_recovery": "native-persisted-recovery:pre-mutation-quarantine:v1",
+          "runtime_registry_imperative": "native-host-origin:admission-and-actual-settlement:v1"
+        },
+        "lifecycleState": "armed"
+      }
+    },
+    "routeBindingRef": "3ed29ce36e601a767368278f03a4972869acfa79756502f0fc2f837786a5f8fd",
+    "selfIdentityRef": "c11c823b0067b8ebdc78ed2ad9f10e0fc29e627b9d84225c2b1646036dad7d31",
+    "participantActorRefs": [
+      "54a0ac777624e6258cf353b688b8e1bc2d6eca71d334a5a1f9fe76ef394ea5dc",
+      "7b8bb3d91a3f339d3c5902297f609710b9816a010baa2984b7139e06ed344c32",
+      "f2a6628d1beb7f36bab361c0b2dbed1bb19f768c7baffb33f73d5e52485c09bd"
+    ]
+  },
+  "open": {
+    "version": "inbound-observation:v2",
+    "sessionRef": "2b7f64d0f3e86cf30cb2b5b65bb7107601bfe995d8c7fb7ee9b089640eb66868",
+    "effectiveConfigRevision": "fixture-R1:registry-1:isolation-8be60b2c-af76-4c32-a0d1-d5e34864e26c",
+    "status": "healthy",
+    "epochClosed": false,
+    "snapshot": [],
+    "cursor": {
+      "version": "inbound-observation:v2",
+      "epoch": "190cf156-31db-4fa5-b81e-ad9021c56f5f",
+      "sessionRef": "2b7f64d0f3e86cf30cb2b5b65bb7107601bfe995d8c7fb7ee9b089640eb66868",
+      "sequence": 0
+    }
+  },
+  "poll": {
+    "version": "inbound-observation:v2",
+    "sessionRef": "2b7f64d0f3e86cf30cb2b5b65bb7107601bfe995d8c7fb7ee9b089640eb66868",
+    "effectiveConfigRevision": "fixture-R1:registry-1:isolation-8be60b2c-af76-4c32-a0d1-d5e34864e26c",
+    "status": "healthy",
+    "epochClosed": false,
+    "events": [
+      {
+        "sequence": 1,
+        "nativeMessageId": "group-native-1",
+        "sessionRef": "2b7f64d0f3e86cf30cb2b5b65bb7107601bfe995d8c7fb7ee9b089640eb66868",
+        "actorRef": "7b8bb3d91a3f339d3c5902297f609710b9816a010baa2984b7139e06ed344c32",
+        "selfIdentityRef": "c11c823b0067b8ebdc78ed2ad9f10e0fc29e627b9d84225c2b1646036dad7d31",
+        "fromMe": false,
+        "occurredAt": 1000,
+        "payload": {
+          "receivedAt": 1000,
+          "message": {
+            "message": {
+              "conversation": "synthetic message 1"
+            }
+          }
+        },
+        "journalEpoch": "190cf156-31db-4fa5-b81e-ad9021c56f5f"
+      },
+      {
+        "sequence": 2,
+        "nativeMessageId": "group-native-2",
+        "sessionRef": "2b7f64d0f3e86cf30cb2b5b65bb7107601bfe995d8c7fb7ee9b089640eb66868",
+        "actorRef": "f2a6628d1beb7f36bab361c0b2dbed1bb19f768c7baffb33f73d5e52485c09bd",
+        "selfIdentityRef": "c11c823b0067b8ebdc78ed2ad9f10e0fc29e627b9d84225c2b1646036dad7d31",
+        "fromMe": false,
+        "occurredAt": 1001,
+        "payload": {
+          "receivedAt": 1001,
+          "message": {
+            "message": {
+              "conversation": "synthetic message 2"
+            }
+          }
+        },
+        "journalEpoch": "190cf156-31db-4fa5-b81e-ad9021c56f5f"
+      },
+      {
+        "sequence": 3,
+        "nativeMessageId": "group-native-3",
+        "sessionRef": "2b7f64d0f3e86cf30cb2b5b65bb7107601bfe995d8c7fb7ee9b089640eb66868",
+        "actorRef": "54a0ac777624e6258cf353b688b8e1bc2d6eca71d334a5a1f9fe76ef394ea5dc",
+        "selfIdentityRef": "c11c823b0067b8ebdc78ed2ad9f10e0fc29e627b9d84225c2b1646036dad7d31",
+        "fromMe": false,
+        "occurredAt": 1002,
+        "payload": {
+          "receivedAt": 1002,
+          "message": {
+            "message": {
+              "conversation": "synthetic message 3"
+            }
+          }
+        },
+        "journalEpoch": "190cf156-31db-4fa5-b81e-ad9021c56f5f"
+      },
+      {
+        "sequence": 4,
+        "nativeMessageId": "group-native-4",
+        "sessionRef": "2b7f64d0f3e86cf30cb2b5b65bb7107601bfe995d8c7fb7ee9b089640eb66868",
+        "actorRef": "c11c823b0067b8ebdc78ed2ad9f10e0fc29e627b9d84225c2b1646036dad7d31",
+        "selfIdentityRef": "c11c823b0067b8ebdc78ed2ad9f10e0fc29e627b9d84225c2b1646036dad7d31",
+        "fromMe": true,
+        "occurredAt": 1003,
+        "payload": {
+          "receivedAt": 1003,
+          "message": {
+            "message": {
+              "conversation": "synthetic message 4"
+            }
+          }
+        },
+        "journalEpoch": "190cf156-31db-4fa5-b81e-ad9021c56f5f"
+      }
+    ],
+    "nextCursor": {
+      "version": "inbound-observation:v2",
+      "epoch": "190cf156-31db-4fa5-b81e-ad9021c56f5f",
+      "sessionRef": "2b7f64d0f3e86cf30cb2b5b65bb7107601bfe995d8c7fb7ee9b089640eb66868",
+      "sequence": 4
+    }
+  },
+  "replay": {
+    "version": "inbound-observation:v2",
+    "sessionRef": "2b7f64d0f3e86cf30cb2b5b65bb7107601bfe995d8c7fb7ee9b089640eb66868",
+    "effectiveConfigRevision": "fixture-R1:registry-1:isolation-8be60b2c-af76-4c32-a0d1-d5e34864e26c",
+    "status": "healthy",
+    "epochClosed": false,
+    "events": [
+      {
+        "sequence": 1,
+        "nativeMessageId": "group-native-1",
+        "sessionRef": "2b7f64d0f3e86cf30cb2b5b65bb7107601bfe995d8c7fb7ee9b089640eb66868",
+        "actorRef": "7b8bb3d91a3f339d3c5902297f609710b9816a010baa2984b7139e06ed344c32",
+        "selfIdentityRef": "c11c823b0067b8ebdc78ed2ad9f10e0fc29e627b9d84225c2b1646036dad7d31",
+        "fromMe": false,
+        "occurredAt": 1000,
+        "payload": {
+          "receivedAt": 1000,
+          "message": {
+            "message": {
+              "conversation": "synthetic message 1"
+            }
+          }
+        },
+        "journalEpoch": "190cf156-31db-4fa5-b81e-ad9021c56f5f"
+      },
+      {
+        "sequence": 2,
+        "nativeMessageId": "group-native-2",
+        "sessionRef": "2b7f64d0f3e86cf30cb2b5b65bb7107601bfe995d8c7fb7ee9b089640eb66868",
+        "actorRef": "f2a6628d1beb7f36bab361c0b2dbed1bb19f768c7baffb33f73d5e52485c09bd",
+        "selfIdentityRef": "c11c823b0067b8ebdc78ed2ad9f10e0fc29e627b9d84225c2b1646036dad7d31",
+        "fromMe": false,
+        "occurredAt": 1001,
+        "payload": {
+          "receivedAt": 1001,
+          "message": {
+            "message": {
+              "conversation": "synthetic message 2"
+            }
+          }
+        },
+        "journalEpoch": "190cf156-31db-4fa5-b81e-ad9021c56f5f"
+      },
+      {
+        "sequence": 3,
+        "nativeMessageId": "group-native-3",
+        "sessionRef": "2b7f64d0f3e86cf30cb2b5b65bb7107601bfe995d8c7fb7ee9b089640eb66868",
+        "actorRef": "54a0ac777624e6258cf353b688b8e1bc2d6eca71d334a5a1f9fe76ef394ea5dc",
+        "selfIdentityRef": "c11c823b0067b8ebdc78ed2ad9f10e0fc29e627b9d84225c2b1646036dad7d31",
+        "fromMe": false,
+        "occurredAt": 1002,
+        "payload": {
+          "receivedAt": 1002,
+          "message": {
+            "message": {
+              "conversation": "synthetic message 3"
+            }
+          }
+        },
+        "journalEpoch": "190cf156-31db-4fa5-b81e-ad9021c56f5f"
+      },
+      {
+        "sequence": 4,
+        "nativeMessageId": "group-native-4",
+        "sessionRef": "2b7f64d0f3e86cf30cb2b5b65bb7107601bfe995d8c7fb7ee9b089640eb66868",
+        "actorRef": "c11c823b0067b8ebdc78ed2ad9f10e0fc29e627b9d84225c2b1646036dad7d31",
+        "selfIdentityRef": "c11c823b0067b8ebdc78ed2ad9f10e0fc29e627b9d84225c2b1646036dad7d31",
+        "fromMe": true,
+        "occurredAt": 1003,
+        "payload": {
+          "receivedAt": 1003,
+          "message": {
+            "message": {
+              "conversation": "synthetic message 4"
+            }
+          }
+        },
+        "journalEpoch": "190cf156-31db-4fa5-b81e-ad9021c56f5f"
+      }
+    ],
+    "nextCursor": {
+      "version": "inbound-observation:v2",
+      "epoch": "190cf156-31db-4fa5-b81e-ad9021c56f5f",
+      "sessionRef": "2b7f64d0f3e86cf30cb2b5b65bb7107601bfe995d8c7fb7ee9b089640eb66868",
+      "sequence": 4
+    }
+  },
+  "disarmed": {
+    "version": "inbound-observation:v2",
+    "health": "healthy",
+    "journalHealth": "healthy",
+    "readerAvailable": true,
+    "captureState": "off",
+    "sessionRef": "2b7f64d0f3e86cf30cb2b5b65bb7107601bfe995d8c7fb7ee9b089640eb66868",
+    "capabilities": {
+      "stableNativeMessageId": true,
+      "durableObservationCursor": true,
+      "replayableObservation": true,
+      "exactSessionBinding": true,
+      "actorIdentity": true,
+      "fromMe": true,
+      "selfIdentity": true,
+      "dispatchInspection": true
+    },
+    "bootstrap": null,
+    "channel": "whatsapp",
+    "kind": "group",
+    "dispatch": {
+      "version": "dispatch-inspection:v1",
+      "status": "inactive",
+      "effectiveSnapshotProof": {
+        "status": "valid",
+        "version": "effective-runtime-config:v1",
+        "revision": "fixture-R1"
+      },
+      "effectiveConfigRevision": "fixture-R1:registry-1:isolation-8be60b2c-af76-4c32-a0d1-d5e34864e26c",
+      "capturedAt": 1,
+      "diagnostic": "native_exact_dm_ingress_isolated",
+      "paths": [
+        {
+          "family": "commands",
+          "status": "excluded",
+          "rawStatus": "active",
+          "effectiveConfigRevision": "fixture-R1",
+          "exclusionStatus": "excluded_by_gate",
+          "placementProof": "whatsapp-receiver:pre-approval-and-durable-replay:v1",
+          "effectiveStatus": "excluded"
+        },
+        {
+          "family": "runtime_registry_live_inbound",
+          "status": "excluded",
+          "rawStatus": "unknown",
+          "effectiveConfigRevision": "fixture-R1",
+          "diagnostic": "native_runtime_dispatch_requires_origin_admission",
+          "exclusionStatus": "excluded_by_gate",
+          "placementProof": "native-channel-origin:pre-ingest-and-callback:v1",
+          "effectiveStatus": "excluded"
+        },
+        {
+          "family": "runtime_registry_restart_recovery",
+          "status": "excluded",
+          "rawStatus": "unknown",
+          "effectiveConfigRevision": "fixture-R1",
+          "diagnostic": "native_runtime_dispatch_requires_origin_admission",
+          "exclusionStatus": "excluded_by_gate",
+          "placementProof": "native-persisted-recovery:pre-mutation-quarantine:v1",
+          "effectiveStatus": "excluded"
+        },
+        {
+          "family": "runtime_registry_imperative",
+          "status": "excluded",
+          "rawStatus": "unknown",
+          "effectiveConfigRevision": "fixture-R1",
+          "diagnostic": "native_runtime_dispatch_requires_origin_admission",
+          "exclusionStatus": "excluded_by_gate",
+          "placementProof": "native-host-origin:admission-and-actual-settlement:v1",
+          "effectiveStatus": "excluded"
+        }
+      ],
+      "producerStatus": "active",
+      "producerDiagnostic": "synthetic_config_real_reducer",
+      "isolationGate": {
+        "gateVersion": "native-group-isolation:v1",
+        "gateInstanceRevision": "8be60b2c-af76-4c32-a0d1-d5e34864e26c",
+        "approvedEffectiveConfigRevision": "fixture-R1",
+        "accountRef": "efede04442c9a12fb7c3095fccf6175393f3ac6da8cddedcdfb5f0bdd180cdbc",
+        "sessionRef": "2e8f64a8a35db5c2c22922898afba1804e6585f4fb3e89956c5fddadf0055669",
+        "coveredPathIds": [
+          "allow_rules",
+          "approval_reactions",
+          "commands",
+          "plugins",
+          "agents",
+          "route_bindings",
+          "transport_only",
+          "runtime_registry_live_inbound",
+          "runtime_registry_restart_recovery",
+          "runtime_registry_imperative"
+        ],
+        "placementProof": "whatsapp-receiver:pre-approval-and-durable-replay:v1",
+        "runtimePlacements": {
+          "runtime_registry_live_inbound": "native-channel-origin:pre-ingest-and-callback:v1",
+          "runtime_registry_restart_recovery": "native-persisted-recovery:pre-mutation-quarantine:v1",
+          "runtime_registry_imperative": "native-host-origin:admission-and-actual-settlement:v1"
+        },
+        "lifecycleState": "armed"
+      }
+    },
+    "routeBindingRef": "3ed29ce36e601a767368278f03a4972869acfa79756502f0fc2f837786a5f8fd",
+    "selfIdentityRef": "c11c823b0067b8ebdc78ed2ad9f10e0fc29e627b9d84225c2b1646036dad7d31",
+    "participantActorRefs": [
+      "54a0ac777624e6258cf353b688b8e1bc2d6eca71d334a5a1f9fe76ef394ea5dc",
+      "7b8bb3d91a3f339d3c5902297f609710b9816a010baa2984b7139e06ed344c32",
+      "f2a6628d1beb7f36bab361c0b2dbed1bb19f768c7baffb33f73d5e52485c09bd"
+    ]
+  },
+  "replayAfterDisarm": {
+    "version": "inbound-observation:v2",
+    "sessionRef": "2b7f64d0f3e86cf30cb2b5b65bb7107601bfe995d8c7fb7ee9b089640eb66868",
+    "effectiveConfigRevision": "fixture-R1:registry-1:isolation-8be60b2c-af76-4c32-a0d1-d5e34864e26c",
+    "status": "healthy",
+    "epochClosed": true,
+    "events": [
+      {
+        "sequence": 1,
+        "nativeMessageId": "group-native-1",
+        "sessionRef": "2b7f64d0f3e86cf30cb2b5b65bb7107601bfe995d8c7fb7ee9b089640eb66868",
+        "actorRef": "7b8bb3d91a3f339d3c5902297f609710b9816a010baa2984b7139e06ed344c32",
+        "selfIdentityRef": "c11c823b0067b8ebdc78ed2ad9f10e0fc29e627b9d84225c2b1646036dad7d31",
+        "fromMe": false,
+        "occurredAt": 1000,
+        "payload": {
+          "receivedAt": 1000,
+          "message": {
+            "message": {
+              "conversation": "synthetic message 1"
+            }
+          }
+        },
+        "journalEpoch": "190cf156-31db-4fa5-b81e-ad9021c56f5f"
+      },
+      {
+        "sequence": 2,
+        "nativeMessageId": "group-native-2",
+        "sessionRef": "2b7f64d0f3e86cf30cb2b5b65bb7107601bfe995d8c7fb7ee9b089640eb66868",
+        "actorRef": "f2a6628d1beb7f36bab361c0b2dbed1bb19f768c7baffb33f73d5e52485c09bd",
+        "selfIdentityRef": "c11c823b0067b8ebdc78ed2ad9f10e0fc29e627b9d84225c2b1646036dad7d31",
+        "fromMe": false,
+        "occurredAt": 1001,
+        "payload": {
+          "receivedAt": 1001,
+          "message": {
+            "message": {
+              "conversation": "synthetic message 2"
+            }
+          }
+        },
+        "journalEpoch": "190cf156-31db-4fa5-b81e-ad9021c56f5f"
+      },
+      {
+        "sequence": 3,
+        "nativeMessageId": "group-native-3",
+        "sessionRef": "2b7f64d0f3e86cf30cb2b5b65bb7107601bfe995d8c7fb7ee9b089640eb66868",
+        "actorRef": "54a0ac777624e6258cf353b688b8e1bc2d6eca71d334a5a1f9fe76ef394ea5dc",
+        "selfIdentityRef": "c11c823b0067b8ebdc78ed2ad9f10e0fc29e627b9d84225c2b1646036dad7d31",
+        "fromMe": false,
+        "occurredAt": 1002,
+        "payload": {
+          "receivedAt": 1002,
+          "message": {
+            "message": {
+              "conversation": "synthetic message 3"
+            }
+          }
+        },
+        "journalEpoch": "190cf156-31db-4fa5-b81e-ad9021c56f5f"
+      },
+      {
+        "sequence": 4,
+        "nativeMessageId": "group-native-4",
+        "sessionRef": "2b7f64d0f3e86cf30cb2b5b65bb7107601bfe995d8c7fb7ee9b089640eb66868",
+        "actorRef": "c11c823b0067b8ebdc78ed2ad9f10e0fc29e627b9d84225c2b1646036dad7d31",
+        "selfIdentityRef": "c11c823b0067b8ebdc78ed2ad9f10e0fc29e627b9d84225c2b1646036dad7d31",
+        "fromMe": true,
+        "occurredAt": 1003,
+        "payload": {
+          "receivedAt": 1003,
+          "message": {
+            "message": {
+              "conversation": "synthetic message 4"
+            }
+          }
+        },
+        "journalEpoch": "190cf156-31db-4fa5-b81e-ad9021c56f5f"
+      }
+    ],
+    "nextCursor": {
+      "version": "inbound-observation:v2",
+      "epoch": "190cf156-31db-4fa5-b81e-ad9021c56f5f",
+      "sessionRef": "2b7f64d0f3e86cf30cb2b5b65bb7107601bfe995d8c7fb7ee9b089640eb66868",
+      "sequence": 4
+    }
+  }
+}

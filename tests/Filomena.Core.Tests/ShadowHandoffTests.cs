@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Filomena.Core.Flows;
 using Filomena.Core.Flows.Sessions;
 using Filomena.Core.Identity;
@@ -11,6 +12,20 @@ namespace Filomena.Core.Tests;
 
 public sealed class ShadowHandoffTests : IDisposable
 {
+    [Fact]
+    public void Quoted_context_survives_canonicalization_and_model_projection_without_native_ids()
+    {
+        var input = Input(1, "incoming");
+        var payload = JsonNode.Parse(input.Message.Message.GetRawText())!;
+        payload["reply"] = JsonSerializer.SerializeToNode(new { id = "private-quoted-id", texto = "A pergunta citada",
+            origem = "citacao_do_remetente" });
+        input = input with { Message = input.Message with { Message = JsonSerializer.SerializeToElement(payload) } };
+        var normalized = ShadowInboundCanonicalizer.Normalize(input);
+        var model = FlowDomain.ForModel(normalized.Message, FlowDomain.Message, new Dictionary<string, string>());
+        Assert.Equal("A pergunta citada", model.GetProperty("reply").GetProperty("texto").GetString());
+        Assert.DoesNotContain("private-quoted-id", model.GetRawText());
+    }
+
     private readonly string directory = Path.Combine(Path.GetTempPath(), "shadow-handoff-" + Guid.NewGuid());
     private static readonly SessionKey Session = new("runtime", "character", "whatsapp", "default", "5511944558218@s.whatsapp.net");
     public ShadowHandoffTests() => Directory.CreateDirectory(directory);
@@ -18,6 +33,63 @@ public sealed class ShadowHandoffTests : IDisposable
         FilomenaIdentity.WhatsAppConversationNamespace(Session.NativeConversationId), "whatsapp:5511944558218@s.whatsapp.net",
         new(id, Session.ChannelId, Session.AccountId, Session.NativeConversationId, DateTimeOffset.UtcNow, SessionMessageDirection.Inbound, SessionEntryKind.Dm,
             JsonSerializer.SerializeToElement(new { texto = "O trabalho demorou.", remetente = new { nome = "Helena", stableId = "whatsapp:5511944558218@s.whatsapp.net" }, canal = new { nome = "DM", nativeId = Session.NativeConversationId }, reply = (object?)null })));
+
+    [Fact]
+    public void Host_bound_group_accepts_only_its_exact_group_and_trusted_participants()
+    {
+        var group = Session with { NativeConversationId = "123456@g.us" };
+        var ns = FilomenaIdentity.WhatsAppConversationNamespace(group.NativeConversationId);
+        var actor = "whatsapp:5511944558218@s.whatsapp.net";
+        var binding = new ShadowSessionBinding(group, ns, ["whatsapp:5511999999999@s.whatsapp.net"], [actor], SessionEntryKind.Group);
+        var input = new CanonicalShadowInbound("epoch", 1, group, SessionEntryKind.Group, ns, actor,
+            new("native-group-id", group.ChannelId, group.AccountId, group.NativeConversationId, DateTimeOffset.UtcNow,
+                SessionMessageDirection.Inbound, SessionEntryKind.Group, JsonSerializer.SerializeToElement(new { texto = "oi" })));
+        Assert.True(binding.Accepts(input));
+        var normalized = ShadowInboundCanonicalizer.Normalize(input);
+        Assert.Equal("Grupo", normalized.Message.GetProperty("canal").GetProperty("nome").GetString());
+        Assert.Equal(actor, normalized.Message.GetProperty("remetente").GetProperty("stableId").GetString());
+        Assert.False(binding.Accepts(input with { ActorId = "whatsapp:other@s.whatsapp.net" }));
+        Assert.False(binding.Accepts(input with { Kind = SessionEntryKind.Dm }));
+        Assert.False(binding.Accepts(input with { Session = group with { NativeConversationId = "other@g.us" } }));
+    }
+
+    [Fact]
+    public async Task Group_inbound_reaches_existing_group_flow_and_only_would_send()
+    {
+        var group = Session with { NativeConversationId = "123456@g.us" };
+        var ns = FilomenaIdentity.WhatsAppConversationNamespace(group.NativeConversationId);
+        var actor = "whatsapp:5511944558218@s.whatsapp.net";
+        var source = ShadowRuntimeTests.Project(false);
+        var document = JsonNode.Parse(source.Document.GetRawText())!.AsObject();
+        foreach (var state in document["states"]!.AsArray())
+        {
+            var graph = state!["graph"]!;
+            foreach (var node in graph["nodes"]!.AsArray().Where(node => node!["id"]!.GetValue<string>() == "dm"))
+            {
+                node!["id"] = "group";
+                node["kind"] = "group";
+            }
+            foreach (var edge in graph["edges"]!.AsArray().Where(edge => edge!["source"]!.GetValue<string>() == "dm")) edge!["source"] = "group";
+            foreach (var edge in graph["controlEdges"]!.AsArray().Where(edge => edge!["source"]!.GetValue<string>() == "dm")) edge!["source"] = "group";
+        }
+        var pin = new PinnedShadowProject(new(source.ProjectId, source.ProjectVersion, source.ProjectRevision,
+            JsonSerializer.SerializeToElement(document)));
+        using var host = new ShadowOutboundHost(Path.Combine(directory, "group-out.jsonl"), pin.Project.Document,
+            new(["recall"], ["compile"], new Dictionary<string, string> { ["generate"] = "text" }, ["enforce"], "engaged"),
+            [group], TransportSafetyCapabilities.Unproven);
+        host.Rearm(OutboundMode.Shadow);
+        var binding = new ShadowSessionBinding(group, ns, ["whatsapp:5511999999999@s.whatsapp.net"], [actor], SessionEntryKind.Group);
+        using var inbox = new ShadowInboundJournal(Path.Combine(directory, "group-in.jsonl"), binding, pin.Project.ProjectRevision, "epoch", 10);
+        await using var handoff = new ShadowRuntimeHandoff(pin, binding, inbox, host,
+            new ShadowRuntimeTests.Completion("empty"), new ShadowRuntimeTests.Reader("empty"));
+        var inbound = new CanonicalShadowInbound("epoch", 11, group, SessionEntryKind.Group, ns, actor,
+            new("group-native-1", group.ChannelId, group.AccountId, group.NativeConversationId, DateTimeOffset.UtcNow,
+                SessionMessageDirection.Inbound, SessionEntryKind.Group, JsonSerializer.SerializeToElement(new { texto = "Filomena, oi" })));
+        Assert.Equal("admitted", (await handoff.AcceptAsync(inbound, TestContext.Current.CancellationToken)).Status);
+        await handoff.DrainAsync(TestContext.Current.CancellationToken);
+        Assert.Single(handoff.Outcomes);
+        Assert.Contains(handoff.Trace, x => x.EventName == "node-outbound" && x.MemoryMetadata!["result"] == "shadowed");
+    }
 
     [Theory]
     [InlineData("boundary")]
@@ -101,6 +173,23 @@ public sealed class ShadowHandoffTests : IDisposable
         Assert.Equal(input.ActorId, normalized.Message.GetProperty("remetente").GetProperty("stableId").GetString());
         Assert.Equal(Session.NativeConversationId, normalized.Message.GetProperty("canal").GetProperty("nativeId").GetString());
         Assert.False(normalized.Message.GetProperty("remetente").TryGetProperty("participantUuid", out _));
+    }
+
+    [Theory]
+    [InlineData("{}", "")]
+    [InlineData("{\"nome\":null}", "")]
+    [InlineData("{\"nome\":\"\"}", "")]
+    [InlineData("{\"nome\":\"Helena\"}", "Helena")]
+    public void Canonicalization_preserves_absent_or_known_names_without_inventing_labels(string sender, string expected)
+    {
+        var input = Input(11, "one");
+        input = input with { Message = input.Message with { Message = JsonSerializer.SerializeToElement(new
+        { texto = "hello", remetente = JsonSerializer.Deserialize<JsonElement>(sender) }) } };
+        var normalized = ShadowInboundCanonicalizer.Normalize(input);
+        Assert.Equal(input.ActorId, normalized.Message.GetProperty("remetente").GetProperty("stableId").GetString());
+        var model = FlowDomain.ForModel(normalized.Message, FlowDomain.Message, new Dictionary<string, string>());
+        Assert.Equal(expected, model.GetProperty("remetente").GetProperty("nome").GetString());
+        Assert.DoesNotContain(input.ActorId, model.GetRawText());
     }
 
     [Fact]

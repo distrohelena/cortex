@@ -19,14 +19,16 @@ public static class NativeObservationPreflight
     };
     public static IReadOnlyList<string> RequiredCapabilities { get; } = Array.AsReadOnly(Checks.Keys.ToArray());
 
-    public static IReadOnlyList<ShadowPreflightCheck> Check(NativeObservationSourceStatus source, string expectedSourceSessionRef)
+    public static IReadOnlyList<ShadowPreflightCheck> Check(NativeObservationSourceStatus source, string expectedSourceSessionRef,
+        string expectedVersion = "inbound-observation:v1")
     {
-        var version = source.Version == "inbound-observation:v1";
+        var version = expectedVersion is "inbound-observation:v1" or "inbound-observation:v2"
+            && source.Version == expectedVersion;
         var exact = !string.IsNullOrWhiteSpace(expectedSourceSessionRef)
             && StringComparer.Ordinal.Equals(source.SessionRef, expectedSourceSessionRef);
         var healthy = version && exact && source.Health == "healthy";
         var result = new List<ShadowPreflightCheck> {
-            new("observation_contract", version, "transport", version ? "v1" : "unknown_contract", 0),
+            new("observation_contract", version, "transport", version ? expectedVersion : "unknown_contract", 0),
             new("observation_health", healthy, "transport", healthy ? "healthy" : "source_not_healthy_or_bound", 0),
             new("legacy_lifecycle_isolated", healthy && source.DispatchStatus == "inactive"
                 && source.Capabilities.GetValueOrDefault("dispatchInspection"), "transport", "dispatch_must_be_inactive", 0),

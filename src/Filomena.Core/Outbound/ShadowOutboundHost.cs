@@ -18,15 +18,35 @@ public sealed record TransportSafetyCapabilities(bool StableOrigin, bool StableI
 
 // Trusted host configuration, never deserialized from a graph. IDs identify reviewed roles, not titles.
 public sealed record OutboundBindings(IReadOnlyList<string> RecallNodes, IReadOnlyList<string> CompilerNodes,
-    IReadOnlyDictionary<string, string> CandidatePorts, IReadOnlyList<string> EnforcementNodes, string? WouldTransitionTo);
+    IReadOnlyDictionary<string, string> CandidatePorts, IReadOnlyList<string> EnforcementNodes, string? WouldTransitionTo)
+{
+    public IReadOnlyDictionary<string, string> ReplyTargetPorts { get; init; } = new Dictionary<string, string>();
+}
 
 // What the transport reports about a route before dispatch. Missing fields are missing, never inferred.
 public sealed record TransportRouteDescription(string? Channel, string? AccountId, string? Recipient);
 
-/// <summary>Pre-send route resolution plus one physical send. Implementations never retry, split or reroute.</summary>
+/// <summary>Legacy route lookup and send. Separate calls do not prove atomic destination binding.</summary>
 public interface IOutboundTransport : IConversationSender
 {
     Task<TransportRouteDescription> DescribeRouteAsync(string route, CancellationToken cancellationToken);
+}
+
+// All fields come from the host's reviewed binding and durable reservation, never from generation.
+public sealed record BoundSendRequest(string AttemptRef, string TransportRoute, string Channel,
+    string AccountId, string Recipient, string Text, int MaxSinglePartCharacters)
+{
+    public string? ReplyToMessageId { get; init; }
+}
+
+/// <summary>
+/// Trusted sender contract: compare the expected destination at the physical dispatch boundary,
+/// carry the durable attempt identity, and send at most one physical message without hidden retries.
+/// A lookup followed by the legacy SendTextAsync does not implement this contract.
+/// </summary>
+public interface IBoundOutboundTransport : IOutboundTransport
+{
+    Task<SendReceipt> SendBoundTextAsync(BoundSendRequest request, CancellationToken cancellationToken);
 }
 
 // How the host's own confirmed speech is identified in local history. Host-owned, never chosen by the project.
@@ -35,13 +55,22 @@ public sealed record OutboundSpeaker(string Name, string StableId);
 // Administrative, host-owned binding of exactly one allowlisted session to one transport route and its expected
 // exact destination. The project/model cannot construct, widen or replace it.
 public sealed record LiveRouteBinding(SessionKey Session, string TransportRoute, string Channel, string AccountId,
-    string Recipient, OutboundSpeaker Speaker, int MaxSinglePartCharacters);
+    string Recipient, OutboundSpeaker Speaker, int MaxSinglePartCharacters)
+{
+    public bool AllowExactGroupDelivery { get; init; }
+}
 
 public sealed record ShadowSendResult(string Status, string DiagnosticCode, string? JournalRef = null, string? WouldTransitionTo = null,
-    string? ProviderMessageId = null, OutboundSpeaker? Speaker = null);
+    string? ProviderMessageId = null, OutboundSpeaker? Speaker = null)
+{
+    public string? ReplyToMessageId { get; init; }
+}
 
 // A durable provider receipt whose speech has not yet been committed to local history (crash or restart in between).
-public sealed record PendingSpeechCommit(string AttemptRef, string ProviderMessageId, string Text, OutboundSpeaker Speaker);
+public sealed record PendingSpeechCommit(string AttemptRef, string ProviderMessageId, string Text, OutboundSpeaker Speaker)
+{
+    public string? ReplyToMessageId { get; init; }
+}
 
 // Explicit, audited operator decision about an indeterminate attempt, based on external evidence. Never automatic.
 public enum ReconciliationVerdict { Sent, NotSent, Abandoned }
@@ -67,7 +96,8 @@ public sealed class ShadowOutboundHost : IDisposable
     {
         projectHash = Fingerprint(reviewedProject);
         this.bindings = new(bindings.RecallNodes.ToArray(), bindings.CompilerNodes.ToArray(),
-            new Dictionary<string, string>(bindings.CandidatePorts), bindings.EnforcementNodes.ToArray(), bindings.WouldTransitionTo);
+            new Dictionary<string, string>(bindings.CandidatePorts), bindings.EnforcementNodes.ToArray(), bindings.WouldTransitionTo)
+        { ReplyTargetPorts = new Dictionary<string, string>(bindings.ReplyTargetPorts) };
         sessions = allowedSessions.ToHashSet();
         this.capabilities = capabilities;
         journal = new(journalPath);
@@ -84,7 +114,7 @@ public sealed class ShadowOutboundHost : IDisposable
             {
                 if (disposed || mode == OutboundMode.Disabled) return OutboundMode.Disabled;
                 if (mode == OutboundMode.Shadow) return OutboundMode.Shadow;
-                return capabilities.Complete && live is not null && transport is not null ? OutboundMode.Enabled : OutboundMode.Disabled;
+                return capabilities.Complete && live is not null && transport is IBoundOutboundTransport ? OutboundMode.Enabled : OutboundMode.Disabled;
             }
         }
     }
@@ -106,6 +136,11 @@ public sealed class ShadowOutboundHost : IDisposable
             throw new ArgumentException("Live route binding requires an exact transport route, channel, account, recipient and speaker.", nameof(binding));
         if (binding.MaxSinglePartCharacters is <= 0 or > NativeSinglePartCeiling)
             throw new ArgumentOutOfRangeException(nameof(binding), "MaxSinglePartCharacters must stay within the native single-part ceiling.");
+        if (binding.AllowExactGroupDelivery && (binding.Channel != "whatsapp"
+            || binding.AccountId != binding.Session.AccountId || binding.Channel != binding.Session.ChannelId
+            || binding.Recipient != binding.Session.NativeConversationId
+            || !System.Text.RegularExpressions.Regex.IsMatch(binding.Recipient, @"\A[0-9]+(-[0-9]+)?@g\.us\z")))
+            throw new ArgumentException("Group delivery requires the exact host-bound WhatsApp group.", nameof(binding));
         lock (gate)
         {
             ObjectDisposedException.ThrowIf(disposed, this);
@@ -115,13 +150,14 @@ public sealed class ShadowOutboundHost : IDisposable
         }
     }
 
-    internal OutboundExecution Begin(JsonElement project, string executionId, SessionKey session, SessionEntryKind kind, IEnumerable<string> inboundIds) =>
-        new(this, bindings, Fingerprint(project) == projectHash, executionId, session, kind, inboundIds.ToArray());
+    internal OutboundExecution Begin(JsonElement project, string executionId, SessionKey session, SessionEntryKind kind,
+        IEnumerable<string> inboundIds, IEnumerable<string>? replyTargetIds = null) =>
+        new(this, bindings, Fingerprint(project) == projectHash, executionId, session, kind, inboundIds.ToArray(), replyTargetIds?.ToHashSet(StringComparer.Ordinal) ?? []);
 
     internal async Task<ShadowSendResult> GuardAsync(OutboundExecution execution, bool provenance, string? enforcementRevision, string text, CancellationToken cancellationToken)
     {
         LiveRouteBinding binding;
-        IOutboundTransport sender;
+        IBoundOutboundTransport sender;
         string attempt;
         // Authorization is sampled at the sink, not at generation. Rearm is serialized with this decision.
         lock (gate)
@@ -129,16 +165,20 @@ public sealed class ShadowOutboundHost : IDisposable
             execution.RecordGuardAudit(mode, sessions.Contains(execution.Session), provenance);
             if (disposed || mode == OutboundMode.Disabled) return new("disabled", "outbound_disabled");
             if (!execution.ProjectAuthorized) return new("blocked", "project_not_authorized");
-            if (execution.Kind != SessionEntryKind.Dm) return new("blocked", "dm_only");
+            var groupSession = execution.Session.NativeConversationId.EndsWith("@g.us", StringComparison.Ordinal);
+            if (execution.Kind is not (SessionEntryKind.Dm or SessionEntryKind.Group)
+                || (execution.Kind == SessionEntryKind.Group) != groupSession)
+                return new("blocked", "dm_only");
             if (!sessions.Contains(execution.Session)) return new("blocked", "session_not_allowlisted");
             if (!provenance) return new("blocked", "invalid_provenance");
+            if (!execution.ReplySelectionValid) return new("blocked", "invalid_reply_target");
             if (execution.InboundIds.Count == 0 || execution.InboundIds.Any(string.IsNullOrWhiteSpace)) return new("blocked", "invalid_origin_identity");
             var inputRefs = execution.InboundIds.Select(id => Hash(execution.SessionRef + "\n" + id)).ToArray();
             if (mode == OutboundMode.Shadow)
             {
                 try
                 {
-                    var result = journal.RecordShadow(execution.ExecutionId, execution.SessionRef, inputRefs, enforcementRevision!);
+                    var result = journal.RecordShadow(execution.ExecutionId, execution.SessionRef, inputRefs, enforcementRevision!, execution.ReplyToMessageId);
                     return result with { WouldTransitionTo = result.Status == "shadowed" ? bindings.WouldTransitionTo : null };
                 }
                 catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException)
@@ -146,11 +186,15 @@ public sealed class ShadowOutboundHost : IDisposable
                     return new("failed", "journal_unavailable");
                 }
             }
+            // Group transport delivery is not authorized by a shadow receipt.
+            if (execution.Kind == SessionEntryKind.Group && live?.AllowExactGroupDelivery != true)
+                return new("blocked", "dm_only");
             if (!capabilities.Complete) return new("blocked", "transport_capabilities_incomplete");
             if (live is null || transport is null || live.Session != execution.Session) return new("blocked", "route_not_bound");
+            if (transport is not IBoundOutboundTransport boundSender) return new("blocked", "bound_transport_required");
             if (text.Length > live.MaxSinglePartCharacters) return new("blocked", "payload_exceeds_single_part");
             ShadowSendResult reservation;
-            try { reservation = journal.Reserve(execution.ExecutionId, execution.SessionRef, inputRefs, enforcementRevision!, text, live.Speaker); }
+            try { reservation = journal.Reserve(execution.ExecutionId, execution.SessionRef, inputRefs, enforcementRevision!, text, live.Speaker, execution.ReplyToMessageId); }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException)
             {
                 return new("failed", "journal_unavailable");
@@ -159,7 +203,7 @@ public sealed class ShadowOutboundHost : IDisposable
             attempt = reservation.JournalRef!;
             execution.Reserved(attempt);
             binding = live;
-            sender = transport;
+            sender = boundSender;
         }
 
         // Pre-send destination check, outside the lock. Any doubt here is proof that nothing was dispatched.
@@ -179,7 +223,12 @@ public sealed class ShadowOutboundHost : IDisposable
         }
 
         SendReceipt receipt;
-        try { receipt = await sender.SendTextAsync(binding.TransportRoute, text, cancellationToken).ConfigureAwait(false); }
+        try
+        {
+            receipt = await sender.SendBoundTextAsync(new(attempt, binding.TransportRoute, binding.Channel,
+                binding.AccountId, binding.Recipient, text, binding.MaxSinglePartCharacters)
+                { ReplyToMessageId = execution.ReplyToMessageId }, cancellationToken).ConfigureAwait(false);
+        }
         catch (OperationCanceledException) { return Indeterminate(attempt, "cancelled_after_dispatch"); }
         catch (Exception) { return Indeterminate(attempt, "transport_failure"); }
 
@@ -189,7 +238,8 @@ public sealed class ShadowOutboundHost : IDisposable
             receipt.Recipient is not null && !Same(receipt.Recipient, binding.Recipient, ignoreCase: false) ||
             receipt.AccountId is not null && !Same(receipt.AccountId, binding.AccountId, ignoreCase: false))
             return Indeterminate(attempt, "receipt_route_mismatch");
-        if (receipt.Channel is null || receipt.Recipient is null) return Indeterminate(attempt, "receipt_route_unverified");
+        if (receipt.Channel is null || receipt.Recipient is null || receipt.AccountId is null) return Indeterminate(attempt, "receipt_route_unverified");
+        if (receipt.ReplyToMessageId != execution.ReplyToMessageId) return Indeterminate(attempt, "receipt_reply_unverified");
         execution.ReceiptAccount(receipt.AccountId is null ? "unattested" : "attested");
 
         lock (gate)
@@ -201,7 +251,8 @@ public sealed class ShadowOutboundHost : IDisposable
             }
         }
         execution.Confirmed(receipt.ProviderMessageId);
-        return new("sent", "provider_accepted", attempt, bindings.WouldTransitionTo, receipt.ProviderMessageId, binding.Speaker);
+        return new("sent", "provider_accepted", attempt, bindings.WouldTransitionTo, receipt.ProviderMessageId, binding.Speaker)
+        { ReplyToMessageId = execution.ReplyToMessageId };
     }
 
     // Provider accepted, local history committed once, transition decided: the attempt is closed.
@@ -222,7 +273,8 @@ public sealed class ShadowOutboundHost : IDisposable
         {
             if (disposed) return [];
             return journal.RecoverableSends(Hash(JsonSerializer.Serialize(session)))
-                .Select(send => new PendingSpeechCommit(send.AttemptRef, send.ProviderMessageId, send.Text, new(send.SpeakerName, send.SpeakerStableId))).ToArray();
+                .Select(send => new PendingSpeechCommit(send.AttemptRef, send.ProviderMessageId, send.Text, new(send.SpeakerName, send.SpeakerStableId))
+                { ReplyToMessageId = send.ReplyToMessageId }).ToArray();
         }
     }
 
@@ -309,11 +361,16 @@ internal sealed class OutboundExecution
     internal IReadOnlyList<string> InboundIds { get; }
     internal string? AttemptRef { get; private set; }
     internal string? ProviderMessageId { get; private set; }
+    private readonly HashSet<string> replyTargetIds;
+    internal bool SupportsReplySelection => bindings.ReplyTargetPorts.Count > 0;
+    internal bool ReplySelectionValid { get; private set; } = true;
+    internal string? ReplyToMessageId { get; private set; }
     internal OutboundExecution(ShadowOutboundHost host, OutboundBindings bindings, bool projectAuthorized,
-        string executionId, SessionKey session, SessionEntryKind kind, string[] inboundIds)
+        string executionId, SessionKey session, SessionEntryKind kind, string[] inboundIds, HashSet<string> replyTargetIds)
     {
         this.host = host; this.bindings = bindings; ProjectAuthorized = projectAuthorized;
         ExecutionId = executionId; Session = session; Kind = kind; InboundIds = inboundIds;
+        this.replyTargetIds = replyTargetIds;
         SessionRef = ShadowOutboundHost.Hash(JsonSerializer.Serialize(session));
     }
     internal void Recall(string node, TypedValue value)
@@ -327,12 +384,27 @@ internal sealed class OutboundExecution
         compiled = ReferenceEquals(input, recall) ? output : null; approved = null; revision = null;
         boundarySetRef = compiled is null ? null : Guid.NewGuid().ToString("N");
     }
-    internal void Generated(string node, IReadOnlyDictionary<string, TypedValue> outputs)
+    internal void Generated(string node, IReadOnlyDictionary<string, TypedValue> outputs, IReadOnlyDictionary<string, string>? references = null)
     {
         if (!bindings.CandidatePorts.TryGetValue(node, out var port)) return;
         current = outputs.TryGetValue(port, out var value) && value.Type is StringType ? value : null;
         generationRef = Guid.NewGuid().ToString("N");
         approved = null; revision = null;
+        // Regeneration replaces both the text and its selection, including null.
+        ReplyToMessageId = null;
+        ReplySelectionValid = true;
+        if (bindings.ReplyTargetPorts.TryGetValue(node, out var replyPort))
+        {
+            ReplySelectionValid = outputs.TryGetValue(replyPort, out var reply) &&
+                reply.Type is NullableType { InnerType: StringType };
+            if (ReplySelectionValid && reply!.Value.ValueKind != JsonValueKind.Null)
+            {
+                var matches = references?.Where(pair => pair.Key.StartsWith("message:", StringComparison.Ordinal)
+                    && pair.Value == reply.Value.GetString()).Select(pair => pair.Key[8..]).ToArray() ?? [];
+                ReplySelectionValid = Kind == SessionEntryKind.Group && matches.Length == 1 && replyTargetIds.Contains(matches[0]);
+                if (ReplySelectionValid) ReplyToMessageId = matches[0];
+            }
+        }
         // Legitimate empty set does not require a model call or a fake "Allow" node.
         if (current is not null && compiled?.Value.GetArrayLength() == 0)
         { approved = current; revision = "trusted-empty-boundaries:v1"; }
@@ -367,6 +439,8 @@ internal sealed class OutboundExecution
         ["result"] = result.Status, ["diagnosticCode"] = result.DiagnosticCode,
         ["wouldTransitionTo"] = result.WouldTransitionTo ?? "none",
         ["providerRef"] = result.ProviderMessageId is null ? "none" : ShadowOutboundHost.Hash(SessionRef + "\n" + result.ProviderMessageId),
-        ["receiptAccount"] = receiptAccount
+        ["receiptAccount"] = receiptAccount,
+        ["replyTargetRef"] = ReplyToMessageId is null ? "none" : ShadowOutboundHost.Hash(SessionRef + "\n" + ReplyToMessageId),
+        ["replySelection"] = ReplySelectionValid ? "valid" : "invalid"
     };
 }

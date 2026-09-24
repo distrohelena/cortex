@@ -14,7 +14,10 @@ public interface IFlowCompletion
 public sealed record TypedValue(FlowType Type, JsonElement Value);
 public sealed record TypedStep(string NodeId, string Status, string? Exit, string? Error);
 // Provider-accepted speech from this run. Only the session runtime turns it into history, exactly once.
-public sealed record ConfirmedSend(string NodeId, string ProviderMessageId, string Text, OutboundSpeaker Speaker);
+public sealed record ConfirmedSend(string NodeId, string ProviderMessageId, string Text, OutboundSpeaker Speaker)
+{
+    public string? ReplyToMessageId { get; init; }
+}
 public sealed record TypedRunResult(bool Success, IReadOnlyList<TypedStep> Steps, IReadOnlyDictionary<string, Dictionary<string, TypedValue>> Outputs, string? TargetStateId = null,
     ConfirmedSend? ConfirmedSend = null);
 internal sealed record TypedNodeExecutionTrace(string NodeId, string Status, string? Exit, string? Error, DateTimeOffset Timestamp, TimeSpan Duration,
@@ -187,7 +190,7 @@ public static class TypedFlowRunner
                         token.ThrowIfCancellationRequested();
                     }
                     published[current] = output!;
-                    outbound?.Generated(current, output!);
+                    outbound?.Generated(current, output!, references);
                     foreach (var (port, value) in output!) values[new(current, port)] = value;
                 }
                 else if (node.Source.Kind == "interpretBoundaries")
@@ -226,7 +229,8 @@ public static class TypedFlowRunner
                     sendAttempted = true;
                     // Only a provider-accepted receipt with a host-owned speaker is confirmed speech. WOULD_SEND never is.
                     if (result.Status == "sent" && result.ProviderMessageId is not null && result.Speaker is not null && confirmed is null)
-                        confirmed = new(current, result.ProviderMessageId, candidate.Value.GetString()!, result.Speaker);
+                        confirmed = new(current, result.ProviderMessageId, candidate.Value.GetString()!, result.Speaker)
+                        { ReplyToMessageId = result.ReplyToMessageId };
                     exit = result.Status;
                     published[current] = new()
                     {

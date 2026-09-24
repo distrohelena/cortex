@@ -17,9 +17,11 @@ internal sealed record OutboundJournalEntry(int Version, string Namespace, strin
     public string? Text { get; init; }
     public string? SpeakerName { get; init; }
     public string? SpeakerStableId { get; init; }
+    public string? ReplyToMessageId { get; init; }
 }
 
-internal sealed record RecoverableSend(string AttemptRef, string ProviderMessageId, string Text, string SpeakerName, string SpeakerStableId);
+internal sealed record RecoverableSend(string AttemptRef, string ProviderMessageId, string Text, string SpeakerName, string SpeakerStableId,
+    string? ReplyToMessageId);
 
 internal sealed class OutboundJournal : IDisposable
 {
@@ -50,9 +52,7 @@ internal sealed class OutboundJournal : IDisposable
             foreach (var line in text.Split('\n', StringSplitOptions.RemoveEmptyEntries))
             {
                 var entry = JsonSerializer.Deserialize<OutboundJournalEntry>(line) ?? throw new InvalidDataException("outbound_journal_invalid");
-                if (entry.Version != 1 || entry.InputRefs is null || string.IsNullOrWhiteSpace(entry.SessionRef) || string.IsNullOrWhiteSpace(entry.AttemptRef) ||
-                    !(entry.Namespace == ShadowNamespace && entry.Status == "shadowed" || entry.Namespace == RealNamespace && RealStatuses.Contains(entry.Status)))
-                    throw new InvalidDataException("outbound_journal_invalid");
+                ValidateNext(entry);
                 entries.Add(entry);
             }
             file.Position = file.Length;
@@ -62,6 +62,40 @@ internal sealed class OutboundJournal : IDisposable
                 Write(pending with { Status = "indeterminate", DiagnosticCode = "restart_with_pending", ProviderRef = null, Text = null, SpeakerName = null, SpeakerStableId = null });
         }
         catch { file.Dispose(); throw; }
+    }
+
+    // Replay must enforce the same state machine as writes. A terminal-looking line is not
+    // evidence of resolution unless its reservation and every intervening transition are valid.
+    private void ValidateNext(OutboundJournalEntry entry)
+    {
+        if (entry.Version != 1 || entry.InputRefs is null || entry.InputRefs.Length == 0 ||
+            entry.InputRefs.Any(string.IsNullOrWhiteSpace) ||
+            string.IsNullOrWhiteSpace(entry.SessionRef) || string.IsNullOrWhiteSpace(entry.AttemptRef) ||
+            string.IsNullOrWhiteSpace(entry.ExecutionRef) || string.IsNullOrWhiteSpace(entry.EnforcementRevision) ||
+            !(entry.Namespace == ShadowNamespace && entry.Status == "shadowed" ||
+              entry.Namespace == RealNamespace && RealStatuses.Contains(entry.Status)))
+            throw new InvalidDataException("outbound_journal_invalid");
+
+        var previous = entries.LastOrDefault(row => row.AttemptRef == entry.AttemptRef);
+        if (previous is null)
+        {
+            if (entry.Namespace == RealNamespace && entry.Status != "pending")
+                throw new InvalidDataException("outbound_journal_orphan_resolution");
+            if (Blocked(entry.SessionRef, entry.ExecutionRef, entry.InputRefs) is not null)
+                throw new InvalidDataException("outbound_journal_conflicting_reservation");
+        }
+        else if (previous.Namespace != RealNamespace || entry.Namespace != previous.Namespace ||
+                 previous.SessionRef != entry.SessionRef || previous.ExecutionRef != entry.ExecutionRef ||
+                 previous.EnforcementRevision != entry.EnforcementRevision ||
+                 previous.ReplyToMessageId != entry.ReplyToMessageId ||
+                 !previous.InputRefs.SequenceEqual(entry.InputRefs, StringComparer.Ordinal) ||
+                 !Transitions.TryGetValue(previous.Status, out var allowed) || !allowed.Contains(entry.Status))
+        {
+            throw new InvalidDataException("outbound_journal_invalid_transition");
+        }
+
+        if (entry.Status == "sent" && string.IsNullOrWhiteSpace(entry.ProviderMessageId))
+            throw new InvalidDataException("outbound_journal_missing_receipt");
     }
 
     private IEnumerable<OutboundJournalEntry> Reservations() => entries.Where(e => e.Namespace == RealNamespace && e.Status == "pending");
@@ -80,25 +114,27 @@ internal sealed class OutboundJournal : IDisposable
         return null;
     }
 
-    internal ShadowSendResult RecordShadow(string execution, string session, string[] inputs, string revision)
+    internal ShadowSendResult RecordShadow(string execution, string session, string[] inputs, string revision, string? replyToMessageId = null)
     {
         if (poisoned) return new("failed", "journal_unavailable");
         var executionRef = ShadowOutboundHost.Hash(session + "\n" + execution);
         if (Blocked(session, executionRef, inputs) is { } blocked) return blocked;
-        var entry = new OutboundJournalEntry(1, ShadowNamespace, "shadowed", Guid.NewGuid().ToString("N"), executionRef, session, inputs, revision);
+        var entry = new OutboundJournalEntry(1, ShadowNamespace, "shadowed", Guid.NewGuid().ToString("N"), executionRef, session, inputs, revision)
+        { ReplyToMessageId = replyToMessageId };
         Write(entry);
         return new("shadowed", "would_send", entry.AttemptRef);
     }
 
     // Durable reservation committed BEFORE any external effect. Shadow and real records share one replay index,
     // so a historical shadow attempt can never be promoted into a real send.
-    internal ShadowSendResult Reserve(string execution, string session, string[] inputs, string revision, string text, OutboundSpeaker speaker)
+    internal ShadowSendResult Reserve(string execution, string session, string[] inputs, string revision, string text, OutboundSpeaker speaker,
+        string? replyToMessageId = null)
     {
         if (poisoned) return new("failed", "journal_unavailable");
         var executionRef = ShadowOutboundHost.Hash(session + "\n" + execution);
         if (Blocked(session, executionRef, inputs) is { } blocked) return blocked;
         var entry = new OutboundJournalEntry(1, RealNamespace, "pending", Guid.NewGuid().ToString("N"), executionRef, session, inputs, revision)
-        { Text = text, SpeakerName = speaker.Name, SpeakerStableId = speaker.StableId };
+        { Text = text, SpeakerName = speaker.Name, SpeakerStableId = speaker.StableId, ReplyToMessageId = replyToMessageId };
         Write(entry);
         return new("pending", "reserved", entry.AttemptRef);
     }
@@ -131,11 +167,12 @@ internal sealed class OutboundJournal : IDisposable
         {
             var reservation = entries.First(e => e.AttemptRef == attempt && e.Status == "pending");
             var sent = entries.Last(e => e.AttemptRef == attempt && e.Status == "sent");
-            return new RecoverableSend(attempt, sent.ProviderMessageId ?? "", reservation.Text ?? "", reservation.SpeakerName ?? "", reservation.SpeakerStableId ?? "");
+            return new RecoverableSend(attempt, sent.ProviderMessageId ?? "", reservation.Text ?? "", reservation.SpeakerName ?? "", reservation.SpeakerStableId ?? "", reservation.ReplyToMessageId);
         }).ToArray();
 
     private void Write(OutboundJournalEntry entry)
     {
+        ValidateNext(entry);
         var bytes = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(entry, SerializerOptions) + "\n");
         try { file.Write(bytes); file.Flush(flushToDisk: true); entries.Add(entry); }
         catch { poisoned = true; throw; }

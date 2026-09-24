@@ -15,7 +15,7 @@ from typing import Any, Optional
 from dotenv import load_dotenv
 from graphiti_core import Graphiti
 from graphiti_core.edges import EntityEdge
-from graphiti_core.errors import EdgeNotFoundError
+from graphiti_core.errors import EdgeNotFoundError, NodeNotFoundError
 from graphiti_core.nodes import EntityNode, EpisodeType, EpisodicNode
 from graphiti_core.search.search_filters import SearchFilters
 from graphiti_core.utils.maintenance.bound_entities import BoundEntity
@@ -26,6 +26,9 @@ from starlette.responses import JSONResponse
 
 from config.schema import GraphitiConfig, ServerConfig
 from models.response_types import (
+    EntityIdentityResult,
+    EntityNeighborhoodAbsenceResponse,
+    EntityNeighborhoodResponse,
     EpisodeSearchResponse,
     ErrorResponse,
     FactSearchResponse,
@@ -593,7 +596,7 @@ async def get_entity_neighborhood(
     counterpart_uuid: str | None = None,
     active_only: bool = True,
     limit: int = 10,
-) -> FactSearchResponse | ErrorResponse:
+) -> EntityNeighborhoodResponse | EntityNeighborhoodAbsenceResponse | ErrorResponse:
     """Retrieve a deterministic, exact, group-bound entity neighborhood."""
     global graphiti_service
 
@@ -608,9 +611,27 @@ async def get_entity_neighborhood(
         client = await graphiti_service.get_client()
         driver = client.driver.clone(database=group_id)
 
-        entity = await EntityNode.get_by_uuid(driver, entity_uuid)
+        try:
+            entity = await EntityNode.get_by_uuid(driver, entity_uuid)
+        except NodeNotFoundError:
+            # Successful exact read with no stored participant, not a transport/backend
+            # failure. Do not create a Person or infer absence from exception text.
+            return EntityNeighborhoodAbsenceResponse(
+                status='entity_not_found', version='entity-neighborhood-absence:v1',
+                group_id=group_id, entity_uuid=entity_uuid, facts=[],
+            )
         if entity.group_id != group_id:
             return ErrorResponse(error='entity is outside the requested group')
+
+        stable_id = entity.attributes.get('stable_id')
+        display_name = entity.attributes.get('display_name_current')
+        identity = EntityIdentityResult(
+            uuid=entity.uuid,
+            group_id=entity.group_id,
+            labels=entity.labels,
+            stable_id=stable_id if isinstance(stable_id, str) else None,
+            display_name_current=display_name if isinstance(display_name, str) else None,
+        )
 
         counterpart = None
         if counterpart_uuid is not None:
@@ -638,7 +659,9 @@ async def get_entity_neighborhood(
             limit=limit,
         )
         if not edges:
-            return FactSearchResponse(message='No neighborhood facts found', facts=[])
+            return EntityNeighborhoodResponse(
+                message='No neighborhood facts found', facts=[], entity=identity
+            )
 
         endpoint_uuids = list(
             {
@@ -650,7 +673,9 @@ async def get_entity_neighborhood(
         nodes = await EntityNode.get_by_uuids(driver, endpoint_uuids)
         nodes_by_uuid = {node.uuid: node for node in nodes}
         facts = [format_fact_with_nodes(edge, nodes_by_uuid) for edge in edges]
-        return FactSearchResponse(message='Neighborhood retrieved successfully', facts=facts)
+        return EntityNeighborhoodResponse(
+            message='Neighborhood retrieved successfully', facts=facts, entity=identity
+        )
     except Exception as e:
         error_msg = str(e)
         logger.error(f'Error retrieving entity neighborhood: {error_msg}')

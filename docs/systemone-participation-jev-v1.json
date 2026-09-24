@@ -1,0 +1,17 @@
+{
+  "version": "systemone-participation:v1",
+  "model": "jev-1.13.0",
+  "situationNodeIds": ["dm-situation", "group-situation"],
+  "presenceNodeIds": ["dm-presence", "group-presence"],
+  "summaryField": "resumo",
+  "choiceQuestions": {
+    "envolvimento": {
+      "instructions": "Qual é a relação da troca atual em `state.mensagens` com Filomena, considerando `state.historico`? Identifique a quem as pessoas se dirigem, não apenas se existe uma pergunta. Classifique somente envolvimento; interesse pelo tema não conta como envolvimento.",
+      "criteria": {
+        "nenhum": "Filomena é apenas observadora da troca atual, mesmo se o assunto puder lhe interessar. Uma pergunta dirigida a outra pessoa não é dirigida a Filomena.",
+        "indireto": "Não chamam Filomena diretamente, mas há continuidade clara com sua participação recente, sua ideia ou ação, ou falam sobre ela sem solicitar resposta.",
+        "direto": "A troca atual se dirige claramente a Filomena: chamada pelo nome, mention, reply à mensagem dela, pergunta ou pedido de opinião dirigido a ela."
+      }
+    }
+  }
+}

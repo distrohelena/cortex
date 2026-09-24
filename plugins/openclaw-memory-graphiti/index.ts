@@ -133,6 +133,13 @@ const memoryGraphitiPlugin = {
   configSchema: graphitiMemoryConfigSchema,
 
   register(api: OpenClawPluginApi) {
+    // Deployment/process authority only; never read this policy from pluginConfig,
+    // a tool argument or service input. Pin it before initializing the plugin.
+    const startupProbePolicy = process.env.OPENCLAW_GRAPHITI_SUPPRESS_EXTERNAL_STARTUP_PROBES;
+    if (startupProbePolicy !== undefined && startupProbePolicy !== "false" && startupProbePolicy !== "true") {
+      throw new Error("openclaw-memory-graphiti: startup_probe_policy_invalid");
+    }
+    const suppressExternalStartupProbes = startupProbePolicy === "true";
     const cfg = graphitiMemoryConfigSchema.parse(api.pluginConfig);
 
     const graphiti = new GraphitiClient(cfg.graphiti.endpoint);
@@ -802,6 +809,16 @@ const memoryGraphitiPlugin = {
     api.registerService({
       id: "openclaw-memory-graphiti",
       async start() {
+        if (suppressExternalStartupProbes) {
+          // This is not readiness and grants no permission to run a live session.
+          // A separate Graphiti Live Preflight remains required for Shadow.
+          api.logger.info(`openclaw-memory-graphiti: startup_status ${JSON.stringify({
+            initialized: true,
+            externalReadiness: "not_checked",
+            startupProbeSuppressed: true,
+          })}`);
+          return;
+        }
         // Verify connectivity on startup
         const graphitiOk = await graphiti.healthCheck();
         let spicedbOk = false;

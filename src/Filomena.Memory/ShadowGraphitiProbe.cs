@@ -30,7 +30,10 @@ public sealed class ShadowGraphitiProbe(IGraphitiReadClient client)
             var validating = new NamespaceClient(client, Set);
             var neighborhood = await validating.GetEntityNeighborhoodAsync(request.ConversationNamespace, person.ParticipantUuid, 50, cancellationToken);
             Set("graphiti_reachable", true, "read_succeeded");
-            var canonical = ContainsPerson(Unwrap(neighborhood), person, request.ConversationNamespace);
+            var root = Unwrap(neighborhood);
+            var canonical = root.TryGetProperty("entity", out var entity)
+                ? IsPerson(entity, person, request.ConversationNamespace, requireNamespace: true)
+                : ContainsPerson(root, person, request.ConversationNamespace);
             Set("graphiti_participant", canonical, "canonical_participant_evidence");
             Set("exact_canonical_subject_valid", canonical, canonical ? "canonical_participant_evidence" : "canonical_subject_unproven");
             if (!canonical) throw GraphitiResponseValidation.Failure("canonical_subject_valid", "canonical_subject_unproven");
@@ -91,14 +94,20 @@ public sealed class ShadowGraphitiProbe(IGraphitiReadClient client)
     {
         if (value.ValueKind == JsonValueKind.Object)
         {
-            if (value.TryGetProperty("uuid", out var uuid) && uuid.ValueKind == JsonValueKind.String && Guid.TryParse(uuid.GetString(), out var parsed)
-                && parsed == person.ParticipantUuid && value.TryGetProperty("stable_id", out var stable) && stable.GetString() == person.ActorStableId
-                && value.TryGetProperty("labels", out var labels) && labels.ValueKind == JsonValueKind.Array && labels.EnumerateArray().Any(l => l.ValueKind == JsonValueKind.String && l.GetString() == "Person")
-                && (!value.TryGetProperty("group_id", out var group) || group.GetString() == ns)) return true;
+            if (IsPerson(value, person, ns, requireNamespace: false)) return true;
             return value.EnumerateObject().Any(p => ContainsPerson(p.Value, person, ns));
         }
         return value.ValueKind == JsonValueKind.Array && value.EnumerateArray().Any(v => ContainsPerson(v, person, ns));
     }
+    private static bool IsPerson(JsonElement value, MemoryPerson person, string ns, bool requireNamespace) =>
+        value.ValueKind == JsonValueKind.Object
+        && value.TryGetProperty("uuid", out var uuid) && uuid.ValueKind == JsonValueKind.String
+        && Guid.TryParse(uuid.GetString(), out var parsed) && parsed == person.ParticipantUuid
+        && value.TryGetProperty("stable_id", out var stable) && stable.ValueKind == JsonValueKind.String && stable.GetString() == person.ActorStableId
+        && value.TryGetProperty("labels", out var labels) && labels.ValueKind == JsonValueKind.Array
+        && labels.EnumerateArray().Any(l => l.ValueKind == JsonValueKind.String && l.GetString() == "Person")
+        && (value.TryGetProperty("group_id", out var group)
+            ? group.ValueKind == JsonValueKind.String && group.GetString() == ns : !requireNamespace);
     private sealed class NamespaceClient(IGraphitiReadClient inner, Action<string, bool, string> report) : IGraphitiReadClient
     {
         public async Task<JsonElement> GetEntityNeighborhoodAsync(string ns, Guid person, int limit, CancellationToken token) =>

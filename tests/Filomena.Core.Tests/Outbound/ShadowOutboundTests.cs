@@ -126,6 +126,21 @@ public sealed class ShadowOutboundTests : IDisposable
     }
 
     [Fact]
+    public void ExactGroupCanRecordWouldSendOnlyInShadowMode()
+    {
+        var groupSession = Session with { NativeConversationId = "123456@g.us" };
+        using var host = new ShadowOutboundHost(Path.Combine(directory, "group-shadow.jsonl"), Project, Bindings,
+            [groupSession], TransportSafetyCapabilities.Unproven);
+        host.Rearm(OutboundMode.Shadow);
+        var group = Begin(host, "group-execution", "group-input", groupSession, SessionEntryKind.Group);
+        Assert.Equal("shadowed", group.Send(Approve(group)).Status);
+
+        host.Rearm(OutboundMode.Enabled);
+        var enabled = Begin(host, "group-enabled", "new-group-input", groupSession, SessionEntryKind.Group);
+        Assert.Equal("dm_only", enabled.Send(Approve(enabled)).DiagnosticCode);
+    }
+
+    [Fact]
     public void ChunkingAloneBlocksEnabledAndCompleteFakeStillCannotDispatch()
     {
         foreach (var singlePart in new[] { false, true })
@@ -173,10 +188,12 @@ public sealed class ShadowOutboundTests : IDisposable
     [InlineData("indeterminate")]
     public void UnresolvedRealAttemptBlocksNewOutboundAfterRestart(string status)
     {
-        // Model a durable future real attempt; Phase 0 never creates one.
+        // Model a valid durable real history; Phase 0 never creates one.
         var sessionRef = ShadowOutboundHost.Hash(JsonSerializer.Serialize(Session));
-        var entry = new OutboundJournalEntry(1, "real:v1", status, "old-attempt", "old-execution", sessionRef, ["old-input"], "old-revision");
-        File.WriteAllText(Path.Combine(directory, "journal.jsonl"), JsonSerializer.Serialize(entry) + "\n");
+        var entry = new OutboundJournalEntry(1, "real:v1", "pending", "old-attempt", "old-execution", sessionRef, ["old-input"], "old-revision");
+        var history = JsonSerializer.Serialize(entry) + "\n";
+        if (status == "indeterminate") history += JsonSerializer.Serialize(entry with { Status = status }) + "\n";
+        File.WriteAllText(Path.Combine(directory, "journal.jsonl"), history);
         using var host = Host();
         host.Rearm(OutboundMode.Shadow);
         var execution = Begin(host, "new", "new-input");

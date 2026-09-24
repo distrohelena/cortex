@@ -5,7 +5,7 @@
  * and lifecycle hooks with mocked backends.
  */
 
-import { describe, test, expect, vi, beforeEach } from "vitest";
+import { describe, test, expect, vi, beforeEach, afterEach } from "vitest";
 
 const REAL_GROUP_JID = "5511981042361-1589823314@g.us";
 const REAL_GROUP_ID = "whatsapp-group-5511981042361-1589823314-g-us";
@@ -144,6 +144,7 @@ describe("openclaw-memory-graphiti plugin", () => {
   let mockApi: any;
 
   beforeEach(async () => {
+    vi.stubEnv("OPENCLAW_GRAPHITI_SUPPRESS_EXTERNAL_STARTUP_PROBES", undefined);
     vi.restoreAllMocks();
     mockFetch.mockReset();
     registeredTools = [];
@@ -218,6 +219,11 @@ describe("openclaw-memory-graphiti plugin", () => {
     // Setup global fetch mock with default MCP protocol handling
     vi.spyOn(globalThis, "fetch").mockImplementation(mockFetch);
     setupGraphitiMock();
+  });
+
+  afterEach(() => {
+    for (const service of registeredServices) service.stop();
+    vi.unstubAllEnvs();
   });
 
   test("plugin exports correct metadata", async () => {
@@ -1090,6 +1096,86 @@ describe("openclaw-memory-graphiti plugin", () => {
     await service.start({});
 
     expect(logs.some((l) => l.includes("initialized"))).toBe(true);
+  });
+
+  test("host suppression skips all startup RPCs and reports not_checked, not healthy", async () => {
+    vi.stubEnv("OPENCLAW_GRAPHITI_SUPPRESS_EXTERNAL_STARTUP_PROBES", "true");
+    const { v1 } = await import("@authzed/authzed-node");
+    const client = (v1.NewClient as ReturnType<typeof vi.fn>)();
+    for (const rpc of Object.values(client.promises)) (rpc as ReturnType<typeof vi.fn>).mockClear();
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+    await registeredServices[0].start({});
+    expect(mockFetch).not.toHaveBeenCalled();
+    for (const rpc of Object.values(client.promises)) expect(rpc).not.toHaveBeenCalled();
+    const entry = logs.find((line) => line.includes("startup_status "));
+    expect(entry).toBeDefined();
+    expect(JSON.parse(entry!.split("startup_status ")[1])).toEqual({
+      initialized: true, externalReadiness: "not_checked", startupProbeSuppressed: true,
+    });
+    expect(logs.some((line) => line.includes("UNREACHABLE") || line.includes("OK"))).toBe(false);
+    expect(registeredTools).toHaveLength(4);
+  });
+
+  test.each([undefined, "false"])("host option %s retains startup checks and schema initialization", async (value) => {
+    vi.stubEnv("OPENCLAW_GRAPHITI_SUPPRESS_EXTERNAL_STARTUP_PROBES", value);
+    const { v1 } = await import("@authzed/authzed-node");
+    const client = (v1.NewClient as ReturnType<typeof vi.fn>)();
+    client.promises.readSchema.mockReset().mockResolvedValue({ schemaText: "" });
+    client.promises.writeSchema.mockClear();
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+    await registeredServices[0].start({});
+    expect(mockFetch).toHaveBeenCalledWith("http://localhost:8000/health");
+    expect(client.promises.readSchema).toHaveBeenCalledTimes(1);
+    expect(client.promises.writeSchema).toHaveBeenCalledTimes(1);
+    expect(logs.some((line) => line.includes("startupProbeSuppressed"))).toBe(false);
+  });
+
+  test("suppression is pinned at registration, not supplied by service/project input", async () => {
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+    vi.stubEnv("OPENCLAW_GRAPHITI_SUPPRESS_EXTERNAL_STARTUP_PROBES", "true");
+    await registeredServices[0].start({ suppressExternalStartupProbes: true });
+    expect(mockFetch).toHaveBeenCalled();
+    mockApi.pluginConfig.suppressExternalStartupProbes = true;
+    expect(() => plugin.register(mockApi)).toThrow(/unknown keys/);
+  });
+
+  test("malformed host suppression fails before registration or external calls", async () => {
+    vi.stubEnv("OPENCLAW_GRAPHITI_SUPPRESS_EXTERNAL_STARTUP_PROBES", "yes");
+    const { default: plugin } = await import("./index.js");
+    expect(() => plugin.register(mockApi)).toThrow(/startup_probe_policy_invalid/);
+    expect(registeredServices).toHaveLength(0);
+    expect(mockFetch).not.toHaveBeenCalled();
+  });
+
+  test("suppressed startup does not fabricate readiness for a later explicit failed health check", async () => {
+    vi.stubEnv("OPENCLAW_GRAPHITI_SUPPRESS_EXTERNAL_STARTUP_PROBES", "true");
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+    await registeredServices[0].start({});
+    expect(mockFetch).not.toHaveBeenCalled();
+    const { v1 } = await import("@authzed/authzed-node");
+    const client = (v1.NewClient as ReturnType<typeof vi.fn>)();
+    client.promises.readSchema.mockRejectedValueOnce(new Error("offline"));
+    mockFetch.mockRejectedValueOnce(new Error("offline"));
+    const result = await registeredTools.find((entry) => entry.opts.name === "memory_status").tool.execute("status-test", {});
+    expect(mockFetch).toHaveBeenCalledWith("http://localhost:8000/health");
+    expect(result.details.graphiti).toBe("unreachable");
+    expect(result.details.spicedb).toBe("unreachable");
+  });
+
+  test("failed default startup checks remain unreachable rather than healthy", async () => {
+    const { v1 } = await import("@authzed/authzed-node");
+    const client = (v1.NewClient as ReturnType<typeof vi.fn>)();
+    client.promises.readSchema.mockRejectedValueOnce(new Error("offline"));
+    mockFetch.mockRejectedValueOnce(new Error("offline"));
+    const { default: plugin } = await import("./index.js");
+    plugin.register(mockApi);
+    await registeredServices[0].start({});
+    expect(logs.some((line) => line.includes("graphiti: UNREACHABLE, spicedb: UNREACHABLE"))).toBe(true);
+    expect(logs.some((line) => line.includes("not_checked"))).toBe(false);
   });
 
   test("service start does not enumerate or prewarm every authorized group", async () => {

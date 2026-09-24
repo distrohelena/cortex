@@ -33,6 +33,26 @@ class FactSearchResponse(TypedDict):
     facts: list[dict[str, Any]]
 
 
+class EntityIdentityResult(TypedDict):
+    uuid: str
+    group_id: str
+    labels: list[str]
+    stable_id: str | None
+    display_name_current: str | None
+
+
+class EntityNeighborhoodResponse(FactSearchResponse):
+    entity: EntityIdentityResult
+
+
+class EntityNeighborhoodAbsenceResponse(TypedDict):
+    status: str
+    version: str
+    group_id: str
+    entity_uuid: str
+    facts: list[dict[str, Any]]
+
+
 class EpisodeSearchResponse(TypedDict):
     message: str
     episodes: list[dict[str, Any]]

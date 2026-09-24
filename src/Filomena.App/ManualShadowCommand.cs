@@ -15,7 +15,8 @@ namespace Filomena.App;
 
 public sealed record ManualShadowConfig(string ProjectFile, string ProjectId, long ProjectVersion, string ExpectedProjectSha256,
     SessionKey Session, string ConversationNamespace, string[] SelfActorIds, string PeerActorId, string PeerDisplayName,
-    OutboundBindings OutboundBindings, string JournalDirectory, string GraphitiEndpoint, ShadowGraphitiProbeRequest[] GraphitiProbes);
+    OutboundBindings OutboundBindings, string JournalDirectory, string GraphitiEndpoint, ShadowGraphitiProbeRequest[] GraphitiProbes,
+    SystemOneParticipationConfig? SystemOneParticipation = null);
 
 /// <summary>Explicit local homologation entrypoint; never builds the legacy application host.</summary>
 public static class ManualShadowCommand
@@ -41,15 +42,35 @@ public static class ManualShadowCommand
             config = JsonSerializer.Deserialize<ManualShadowConfig>(await File.ReadAllTextAsync(file, token), Json) ?? throw new JsonException();
             pin = PinnedShadowProject.FromBytes(await File.ReadAllBytesAsync(Path.GetFullPath(config.ProjectFile, root), token),
                 config.ProjectId, config.ProjectVersion, config.ExpectedProjectSha256);
-            binding = new(config.Session, config.ConversationNamespace, config.SelfActorIds, [config.PeerActorId]);
-            // Current pilot uses the existing native memory namespace derivation, not an arbitrary label.
-            if (config.Session.ChannelId != "whatsapp" || config.Session.NativeConversationId.EndsWith("@g.us", StringComparison.Ordinal)
+            var groupParticipantsAt = Array.IndexOf(args, "--group-participants");
+            if (config.Session.NativeConversationId.EndsWith("@g.us", StringComparison.Ordinal))
+            {
+                // This entry only proves memory readiness. Group execution still requires
+                // the native command's isolation, revision, epoch and cursor checks.
+                if (!args.Contains("--preflight-only", StringComparer.Ordinal)
+                    || groupParticipantsAt < 0 || groupParticipantsAt + 1 >= args.Length
+                    || args[groupParticipantsAt + 1].StartsWith("--", StringComparison.Ordinal))
+                    throw new InvalidDataException();
+                var participants = JsonSerializer.Deserialize<Dictionary<string, string>>(
+                    await File.ReadAllTextAsync(Path.GetFullPath(args[groupParticipantsAt + 1], root), token), Json)
+                    ?? throw new JsonException();
+                binding = NativeObservationHostBinding.Create(config, config.Session.NativeConversationId, participants, live: false);
+                NativeObservationHostBinding.ValidateGroupSendWiring(pin, config.OutboundBindings);
+            }
+            else
+            {
+                if (groupParticipantsAt >= 0) throw new InvalidDataException();
+                binding = new(config.Session, config.ConversationNamespace, config.SelfActorIds, [config.PeerActorId]);
+                // Current pilot uses the existing native memory namespace derivation, not an arbitrary label.
+                if (config.Session.ChannelId != "whatsapp"
                 || config.Session.NativeConversationId != FilomenaIdentity.NormalizeWhatsAppActorNativeId(config.Session.NativeConversationId)
                 || config.ConversationNamespace != FilomenaIdentity.WhatsAppConversationNamespace(config.Session.NativeConversationId)
                 || config.PeerActorId != "whatsapp:" + config.Session.NativeConversationId
                 || config.GraphitiProbes.Length == 0 || config.GraphitiProbes.Any(p => p.ConversationNamespace != config.ConversationNamespace || p.ParticipantStableId != config.PeerActorId))
-                throw new InvalidDataException();
+                    throw new InvalidDataException();
+            }
             ValidateRoles(pin, config.OutboundBindings);
+            SystemOneParticipationHost.Validate(config.SystemOneParticipation, pin);
             directory = Path.GetFullPath(config.JournalDirectory, root);
             if (!Directory.Exists(directory)) throw new DirectoryNotFoundException();
             var endpoint = new Uri(config.GraphitiEndpoint);
@@ -93,7 +114,10 @@ public static class ManualShadowCommand
             ["openai"] = new OpenAiFlowCompletion(http, () => key),
             ["lmstudio"] = new FlowModelCompletion(new LmStudioClient(http, local), local.Model)
         });
-        var completion = new RecordedCompletion(providers, role, calls);
+        var routed = SystemOneParticipationHost.Create(config.SystemOneParticipation, pin, providers, http,
+            Environment.GetEnvironmentVariable, (node, result) => calls.Enqueue(new { kind = "systemone", node, provider = "jev",
+                result.Model, result.InputTokens, result.OutputTokens, result.ProbabilityPolicy, milliseconds = result.Elapsed.TotalMilliseconds }));
+        var completion = new RecordedCompletion(routed, role, calls);
         await using var run = new ManualShadowRun(pin, binding, config.PeerActorId, config.PeerDisplayName,
             directory, config.OutboundBindings, completion, new GraphitiMemoryReader(graphiti));
         await Emit(new { phase = "run_started", runId = run.RunId, state = pin.Project.Document.GetProperty("initialStateId").GetString() });
@@ -142,7 +166,8 @@ public static class ManualShadowCommand
         foreach (var node in nodes.Where(n => n.GetProperty("kind").GetString() == "prompt"))
         {
             if (node.TryGetProperty("provider", out var provider) && provider.GetString() == "openai"
-                && (node.GetProperty("model").GetString() != "gpt-5.6-luna" || node.GetProperty("reasoningEffort").GetString() != "medium"))
+                && (node.GetProperty("model").GetString() is not ("gpt-5.6-luna" or "gpt-6-luna")
+                    || node.GetProperty("reasoningEffort").GetString() != "medium"))
                 throw new InvalidDataException("This pilot permits only Luna medium remotely.");
         }
     }

@@ -9,29 +9,49 @@ namespace Filomena.Core.Shadow;
 public sealed class ShadowSessionBinding
 {
     public SessionKey Session { get; }
+    public SessionEntryKind Kind { get; }
     public string ConversationNamespace { get; }
     public string OpaqueRef => Ref(JsonSerializer.Serialize(Session));
     private readonly HashSet<string> self;
     private readonly HashSet<string> peers;
+    public bool AllowsNativeGroupParticipants { get; private set; }
+
+    // Host admission policy, not project configuration. The authenticated native reader must
+    // verify provider origin before constructing an inbound. Checkpoint lineage remains stable.
+    public void EnableNativeGroupParticipants()
+    {
+        if (Kind != SessionEntryKind.Group || Session.ChannelId != "whatsapp")
+            throw new InvalidOperationException("Native group participants require an exact WhatsApp group.");
+        AllowsNativeGroupParticipants = true;
+    }
     // Host-owned identities of the account itself; used to name the host's own speech, never handed to a model.
     public IReadOnlyCollection<string> SelfActorIds => self.Order(StringComparer.Ordinal).ToArray();
-    internal string AuthorityRef => Ref(JsonSerializer.Serialize(new { Session, ConversationNamespace, self = self.Order(StringComparer.Ordinal), peers = peers.Order(StringComparer.Ordinal) }));
+    // Preserve the existing DM authority hash for live checkpoint compatibility.
+    internal string AuthorityRef => Kind == SessionEntryKind.Dm
+        ? Ref(JsonSerializer.Serialize(new { Session, ConversationNamespace, self = self.Order(StringComparer.Ordinal), peers = peers.Order(StringComparer.Ordinal) }))
+        : Ref(JsonSerializer.Serialize(new { Session, Kind, ConversationNamespace, self = self.Order(StringComparer.Ordinal), peers = peers.Order(StringComparer.Ordinal) }));
 
-    public ShadowSessionBinding(SessionKey session, string conversationNamespace, IEnumerable<string> selfActors, IEnumerable<string> peerActors)
+    public ShadowSessionBinding(SessionKey session, string conversationNamespace, IEnumerable<string> selfActors, IEnumerable<string> peerActors,
+        SessionEntryKind kind = SessionEntryKind.Dm)
     {
         if (new[] { session.RuntimeId, session.CharacterId, session.ChannelId, session.AccountId, session.NativeConversationId, conversationNamespace }.Any(string.IsNullOrWhiteSpace))
             throw new ArgumentException("Incomplete trusted session binding.");
-        Session = session; ConversationNamespace = conversationNamespace;
+        if (kind is not (SessionEntryKind.Dm or SessionEntryKind.Group)
+            || (kind == SessionEntryKind.Group && !session.NativeConversationId.EndsWith("@g.us", StringComparison.Ordinal)))
+            throw new ArgumentException("Invalid trusted session kind.");
+        Session = session; Kind = kind; ConversationNamespace = conversationNamespace;
         self = selfActors.ToHashSet(StringComparer.Ordinal); peers = peerActors.ToHashSet(StringComparer.Ordinal);
         if (self.Count == 0 || peers.Count == 0 || self.Concat(peers).Any(string.IsNullOrWhiteSpace) || self.Overlaps(peers))
             throw new ArgumentException("Disjoint trusted self and peer identities are required.");
     }
 
     public bool IsSelf(string actor) => self.Contains(actor);
-    public bool Accepts(CanonicalShadowInbound input) => input.Session == Session && input.Kind == SessionEntryKind.Dm
-        && input.ConversationNamespace == ConversationNamespace && (self.Contains(input.ActorId) || peers.Contains(input.ActorId))
+    public bool IsPeer(string actor) => peers.Contains(actor) || (AllowsNativeGroupParticipants && !IsSelf(actor)
+        && System.Text.RegularExpressions.Regex.IsMatch(actor, @"^whatsapp:\d+@s\.whatsapp\.net$"));
+    public bool Accepts(CanonicalShadowInbound input) => input.Session == Session && input.Kind == Kind
+        && input.ConversationNamespace == ConversationNamespace && (IsSelf(input.ActorId) || IsPeer(input.ActorId))
         && input.Message.ChannelId == Session.ChannelId && input.Message.AccountId == Session.AccountId
-        && input.Message.NativeConversationId == Session.NativeConversationId && input.Message.EntryKind == SessionEntryKind.Dm
+        && input.Message.NativeConversationId == Session.NativeConversationId && input.Message.EntryKind == Kind
         && input.Message.Direction == SessionMessageDirection.Inbound && !string.IsNullOrWhiteSpace(input.Message.ProviderMessageId);
 
     public static string Ref(string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
@@ -40,7 +60,7 @@ public sealed class ShadowSessionBinding
 // Future source must prove a contiguous, session-scoped stream and an atomic tail anchor.
 // Current MCP/HTTP bridge does NOT satisfy this contract; no adapter synthesizes these fields.
 public sealed record CanonicalShadowInbound(string StreamEpoch, long Sequence, SessionKey Session, SessionEntryKind Kind,
-    string ConversationNamespace, string ActorId, SessionMessageEnvelope Message, bool FromMe = false);
+    string ConversationNamespace, string ActorId, SessionMessageEnvelope Message, bool FromMe = false, bool SkipNonText = false);
 public sealed record ShadowInboundDecision(string Status, string Diagnostic, string? CanonicalRef = null);
 
 /// <summary>Private durable inbox, not a normal trace. Contains input for manual crash recovery. No retry worker.</summary>
@@ -126,7 +146,8 @@ public sealed class ShadowInboundJournal : IDisposable
                 return Quarantine(input, reference, "sequence_identity_conflict");
             }
             if (input.Sequence != cursor + 1) return Quarantine(input, reference, "stream_gap_or_out_of_order");
-            var state = states.ContainsKey(reference) ? "duplicate" : input.FromMe || binding.IsSelf(input.ActorId) ? "self" : "observed";
+            var state = states.ContainsKey(reference) ? "duplicate" : input.FromMe || binding.IsSelf(input.ActorId) ? "self"
+                : input.SkipNonText ? "ignored" : "observed";
             WriteInput(state, input, reference);
             return new(state, state == "observed" ? "durably_observed" : "no_execution", reference);
         }
@@ -198,7 +219,7 @@ public sealed class ShadowInboundJournal : IDisposable
         if (entry.Binding != header.Binding || entry.Revision != header.Revision || entry.Epoch != header.Epoch || entry.InputRef is null)
             throw new InvalidDataException("Invalid inbox binding.");
         if (entry.Type == "quarantined") { reconciliation = true; return; }
-        if (entry.Type is "observed" or "self" or "duplicate")
+        if (entry.Type is "observed" or "self" or "duplicate" or "ignored")
         {
             if (entry.Sequence != cursor + 1 || entry.Input is null || !binding.Accepts(entry.Input) || InputRef(entry.Input.Message.ProviderMessageId) != entry.InputRef)
                 throw new InvalidDataException("Invalid inbox order or identity.");

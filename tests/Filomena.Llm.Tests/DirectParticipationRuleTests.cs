@@ -20,9 +20,9 @@ public sealed class DirectParticipationRuleTests
     internal static JsonNode Project() => JsonNode.Parse(File.ReadAllText(Path.Combine(ParticipationGateV1Tests.Root, ProjectFile)))!;
 
     // Test-only participation cut; production routing is loaded from the artifact.
-    internal static JsonNode ParticipationProject(string initialState, bool baseline = false)
+    internal static JsonNode ParticipationProject(string initialState, bool baseline = false, JsonNode? sourceProject = null)
     {
-        var p = baseline ? JsonNode.Parse(File.ReadAllText(Path.Combine(ParticipationGateV1Tests.Root, "docs/manual-shadow-project-v2.json")))! : Project();
+        var p = sourceProject?.DeepClone() ?? (baseline ? JsonNode.Parse(File.ReadAllText(Path.Combine(ParticipationGateV1Tests.Root, "docs/manual-shadow-project-v2.json")))! : Project());
         p["project"]!["initialStateId"] = initialState;
         foreach (var s in p["project"]!["states"]!.AsArray())
         {

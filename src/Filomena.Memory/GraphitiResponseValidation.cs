@@ -13,7 +13,8 @@ internal static class GraphitiResponseValidation
         return error;
     }
 
-    internal static JsonElement Facts(JsonElement value, string ns, Action<string, bool, string>? report = null)
+    internal static JsonElement Facts(JsonElement value, string ns, Action<string, bool, string>? report = null,
+        Guid? expectedParticipant = null)
     {
         void Pass(string stage) => report?.Invoke(stage, true, "validated");
         void Reject(string stage, string code)
@@ -35,6 +36,17 @@ internal static class GraphitiResponseValidation
         var facts = root.GetProperty("facts");
         if (facts.EnumerateArray().Any(f => f.ValueKind != JsonValueKind.Object)) Reject("response_schema_valid", "response_schema_invalid");
         Pass("response_schema_valid");
+        if (root.TryGetProperty("status", out var status))
+        {
+            if (status.ValueKind != JsonValueKind.String || status.GetString() != "entity_not_found"
+                || !root.TryGetProperty("version", out var version) || version.ValueKind != JsonValueKind.String
+                || version.GetString() != "entity-neighborhood-absence:v1"
+                || expectedParticipant is null || facts.GetArrayLength() != 0
+                || !root.TryGetProperty("group_id", out var scope) || scope.ValueKind != JsonValueKind.String || scope.GetString() != ns
+                || !root.TryGetProperty("entity_uuid", out var subject) || subject.ValueKind != JsonValueKind.String
+                || !Guid.TryParse(subject.GetString(), out var subjectId) || subjectId != expectedParticipant)
+                Reject("result_identity_valid", "invalid_entity_absence_proof");
+        }
         Pass("backend_read_success");
         foreach (var fact in facts.EnumerateArray())
         {

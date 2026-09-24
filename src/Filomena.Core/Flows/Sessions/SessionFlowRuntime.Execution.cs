@@ -401,7 +401,12 @@ public sealed partial class SessionFlowRuntime
             }
         }
         var outbound = outboundHost?.Begin(batch.Project.Document, batch.ExecutionId, batch.Session, batch.EntryKind,
-            batch.Messages.Select(item => item.Envelope.ProviderMessageId));
+            batch.Messages.Select(item => item.Envelope.ProviderMessageId),
+            batch.History.Concat(batch.Messages).Where(item =>
+                item.Envelope.ChannelId == batch.Session.ChannelId && item.Envelope.AccountId == batch.Session.AccountId
+                && item.Envelope.NativeConversationId == batch.Session.NativeConversationId)
+                .Select(item => item.Envelope.ProviderMessageId));
+        var exposeReplyTargets = outbound?.SupportsReplySelection == true;
         TypedRunResult? result = null;
         string? executionError = null;
         try
@@ -410,9 +415,9 @@ public sealed partial class SessionFlowRuntime
                 ? ConversationNamespace(batch.Session) : "", timeProvider);
             result = await TypedFlowRunner.RunSessionAsync(
                 batch.Flow,
-                batch.Messages[0].Envelope.Message,
+                MessageWithReplyIdentity(batch.Messages[0].Envelope, exposeReplyTargets),
                 completionFactory(batch.Session),
-                RuntimeOutputs(batch),
+                RuntimeOutputs(batch, exposeReplyTargets),
                 timeProvider,
                 node => AddTrace(batch.Session, Trace(batch, "node-" + node.Status, node.NodeId, node.Exit,
                     duration: node.Duration.TotalMilliseconds, errorCode: node.Error, timestamp: node.Timestamp) with
@@ -461,7 +466,7 @@ public sealed partial class SessionFlowRuntime
                         texto = confirmed.Text,
                         remetente = new { nome = confirmed.Speaker.Name, stableId = confirmed.Speaker.StableId },
                         canal = new { nome = first.Message.GetProperty("canal").GetProperty("nome").GetString(), nativeId = first.NativeConversationId },
-                        reply = (object?)null,
+                        reply = confirmed.ReplyToMessageId is null ? null : new { id = confirmed.ReplyToMessageId },
                     }));
                 state.History.Add(new(++state.AdmissionWatermark, speech, batch.ExecutionId));
                 TrimRetainedHistory(state);
@@ -501,12 +506,21 @@ public sealed partial class SessionFlowRuntime
         if (confirmed is not null) outbound?.HistoryCommitted(transitionApplied);
     }
 
-    private IReadOnlyDictionary<string, IReadOnlyDictionary<string, TypedValue>> RuntimeOutputs(FlowBatch batch)
+    private static JsonElement MessageWithReplyIdentity(SessionMessageEnvelope envelope, bool expose)
+    {
+        if (!expose) return envelope.Message;
+        // Provider identity is taken from the host envelope, never a payload field.
+        var message = System.Text.Json.Nodes.JsonNode.Parse(envelope.Message.GetRawText())!.AsObject();
+        message["id"] = envelope.ProviderMessageId;
+        return JsonSerializer.SerializeToElement(message);
+    }
+
+    private IReadOnlyDictionary<string, IReadOnlyDictionary<string, TypedValue>> RuntimeOutputs(FlowBatch batch, bool exposeReplyTargets)
     {
         var outputs = new Dictionary<string, IReadOnlyDictionary<string, TypedValue>>(StringComparer.Ordinal);
         if (batch.AccumulatorNodeId is not null)
         {
-            var messages = JsonSerializer.SerializeToElement(batch.Messages.Select(item => item.Envelope.Message).ToArray());
+            var messages = JsonSerializer.SerializeToElement(batch.Messages.Select(item => MessageWithReplyIdentity(item.Envelope, exposeReplyTargets)).ToArray());
             outputs[batch.AccumulatorNodeId] = new Dictionary<string, TypedValue>
             {
                 ["messages"] = new(new ArrayType(FlowDomain.Message), messages),
@@ -514,7 +528,7 @@ public sealed partial class SessionFlowRuntime
         }
         foreach (var history in batch.Flow.Nodes.Values.Where(node => node.Source.Kind == "history"))
         {
-            var messages = SelectHistory(batch, history.Source.Config);
+            var messages = SelectHistory(batch, history.Source.Config, exposeReplyTargets);
             outputs[history.Source.Id] = new Dictionary<string, TypedValue>
             {
                 ["messages"] = new(new ArrayType(FlowDomain.Message), JsonSerializer.SerializeToElement(messages)),
@@ -523,7 +537,7 @@ public sealed partial class SessionFlowRuntime
         return outputs;
     }
 
-    private static JsonElement[] SelectHistory(FlowBatch batch, JsonElement config)
+    private static JsonElement[] SelectHistory(FlowBatch batch, JsonElement config, bool exposeReplyTargets)
     {
         var settings = config.GetProperty("settings");
         var maxMessages = settings.GetProperty("maxMessages").GetInt32();
@@ -550,7 +564,7 @@ public sealed partial class SessionFlowRuntime
             var textLength = eligible[index].Envelope.Message.GetProperty("texto").GetString()!.Length;
             if (characters + textLength > maxCharacters) break;
             characters += textLength;
-            selected.Add(eligible[index].Envelope.Message.Clone());
+            selected.Add(MessageWithReplyIdentity(eligible[index].Envelope, exposeReplyTargets).Clone());
         }
         selected.Reverse();
         return selected.ToArray();

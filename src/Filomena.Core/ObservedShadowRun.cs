@@ -17,7 +17,12 @@ public sealed class ObservedShadowRun : IAsyncDisposable
     private readonly string epoch;
     private readonly ShadowInboundJournal inbox;
     private readonly ShadowOutboundHost host;
-    private readonly ShadowRuntimeHandoff handoff;
+    private readonly RuntimeHandoffCore handoff;
+    private readonly LiveSessionContextStore? contextStore;
+    private readonly OutboundMode ceiling;
+    private readonly int liveInteractionLimit;
+    private readonly bool continuousGroup;
+    private int liveInteractions;
     private readonly SemaphoreSlim serial = new(1, 1);
     private long cursor;
     private readonly Dictionary<long, string> observedSequences = new();
@@ -26,6 +31,12 @@ public sealed class ObservedShadowRun : IAsyncDisposable
 
     public ObservedShadowRun(PinnedShadowProject project, ShadowSessionBinding binding, string journalDirectory,
         OutboundBindings roles, IFlowCompletion completion, IMemoryReader memory, string nativeEpoch, long initialTail)
+        : this(project, binding, journalDirectory, roles, completion, memory, nativeEpoch, initialTail, null) { }
+
+    // Live construction is internal and reachable only through the separate, bounded host wrapper.
+    internal ObservedShadowRun(PinnedShadowProject project, ShadowSessionBinding binding, string journalDirectory,
+        OutboundBindings roles, IFlowCompletion completion, IMemoryReader memory, string nativeEpoch, long initialTail,
+        ObservedLiveWindow? live)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(binding);
@@ -39,16 +50,43 @@ public sealed class ObservedShadowRun : IAsyncDisposable
         epoch = nativeEpoch;
         this.initialTail = cursor = initialTail;
 
-        host = new(Path.Combine(journalDirectory, "observation-shadow-outbound.jsonl"), project.Project.Document,
-            roles, [binding.Session], TransportSafetyCapabilities.Unproven);
+        ceiling = live is null ? OutboundMode.Shadow : OutboundMode.Enabled;
+        liveInteractionLimit = live?.MaxInteractions ?? 0;
+        continuousGroup = live?.ContinuousGroup == true;
+        var prefix = live is null ? "observation-shadow" : "observation-live";
+        host = new(Path.Combine(journalDirectory, prefix + "-outbound.jsonl"), project.Project.Document,
+            roles, [binding.Session], live?.Capabilities ?? TransportSafetyCapabilities.Unproven);
         try
         {
-            host.Rearm(OutboundMode.Shadow);
+            // The outbound owner holds the exclusive journal lease while fingerprints
+            // and context are checked, before a new inbox boundary is appended.
+            contextStore = live is null ? null : new(journalDirectory, binding, project);
+            var context = contextStore?.Load();
+            if (live is not null)
+            {
+                if (live.Route.Session != binding.Session || live.Route.Speaker.StableId != binding.SelfActorIds.Single())
+                    throw new InvalidOperationException("Live route binding mismatch.");
+                host.BindLiveRoute(live.Route, live.Transport);
+            }
+            host.Rearm(ceiling);
             inbox = ShadowInboundJournal.StartNonResumableRun(
-                Path.Combine(journalDirectory, "observation-shadow-inbound.jsonl"), binding,
+                Path.Combine(journalDirectory, prefix + "-inbound.jsonl"), binding,
                 project.Project.ProjectRevision, epoch, initialTail);
-            try { handoff = new(project, binding, inbox, host, completion, memory); }
-            catch { inbox.Dispose(); throw; }
+            RuntimeHandoffCore? created = null;
+            try
+            {
+                handoff = created = live is null
+                    ? new ShadowRuntimeHandoff(project, binding, inbox, host, completion, memory)
+                    : new LiveRuntimeHandoff(project, binding, inbox, host, completion, memory);
+                if (context is not null) handoff.RestoreContext(context);
+                contextStore?.Save(handoff.CaptureContext());
+            }
+            catch
+            {
+                try { created?.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
+                finally { inbox.Dispose(); }
+                throw;
+            }
         }
         catch { host.Dispose(); throw; }
     }
@@ -70,6 +108,13 @@ public sealed class ObservedShadowRun : IAsyncDisposable
             var watch = Stopwatch.StartNew();
             if (inputs.Count == 0) return Interaction(watch, [], [], []);
 
+            if (ceiling == OutboundMode.Enabled && binding.Kind == SessionEntryKind.Dm && inputs.Where(i => i.Sequence > initialTail && !i.FromMe && !i.SkipNonText && !binding.IsSelf(i.ActorId))
+                .Select(i => i.Message.ProviderMessageId).Distinct(StringComparer.Ordinal).Take(2).Count() > 1)
+            {
+                Stop();
+                return Interaction(watch, inputs.Select(_ => new ShadowInboundDecision("rejected", "single_inbound_window_exceeded")).ToArray(), [], []);
+            }
+
             if (FindBatchFailure(inputs) is { } failure)
             {
                 var decisions = Enumerable.Repeat<ShadowInboundDecision>(
@@ -84,6 +129,14 @@ public sealed class ObservedShadowRun : IAsyncDisposable
             }
 
             var outcomesBefore = Outcomes.Count;
+            if (ceiling == OutboundMode.Enabled && !continuousGroup && binding.Kind == SessionEntryKind.Group
+                && inputs.Where(i => i.Sequence > cursor && !i.FromMe && !i.SkipNonText && !binding.IsSelf(i.ActorId))
+                    .Select(i => i.Message.ProviderMessageId).Distinct(StringComparer.Ordinal).Count()
+                    > liveInteractionLimit - liveInteractions)
+            {
+                Stop();
+                return Interaction(watch, inputs.Select(_ => new ShadowInboundDecision("rejected", "live_interaction_budget_exceeded")).ToArray(), [], []);
+            }
             var traceBefore = Trace.Count;
             var decisionsForBatch = new List<ShadowInboundDecision>(inputs.Count);
             var admitted = false;
@@ -94,7 +147,11 @@ public sealed class ObservedShadowRun : IAsyncDisposable
                     var decision = await handoff.AcceptAsync(input, cancellationToken);
                     decisionsForBatch.Add(decision);
                     AdvanceCursor(input, decision);
-                    if (decision.Status == "admitted") admitted = true;
+                    if (decision.Status == "admitted")
+                    {
+                        admitted = true;
+                        if (ceiling == OutboundMode.Enabled) liveInteractions++;
+                    }
                     if (decision.Status is "reconciliation_required" or "preserved" or "rejected")
                     {
                         Stop();
@@ -120,8 +177,15 @@ public sealed class ObservedShadowRun : IAsyncDisposable
 
             var outcomes = Outcomes.Skip(outcomesBefore).ToArray();
             var trace = Trace.Skip(traceBefore).ToArray();
-            if (outcomes.Any(outcome => !outcome.Success) || HasBadOutbound(trace) || OutboundMode != OutboundMode.Shadow)
+            if (outcomes.Any(outcome => !outcome.Success) || HasBadOutbound(trace) || OutboundMode != ceiling
+                || (ceiling == OutboundMode.Enabled && host.RequiresReconciliation(binding.Session)))
                 Stop();
+            else
+            {
+                try { contextStore?.Save(handoff.CaptureContext()); }
+                catch { Stop(); throw; }
+                if (ceiling == OutboundMode.Enabled && !continuousGroup && liveInteractions >= liveInteractionLimit) Stop();
+            }
             return Interaction(watch, decisionsForBatch, outcomes, trace);
         }
         finally { serial.Release(); }
@@ -142,20 +206,19 @@ public sealed class ObservedShadowRun : IAsyncDisposable
 
     private void EnsureRunning()
     {
-        if (Volatile.Read(ref stopped) != 0 || Volatile.Read(ref disposed) != 0 || OutboundMode != OutboundMode.Shadow)
-            throw new InvalidOperationException("Observed shadow run stopped.");
+        if (Volatile.Read(ref stopped) != 0 || Volatile.Read(ref disposed) != 0 || OutboundMode != ceiling)
+            throw new InvalidOperationException("Observed run stopped.");
     }
 
     private void Stop()
     {
         Interlocked.Exchange(ref stopped, 1);
-        if (host.EffectiveMode == OutboundMode.Shadow)
-            host.Rearm(OutboundMode.Disabled);
+        host.Rearm(OutboundMode.Disabled);
     }
 
     private void AdvanceCursor(CanonicalShadowInbound input, ShadowInboundDecision decision)
     {
-        if (decision.Status is "self" or "observed" or "admitted" or "duplicate")
+        if (decision.Status is "self" or "observed" or "admitted" or "duplicate" or "ignored")
         {
             cursor = Math.Max(cursor, input.Sequence);
             observedSequences[input.Sequence] = input.Message.ProviderMessageId;
@@ -187,9 +250,9 @@ public sealed class ObservedShadowRun : IAsyncDisposable
         return null;
     }
 
-    private static bool HasBadOutbound(IEnumerable<SessionTraceEvent> trace) => trace.Any(item =>
+    private bool HasBadOutbound(IEnumerable<SessionTraceEvent> trace) => trace.Any(item =>
         item.EventName == "node-outbound" &&
-        (!item.MemoryMetadata?.TryGetValue("result", out var result) ?? true || result != "shadowed"));
+        (!item.MemoryMetadata?.TryGetValue("result", out var result) ?? true || result != (ceiling == OutboundMode.Shadow ? "shadowed" : "sent")));
 
     private ObservedShadowInteraction Interaction(Stopwatch watch, IReadOnlyList<ShadowInboundDecision> decisions,
         IReadOnlyList<SessionFlowOutcome> outcomes, IReadOnlyList<SessionTraceEvent> trace) =>
