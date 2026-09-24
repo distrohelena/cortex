@@ -33,6 +33,7 @@ public sealed class ShadowGraphitiProbeTests
 
     private const string Ns = "whatsapp-dm-5511000000000-s-whatsapp-net";
     private static readonly MemoryPerson Person = MemoryIdentity.Person(Ns, "whatsapp:5511000000000@s.whatsapp.net", null);
+    private static readonly MemoryPerson OtherPerson = MemoryIdentity.Person(Ns, "whatsapp:5511999999999@s.whatsapp.net", null);
     private static ShadowGraphitiProbeRequest Request => new(Ns, Person.ActorStableId, "local-canary", "foreign-ns", "foreign-canary");
     private static ShadowGraphitiNewDmProbeRequest NewDmRequest => new(Ns, Person.ActorStableId, "foreign-ns", "foreign-canary");
 
@@ -79,6 +80,30 @@ public sealed class ShadowGraphitiProbeTests
                 && c.Diagnostic == "confirmed_cross_namespace_leakage");
         if (mode is "newdm_error" or "newdm_timeout" or "newdm_recall_error" or "newdm_recall_timeout")
             Assert.DoesNotContain(checks, c => c.Passed && c.Diagnostic == "success_empty");
+    }
+
+    [Theory]
+    [InlineData("newdm_recall_missing_endpoint")]
+    [InlineData("newdm_recall_missing_person_identity")]
+    public async Task New_DM_rejects_positive_recall_facts_without_endpoint_or_subject_provenance(string mode)
+    {
+        var checks = await new ShadowGraphitiProbe(new Client(mode))
+            .RunNewDmAsync(NewDmRequest, TestContext.Current.CancellationToken);
+
+        Assert.Contains(checks, c => c.Id == "graphiti_new_dm_ready" && !c.Passed && c.Phase == "not_ready");
+        Assert.DoesNotContain(checks, c => c.Id == "graphiti_boundary_recall" && c.Passed && c.Diagnostic == "success_empty");
+        Assert.Contains(checks, c => c.Diagnostic == "recall_provenance_missing");
+    }
+
+    [Fact]
+    public async Task New_DM_filters_a_structurally_valid_other_person_fact_as_empty_scoped_recall()
+    {
+        var checks = await new ShadowGraphitiProbe(new Client("newdm_recall_other_person"))
+            .RunNewDmAsync(NewDmRequest, TestContext.Current.CancellationToken);
+
+        Assert.Contains(checks, c => c.Id == "graphiti_new_dm_ready" && c.Passed);
+        Assert.Contains(checks, c => c.Id == "graphiti_boundary_recall" && c.Passed && c.Diagnostic == "success_empty");
+        Assert.Contains(checks, c => c.Id == "graphiti_social_recall" && c.Passed && c.Diagnostic == "success_empty");
     }
 
     [Theory]
@@ -170,6 +195,21 @@ public sealed class ShadowGraphitiProbeTests
                     if (ns != "foreign-ns" && mode == "newdm_leak")
                         return Task.FromResult(JsonSerializer.SerializeToElement(new { facts = new[] { Fact(ns, "foreign-canary") } }));
                 }
+                if (query.Contains("limites", StringComparison.Ordinal) || query.Contains("social", StringComparison.Ordinal))
+                {
+                    if (mode == "newdm_recall_missing_endpoint")
+                    {
+                        var fact = JsonSerializer.SerializeToElement(Fact(ns, "unproven recall"));
+                        var malformed = new Dictionary<string, JsonElement>();
+                        foreach (var property in fact.EnumerateObject())
+                            if (property.Name != "source_node") malformed[property.Name] = property.Value;
+                        return Task.FromResult(JsonSerializer.SerializeToElement(new { facts = new[] { malformed } }));
+                    }
+                    if (mode == "newdm_recall_missing_person_identity")
+                        return Task.FromResult(JsonSerializer.SerializeToElement(new { facts = new[] { Fact(ns, "unproven recall", Person, includeStableId: false) } }));
+                    if (mode == "newdm_recall_other_person")
+                        return Task.FromResult(JsonSerializer.SerializeToElement(new { facts = new[] { Fact(ns, "other person's recall", OtherPerson) } }));
+                }
                 return Task.FromResult(JsonSerializer.SerializeToElement(new { facts = Array.Empty<object>() }));
             }
             // Sanitized actual live failure: valid MCP success envelope containing backend ErrorResponse.
@@ -184,16 +224,26 @@ public sealed class ShadowGraphitiProbeTests
             }
             return Task.FromResult(JsonSerializer.SerializeToElement(new { facts = Array.Empty<object>() }));
         }
-        private static object Fact(string ns, string content) => new
+        private static object Fact(string ns, string content, MemoryPerson? source = null, bool includeStableId = true)
         {
-            uuid = "fact",
-            group_id = ns,
-            fact = content,
-            name = "LIKES",
-            source_node_uuid = Person.ParticipantUuid,
-            target_node_uuid = "entity",
-            source_node = new { uuid = Person.ParticipantUuid, stable_id = Person.ActorStableId, labels = new[] { "Person" } },
-            target_node = new { uuid = "entity", labels = new[] { "Entity" } }
-        };
+            source ??= Person;
+            var sourceNode = new Dictionary<string, object>
+            {
+                ["uuid"] = source.ParticipantUuid,
+                ["labels"] = new[] { "Person" }
+            };
+            if (includeStableId) sourceNode["stable_id"] = source.ActorStableId;
+            return new
+            {
+                uuid = "fact",
+                group_id = ns,
+                fact = content,
+                name = "LIKES",
+                source_node_uuid = source.ParticipantUuid,
+                target_node_uuid = "entity",
+                source_node = sourceNode,
+                target_node = new { uuid = "entity", labels = new[] { "Entity" } }
+            };
+        }
     }
 }

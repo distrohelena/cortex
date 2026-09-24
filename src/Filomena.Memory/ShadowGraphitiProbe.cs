@@ -130,8 +130,9 @@ public sealed class ShadowGraphitiProbe(IGraphitiReadClient client)
 
             // Use the regular memory reader/compiler path. Empty results mean these scoped
             // recalls succeeded with no selected memories; they do not prove namespace emptiness.
-            var reader = new GraphitiMemoryReader(validating);
-            var query = new MemoryQuery(request.ConversationNamespace, FilomenaIdentity.AgentUuid(request.ConversationNamespace),
+            var agentUuid = FilomenaIdentity.AgentUuid(request.ConversationNamespace);
+            var reader = new GraphitiMemoryReader(new NewDmRecallClient(validating, request.ConversationNamespace, agentUuid));
+            var query = new MemoryQuery(request.ConversationNamespace, agentUuid,
                 MemoryMode.Hybrid, MemoryScope.Person, [person], "limites pedidos de interação", [MemoryCategory.Boundary], 8, 1800);
             var boundaries = await reader.QueryAsync(query, cancellationToken);
             Set("graphiti_boundary_recall", true, boundaries.Count == 0 ? "success_empty" : "success_with_memory");
@@ -201,5 +202,61 @@ public sealed class ShadowGraphitiProbe(IGraphitiReadClient client)
         public async Task<JsonElement> SearchFactsAsync(string ns, string query, int limit, CancellationToken token) =>
             GraphitiResponseValidation.Facts(await inner.SearchFactsAsync(ns, query, limit, token), ns,
                 (stage, pass, code) => report("semantic_" + stage, pass, code));
+    }
+
+    // New-DM recalls must not let the regular reader's scope filter turn malformed
+    // endpoint evidence into an apparently successful empty result. Established
+    // recall semantics intentionally remain unchanged.
+    private sealed class NewDmRecallClient(IGraphitiReadClient inner, string conversationNamespace,
+        Guid agentUuid) : IGraphitiReadClient
+    {
+        public async Task<JsonElement> GetEntityNeighborhoodAsync(string ns, Guid person, int limit, CancellationToken token) =>
+            Validate(await inner.GetEntityNeighborhoodAsync(ns, person, limit, token));
+
+        public async Task<JsonElement> SearchFactsAsync(string ns, string query, int limit, CancellationToken token) =>
+            Validate(await inner.SearchFactsAsync(ns, query, limit, token));
+
+        private JsonElement Validate(JsonElement response)
+        {
+            var root = Unwrap(response);
+            if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("facts", out var facts)
+                || facts.ValueKind != JsonValueKind.Array)
+                throw GraphitiResponseValidation.Failure("recall_provenance", "recall_provenance_missing");
+
+            foreach (var fact in facts.EnumerateArray())
+                if (!Endpoint(fact, "source_node", "source_node_uuid")
+                    || !Endpoint(fact, "target_node", "target_node_uuid"))
+                    throw GraphitiResponseValidation.Failure("recall_provenance", "recall_provenance_missing");
+            return root;
+        }
+
+        private bool Endpoint(JsonElement fact, string nodeKey, string uuidKey)
+        {
+            if (!fact.TryGetProperty(nodeKey, out var node) || node.ValueKind != JsonValueKind.Object
+                || !fact.TryGetProperty(uuidKey, out var endpointUuid) || endpointUuid.ValueKind != JsonValueKind.String
+                || string.IsNullOrWhiteSpace(endpointUuid.GetString())
+                || !node.TryGetProperty("uuid", out var nodeUuid) || nodeUuid.ValueKind != JsonValueKind.String
+                || nodeUuid.GetString() != endpointUuid.GetString()
+                || !node.TryGetProperty("labels", out var labels) || labels.ValueKind != JsonValueKind.Array
+                || !labels.EnumerateArray().Any(label => label.ValueKind == JsonValueKind.String)) return false;
+
+            var labelValues = labels.EnumerateArray().Where(label => label.ValueKind == JsonValueKind.String)
+                .Select(label => label.GetString()).ToArray();
+            var stableId = node.TryGetProperty("stable_id", out var stable)
+                && stable.ValueKind == JsonValueKind.String ? stable.GetString() : null;
+            if (labelValues.Contains("Agent") || stableId == "agent:filomena")
+                return stableId == "agent:filomena" && Guid.TryParse(nodeUuid.GetString(), out var parsedAgent)
+                    && parsedAgent == agentUuid;
+            if (stableId is null) return !labelValues.Contains("Person");
+            if (string.IsNullOrWhiteSpace(stableId) || !Guid.TryParse(nodeUuid.GetString(), out var parsedPerson)) return false;
+            try
+            {
+                return MemoryIdentity.Person(conversationNamespace, stableId, null).ParticipantUuid == parsedPerson;
+            }
+            catch (InvalidDataException)
+            {
+                return false;
+            }
+        }
     }
 }
