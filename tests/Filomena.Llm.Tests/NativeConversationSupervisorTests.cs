@@ -36,6 +36,34 @@ public sealed class NativeConversationSupervisorTests : IDisposable
         SaveAndResolve(secondDmDirectory, secondDm, "inbound-observation:v1", "second-dm-epoch", 7);
     }
 
+    [Fact]
+    public void Existing_group_directory_is_preserved_while_DM_uses_opaque_scope_directory()
+    {
+        var group = Binding("120363318973251043@g.us", SessionEntryKind.Group);
+        var dm = Binding("15550001@s.whatsapp.net", SessionEntryKind.Dm);
+        var existingGroupDirectory = Directory.CreateDirectory(Path.Combine(root, "existing-group-state")).FullName;
+        var historyCheckpoint = Path.Combine(existingGroupDirectory, "history-checkpoint.json");
+        File.WriteAllText(historyCheckpoint, "existing-group-history");
+
+        var selectedGroupDirectory = NativeConversationSupervisor.ResolveSessionDirectory(root, group, existingGroupDirectory);
+        var dmDirectory = NativeConversationSupervisor.ResolveSessionDirectory(root, dm);
+
+        Assert.Equal(existingGroupDirectory, selectedGroupDirectory);
+        Assert.Equal("existing-group-history", File.ReadAllText(historyCheckpoint));
+        Assert.Equal(Path.Combine(Path.GetFullPath(root), dm.OpaqueRef), dmDirectory);
+        Assert.NotEqual(selectedGroupDirectory, dmDirectory);
+    }
+
+    [Fact]
+    public void Group_directory_must_be_explicit_and_already_exist()
+    {
+        var group = Binding("120363318973251043@g.us", SessionEntryKind.Group);
+
+        Assert.Throws<InvalidOperationException>(() => NativeConversationSupervisor.ResolveSessionDirectory(root, group));
+        Assert.Throws<DirectoryNotFoundException>(() => NativeConversationSupervisor.ResolveSessionDirectory(
+            root, group, Path.Combine(root, "not-migrated")));
+    }
+
     private static ShadowSessionBinding Binding(string nativeId, SessionEntryKind kind)
     {
         var session = new SessionKey("runtime", "filomena", "whatsapp", "account-a", nativeId);

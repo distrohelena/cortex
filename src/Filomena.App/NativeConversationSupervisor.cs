@@ -6,6 +6,30 @@ namespace Filomena.App;
 public sealed class NativeConversationSupervisor
 {
     /// <summary>
+    /// Keeps the host's existing group checkpoint in place; dynamic DM scopes use
+    /// isolated opaque directories under the host-selected state root.
+    /// </summary>
+    public static string ResolveSessionDirectory(
+        string stateRoot,
+        ShadowSessionBinding binding,
+        string? existingGroupStateDirectory = null)
+    {
+        ArgumentNullException.ThrowIfNull(binding);
+
+        if (binding.Kind == Filomena.Core.Flows.Sessions.SessionEntryKind.Group)
+        {
+            if (string.IsNullOrWhiteSpace(existingGroupStateDirectory))
+                throw new InvalidOperationException("existing_group_state_directory_required");
+            var groupDirectory = Path.GetFullPath(existingGroupStateDirectory);
+            if (!Directory.Exists(groupDirectory))
+                throw new DirectoryNotFoundException("existing_group_state_directory_not_found");
+            return groupDirectory;
+        }
+
+        return PrepareSessionDirectory(stateRoot, binding);
+    }
+
+    /// <summary>
     /// Creates a stable, opaque per-binding directory below the host-selected state root.
     /// The root itself must be private to the running host account.
     /// </summary>

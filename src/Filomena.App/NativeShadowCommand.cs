@@ -81,7 +81,10 @@ public static class NativeShadowCommand
             var graphEndpoint = new Uri(config.GraphitiEndpoint);
             if (!graphEndpoint.IsLoopback || graphEndpoint.Scheme is not ("http" or "https")) throw new InvalidDataException();
             credential = Environment.GetEnvironmentVariable(native.ObservationTokenEnvironmentVariable) ?? throw new InvalidDataException();
-            directory = Path.GetFullPath(native.JournalDirectory, Path.GetDirectoryName(file)!);
+            var configuredJournalDirectory = Path.GetFullPath(native.JournalDirectory, Path.GetDirectoryName(file)!);
+            directory = binding.Kind == Filomena.Core.Flows.Sessions.SessionEntryKind.Group
+                ? NativeConversationSupervisor.ResolveSessionDirectory(configuredJournalDirectory, binding, configuredJournalDirectory)
+                : configuredJournalDirectory;
             if (!Directory.Exists(directory)) throw new DirectoryNotFoundException();
         }
         catch (Exception e) when (e is not OperationCanceledException and not OutOfMemoryException)
