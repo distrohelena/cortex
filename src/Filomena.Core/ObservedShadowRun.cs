@@ -21,7 +21,7 @@ public sealed class ObservedShadowRun : IAsyncDisposable
     private readonly LiveSessionContextStore? contextStore;
     private readonly OutboundMode ceiling;
     private readonly int liveInteractionLimit;
-    private readonly bool continuousGroup;
+    private readonly bool continuous;
     private int liveInteractions;
     private readonly SemaphoreSlim serial = new(1, 1);
     private long cursor;
@@ -52,7 +52,7 @@ public sealed class ObservedShadowRun : IAsyncDisposable
 
         ceiling = live is null ? OutboundMode.Shadow : OutboundMode.Enabled;
         liveInteractionLimit = live?.MaxInteractions ?? 0;
-        continuousGroup = live?.ContinuousGroup == true;
+        continuous = live?.Continuous == true;
         var prefix = live is null ? "observation-shadow" : "observation-live";
         host = new(Path.Combine(journalDirectory, prefix + "-outbound.jsonl"), project.Project.Document,
             roles, [binding.Session], live?.Capabilities ?? TransportSafetyCapabilities.Unproven);
@@ -129,7 +129,7 @@ public sealed class ObservedShadowRun : IAsyncDisposable
             }
 
             var outcomesBefore = Outcomes.Count;
-            if (ceiling == OutboundMode.Enabled && !continuousGroup && binding.Kind == SessionEntryKind.Group
+            if (ceiling == OutboundMode.Enabled && !continuous && binding.Kind == SessionEntryKind.Group
                 && inputs.Where(i => i.Sequence > cursor && !i.FromMe && !i.SkipNonText && !binding.IsSelf(i.ActorId))
                     .Select(i => i.Message.ProviderMessageId).Distinct(StringComparer.Ordinal).Count()
                     > liveInteractionLimit - liveInteractions)
@@ -184,7 +184,7 @@ public sealed class ObservedShadowRun : IAsyncDisposable
             {
                 try { contextStore?.Save(handoff.CaptureContext()); }
                 catch { Stop(); throw; }
-                if (ceiling == OutboundMode.Enabled && !continuousGroup && liveInteractions >= liveInteractionLimit) Stop();
+                if (ceiling == OutboundMode.Enabled && !continuous && liveInteractions >= liveInteractionLimit) Stop();
             }
             return Interaction(watch, decisionsForBatch, outcomes, trace);
         }

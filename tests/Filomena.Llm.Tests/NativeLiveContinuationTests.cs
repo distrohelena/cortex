@@ -23,4 +23,20 @@ public sealed class NativeLiveContinuationTests
         if (valid) Assert.Equal(after, NativeLiveCommand.ValidateContinuation(after, current));
         else Assert.Throws<InvalidDataException>(() => NativeLiveCommand.ValidateContinuation(after, current));
     }
+
+    [Fact]
+    public void DM_v1_continuation_requires_exact_session_epoch_and_non_regressing_sequence()
+    {
+        var current = new NativeObservationCursor("inbound-observation:v1", "epoch", "dm-session", 7);
+        Assert.Equal(current with { Sequence = 3 }, NativeLiveCommand.ValidateContinuation(
+            current with { Sequence = 3 }, current));
+        Assert.Throws<InvalidDataException>(() => NativeLiveCommand.ValidateContinuation(
+            current with { SessionRef = "other" }, current));
+        Assert.Throws<InvalidDataException>(() => NativeLiveCommand.ValidateContinuation(
+            current with { Epoch = "other" }, current));
+        Assert.Throws<InvalidDataException>(() => NativeLiveCommand.ValidateContinuation(
+            current with { Sequence = 8 }, current));
+        Assert.Throws<InvalidDataException>(() => NativeLiveCommand.ValidateContinuation(
+            current with { Version = "inbound-observation:v2" }, current));
+    }
 }

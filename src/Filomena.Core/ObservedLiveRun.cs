@@ -7,7 +7,7 @@ using Filomena.Core.Outbound;
 namespace Filomena.Core.Shadow;
 
 internal sealed record ObservedLiveWindow(LiveRouteBinding Route, IBoundOutboundTransport Transport,
-    TransportSafetyCapabilities Capabilities, int MaxInteractions, bool ContinuousGroup);
+    TransportSafetyCapabilities Capabilities, int MaxInteractions, bool Continuous);
 
 /// <summary>Explicit host-only, bounded live window. No automatic listener, restart or rearm.</summary>
 public sealed class ObservedLiveRun : IAsyncDisposable
@@ -17,7 +17,8 @@ public sealed class ObservedLiveRun : IAsyncDisposable
     public ObservedLiveRun(PinnedShadowProject project, ShadowSessionBinding binding, string journalDirectory,
         OutboundBindings roles, IFlowCompletion completion, IMemoryReader memory, string nativeEpoch, long initialTail,
         LiveRouteBinding route, IBoundOutboundTransport transport, TransportSafetyCapabilities capabilities,
-        Func<CancellationToken, Task> beforeSend, int maxInteractions = 1, bool continuousGroup = false)
+        Func<CancellationToken, Task> beforeSend, int maxInteractions = 1, bool continuousGroup = false,
+        bool continuousDm = false)
     {
         ArgumentNullException.ThrowIfNull(transport);
         ArgumentNullException.ThrowIfNull(beforeSend);
@@ -25,10 +26,14 @@ public sealed class ObservedLiveRun : IAsyncDisposable
         if (maxInteractions is < 1 or > 5) throw new ArgumentOutOfRangeException(nameof(maxInteractions));
         if (continuousGroup && (binding.Kind != SessionEntryKind.Group || !route.AllowExactGroupDelivery))
             throw new InvalidOperationException("Continuous delivery requires exact group authority.");
+        if (continuousDm && (binding.Kind != SessionEntryKind.Dm || route.AllowExactGroupDelivery))
+            throw new InvalidOperationException("Continuous DM requires exact DM authority.");
+        if (continuousGroup && continuousDm)
+            throw new InvalidOperationException("Continuous group and DM authorities are mutually exclusive.");
         if (!capabilities.Complete) throw new InvalidOperationException("Unproven live transport capabilities.");
         run = new(project, binding, journalDirectory, roles, completion, memory, nativeEpoch, initialTail,
-            new(route, new BoundedAttemptTransport(transport, beforeSend, continuousGroup ? null : maxInteractions),
-                capabilities, maxInteractions, continuousGroup));
+            new(route, new BoundedAttemptTransport(transport, beforeSend, continuousGroup || continuousDm ? null : maxInteractions),
+                capabilities, maxInteractions, continuousGroup || continuousDm));
     }
 
     public string RunId => run.RunId;

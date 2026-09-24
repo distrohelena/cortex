@@ -68,6 +68,9 @@ public static class NativeShadowCommand
                 NativeObservationHostBinding.ValidateGroupSendWiring(pin, config.OutboundBindings);
             if (live?.ContinuousGroup == true && (binding.Kind != Filomena.Core.Flows.Sessions.SessionEntryKind.Group
                 || native.Recovery is not null)) throw new InvalidDataException("invalid_continuous_group_scope");
+            if (live?.ContinuousDm == true && (binding.Kind != Filomena.Core.Flows.Sessions.SessionEntryKind.Dm
+                || live.AllowExactGroupDelivery || live.AllowNativeGroupParticipants || live.AllowNativeGroupReplies
+                || native.Recovery is not null)) throw new InvalidDataException("invalid_continuous_dm_scope");
             if (live is not null && (live.Evidence is not { } proof || proof.ApprovedRevision != native.ApprovedRevision
                 || proof.ObservationSessionRef != native.ObservationSessionRef
                 || proof.RouteBindingRef != NativeObservationReader.RouteBindingRef(config.Session with { NativeConversationId = native.NativeConversationId })))
@@ -140,7 +143,7 @@ public static class NativeShadowCommand
             windowCursor = cursor;
             // Anchor only. Snapshot records are never offered to AcceptAsync or a model.
             await Emit(new { phase = "snapshot_anchor", cursor, snapshotRecords = opened.Records.Count, executions = 0 });
-            var readPosition = live?.ContinuousGroup == true
+            var readPosition = live?.ContinuousGroup == true || live?.ContinuousDm == true
                 ? new NativeLiveReadCursorStore(directory, binding.OpaqueRef, pin.Project.ProjectRevision) : null;
             if (readPosition is not null)
             {
@@ -199,20 +202,21 @@ public static class NativeShadowCommand
                     cancellation.ThrowIfCancellationRequested();
                     await CheckTransport();
                     Interlocked.Increment(ref sendBoundaryAttempts);
-                }, live.MaxInteractions, live.ContinuousGroup);
+                }, live.MaxInteractions, live.ContinuousGroup, live.ContinuousDm);
             var runId = shadowRun?.RunId ?? liveRun!.RunId;
             readPosition?.Save(cursor);
             var historyBeforeRecovery = liveRun?.History.ToArray();
             await Emit(new { phase = "run_started", runId,
                 source = binding.Kind == Filomena.Core.Flows.Sessions.SessionEntryKind.Group ? "native_observation_v2" : "native_observation_v1", cursor, evidence,
                 restoredHistoryCount = liveRun?.History.Count ?? 0,
-                maxInteractions = live?.ContinuousGroup == true ? (int?)null : native.MaxInteractions,
+                maxInteractions = live?.ContinuousGroup == true || live?.ContinuousDm == true ? (int?)null : native.MaxInteractions,
                 continuousGroup = live?.ContinuousGroup == true,
+                continuousDm = live?.ContinuousDm == true,
                 instruction = "Send one message in the approved conversation, then /poll. /quit closes. No automatic polling." });
             var admitted = 0;
             var prompts = pin.Project.Document.GetProperty("states").EnumerateArray().SelectMany(s => s.GetProperty("graph").GetProperty("nodes").EnumerateArray())
                 .Where(n => n.GetProperty("kind").GetString() == "prompt").Select(n => n.GetProperty("id").GetString()!).ToHashSet();
-            while (live?.ContinuousGroup == true || admitted < native.MaxInteractions)
+            while (live?.ContinuousGroup == true || live?.ContinuousDm == true || admitted < native.MaxInteractions)
             {
                 var command = await input.ReadLineAsync(token);
                 if (command is null || command == "/quit") break;
@@ -244,7 +248,7 @@ public static class NativeShadowCommand
                 await CheckTransport();
                 batch = await reader.PollAsync(approval, cursor, token);
                 }
-                catch (NativeObservationException e) when (live?.ContinuousGroup == true
+                catch (NativeObservationException e) when ((live?.ContinuousGroup == true || live?.ContinuousDm == true)
                     && NativeObservationReader.IsPollingUnavailable(e))
                 {
                     await Emit(new { phase = "transport_wait", runId, diagnostic = e.Code,
@@ -262,7 +266,8 @@ public static class NativeShadowCommand
                         if (!historyBeforeRecovery.Any(h => h.ProviderMessageId == item.Message.ProviderMessageId)
                             && item.Message.Timestamp < historyBeforeRecovery.Max(h => h.Timestamp))
                             throw new InvalidDataException("native_recovery_requires_chronology_reconciliation");
-                if (live?.ContinuousGroup != true && mapped.Count(x => !x.FromMe && !x.SkipNonText && !binding.IsSelf(x.ActorId)) + admitted > native.MaxInteractions)
+                if (live?.ContinuousGroup != true && live?.ContinuousDm != true
+                    && mapped.Count(x => !x.FromMe && !x.SkipNonText && !binding.IsSelf(x.ActorId)) + admitted > native.MaxInteractions)
                     throw new InvalidDataException("interaction_window_limit");
                 await CheckTransport();
                 var result = shadowRun is not null ? await shadowRun.AcceptAsync(mapped, token) : await liveRun!.AcceptAsync(mapped, token);

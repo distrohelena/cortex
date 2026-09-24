@@ -19,10 +19,11 @@ public sealed class ObservedLiveRunTests : IDisposable
     private static CancellationToken Token => TestContext.Current.CancellationToken;
     private ObservedLiveRun Create(LiveRuntimeTests.SequencedTransport transport, Func<CancellationToken, Task>? fence = null,
         TransportSafetyCapabilities? capabilities = null, int maxInteractions = 1, string epoch = "epoch", long tail = 10,
-        int version = 1) => new(new(ShadowRuntimeTests.Project(false, sendExit: "sent", history: true, version: version)), Binding,
+        int version = 1, bool continuousDm = false) => new(new(ShadowRuntimeTests.Project(false, sendExit: "sent", history: true, version: version)), Binding,
         directory, Roles, new ShadowRuntimeTests.Completion("empty"), new ShadowRuntimeTests.Reader("empty"), epoch, tail,
         LiveRouteBindings.FromShadow(Binding, "opaque-route", Session.NativeConversationId, "Filomena", 1000), transport,
-        capabilities ?? new(true, true, true, true, true, true, true), fence ?? (_ => Task.CompletedTask), maxInteractions);
+        capabilities ?? new(true, true, true, true, true, true, true), fence ?? (_ => Task.CompletedTask), maxInteractions,
+        continuousDm: continuousDm);
 
     [Theory]
     [InlineData(false, 1)]
@@ -225,6 +226,45 @@ public sealed class ObservedLiveRunTests : IDisposable
         Assert.Single(run.History);
         await Assert.ThrowsAsync<InvalidOperationException>(() => run.AcceptAsync([Input(12, "two")], Token));
         Assert.Single(sender.Sends);
+    }
+
+    [Fact]
+    public async Task Continuous_DM_accepts_more_than_five_events_once_suppressing_self_and_duplicates()
+    {
+        var sender = new LiveRuntimeTests.SequencedTransport();
+        await using var run = Create(sender, maxInteractions: 1, continuousDm: true);
+        for (var sequence = 11; sequence <= 17; sequence++)
+        {
+            var input = Input(sequence, "dm-" + sequence);
+            var result = await run.AcceptAsync([input], Token);
+            Assert.Equal("admitted", Assert.Single(result.Decisions).Status);
+            Assert.True(Assert.Single(result.Outcomes).Success);
+        }
+
+        Assert.Equal("duplicate", Assert.Single((await run.AcceptAsync([Input(17, "dm-17")], Token)).Decisions).Status);
+        Assert.Equal("self", Assert.Single((await run.AcceptAsync([
+            Input(18, "self-echo") with { ActorId = "self", FromMe = true }
+        ], Token)).Decisions).Status);
+        Assert.Equal(7, sender.Sends.Count);
+        Assert.Equal(14, run.History.Count);
+        Assert.Equal(7, run.Outcomes.Count);
+        Assert.Equal(OutboundMode.Enabled, run.OutboundMode);
+    }
+
+    [Fact]
+    public void Continuous_DM_rejects_group_binding_before_live_runtime_is_created()
+    {
+        var sender = new LiveRuntimeTests.SequencedTransport();
+        const string groupId = "120300000001@g.us";
+        var groupSession = Session with { NativeConversationId = groupId };
+        var groupBinding = new ShadowSessionBinding(groupSession,
+            FilomenaIdentity.WhatsAppConversationNamespace(groupId), ["self"], [Peer], SessionEntryKind.Group);
+        Assert.Throws<InvalidOperationException>(() => new ObservedLiveRun(
+            new(ShadowRuntimeTests.Project(false, sendExit: "sent", history: true)), groupBinding, directory, Roles,
+            new ShadowRuntimeTests.Completion("empty"), new ShadowRuntimeTests.Reader("empty"), "epoch", 10,
+            LiveRouteBindings.FromShadow(groupBinding, "opaque-route", groupId, "Filomena", 1000), sender,
+            new(true, true, true, true, true, true, true), _ => Task.CompletedTask, continuousDm: true));
+        Assert.Empty(sender.Sends);
     }
 
     [Theory]

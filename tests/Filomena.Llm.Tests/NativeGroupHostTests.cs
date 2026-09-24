@@ -379,6 +379,76 @@ public sealed class NativeGroupHostTests
     }
 
     [Fact]
+    public async Task Continuous_DM_rejects_group_scope_before_observation_or_sender_connection()
+    {
+        var builder = WebApplication.CreateBuilder();
+        builder.Logging.ClearProviders();
+        builder.WebHost.UseKestrel().UseUrls("http://127.0.0.1:0");
+        await using var server = builder.Build();
+        var paths = new List<string>();
+        server.Run(context =>
+        {
+            paths.Add(context.Request.Path);
+            context.Response.StatusCode = 503;
+            return Task.CompletedTask;
+        });
+        await server.StartAsync(TestContext.Current.CancellationToken);
+        var address = server.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
+        var directory = Directory.CreateTempSubdirectory("continuous-dm-wrong-kind-");
+        var credentialName = "FILOMENA_TEST_READER_" + Guid.NewGuid().ToString("N");
+        Environment.SetEnvironmentVariable(credentialName, "test-only-reader");
+        try
+        {
+            var json = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+            var project = Path.Combine(ParticipationGateV1Tests.Root, "docs/manual-group-shadow-project-v3-gpt6-luna.json");
+            var config = Config() with
+            {
+                ProjectFile = project,
+                ProjectId = "filomena-v3-live-sent",
+                ExpectedProjectSha256 = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(project, TestContext.Current.CancellationToken))),
+                JournalDirectory = directory.FullName,
+                GraphitiEndpoint = address + "/mcp",
+                OutboundBindings = new(["group-response-boundaries"], ["group-compiled-boundaries"],
+                    new Dictionary<string, string> { ["group-generation"] = "texto", ["group-regeneration"] = "texto" },
+                    ["group-validator-1", "group-validator-2"], "participation-engaged-v1")
+            };
+            var nativeFile = Path.Combine(directory.FullName, "native.json");
+            var native = new NativeShadowConfig("manual.json", address, credentialName, "source", Group, "R1", directory.FullName,
+                MaxInteractions: 1, GroupParticipants: Participants());
+            await File.WriteAllTextAsync(nativeFile, JsonSerializer.Serialize(native, json), TestContext.Current.CancellationToken);
+            await File.WriteAllTextAsync(Path.Combine(directory.FullName, "manual.json"), JsonSerializer.Serialize(config, json), TestContext.Current.CancellationToken);
+
+            var capabilities = new TransportSafetyCapabilities(true, true, true, true, true, true, true);
+            var proof = JsonSerializer.SerializeToUtf8Bytes(new {
+                version = "native-live-capabilities:v1", approvedRevision = "R1", observationSessionRef = "source",
+                routeBindingRef = Filomena.OpenClaw.Observation.NativeObservationReader.RouteBindingRef(config.Session),
+                boundSendContract = "whatsapp-bound-text:v1", capabilities, maxInteractions = 1, continuousDm = true
+            }, json);
+            await File.WriteAllBytesAsync(Path.Combine(directory.FullName, "proof.json"), proof, TestContext.Current.CancellationToken);
+            var liveFile = Path.Combine(directory.FullName, "live.json");
+            await File.WriteAllTextAsync(liveFile, JsonSerializer.Serialize(new {
+                nativeConfigFile = nativeFile, mcp = new Filomena.OpenClaw.Mcp.OpenClawMcpClientOptions("never-start", []),
+                transportRoute = "dm-route", speakerName = "Filomena", maxSinglePartCharacters = 4000,
+                capabilities, capabilityEvidenceFile = "proof.json", capabilityEvidenceSha256 = Convert.ToHexString(SHA256.HashData(proof)),
+                maxInteractions = 1, continuousDm = true
+            }, json), TestContext.Current.CancellationToken);
+
+            using var output = new StringWriter();
+            Assert.Equal(2, await NativeLiveCommand.RunAsync(["--native-live", liveFile, "--authorize-continuous-dm"],
+                new StringReader("/quit"), output, TestContext.Current.CancellationToken));
+            Assert.Contains("invalid_host_configuration", output.ToString());
+            Assert.DoesNotContain("run_started", output.ToString());
+            Assert.Empty(paths);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(credentialName, null);
+            await server.StopAsync(TestContext.Current.CancellationToken);
+            directory.Delete(true);
+        }
+    }
+
+    [Fact]
     public void Group_host_binds_every_canonical_participant_without_using_display_name()
     {
         var binding = NativeObservationHostBinding.Create(Config(), Group, Participants(), false);

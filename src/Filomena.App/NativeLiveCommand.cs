@@ -13,7 +13,7 @@ public sealed record NativeLiveConfig(string NativeConfigFile, OpenClawMcpClient
     TransportSafetyCapabilities Capabilities, string CapabilityEvidenceFile, string CapabilityEvidenceSha256,
     int MaxInteractions = 1, bool RevalidateReceiverWithinWindow = false, bool AllowExactGroupDelivery = false,
     bool ContinuousGroup = false, NativeObservationCursor? ContinueAfter = null, bool AllowNativeGroupParticipants = false,
-    bool AllowNativeGroupReplies = false)
+    bool AllowNativeGroupReplies = false, bool ContinuousDm = false)
 {
     internal NativeLiveCapabilityEvidence? Evidence { get; init; }
 
@@ -34,14 +34,15 @@ public sealed record NativeLiveConfig(string NativeConfigFile, OpenClawMcpClient
 internal sealed record NativeLiveCapabilityEvidence(string Version, string ApprovedRevision,
     string ObservationSessionRef, string RouteBindingRef, string BoundSendContract,
     TransportSafetyCapabilities Capabilities, int MaxInteractions = 1, bool RevalidateReceiverWithinWindow = false,
-    bool ContinuousGroup = false, NativeObservationCursor? ContinueAfter = null, bool AllowNativeGroupParticipants = false);
+    bool ContinuousGroup = false, NativeObservationCursor? ContinueAfter = null, bool AllowNativeGroupParticipants = false,
+    bool ContinuousDm = false);
 
 public static class NativeLiveCommand
 {
     // An operator-reviewed cursor is authority only inside the still-open, exact current stream.
     public static NativeObservationCursor ValidateContinuation(NativeObservationCursor after, NativeObservationCursor current)
     {
-        if (current.Version != "inbound-observation:v2" || after.Version != current.Version
+        if (current.Version is not ("inbound-observation:v1" or "inbound-observation:v2") || after.Version != current.Version
             || string.IsNullOrWhiteSpace(current.Epoch) || after.Epoch != current.Epoch
             || string.IsNullOrWhiteSpace(current.SessionRef) || after.SessionRef != current.SessionRef
             || after.Sequence < 0 || after.Sequence > current.Sequence)
@@ -67,7 +68,7 @@ public static class NativeLiveCommand
             {
                 "--authorize-one-response" => 1,
                 "--authorize-five-interactions" => 5,
-                "--authorize-continuous-group" => 0,
+                "--authorize-continuous-group" or "--authorize-continuous-dm" => 0,
                 var flag when flag.StartsWith("--authorize-interactions=", StringComparison.Ordinal)
                     && flag.Length == "--authorize-interactions=1".Length && flag[^1] is >= '1' and <= '5'
                     => flag[^1] - '0',
@@ -76,8 +77,13 @@ public static class NativeLiveCommand
             var file = Path.GetFullPath(args[1]);
             var directory = Path.GetDirectoryName(file)!;
             live = JsonSerializer.Deserialize<NativeLiveConfig>(await File.ReadAllTextAsync(file, token), Json) ?? throw new JsonException();
-            if (live.ContinuousGroup != (authorizedBudget == 0)
+            var continuousGroupFlag = args[2] == "--authorize-continuous-group";
+            var continuousDmFlag = args[2] == "--authorize-continuous-dm";
+            if (live.ContinuousGroup != continuousGroupFlag || live.ContinuousDm != continuousDmFlag
+                || (live.ContinuousGroup && live.ContinuousDm)
                 || (live.ContinuousGroup ? !live.AllowExactGroupDelivery || live.MaxInteractions != 1
+                    : live.ContinuousDm ? live.AllowExactGroupDelivery || live.AllowNativeGroupParticipants
+                        || live.AllowNativeGroupReplies || live.MaxInteractions != 1
                     : live.MaxInteractions != authorizedBudget))
                 throw new InvalidDataException();
             if (!live.Capabilities.Complete || string.IsNullOrWhiteSpace(live.TransportRoute)
@@ -95,10 +101,11 @@ public static class NativeLiveCommand
                 || proof.Capabilities != live.Capabilities || !proof.Capabilities.Complete
                 || proof.MaxInteractions != live.MaxInteractions
                 || proof.ContinuousGroup != live.ContinuousGroup
+                || proof.ContinuousDm != live.ContinuousDm
                 || proof.AllowNativeGroupParticipants != live.AllowNativeGroupParticipants
                 || (live.AllowNativeGroupParticipants && !live.AllowExactGroupDelivery)
                 || proof.ContinueAfter != live.ContinueAfter
-                || (live.ContinueAfter is not null && !live.ContinuousGroup)
+                || (live.ContinueAfter is not null && !live.ContinuousGroup && !live.ContinuousDm)
                 || proof.RevalidateReceiverWithinWindow != live.RevalidateReceiverWithinWindow
                 || string.IsNullOrWhiteSpace(proof.ApprovedRevision) || string.IsNullOrWhiteSpace(proof.ObservationSessionRef)
                 || string.IsNullOrWhiteSpace(proof.RouteBindingRef)) throw new InvalidDataException();

@@ -7,7 +7,7 @@ namespace Filomena.Llm.Tests;
 public sealed class NativeLiveReadCursorTests : IDisposable
 {
     private readonly string directory = Directory.CreateTempSubdirectory("live-read-cursor-").FullName;
-    private static NativeObservationCursor Cursor(long sequence) => new("inbound-observation:v2", "epoch", "session", sequence);
+    private static NativeObservationCursor Cursor(long sequence, string version = "inbound-observation:v2") => new(version, "epoch", "session", sequence);
 
     [Fact]
     public void Reopen_uses_last_processed_cursor_not_latest_snapshot_tail()
@@ -51,6 +51,21 @@ public sealed class NativeLiveReadCursorTests : IDisposable
         store.Save(Cursor(3));
         Assert.Throws<NativeObservationException>(() => store.Save(Cursor(2)));
         Assert.Equal(Cursor(3), store.Resolve(Cursor(9), Cursor(0)));
+    }
+
+    [Fact]
+    public void DM_v1_checkpoint_resumes_exact_session_and_rejects_version_change_or_regression()
+    {
+        var store = new NativeLiveReadCursorStore(directory, "dm-binding", "project");
+        store.Save(Cursor(3, "inbound-observation:v1"));
+        Assert.Equal(Cursor(3, "inbound-observation:v1"),
+            store.Resolve(Cursor(8, "inbound-observation:v1"), Cursor(0, "inbound-observation:v1")));
+        Assert.Throws<NativeObservationException>(() => store.Save(Cursor(2, "inbound-observation:v1")));
+        Assert.Throws<InvalidDataException>(() => store.Resolve(Cursor(8), Cursor(0)));
+        Assert.Throws<InvalidDataException>(() => store.Resolve(
+            Cursor(8, "inbound-observation:v1") with { SessionRef = "other" }, Cursor(0, "inbound-observation:v1")));
+        Assert.Equal(Cursor(3, "inbound-observation:v1"),
+            store.Resolve(Cursor(8, "inbound-observation:v1"), Cursor(0, "inbound-observation:v1")));
     }
     public void Dispose() => Directory.Delete(directory, true);
 }
