@@ -1,6 +1,6 @@
 # Group-member DMs alongside the active group
 
-Status: architecture proposed for written review; no live changes applied.
+Status: written architecture approved in chat on 2026-09-24; no live changes applied.
 
 ## Outcome and scope
 
