@@ -8,9 +8,9 @@ function fixture() {
   const message = getChannelAdapter("whatsapp")!.normalizeInbound({ messageId: "test-1", content: "Prefiro café.",
     timestamp: 1790000000000, senderId: "15550000001@s.whatsapp.net" }, { accountId: "test", conversationId: "123@g.us" })!;
   const capture = buildInboundCapture(message);
-  const state = { permission: true, authOutage: false, fragmentFailure: false, adds: 0, fragments: 0, episodes: [] as GraphitiEpisode[] };
+  const state = { permission: true, authOutage: false, fragmentFailure: false, adds: 0, fragments: 0, episodes: [] as GraphitiEpisode[], submissions: [] as Parameters<GraphitiClient["addEpisode"]>[0][] };
   const recorder = createMessageLifecycleRecorder({
-    graphiti: { async addEpisode() { state.adds++; return { episode_uuid: capture.episodeUuid, resolvedUuid: Promise.resolve(capture.episodeUuid) }; },
+    graphiti: { async addEpisode(p: Parameters<GraphitiClient["addEpisode"]>[0]) { state.adds++; state.submissions.push(p); return { episode_uuid: capture.episodeUuid, resolvedUuid: Promise.resolve(capture.episodeUuid) }; },
       async getEpisodes() { return state.episodes; } } as unknown as GraphitiClient,
     spicedb: { async checkPermission() { if (state.authOutage) throw new Error("offline"); return state.permission; },
       async writeRelationships() { if (state.fragmentFailure) throw new Error("fragment write failed"); state.fragments++; return "test-token"; },
@@ -42,4 +42,19 @@ test.each(["namespace", "content", "fragment", "revoked"])("%s failure cannot be
   if (kind === "fragment") f.state.fragmentFailure = true;
   if (kind === "revoked") f.state.permission = false;
   await expect(f.recorder.confirmInbound(f.capture)).rejects.toThrow();
+});
+
+test.each([
+  ["preference", "Eu prefiro café."], ["joke", "Agora com 1000 cérebros."],
+  ["identity claim", "Eu sou o Batman."], ["third party", "Celso disse que gosta de chá."],
+  ["correction", "Corrigindo: eu prefiro chá."], ["banal", "Boa tarde."],
+])("%s preserves source attribution without claiming an extracted fact", async (_kind, text) => {
+  const f = fixture(); await f.recorder.submitInbound({ ...f.message, content: text });
+  const submitted = f.state.submissions[0];
+  expect(submitted.extraction_body).toBe(text);
+  expect(submitted.bound_entities).toHaveLength(1);
+  expect(submitted.bound_entities![0]).toMatchObject({ role: "speaker", name: "whatsapp:15550000001@s.whatsapp.net", entity_type: "Person" });
+  expect(JSON.parse(submitted.episode_body)).toMatchObject({ text, sender: { stable_id: "whatsapp:15550000001@s.whatsapp.net" } });
+  expect(submitted.custom_extraction_instructions).toBe("unchanged");
+  expect(await f.recorder.confirmInbound(f.capture)).toBe("pending");
 });

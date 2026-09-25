@@ -52,6 +52,12 @@ describe("GraphitiClient", () => {
     vi.restoreAllMocks();
   });
 
+  test("missing episode list is contract failure, not valid empty", async () => {
+    const mocked = vi.spyOn(globalThis, "fetch"); mockInit(mocked);
+    mocked.mockResolvedValueOnce(sseResponse({ jsonrpc: "2.0", id: 2, result: { content: [{ type: "text", text: JSON.stringify({ message: "unrecognized response" }) }] } }));
+    await expect(client.getEpisodes("synthetic", 100)).rejects.toThrow("episode_contract");
+  });
+
   // --------------------------------------------------------------------------
   // Health (no MCP session required)
   // --------------------------------------------------------------------------

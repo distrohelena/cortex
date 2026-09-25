@@ -398,7 +398,12 @@ export class GraphitiClient {
       group_ids: [groupId],
       max_episodes: lastN,
     });
-    return parseToolResult<GraphitiEpisode[]>(result, "episodes");
+    const parsed = parseJsonResult<Record<string, unknown>>(result);
+    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.episodes)
+      || parsed.episodes.some(e => !e || typeof e !== "object"
+        || ["uuid", "name", "content", "group_id"].some(k => typeof e[k] !== "string")))
+      throw new Error("graphiti_episode_contract_invalid");
+    return parsed.episodes as GraphitiEpisode[];
   }
 
   async deleteEpisode(episodeUuid: string): Promise<void> {

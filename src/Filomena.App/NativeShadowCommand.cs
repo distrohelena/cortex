@@ -52,7 +52,8 @@ public sealed record NativeShadowConfig(string ManualConfigFile, string Observat
     string NativeConversationId, string ApprovedRevision, string JournalDirectory, int MaxInteractions = 5,
     NativeReplayPlan? Recovery = null, Dictionary<string, string>? GroupParticipants = null,
     NativeSelfMentionIdentity? SelfMentionIdentity = null, string? NativeSourceGroupJid = null,
-    NativeMemberDmMemoryReadinessTemplate? NewDmMemoryReadiness = null);
+    NativeMemberDmMemoryReadinessTemplate? NewDmMemoryReadiness = null,
+    NativeMemoryIngestConfig? MemoryIngest = null);
 
 /// <summary>Bounded, operator-stepped reader handoff. Never constructs the legacy host.</summary>
 public static class NativeShadowCommand
@@ -174,6 +175,7 @@ public static class NativeShadowCommand
         }
         try
         {
+            await using var memoryHost = native.MemoryIngest is { } memoryConfig ? new NativeMemoryHost(memoryConfig, binding, live is not null) : null;
             using var transportHttp = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(30) };
             var reader = new NativeObservationReader(transportHttp, new Uri(native.ObservationEndpoint), credential, binding,
                 native.ObservationSessionRef, config.SelfActorIds[0], config.PeerActorId,
@@ -362,6 +364,13 @@ public static class NativeShadowCommand
                             live.Evidence.MembershipLeaseRef!)
                         : inbound;
                 }).ToArray();
+                // Persist memory intent before enrichment/participation and before advancing the read cursor.
+                // Snapshot context is never passed through this seam. Retries cannot re-execute the brain.
+                if (memoryHost is not null)
+                {
+                    await CheckTransport();
+                    memoryHost.StageBatch(mapped);
+                }
                 var participants = new GraphitiParticipantReader(graphiti);
                 for (var index = 0; index < mapped.Length; index++)
                     mapped[index] = await NativeInboundContext.EnrichAsync(mapped[index], binding, participants, token);
@@ -375,6 +384,12 @@ public static class NativeShadowCommand
                     throw new InvalidDataException("interaction_window_limit");
                 await CheckTransport();
                 var result = shadowRun is not null ? await shadowRun.AcceptAsync(mapped, token) : await liveRun!.AcceptAsync(mapped, token);
+                if (memoryHost is not null)
+                {
+                    memoryHost.ScheduleReconciliation();
+                    await Emit(new { phase = "memory_ingestion", pending = memoryHost.PendingCount,
+                        diagnostic = memoryHost.PendingCount == 0 ? "no_pending_ingestion" : "ingestion_not_yet_confirmed" });
+                }
                 var runtimeFailed = result.Outcomes.Any(o => !o.Success)
                     || result.Decisions.Any(d => d.Status is not ("admitted" or "self" or "duplicate" or "backlog" or "ignored"))
                     || result.Trace.Any(t => t.EventName == "node-outbound" && t.MemoryMetadata?["result"] != (live is null ? "shadowed" : "sent"));

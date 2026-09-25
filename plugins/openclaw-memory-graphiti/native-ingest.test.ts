@@ -1,10 +1,13 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+import { spawnSync } from "node:child_process";
 import { afterEach, expect, test } from "vitest";
 import { getChannelAdapter } from "./channel-adapters/registry.js";
-import { NativeIngestStore } from "./native-ingest-store.js";
+import { NativeIngestStore, ingestDigest } from "./native-ingest-store.js";
 import { NativeIngestService, type NativeMemoryBinding } from "./native-ingest.js";
+import { NativeIngestAuthorizationError, buildInboundCapture } from "./message-lifecycle.js";
 
 const dirs: string[] = [];
 const stores: NativeIngestStore[] = [];
@@ -79,4 +82,65 @@ test("reopen keeps uncertain work and cannot resubmit automatically", async () =
 test("wrong scope cannot read status", async () => {
   const f = fixture(); const receipt = await f.service.submit(f.request);
   await expect(f.service.getStatus("wrong", receipt.requestRef)).rejects.toThrow("binding");
+});
+
+test("two store connections cannot claim the same work twice", async () => {
+  const f = fixture(); const other = new NativeIngestStore(f.file); stores.push(other);
+  const service = new NativeIngestService(other, [f.binding], {
+    async submitInbound(m) { f.submitted.push(m.content); return { state: "queued" }; }, async confirmInbound() { return "pending"; },
+  });
+  await Promise.all([f.service.submit(f.request), service.submit(f.request)]);
+  expect(f.submitted).toHaveLength(1);
+});
+
+test("persisted receipt cannot be downgraded by a slower submission", async () => {
+  const f = fixture(); const r = await f.service.submit(f.request);
+  f.store.save({ ...r, state: "persisted", retryDisposition: "none" });
+  f.store.save({ ...r, state: "queued", retryDisposition: "reconcile" });
+  expect((await f.service.getStatus("test-binding", r.requestRef)).state).toBe("persisted");
+});
+
+test("nonboolean actor authority is invalid", async () => {
+  const f = fixture(); (f.request.message.sender as unknown as { bindAsPerson: unknown }).bindAsPerson = "true";
+  await expect(f.service.submit(f.request)).rejects.toThrow("actor_invalid");
+});
+
+test("authorization outage before backend attempt is safely retryable", async () => {
+  const f = fixture(); let available = false; let writes = 0;
+  const service = new NativeIngestService(f.store, [f.binding], {
+    async submitInbound() { if (!available) throw new NativeIngestAuthorizationError(); writes++; return { state: "queued" }; },
+    async confirmInbound() { return "pending"; },
+  });
+  expect(await service.submit(f.request)).toMatchObject({ state: "failed", retryDisposition: "safe" });
+  available = true;
+  expect(await service.submit(f.request)).toMatchObject({ state: "queued" });
+  expect(writes).toBe(1);
+});
+
+test("crash between safe failure receipt and claim release does not strand work", async () => {
+  const f = fixture(); const r = await f.service.submit(f.request);
+  // Durable state at the interrupted safe-failure boundary; no release step has run.
+  f.store.save({ ...r, state: "failed", retryDisposition: "safe" });
+  expect((await f.service.submit(f.request)).state).toBe("queued");
+  expect(f.submitted).toHaveLength(2);
+});
+
+test("process exit after durable claim preserves uncertain work without backend resubmission", async () => {
+  const f = fixture(); const capture = buildInboundCapture(f.request.message);
+  const requestRef = ingestDigest(["test-account", capture.episodeUuid]);
+  f.store.stage({ bindingRef: f.binding.bindingRef, digest: ingestDigest(f.request.message), message: f.request.message,
+    receipt: { version: "native-memory-ingest:v1", requestRef, episodeUuid: capture.episodeUuid, state: "pending", retryDisposition: "safe" } });
+  f.store.close();
+  const source = `import { NativeIngestStore } from ${JSON.stringify(pathToFileURL(resolve("native-ingest-store.ts")).href)};
+    const store = new NativeIngestStore(${JSON.stringify(f.file)});
+    if (!store.claim(${JSON.stringify(requestRef)})) process.exit(2);
+    process.exit(0);`; // Deliberately no graceful close/receipt; SQLite commit must survive.
+  const child = spawnSync(process.execPath, ["--input-type=module", "-e", source], { encoding: "utf8", windowsHide: true });
+  expect(child.status, child.stderr).toBe(0);
+  const reopened = new NativeIngestStore(f.file); stores.push(reopened);
+  const service = new NativeIngestService(reopened, [f.binding], {
+    async submitInbound() { throw new Error("must not resubmit"); }, async confirmInbound() { return "pending"; },
+  });
+  expect(await service.submit(f.request)).toMatchObject({ state: "pending", retryDisposition: "reconcile" });
+  expect(f.submitted).toHaveLength(0);
 });

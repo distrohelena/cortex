@@ -147,6 +147,11 @@ export type MessageLifecycleRecorder = {
   recordOutbound(message: NormalizedOutboundMessage, correlation?: TurnCorrelation): Promise<MessageCapture | undefined>;
 };
 
+/** Only emitted before any native Graphiti submission; safe to retry after authorization recovers. */
+export class NativeIngestAuthorizationError extends Error {
+  constructor() { super("native_ingest_authorization_unavailable_or_denied"); }
+}
+
 /**
  * Channel-independent persistence boundary. Adapters normalize provider events;
  * this recorder owns authorization, idempotency, Graphiti writes and social evidence.
@@ -166,9 +171,12 @@ export function createMessageLifecycleRecorder(input: {
 
   // Native ingestion cannot grant itself membership. Provisioning owns that decision.
   const requireNativeWrite = async (namespace: string) => {
-    if (!await input.spicedb.checkPermission({ resourceType: "group", resourceId: namespace,
+    let allowed: boolean;
+    try { allowed = await input.spicedb.checkPermission({ resourceType: "group", resourceId: namespace,
       permission: "contribute", subjectType: input.subject.type, subjectId: input.subject.id,
-      consistency: { mode: "full" } })) throw new Error("native_ingest_authorization_denied");
+      consistency: { mode: "full" } }); }
+    catch { throw new NativeIngestAuthorizationError(); }
+    if (allowed !== true) throw new NativeIngestAuthorizationError();
   };
 
   const captureOnce = async (episodeUuid: string, operation: () => Promise<void>) => {

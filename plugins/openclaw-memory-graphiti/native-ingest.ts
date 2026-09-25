@@ -1,6 +1,6 @@
 import { getChannelAdapter } from "./channel-adapters/registry.js";
 import type { ConversationRef, NormalizedInboundMessage } from "./channel-adapters/types.js";
-import { buildInboundCapture, type MessageCapture } from "./message-lifecycle.js";
+import { buildInboundCapture, NativeIngestAuthorizationError, type MessageCapture } from "./message-lifecycle.js";
 import { ingestDigest, NativeIngestStore, type NativeIngestStatusV1 } from "./native-ingest-store.js";
 
 export type NativeMemoryBinding = {
@@ -36,7 +36,7 @@ export class NativeIngestService {
     if (m.direction !== "inbound" || m.timestampSource !== "provider" || !actor || !canonical
       || actor.accountId !== b.conversation.accountId || actor.channel !== b.conversation.channel
       || actor.stableId !== canonical.stableId || canonical.unresolvedAlternate || actor.unresolvedAlternate
-      || !actor.bindAsPerson || actor.actorKind !== "person" || b.selfActorIds.includes(actor.stableId)
+      || actor.bindAsPerson !== true || actor.actorKind !== "person" || b.selfActorIds.includes(actor.stableId)
       || (b.conversation.kind === "dm" && actor.nativeId !== b.conversation.nativeId))
       throw new Error("native_ingest_actor_invalid");
     if (!(m.referenceTime instanceof Date) || !Number.isFinite(m.referenceTime.getTime())
@@ -56,12 +56,14 @@ export class NativeIngestService {
     let receipt: NativeIngestStatusV1;
     try {
       await this.recorder.submitInbound(message);
-      receipt = { ...entry.receipt, state: "queued", retryDisposition: "reconcile" };
-    } catch {
-      receipt = { ...entry.receipt, state: "failed", diagnostic: "submission_unconfirmed", retryDisposition: "reconcile" };
+      receipt = { ...entry.receipt, state: "queued", diagnostic: undefined, retryDisposition: "reconcile" };
+    } catch (e) {
+      receipt = { ...entry.receipt, state: "failed",
+        diagnostic: e instanceof NativeIngestAuthorizationError ? "authorization_unavailable_or_denied" : "submission_unconfirmed",
+        retryDisposition: e instanceof NativeIngestAuthorizationError ? "safe" : "reconcile" };
     }
     this.store.save(receipt);
-    return receipt;
+    return this.store.get(requestRef)!.receipt;
   }
   async getStatus(bindingRef: string, requestRef: string): Promise<NativeIngestStatusV1> {
     const row = this.store.get(requestRef);

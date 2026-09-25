@@ -59,12 +59,13 @@ export class NativeIngestStore {
   }
   claim(ref: string): boolean {
     const receipt = this.get(ref)!.receipt;
-    return this.db.prepare("UPDATE native_ingest SET claimed=1, receipt=? WHERE ref=? AND claimed=0")
+    return this.db.prepare("UPDATE native_ingest SET claimed=1, receipt=? WHERE ref=? AND json_extract(receipt,'$.retryDisposition')='safe'")
       .run(JSON.stringify({ ...receipt, retryDisposition: "reconcile" }), ref).changes === 1;
   }
   save(receipt: NativeIngestStatusV1): void {
-    this.db.prepare("UPDATE native_ingest SET receipt=? WHERE ref=? AND episode=?")
-      .run(JSON.stringify(receipt), receipt.requestRef, receipt.episodeUuid);
+    this.db.prepare(`UPDATE native_ingest SET receipt=? WHERE ref=? AND episode=?
+      AND NOT (json_extract(receipt,'$.state')='persisted' AND ? IN ('pending','queued'))`)
+      .run(JSON.stringify(receipt), receipt.requestRef, receipt.episodeUuid, receipt.state);
   }
   close(): void { if (!this.closed) { this.closed = true; this.db.close(); } }
 }
