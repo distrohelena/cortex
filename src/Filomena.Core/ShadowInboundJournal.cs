@@ -65,7 +65,8 @@ public sealed class ShadowSessionBinding
 // Future source must prove a contiguous, session-scoped stream and an atomic tail anchor.
 // Current MCP/HTTP bridge does NOT satisfy this contract; no adapter synthesizes these fields.
 public sealed record CanonicalShadowInbound(string StreamEpoch, long Sequence, SessionKey Session, SessionEntryKind Kind,
-    string ConversationNamespace, string ActorId, SessionMessageEnvelope Message, bool FromMe = false, bool SkipNonText = false);
+    string ConversationNamespace, string ActorId, SessionMessageEnvelope Message, bool FromMe = false, bool SkipNonText = false,
+    string? SuppressionReason = null);
 public sealed record ShadowInboundDecision(string Status, string Diagnostic, string? CanonicalRef = null);
 
 /// <summary>Private durable inbox, not a normal trace. Contains input for manual crash recovery. No retry worker.</summary>
@@ -154,7 +155,8 @@ public sealed class ShadowInboundJournal : IDisposable
             var state = states.ContainsKey(reference) ? "duplicate" : input.FromMe || binding.IsSelf(input.ActorId) ? "self"
                 : input.SkipNonText ? "ignored" : "observed";
             WriteInput(state, input, reference);
-            return new(state, state == "observed" ? "durably_observed" : "no_execution", reference);
+            return new(state, state == "observed" ? "durably_observed"
+                : state == "ignored" ? input.SuppressionReason ?? "no_execution" : "no_execution", reference);
         }
     }
 

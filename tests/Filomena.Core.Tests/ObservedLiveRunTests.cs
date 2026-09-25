@@ -93,6 +93,52 @@ public sealed class ObservedLiveRunTests : IDisposable
             .Where(entry => entry.Direction == SessionMessageDirection.Inbound).Select(entry => entry.ProviderMessageId));
     }
 
+    [Fact]
+    public async Task Old_member_lease_event_is_durably_ignored_after_restart_then_new_lease_event_executes()
+    {
+        var oldLease = MemberDmLease("lease-generation-1");
+        await using (Create(new LiveRuntimeTests.SequencedTransport(), continuousDm: true,
+            memberDmBinding: oldLease)) { }
+
+        var newLease = oldLease with { MembershipLeaseRef = "lease-generation-2" };
+        var sender = new LiveRuntimeTests.SequencedTransport();
+        await using var restarted = Create(sender, continuousDm: true, memberDmBinding: newLease);
+        var stale = Input(11, "admitted-under-old-lease") with
+        {
+            SkipNonText = true,
+            SuppressionReason = "member_dm_event_generation_stale",
+        };
+
+        var staleResult = await restarted.AcceptAsync([stale], Token);
+
+        Assert.Equal("ignored", Assert.Single(staleResult.Decisions).Status);
+        Assert.Equal("member_dm_event_generation_stale", Assert.Single(staleResult.Decisions).Diagnostic);
+        Assert.Empty(staleResult.Outcomes);
+        Assert.Empty(restarted.History);
+        Assert.Empty(sender.Sends);
+
+        var freshResult = await restarted.AcceptAsync([Input(12, "admitted-under-new-lease")], Token);
+        Assert.Equal("admitted", Assert.Single(freshResult.Decisions).Status);
+        Assert.True(Assert.Single(freshResult.Outcomes).Success);
+        Assert.Single(sender.Sends);
+        Assert.Equal("lease-generation-2", Assert.Single(sender.Requests).MemberDm!.MembershipLeaseRef);
+        Assert.Equal("admitted-under-new-lease", Assert.Single(restarted.History,
+            entry => entry.Direction == SessionMessageDirection.Inbound).ProviderMessageId);
+
+        await restarted.DisposeAsync();
+        var durable = File.ReadAllLines(Path.Combine(directory, "observation-live-inbound.jsonl"))
+            .Select(line => JsonDocument.Parse(line)).Select(document => document.RootElement.Clone()).ToArray();
+        var ignored = Assert.Single(durable, entry => entry.TryGetProperty("Type", out var type)
+            && type.GetString() == "ignored");
+        Assert.Equal(11, ignored.GetProperty("Sequence").GetInt64());
+        Assert.Equal("admitted-under-old-lease", ignored.GetProperty("Input").GetProperty("Message")
+            .GetProperty("ProviderMessageId").GetString());
+        Assert.Equal("member_dm_event_generation_stale", ignored.GetProperty("Input")
+            .GetProperty("SuppressionReason").GetString());
+        Assert.Contains(durable, entry => entry.TryGetProperty("Type", out var type)
+            && type.GetString() == "completed" && entry.GetProperty("Sequence").GetInt64() == 12);
+    }
+
     private static MemberDmBoundTextBinding MemberDmLease(string leaseRef) => new(
         Session.NativeConversationId, "member-dm-scope", "member-dm-route", "native-dispatch-R7", leaseRef);
 

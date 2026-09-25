@@ -100,6 +100,55 @@ public sealed class NativeConversationSupervisorTests : IDisposable
     }
 
     [Fact]
+    public void Prior_or_missing_member_event_lease_is_not_executable_under_new_worker_generation()
+    {
+        using var payload = JsonDocument.Parse("{}");
+        var observed = new NativeObservationEvent(11, "native-message-old", "dm-scope", "peer", false,
+            "self", DateTimeOffset.UnixEpoch, payload.RootElement, "dm-epoch")
+        { MembershipAuthority = new("native-member-dm-admission:v1", "lease-generation-1") };
+
+        Assert.False(NativeConversationSupervisor.HasCapturedMemberDmEventGeneration(observed,
+            "dm-scope", "lease-generation-1", "lease-generation-2"));
+        Assert.Throws<NativeObservationException>(() => NativeConversationSupervisor.HasCapturedMemberDmEventGeneration(
+            observed with { MembershipAuthority = null }, "dm-scope", null, "lease-generation-2"));
+        Assert.True(NativeConversationSupervisor.HasCapturedMemberDmEventGeneration(observed with
+        { MembershipAuthority = new("native-member-dm-admission:v1", "lease-generation-2") },
+            "dm-scope", "lease-generation-2", "lease-generation-2"));
+        Assert.Throws<NativeObservationException>(() => NativeConversationSupervisor.HasCapturedMemberDmEventGeneration(
+            observed with { SessionRef = "foreign-scope" }, "dm-scope", "lease-generation-2", "lease-generation-2"));
+    }
+
+    [Fact]
+    public void Stale_member_event_mapping_becomes_durable_nonexecution_but_fresh_mapping_stays_executable()
+    {
+        var session = new SessionKey("runtime", "filomena", "whatsapp", "account-a", "15550001@s.whatsapp.net");
+        CanonicalShadowInbound Inbound(long sequence, string id) => new("dm-epoch", sequence, session,
+            SessionEntryKind.Dm, "dm-namespace", "whatsapp:15550001@s.whatsapp.net",
+            new(id, session.ChannelId, session.AccountId, session.NativeConversationId, DateTimeOffset.UnixEpoch,
+                SessionMessageDirection.Inbound, SessionEntryKind.Dm, JsonSerializer.SerializeToElement(new { texto = "inbound" })));
+        using var payload = JsonDocument.Parse("{}");
+        var oldEvent = new NativeObservationEvent(11, "old-event", "dm-scope", "peer", false, "self",
+            DateTimeOffset.UnixEpoch, payload.RootElement, "dm-epoch")
+        { MembershipAuthority = new("native-member-dm-admission:v1", "lease-generation-1") };
+        var freshEvent = oldEvent with
+        {
+            Sequence = 12,
+            NativeMessageId = "fresh-event",
+            MembershipAuthority = new("native-member-dm-admission:v1", "lease-generation-2"),
+        };
+
+        var stale = NativeConversationSupervisor.SuppressUnlessCapturedMemberDmEventGeneration(oldEvent,
+            Inbound(11, "old-event"), "dm-scope", "lease-generation-1", "lease-generation-2");
+        var fresh = NativeConversationSupervisor.SuppressUnlessCapturedMemberDmEventGeneration(freshEvent,
+            Inbound(12, "fresh-event"), "dm-scope", "lease-generation-2", "lease-generation-2");
+
+        Assert.True(stale.SkipNonText);
+        Assert.Equal("member_dm_event_generation_stale", stale.SuppressionReason);
+        Assert.False(fresh.SkipNonText);
+        Assert.Null(fresh.SuppressionReason);
+    }
+
+    [Fact]
     public async Task Failed_DM_worker_and_individual_drain_do_not_cancel_group_worker()
     {
         var group = Binding("120363318973251043@g.us", SessionEntryKind.Group);

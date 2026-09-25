@@ -409,13 +409,32 @@ public sealed class NativeConversationSupervisor : IAsyncDisposable
     public static void ValidateMemberDmEventGeneration(NativeObservationEvent observed,
         string expectedScopeRef, string? observedMembershipLeaseRef, string expectedMembershipLeaseRef)
     {
-        ArgumentNullException.ThrowIfNull(observed);
-        if (string.IsNullOrWhiteSpace(expectedScopeRef) || string.IsNullOrWhiteSpace(expectedMembershipLeaseRef)
-            || observed.SessionRef != expectedScopeRef
-            || string.IsNullOrWhiteSpace(observedMembershipLeaseRef)
-            || observedMembershipLeaseRef != expectedMembershipLeaseRef)
+        if (!HasCapturedMemberDmEventGeneration(observed, expectedScopeRef, observedMembershipLeaseRef,
+            expectedMembershipLeaseRef))
             throw new NativeObservationException("member_dm_event_generation_unproven");
     }
+
+    /// <summary>
+    /// Distinguishes an old/missing admission lease from malformed scope identity.
+    /// Such records may be durably suppressed, but never executed by a new worker.
+    /// </summary>
+    public static bool HasCapturedMemberDmEventGeneration(NativeObservationEvent observed,
+        string expectedScopeRef, string? observedMembershipLeaseRef, string expectedMembershipLeaseRef)
+    {
+        ArgumentNullException.ThrowIfNull(observed);
+        if (string.IsNullOrWhiteSpace(expectedScopeRef) || string.IsNullOrWhiteSpace(expectedMembershipLeaseRef)
+            || string.IsNullOrWhiteSpace(observedMembershipLeaseRef) || observed.SessionRef != expectedScopeRef)
+            throw new NativeObservationException("member_dm_event_generation_unproven");
+        return StringComparer.Ordinal.Equals(observedMembershipLeaseRef, expectedMembershipLeaseRef);
+    }
+
+    public static CanonicalShadowInbound SuppressUnlessCapturedMemberDmEventGeneration(
+        NativeObservationEvent observed, CanonicalShadowInbound inbound, string expectedScopeRef,
+        string? observedMembershipLeaseRef, string expectedMembershipLeaseRef) =>
+        HasCapturedMemberDmEventGeneration(observed, expectedScopeRef, observedMembershipLeaseRef,
+            expectedMembershipLeaseRef)
+            ? inbound
+            : inbound with { SkipNonText = true, SuppressionReason = "member_dm_event_generation_stale" };
 
     private static async Task EnsureCurrentMembershipLeaseAsync(NativeObservationReader groupReader,
         NativeMemberDmDiscoveredScope selectedScope, string accountId, string groupJid,

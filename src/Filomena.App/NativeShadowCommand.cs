@@ -276,6 +276,7 @@ public static class NativeShadowCommand
                 if (command is null || command == "/quit") break;
                 if (command != "/poll") { await Emit(new { diagnostic = "only_poll_or_quit_allowed" }); continue; }
                 NativeObservationBatch batch;
+                var memberDmEventLeases = new Dictionary<long, string?>();
                 try
                 {
                 if (live?.RevalidateReceiverWithinWindow == true)
@@ -309,8 +310,7 @@ public static class NativeShadowCommand
                     foreach (var observed in batch.Records)
                     {
                         var eventLease = await memberDmExecutionContext!.ResolveEventLeaseAsync(observed, token);
-                        NativeConversationSupervisor.ValidateMemberDmEventGeneration(observed,
-                            live.Evidence!.ObservationSessionRef, eventLease, live.Evidence.MembershipLeaseRef!);
+                        memberDmEventLeases.Add(observed.Sequence, eventLease);
                     }
                 }
                 }
@@ -323,7 +323,15 @@ public static class NativeShadowCommand
                 }
                 if (native.Recovery is { } replay) batch = replay.Next(batch, cursor);
                 else if (batch.EpochClosed) throw new NativeObservationException("capture_epoch_closed");
-                var mapped = batch.Records.Select(reader.ToInbound).ToArray();
+                var mapped = batch.Records.Select(observed =>
+                {
+                    var inbound = reader.ToInbound(observed);
+                    return live?.ManagedMemberDm == true
+                        ? NativeConversationSupervisor.SuppressUnlessCapturedMemberDmEventGeneration(observed,
+                            inbound, live.Evidence!.ObservationSessionRef, memberDmEventLeases[observed.Sequence],
+                            live.Evidence.MembershipLeaseRef!)
+                        : inbound;
+                }).ToArray();
                 var participants = new GraphitiParticipantReader(graphiti);
                 for (var index = 0; index < mapped.Length; index++)
                     mapped[index] = await NativeInboundContext.EnrichAsync(mapped[index], binding, participants, token);
