@@ -1,7 +1,7 @@
 # Native memory ingestion V1 (local implementation)
 
 This slice is **not deployed**. It does not reactivate Filomena, start SpiceDB,
-change credentials, or backfill chat history. Inbound writing is disabled unless
+change credentials, or run a live backfill. Inbound writing is disabled unless
 the deployment explicitly configures both ends below. Existing read-only Graphiti
 composition and brain prompts are unchanged.
 
@@ -89,8 +89,8 @@ Known authorization failure **before submission** allows safe retry. A network
 failure/crash that could follow submission requires reconciliation, never automatic
 re-extraction. The current bounded lookup checks the latest 100 episodes; absence
 from that window is unresolved, not proof the write was lost. Older unresolved
-work requires an operator-reviewed exact lookup/reconciliation extension, not
-blind resend or deletion of receipts.
+work now widens that read-only window geometrically up to 12,800 episodes. Hitting
+the bound remains unresolved, never authority to resend or delete receipts.
 
 The .NET outbox retries independently of the conversation, in a single cancellable
 maintenance task rather than awaited inside the brain/polling path. Up to 32 pending
@@ -98,6 +98,86 @@ items are visited per pass, round-robin, at most once per 30 seconds of host pol
 Shutdown cancels and drains this task before closing the private store. Backend
 failure is visible and does not rerun an already executed response.
 Pending files survive restart; OS file ownership prevents concurrent host writers.
+
+## Recurring group memory recovery (local, not deployed)
+
+Recovery is ongoing work, not a one-time migration. The plugin can recover retained
+group messages on service start and periodically without the .NET conversation
+runtime running. It has no sender or conversation-execution dependency. It never
+consumes/removes pending ingress or replays an old message through the brain.
+
+The same private host config may explicitly add:
+
+```json
+{
+  "recovery": {
+    "sourceDatabasePath": "<absolute native state>/openclaw.sqlite",
+    "storePath": "<private directory>/memory-recovery.sqlite",
+    "intervalMs": 30000
+  }
+}
+```
+
+Each authorized group binding also needs `historyNotBefore` (an explicit original
+provider-time lower bound). This does not weaken `notBefore` on live HTTP ingestion.
+Only the internal recovery worker may submit historical requests. Account, group,
+namespace, canonical speaker and the existing SpiceDB permission checks still apply.
+No wildcard group discovery or permission grants are performed. Deployment must
+enumerate the trusted group bindings; DMs are not included by this feature.
+
+For LID senders, `historyIdentityDirectory` selects the **existing account-owned**
+Baileys mapping directory. Only the specific `lid-mapping-<lid>_reverse.json` and
+reciprocal `lid-mapping-<pn>.json` are read, never session keys. Both directions
+must agree. Missing mappings remain unresolved; disagreement fails closed.
+Names, message text and a project's claims never resolve identity.
+
+The source adapter reads retained native journal and ingress rows in a SQLite
+read-only snapshot, bound to the native hashed account/scope and exact group. It
+verifies journal record digests. Neither Observation capture nor its cursor changes.
+It discovers by native ID on every pass, so late arrivals with an older timestamp
+are not skipped. Duplicates share the existing deterministic episode receipts;
+conflicting content for the same ID stops that group rather than overwriting it.
+
+The recovery store durably holds discovered messages before submission. Its
+per-group cursor is a **contiguous confirmed discovery ordinal**, not the last
+message timestamp and not the response cursor. `queued` does not advance it.
+Round-robin bounded retry allows later items to persist without jumping the cursor
+over unconfirmed earlier items. Already staged work remains reconcilable if the
+source goes offline. Stop waits for the active pass before closing the stores.
+
+GET `/plugins/memory-graphiti/native-ingest/v1/recovery?bindingRef=<opaque>` uses the
+same Gateway authentication and host capability. It returns counts, cursor,
+diagnostics and coverage gaps, without message contents or triggering a scan.
+`OPENCLAW_GRAPHITI_SUPPRESS_EXTERNAL_STARTUP_PROBES=true` suppresses the recovery
+worker as well during provisioning; status exposes `suppressed=true`.
+
+### Coverage limitations (do not claim full history)
+
+- This source recovers **locally retained** history, not an on-demand WhatsApp
+  history fetch. Stale appends discarded before retention, deleted payloads and
+  periods without capture cannot be reconstructed from these stores. A trusted
+  provider-history retention/feed is still needed for those gaps. Status therefore
+  stays `coverage=partial`, even when `pending=0`.
+- Self/account-sent messages are counted separately, not reclassified as human
+  memory or attributed automatically to Filomena. Non-text/unsupported media and
+  unresolved actor identities are explicit gaps, not invented content.
+- Source scans above 50,000 rows per selected source/group fail visibly rather than
+  truncating history. Confirmation beyond the 12,800-episode window also remains
+  unresolved. These bounds require a paginated/exact source/API extension before
+  claiming support for arbitrarily large histories.
+- This change does not start SpiceDB, grant permissions, enable live ingestion,
+  reactivate Filomena, or prove successful extraction/recall against a live backend.
+
+Local verification covers restart, receipt dedupe, queued versus persisted,
+late old arrivals, source outage, immutable scope, starvation, journal corruption,
+self/quote separation, authenticated status and recurring startup/stop composition.
+
+The 2026-09-25 opt-in **read-only** source audit of the configured group found 360
+distinct eligible text messages after trusted LID/PN resolution, 123 self rows and
+102 unsupported/non-text rows. Source counters may overlap between stores; they
+are not a claim about the total WhatsApp conversation. No Graphiti write was made.
+Payload-retention gaps remain visible. This audit did not verify every group or
+claim that the messages have been indexed.
 No automatic retry is performed by plugin startup or GET status.
 
 ## Local verification

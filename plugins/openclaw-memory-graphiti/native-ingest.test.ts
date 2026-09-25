@@ -31,6 +31,26 @@ function fixture() {
   });
   return { file, store, binding, service, submitted, request: { version: "native-memory-ingest:v1" as const, bindingRef: binding.bindingRef, message: message() } };
 }
+
+test("historical opt-in admits old messages without weakening the live boundary", async () => {
+  const f = fixture();
+  const binding = { ...f.binding, notBefore: "2026-12-01T00:00:00Z", historyNotBefore: "2026-01-01T00:00:00Z" };
+  const service = new NativeIngestService(f.store, [binding], {
+    async submitInbound(m) { f.submitted.push(m.providerMessageId); return { state: "queued" }; },
+    async confirmInbound() { return "persisted"; },
+  });
+  await expect(service.submit(f.request)).rejects.toThrow("message_invalid");
+  const receipt = await service.submitHistorical(f.request);
+  expect(receipt.state).toBe("queued");
+  expect((await service.reconcile(binding.bindingRef, receipt.requestRef)).state).toBe("persisted");
+  expect(f.submitted).toEqual(["synthetic-1"]);
+});
+
+test("history replay requires separate host opt-in even for a live-valid request", async () => {
+  const f = fixture();
+  await expect(f.service.submitHistorical(f.request)).rejects.toThrow("history_authority_required");
+  expect(f.submitted).toEqual([]);
+});
 test("wrong binding never reaches recorder", async () => {
   const f = fixture(); await expect(f.service.submit({ ...f.request, bindingRef: "foreign" })).rejects.toThrow("binding");
   expect(f.submitted).toEqual([]);

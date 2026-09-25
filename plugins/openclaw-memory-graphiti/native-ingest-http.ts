@@ -35,10 +35,11 @@ export function decodeNativeIngestRequest(value: unknown): NativeIngestRequestV1
   return { ...r, message: { ...m, referenceTime: new Date(m.referenceTime as string) } } as NativeIngestRequestV1;
 }
 
-export function registerNativeIngestRoutes(api: { registerHttpRoute(route: Route): void }, service: NativeIngestService, capability: string): void {
+export function registerNativeIngestRoutes(api: { registerHttpRoute(route: Route): void }, service: NativeIngestService, capability: string,
+  recoveryStatus?: (bindingRef: string) => unknown): void {
   if (typeof capability !== "string" || Buffer.byteLength(capability) < 32) throw new Error("native_ingest_capability_invalid");
   const secret = Buffer.from(capability);
-  for (const path of [root, root + "/status"]) api.registerHttpRoute({ path, auth: "gateway", match: "exact",
+  for (const path of [root, root + "/status", ...(recoveryStatus ? [root + "/recovery"] : [])]) api.registerHttpRoute({ path, auth: "gateway", match: "exact",
     async handler(req, res) {
       const write = (code: number, body: unknown) => { res.writeHead(code, { "content-type": "application/json", "cache-control": "no-store" }); res.end(JSON.stringify(body)); };
       const token = req.headers["x-native-memory-capability"];
@@ -48,6 +49,12 @@ export function registerNativeIngestRoutes(api: { registerHttpRoute(route: Route
       try {
         const url = new URL(req.url!, "http://localhost");
         if (url.pathname !== path) { write(404, {}); return; }
+        if (path.endsWith("/recovery")) {
+          if (req.method !== "GET") { write(405, {}); return; }
+          const binding = url.searchParams.getAll("bindingRef");
+          if (binding.length !== 1 || [...url.searchParams.keys()].length !== 1) throw new Error("invalid_schema");
+          write(200, recoveryStatus!(binding[0])); return;
+        }
         if (path.endsWith("/status")) {
           if (req.method !== "GET" && req.method !== "POST") { write(405, {}); return; }
           const binding = url.searchParams.getAll("bindingRef"), ref = url.searchParams.getAll("requestRef");

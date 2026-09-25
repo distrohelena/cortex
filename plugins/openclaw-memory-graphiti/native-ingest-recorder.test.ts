@@ -35,6 +35,21 @@ test("observed exact episode with zero facts can be persisted after authorizatio
   const f = fixture(); f.state.episodes = [f.episode];
   expect(await f.recorder.confirmInbound(f.capture)).toBe("persisted"); expect(f.state.fragments).toBe(1);
 });
+
+test("old episode outside latest 100 is still confirmed without resubmitting extraction", async () => {
+  const f = fixture();
+  const old = Array.from({ length: 100 }, (_, i) => ({ ...f.episode, uuid: `other-${i}` }));
+  // Real MCP contract: max_episodes limits the returned latest episodes.
+  const get = async (_group: string, count: number) => [...old, f.episode].slice(0, count);
+  // Replace only the external read, not the recorder/permission/provenance logic.
+  const recorder = createMessageLifecycleRecorder({
+    graphiti: { getEpisodes: get } as unknown as GraphitiClient,
+    spicedb: { async checkPermission() { return true; }, async writeRelationships() { return "token"; } } as unknown as SpiceDbClient,
+    subject: { type: "agent", id: "synthetic-agent" }, extractionInstructions: "unchanged", logger: { info() {}, warn() {} },
+    getLastWriteToken: () => undefined, setLastWriteToken() {},
+  });
+  expect(await recorder.confirmInbound(f.capture)).toBe("persisted");
+});
 test.each(["namespace", "content", "fragment", "revoked"])("%s failure cannot be called persisted", async kind => {
   const f = fixture(); f.state.episodes = [f.episode];
   if (kind === "namespace") f.episode.group_id = "foreign";

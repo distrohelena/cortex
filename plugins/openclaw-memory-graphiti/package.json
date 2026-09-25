@@ -25,6 +25,8 @@
     "native-ingest-store.ts",
     "native-ingest-http.ts",
     "native-ingest-bootstrap.ts",
+    "native-memory-recovery.ts",
+    "native-memory-history.ts",
     "event-bridge.ts",
     "channel-adapters/",
     "passive-capture.ts",

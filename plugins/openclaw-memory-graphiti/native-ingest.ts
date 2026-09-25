@@ -1,10 +1,15 @@
 import { getChannelAdapter } from "./channel-adapters/registry.js";
+import { isAbsolute } from "node:path";
 import type { ConversationRef, NormalizedInboundMessage } from "./channel-adapters/types.js";
 import { buildInboundCapture, NativeIngestAuthorizationError, type MessageCapture } from "./message-lifecycle.js";
 import { ingestDigest, NativeIngestStore, type NativeIngestStatusV1 } from "./native-ingest-store.js";
 
 export type NativeMemoryBinding = {
   bindingRef: string; conversation: ConversationRef; notBefore: string; selfActorIds: string[];
+  /** Separate deployment authority for recurring history recovery; never supplied by HTTP. */
+  historyNotBefore?: string;
+  /** Existing account-owned Baileys LID/PN cache. No session keys are read. */
+  historyIdentityDirectory?: string;
 };
 export type NativeIngestRequestV1 = {
   version: "native-memory-ingest:v1"; bindingRef: string; message: NormalizedInboundMessage;
@@ -23,14 +28,19 @@ export class NativeIngestService {
       const normalized = getChannelAdapter(b.conversation.channel)?.normalizeConversation({ accountId: b.conversation.accountId,
         conversationId: b.conversation.nativeId, kind: b.conversation.kind, threadId: b.conversation.threadId });
       if (!b.bindingRef || !normalized || ingestDigest(normalized) !== ingestDigest(b.conversation)
-        || !Number.isFinite(Date.parse(b.notBefore)) || !b.selfActorIds.length) throw new Error("native_ingest_binding_invalid");
+        || typeof b.notBefore !== "string" || !Number.isFinite(Date.parse(b.notBefore)) || !b.selfActorIds.length
+        || (b.historyNotBefore !== undefined && (typeof b.historyNotBefore !== "string" || !Number.isFinite(Date.parse(b.historyNotBefore))
+          || Date.parse(b.historyNotBefore) > Date.parse(b.notBefore)))
+        || (b.historyIdentityDirectory !== undefined && (typeof b.historyIdentityDirectory !== "string"
+          || !isAbsolute(b.historyIdentityDirectory)))) throw new Error("native_ingest_binding_invalid");
     }
   }
-  private validate(request: NativeIngestRequestV1): NormalizedInboundMessage {
+  private validate(request: NativeIngestRequestV1, historical = false): NormalizedInboundMessage {
     const b = this.bindings.get(request.bindingRef);
     const m = request.message;
     if (!b || request.version !== "native-memory-ingest:v1" || !m || ingestDigest(m.conversation) !== ingestDigest(b.conversation))
       throw new Error("native_ingest_binding_invalid");
+    if (historical && !b.historyNotBefore) throw new Error("native_ingest_history_authority_required");
     const actor = m.sender;
     const canonical = actor && getChannelAdapter(b.conversation.channel)?.normalizeActor({ accountId: b.conversation.accountId, nativeId: actor.nativeId });
     if (m.direction !== "inbound" || m.timestampSource !== "provider" || !actor || !canonical
@@ -40,17 +50,22 @@ export class NativeIngestService {
       || (b.conversation.kind === "dm" && actor.nativeId !== b.conversation.nativeId))
       throw new Error("native_ingest_actor_invalid");
     if (!(m.referenceTime instanceof Date) || !Number.isFinite(m.referenceTime.getTime())
-      || m.referenceTime.getTime() < Date.parse(b.notBefore) || !Number.isFinite(m.originalTimestamp)
+      || m.referenceTime.getTime() < Date.parse(historical ? b.historyNotBefore! : b.notBefore) || !Number.isFinite(m.originalTimestamp)
       || (m.originalTimestamp < 1e12 ? m.originalTimestamp * 1000 : m.originalTimestamp) !== m.referenceTime.getTime()
       || typeof m.content !== "string" || !m.content.trim() || !m.providerMessageId?.trim()
       || Buffer.byteLength(JSON.stringify(m)) > 60 * 1024) throw new Error("native_ingest_message_invalid");
     return structuredClone(m);
   }
   async submit(request: NativeIngestRequestV1): Promise<NativeIngestStatusV1> {
-    const message = this.validate(request);
+    return this.submitValidated(this.validate(request), request.bindingRef);
+  }
+  async submitHistorical(request: NativeIngestRequestV1): Promise<NativeIngestStatusV1> {
+    return this.submitValidated(this.validate(request, true), request.bindingRef);
+  }
+  private async submitValidated(message: NormalizedInboundMessage, bindingRef: string): Promise<NativeIngestStatusV1> {
     const capture = buildInboundCapture(message);
     const requestRef = ingestDigest([message.conversation.accountId, capture.episodeUuid]);
-    const entry = this.store.stage({ bindingRef: request.bindingRef, message, digest: ingestDigest(message),
+    const entry = this.store.stage({ bindingRef, message, digest: ingestDigest(message),
       receipt: { version: "native-memory-ingest:v1", requestRef, episodeUuid: capture.episodeUuid, state: "pending", retryDisposition: "safe" } });
     if (!this.store.claim(requestRef)) return this.store.get(requestRef)!.receipt;
     let receipt: NativeIngestStatusV1;
@@ -68,7 +83,8 @@ export class NativeIngestService {
   async getStatus(bindingRef: string, requestRef: string): Promise<NativeIngestStatusV1> {
     const row = this.store.get(requestRef);
     if (!this.bindings.has(bindingRef) || !row || row.bindingRef !== bindingRef) throw new Error("native_ingest_binding_invalid");
-    this.validate({ version: "native-memory-ingest:v1", bindingRef, message: row.message });
+    const historical = row.message.referenceTime.getTime() < Date.parse(this.bindings.get(bindingRef)!.notBefore);
+    this.validate({ version: "native-memory-ingest:v1", bindingRef, message: row.message }, historical);
     return row.receipt;
   }
   async reconcile(bindingRef: string, requestRef: string): Promise<NativeIngestStatusV1> {

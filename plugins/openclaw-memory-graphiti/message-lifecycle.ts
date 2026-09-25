@@ -280,8 +280,17 @@ export function createMessageLifecycleRecorder(input: {
     },
     async confirmInbound(capture) {
       await requireNativeWrite(capture.conversationNamespace);
-      const episodes = await input.graphiti.getEpisodes(capture.conversationNamespace, 100);
+      let limit = 100;
+      let episodes = await input.graphiti.getEpisodes(capture.conversationNamespace, limit);
       if (!Array.isArray(episodes)) throw new Error("native_ingest_episode_contract_invalid");
+      // History recovery cannot assume an old receipt lives in the latest 100.
+      // Widen the existing read-only API; hitting the safety bound remains unresolved.
+      while (!episodes.some(e => e.uuid === capture.episodeUuid) && episodes.length >= limit) {
+        if (limit >= 12800) throw new Error("native_ingest_confirmation_window_exhausted");
+        limit *= 2;
+        episodes = await input.graphiti.getEpisodes(capture.conversationNamespace, limit);
+        if (!Array.isArray(episodes)) throw new Error("native_ingest_episode_contract_invalid");
+      }
       const matches = episodes.filter(e => e.uuid === capture.episodeUuid);
       if (!matches.length) return "pending";
       if (matches.length !== 1 || matches[0].group_id !== capture.conversationNamespace

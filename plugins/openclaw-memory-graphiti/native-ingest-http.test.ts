@@ -4,13 +4,13 @@ import { expect, test } from "vitest";
 import { registerNativeIngestRoutes } from "./native-ingest-http.js";
 import type { NativeIngestService } from "./native-ingest.js";
 
-async function fixture() {
+async function fixture(recoveryStatus?: (binding: string) => unknown) {
   const routes: { path: string; auth: string; handler(req: IncomingMessage, res: ServerResponse): unknown }[] = [];
   let submits = 0;
   registerNativeIngestRoutes({ registerHttpRoute: r => routes.push(r) }, {
     async submit() { submits++; return { state: "queued" }; },
     async getStatus() { return { state: "queued" }; }, async reconcile() { return { state: "persisted" }; },
-  } as unknown as NativeIngestService, "synthetic-host-capability-32-bytes-minimum");
+  } as unknown as NativeIngestService, "synthetic-host-capability-32-bytes-minimum", recoveryStatus);
   const server = createServer((req, res) => {
     const route = routes.find(r => r.path === new URL(req.url!, "http://localhost").pathname);
     if (!route) { res.writeHead(404).end(); return; } void route.handler(req, res);
@@ -41,4 +41,17 @@ test("status is authenticated and does not submit or reconcile implicitly", asyn
 test("weak capability cannot register routes", () => {
   expect(() => registerNativeIngestRoutes({ registerHttpRoute() { throw new Error("registered"); } }, {} as NativeIngestService, "short"))
     .toThrow("capability_invalid");
+});
+
+test("recovery status is host-authenticated read-only and scoped; it cannot trigger catch-up", async () => {
+  const f = await fixture(binding => { if (binding !== "test") throw new Error("wrong scope"); return { cursor: 7, pending: 2 }; });
+  const headers = { "x-native-memory-capability": "synthetic-host-capability-32-bytes-minimum" };
+  try {
+    const url = f.url + "/recovery?bindingRef=test";
+    expect((await fetch(url)).status).toBe(403);
+    expect((await fetch(url, { method: "POST", headers })).status).toBe(405);
+    expect((await fetch(f.url + "/recovery?bindingRef=foreign", { headers })).status).toBe(400);
+    expect(await (await fetch(url, { headers })).json()).toEqual({ cursor: 7, pending: 2 });
+    expect(f.submits()).toBe(0);
+  } finally { await f.close(); }
 });
