@@ -46,6 +46,7 @@ public sealed partial class NativeObservationReader
     private readonly string token, sourceSession, selfActor, peerActor;
     private readonly string version;
     private readonly IReadOnlyDictionary<string, string> groupActorBindings;
+    private readonly IReadOnlySet<string> trustedManagedMemberDmAliases;
     private readonly ShadowSessionBinding binding;
     private readonly SessionKey transportSession;
     private readonly NativeSelfMentionIdentity? selfMentionIdentity;
@@ -64,7 +65,8 @@ public sealed partial class NativeObservationReader
 
     public NativeObservationReader(HttpClient client, Uri endpoint, string bearerToken, ShadowSessionBinding binding,
         string expectedSourceSessionRef, string selfActor, string peerActor, SessionKey? transportSession = null,
-        IReadOnlyDictionary<string, string>? groupParticipants = null, NativeSelfMentionIdentity? selfMentionIdentity = null)
+        IReadOnlyDictionary<string, string>? groupParticipants = null, NativeSelfMentionIdentity? selfMentionIdentity = null,
+        IReadOnlyCollection<string>? trustedManagedMemberDmAliases = null)
     {
         var endpointVersion = binding.Kind == SessionEntryKind.Group ? "v2" : "v1";
         if (endpoint.Scheme != "http" || endpoint.Host is not ("127.0.0.1" or "[::1]" or "::1")
@@ -111,6 +113,15 @@ public sealed partial class NativeObservationReader
                 ? this.transportSession.NativeConversationId != binding.Session.NativeConversationId
                 : !System.Text.RegularExpressions.Regex.IsMatch(this.transportSession.NativeConversationId, @"^\d+@(lid|s\.whatsapp\.net)$")))
             throw new ArgumentException("Invalid host-owned transport alias.");
+        if (trustedManagedMemberDmAliases is not null
+            && (binding.Kind != SessionEntryKind.Dm
+                || !trustedManagedMemberDmAliases.Contains(binding.Session.NativeConversationId, StringComparer.Ordinal)
+                || trustedManagedMemberDmAliases.Count == 0
+                || trustedManagedMemberDmAliases.Distinct(StringComparer.Ordinal).Count() != trustedManagedMemberDmAliases.Count
+                || trustedManagedMemberDmAliases.Any(alias => !System.Text.RegularExpressions.Regex.IsMatch(alias,
+                    @"\A\d+(?::\d+)?@(s\.whatsapp\.net|lid)\z"))))
+            throw new ArgumentException("Invalid trusted managed member-DM aliases.");
+        this.trustedManagedMemberDmAliases = new HashSet<string>(trustedManagedMemberDmAliases ?? [], StringComparer.Ordinal);
     }
 
     private static string ActorRef(string sessionRef, string nativeActorId) =>
@@ -192,7 +203,12 @@ public sealed partial class NativeObservationReader
         {
             foreach (var (source, canonical) in groupActorBindings) BindActor(source, canonical);
         }
-        else BindActor(inspected.PeerActorRef, peerActor);
+        else
+        {
+            BindActor(inspected.PeerActorRef, peerActor);
+            foreach (var alias in trustedManagedMemberDmAliases)
+                BindActor(ActorRef(sourceSession, alias), peerActor);
+        }
         return new(authority, inspected);
     }
 
@@ -339,6 +355,14 @@ public sealed partial class NativeObservationReader
             // Known non-text events are durably ignored, not synthesized as human text.
             // Unknown/malformed payloads still fail closed. No payload/JID reaches a model.
             var nativeMessage = record.Payload.GetProperty("message");
+            if (trustedManagedMemberDmAliases.Count > 0)
+            {
+                var key = nativeMessage.GetProperty("key");
+                var remoteJid = Text(key, "remoteJid");
+                if (!trustedManagedMemberDmAliases.Contains(remoteJid)
+                    || record.ActorRef != ActorRef(sourceSession, remoteJid))
+                    throw new NativeObservationException("integrity_violation");
+            }
             var hasContent = nativeMessage.TryGetProperty("message", out var content) && content.ValueKind != JsonValueKind.Null;
             // Baileys WAProto: GROUP_CHANGE_SUBJECT=21, GROUP_CHANGE_DESCRIPTION=24.
             // These are explicit protocol notifications, not a missing/decrypt-failed text.
@@ -388,8 +412,9 @@ public sealed partial class NativeObservationReader
             if (id.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(id.GetString()))
                 throw new NativeObservationException("invalid_reply");
             if (context.TryGetProperty("remoteJid", out var remote)
-                && remote.ValueKind == JsonValueKind.String && !string.IsNullOrEmpty(remote.GetString()))
-                Exact(remote.GetString()!, transportSession.NativeConversationId);
+                && remote.ValueKind == JsonValueKind.String && !string.IsNullOrEmpty(remote.GetString())
+                && !IsCurrentConversationAlias(remote.GetString()!))
+                throw new NativeObservationException("integrity_violation");
             string? text = null;
             if (context.TryGetProperty("quotedMessage", out var quoted))
             {
@@ -422,12 +447,16 @@ public sealed partial class NativeObservationReader
             || !(type.ValueKind == JsonValueKind.String && type.GetString() == "MESSAGE_EDIT"
                 || type.ValueKind == JsonValueKind.Number && type.TryGetInt32(out var number) && number == 2)) return false;
         if (!edit.TryGetProperty("targetMessageKey", out var target) || target.ValueKind != JsonValueKind.Object
-            || Text(target, "remoteJid") != transportSession.NativeConversationId) return false;
+            || !IsCurrentConversationAlias(Text(target, "remoteJid"))) return false;
         _ = Text(target, "id");
         _ = Text(edit, "encPayload");
         _ = Text(edit, "encIv");
         return true;
     }
+
+    private bool IsCurrentConversationAlias(string nativeConversationId) =>
+        nativeConversationId == transportSession.NativeConversationId
+        || trustedManagedMemberDmAliases.Contains(nativeConversationId);
 
     private static bool IsKnownNonText(JsonElement content)
     {

@@ -1,0 +1,147 @@
+{
+  "generatedBy": "src/channels/message/native-observation-bootstrap.test.ts :: emits a real group/child/poll HTTP fixture with an immutable member lease projection",
+  "syntheticOnly": true,
+  "groupDiscovery": {
+    "version": "native-group-member-dm-discovery:v1",
+    "source": {
+      "accountId": "default",
+      "groupJid": "123456@g.us",
+      "groupSessionRef": "daa01aa2f02126b0a22dbd0bd3e616542fee0b7ba20f38fef587386637f484b5"
+    },
+    "enrollment": "enabled",
+    "scopes": [
+      {
+        "status": "ready",
+        "scopeRef": "d1bf596adad46939d4efeca770ca670911877f8340b2f0e98185abd040056021",
+        "nativeConversationId": "15550000000@s.whatsapp.net",
+        "nativeAliases": ["15550000000@s.whatsapp.net", "987654321@lid"],
+        "membershipLeaseRef": "lease-generation-1",
+        "leaseExpiresAt": 1790339676642,
+        "reader": {
+          "endpoint": "http://127.0.0.1:64683/inbound-observation/v1",
+          "version": "inbound-observation:v1",
+          "routeBindingRef": "051086e6b3dd8f7305f5501f8b29c712e55d31b7c0e04ca36299b22038e2311a",
+          "effectiveConfigRevision": "3b13ced5-d747-4fac-a175-82bbc67ebbf3:1:RBNvo1WzZ4oRRq0W9-hknpT7T8If536DEMBg9hyq_4o:registry-1:isolation-f96de906-f7c6-497a-8573-a979cc285d87"
+        },
+        "epoch": "b0efcc5e-4c41-4ca5-bdcf-7affd1c01e09",
+        "initialCursor": {
+          "version": "inbound-observation:v1",
+          "epoch": "b0efcc5e-4c41-4ca5-bdcf-7affd1c01e09",
+          "sessionRef": "d1bf596adad46939d4efeca770ca670911877f8340b2f0e98185abd040056021",
+          "sequence": 0
+        }
+      }
+    ]
+  },
+  "childStatus": {
+    "version": "inbound-observation:v1",
+    "health": "healthy",
+    "journalHealth": "healthy",
+    "readerAvailable": true,
+    "captureState": "armed",
+    "activeEpoch": "b0efcc5e-4c41-4ca5-bdcf-7affd1c01e09",
+    "sessionRef": "d1bf596adad46939d4efeca770ca670911877f8340b2f0e98185abd040056021",
+    "journalEpoch": "b0efcc5e-4c41-4ca5-bdcf-7affd1c01e09",
+    "capabilities": {
+      "stableNativeMessageId": true,
+      "durableObservationCursor": true,
+      "replayableObservation": true,
+      "exactSessionBinding": true,
+      "actorIdentity": true,
+      "fromMe": true,
+      "selfIdentity": true,
+      "dispatchInspection": true
+    },
+    "bootstrap": {
+      "version": "inbound-observation:v1",
+      "health": "healthy",
+      "journalHealth": "healthy",
+      "readerAvailable": true,
+      "captureState": "armed",
+      "activeEpoch": "b0efcc5e-4c41-4ca5-bdcf-7affd1c01e09",
+      "sessionRef": "d1bf596adad46939d4efeca770ca670911877f8340b2f0e98185abd040056021",
+      "journalEpoch": "b0efcc5e-4c41-4ca5-bdcf-7affd1c01e09",
+      "capabilities": {
+        "stableNativeMessageId": true,
+        "durableObservationCursor": true,
+        "replayableObservation": true,
+        "exactSessionBinding": true,
+        "actorIdentity": true,
+        "fromMe": true,
+        "selfIdentity": true,
+        "dispatchInspection": false
+      },
+      "subsystemOperational": true,
+      "controlAvailable": false,
+      "configSnapshotAvailable": true,
+      "configSnapshotRevision": "3b13ced5-d747-4fac-a175-82bbc67ebbf3:1:RBNvo1WzZ4oRRq0W9-hknpT7T8If536DEMBg9hyq_4o",
+      "dispatchInspectorAvailable": true,
+      "effectiveConfigRevision": "3b13ced5-d747-4fac-a175-82bbc67ebbf3:1:RBNvo1WzZ4oRRq0W9-hknpT7T8If536DEMBg9hyq_4o:registry-1:isolation-f96de906-f7c6-497a-8573-a979cc285d87",
+      "dispatchStatus": "inactive",
+      "legacyIsolationConfigured": true,
+      "isolationBarrier": "protecting_until_receiver_drain",
+      "isolationGate": {
+        "gateVersion": "native-dm-isolation:v1",
+        "gateInstanceRevision": "f96de906-f7c6-497a-8573-a979cc285d87",
+        "approvedEffectiveConfigRevision": "3b13ced5-d747-4fac-a175-82bbc67ebbf3:1:RBNvo1WzZ4oRRq0W9-hknpT7T8If536DEMBg9hyq_4o",
+        "accountRef": "f68e90df3178c21259db68fe79ddd7c0c7c2e53bf265c52957a3f5828e6c5495",
+        "sessionRef": "169171076717215eea116c8f3f9ba84a38c0f9c309c52ed6ad2c6de958b8f038",
+        "coveredPathIds": ["allow_rules", "approval_reactions", "commands", "plugins", "agents", "route_bindings", "transport_only", "runtime_registry_live_inbound", "runtime_registry_restart_recovery", "runtime_registry_imperative"],
+        "placementProof": "whatsapp-receiver:pre-approval-and-durable-replay:v1",
+        "runtimePlacements": {
+          "runtime_registry_live_inbound": "native-channel-origin:pre-ingest-and-callback:v1",
+          "runtime_registry_restart_recovery": "native-persisted-recovery:pre-mutation-quarantine:v1",
+          "runtime_registry_imperative": "native-host-origin:admission-and-actual-settlement:v1"
+        },
+        "lifecycleState": "armed"
+      },
+      "legacyRecovery": {
+        "status": "clear",
+        "effectiveConfigRevision": "3b13ced5-d747-4fac-a175-82bbc67ebbf3:1:RBNvo1WzZ4oRRq0W9-hknpT7T8If536DEMBg9hyq_4o",
+        "pendingLegacyRecoveryCount": 0,
+        "quarantinedCount": 0,
+        "uncoveredOwnerCount": 0,
+        "activeOwnerCount": 0,
+        "pausedScheduledJobCount": 0
+      },
+      "effectiveSnapshotProof": {
+        "status": "valid",
+        "version": "effective-runtime-config:v1",
+        "revision": "3b13ced5-d747-4fac-a175-82bbc67ebbf3:1:RBNvo1WzZ4oRRq0W9-hknpT7T8If536DEMBg9hyq_4o"
+      }
+    },
+    "routeBindingRef": "051086e6b3dd8f7305f5501f8b29c712e55d31b7c0e04ca36299b22038e2311a"
+  },
+  "poll": {
+    "version": "inbound-observation:v1",
+    "sessionRef": "d1bf596adad46939d4efeca770ca670911877f8340b2f0e98185abd040056021",
+    "effectiveConfigRevision": "3b13ced5-d747-4fac-a175-82bbc67ebbf3:1:RBNvo1WzZ4oRRq0W9-hknpT7T8If536DEMBg9hyq_4o:registry-1:isolation-f96de906-f7c6-497a-8573-a979cc285d87",
+    "status": "healthy",
+    "epochClosed": false,
+    "events": [
+      {
+        "sequence": 1,
+        "nativeMessageId": "fixture-native-message-id",
+        "sessionRef": "d1bf596adad46939d4efeca770ca670911877f8340b2f0e98185abd040056021",
+        "actorRef": "f2badeee6e326b2578debf178b2003658e7cf6340a3a00761c35b3039de31cf6",
+        "selfIdentityRef": "995ac5f72d402ffb4848a3725d465d2afd3b621fc10b29dc9a3d655c5f7cb96c",
+        "fromMe": false,
+        "membershipAuthority": {
+          "version": "native-member-dm-admission:v1",
+          "membershipLeaseRef": "lease-generation-1"
+        },
+        "payload": {
+          "text": "synthetic fixture only",
+          "key": { "remoteJid": "987654321@lid", "id": "fixture-native-message-id" }
+        },
+        "journalEpoch": "b0efcc5e-4c41-4ca5-bdcf-7affd1c01e09"
+      }
+    ],
+    "nextCursor": {
+      "version": "inbound-observation:v1",
+      "epoch": "b0efcc5e-4c41-4ca5-bdcf-7affd1c01e09",
+      "sessionRef": "d1bf596adad46939d4efeca770ca670911877f8340b2f0e98185abd040056021",
+      "sequence": 1
+    }
+  }
+}

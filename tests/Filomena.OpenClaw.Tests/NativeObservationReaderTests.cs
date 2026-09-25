@@ -48,6 +48,78 @@ public sealed class NativeObservationReaderTests
         Assert.Equal("lease-captured-on-admission", record.MembershipAuthority.MembershipLeaseRef);
     }
 
+    [Fact]
+    public async Task Managed_member_dm_maps_trusted_lid_then_pn_redelivery_to_one_canonical_peer()
+    {
+        const string lid = "991234:7@lid", pn = "100@s.whatsapp.net";
+        var replies = new Queue<System.Text.Json.Nodes.JsonNode>();
+        foreach (var (sequence, alias) in new[] { (1, lid), (2, pn) })
+        {
+            var row = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(Event()))!;
+            row["sequence"] = sequence;
+            row["nativeMessageId"] = "same-native-message-id";
+            row["actorRef"] = ActorRef(alias);
+            row["payload"]!["message"]!["key"] = JsonSerializer.SerializeToNode(new
+                { remoteJid = alias, fromMe = false });
+            row["payload"]!["message"]!["message"] = JsonSerializer.SerializeToNode(new { extendedTextMessage = new
+                { text = "hello", contextInfo = new { stanzaId = "quoted-id", remoteJid = alias } } });
+            var batch = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(Batch(false, [row])))!;
+            batch["nextCursor"]!["sequence"] = sequence;
+            replies.Enqueue(batch);
+        }
+        using var client = new HttpClient(new Handler(request =>
+            request.RequestUri!.AbsolutePath.EndsWith("/status") ? Status() : replies.Dequeue()));
+        var reader = new NativeObservationReader(client, new("http://127.0.0.1:12345"), "token", Binding,
+            "source", Self, Peer, trustedManagedMemberDmAliases: [pn, lid]);
+        var approval = await reader.PreflightAsync(TestContext.Current.CancellationToken);
+
+        var firstBatch = await reader.PollAsync(approval,
+            new("inbound-observation:v1", "epoch", "source", 0), TestContext.Current.CancellationToken);
+        var first = reader.ToInbound(Assert.Single(firstBatch.Records));
+        var secondBatch = await reader.PollAsync(approval, firstBatch.Cursor, TestContext.Current.CancellationToken);
+        var second = reader.ToInbound(Assert.Single(secondBatch.Records));
+
+        Assert.Equal("same-native-message-id", first.Message.ProviderMessageId);
+        Assert.Equal(first.Message.ProviderMessageId, second.Message.ProviderMessageId);
+        Assert.Equal(Peer, first.ActorId);
+        Assert.Equal(Peer, second.ActorId);
+        Assert.Equal(first.Message.Message.GetProperty("remetente").GetProperty("stableId").GetString(),
+            second.Message.Message.GetProperty("remetente").GetProperty("stableId").GetString());
+        Assert.Equal(Session.NativeConversationId, second.Message.Message.GetProperty("canal").GetProperty("nativeId").GetString());
+        Assert.Equal("quoted-id", first.Message.Message.GetProperty("reply").GetProperty("id").GetString());
+    }
+
+    [Theory]
+    [InlineData("actor_alias")]
+    [InlineData("payload_remote_jid")]
+    [InlineData("reply_remote_jid")]
+    public async Task Managed_member_dm_rejects_alias_outside_owner_validated_set(string mutation)
+    {
+        const string lid = "991234@lid", foreign = "888888@s.whatsapp.net";
+        var row = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(Event()))!;
+        row["actorRef"] = ActorRef(mutation == "actor_alias" ? foreign : lid);
+        row["payload"]!["message"]!["key"] = JsonSerializer.SerializeToNode(new
+            { remoteJid = mutation == "payload_remote_jid" ? foreign : lid, fromMe = false });
+        if (mutation == "reply_remote_jid")
+            row["payload"]!["message"]!["message"] = JsonSerializer.SerializeToNode(new { extendedTextMessage = new
+                { text = "hello", contextInfo = new { stanzaId = "quoted-id", remoteJid = foreign } } });
+        using var client = new HttpClient(new Handler(request => request.RequestUri!.AbsolutePath.EndsWith("/status")
+            ? Status() : Batch(false, [row])));
+        var reader = new NativeObservationReader(client, new("http://127.0.0.1:12345"), "token", Binding,
+            "source", Self, Peer, trustedManagedMemberDmAliases: ["100@s.whatsapp.net", lid]);
+        var approval = await reader.PreflightAsync(TestContext.Current.CancellationToken);
+
+        if (mutation == "actor_alias")
+            await Assert.ThrowsAsync<NativeObservationException>(() => reader.PollAsync(approval,
+                new("inbound-observation:v1", "epoch", "source", 0), TestContext.Current.CancellationToken));
+        else
+        {
+            var record = Assert.Single((await reader.PollAsync(approval,
+                new("inbound-observation:v1", "epoch", "source", 0), TestContext.Current.CancellationToken)).Records);
+            Assert.Equal("integrity_violation", Assert.Throws<NativeObservationException>(() => reader.ToInbound(record)).Code);
+        }
+    }
+
     [Theory]
     [InlineData("unknown_version")]
     [InlineData("missing_lease")]
@@ -513,6 +585,8 @@ public sealed class NativeObservationReaderTests
     private static string GroupActorRef(string nativeActor) => Convert.ToHexStringLower(
         System.Security.Cryptography.SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(
             new[] { "source", "actor", nativeActor })));
+
+    private static string ActorRef(string nativeActor) => GroupActorRef(nativeActor);
 
     [Fact]
     public async Task Group_v2_maps_trusted_participant_and_cursor_to_group_inbound()

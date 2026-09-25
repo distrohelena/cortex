@@ -125,7 +125,7 @@ public static class NativeMemberDmDiscoveryValidator
     private sealed record SourceWire(string AccountId, string GroupJid, string GroupSessionRef);
     private sealed record ScopeWire(string Status, string? ScopeRef, string? NativeConversationId, string[]? NativeAliases,
         string? MembershipLeaseRef, long? LeaseExpiresAt, ReaderWire? Reader, string? Epoch,
-        CursorWire? InitialCursor, string? FailureCode);
+        CursorWire? InitialCursor, string? FailureCode = null);
     private sealed record ReaderWire(string Endpoint, string Version, string RouteBindingRef, string EffectiveConfigRevision);
     private sealed record CursorWire(string Version, string Epoch, string SessionRef, long Sequence);
 }

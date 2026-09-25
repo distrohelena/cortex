@@ -19,6 +19,14 @@ if (args.Contains("--system-one", StringComparer.Ordinal))
     return;
 }
 
+if (args.Contains("--native-conversation-host", StringComparer.Ordinal))
+{
+    using var cancellation = new CancellationTokenSource();
+    Console.CancelKeyPress += (_, e) => { e.Cancel = true; cancellation.Cancel(); };
+    Environment.ExitCode = await NativeConversationHostCommand.RunAsync(args, Console.In, Console.Out, cancellation.Token);
+    return;
+}
+
 if (args.Contains("--native-live", StringComparer.Ordinal))
 {
     using var cancellation = new CancellationTokenSource();

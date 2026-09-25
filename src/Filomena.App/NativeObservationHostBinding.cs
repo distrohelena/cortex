@@ -8,6 +8,22 @@ namespace Filomena.App;
 
 public static class NativeObservationHostBinding
 {
+    public static ShadowSessionBinding CreateManagedMemberDm(ManualShadowConfig config)
+    {
+        ArgumentNullException.ThrowIfNull(config);
+        var nativeId = config.Session.NativeConversationId;
+        if (config.Session.ChannelId != "whatsapp"
+            || !Regex.IsMatch(nativeId, @"\A[0-9]+@s\.whatsapp\.net\z")
+            || config.SelfActorIds.Length != 1
+            || !Regex.IsMatch(config.SelfActorIds[0], @"\Awhatsapp:[0-9]+@s\.whatsapp\.net\z")
+            || config.SelfActorIds[0] == "whatsapp:" + nativeId
+            || config.ConversationNamespace != FilomenaIdentity.WhatsAppConversationNamespace(nativeId)
+            || config.PeerActorId != "whatsapp:" + nativeId
+            || config.GraphitiProbes.Length != 0)
+            throw new ArgumentException("Invalid managed member-DM host binding.");
+        return new(config.Session, config.ConversationNamespace, config.SelfActorIds, [config.PeerActorId]);
+    }
+
     // Operational project validation, not a participation/FSM rule. Candidate paths
     // must cross the existing Send boundary before any state-switch exit.
     public static void ValidateGroupSendWiring(PinnedShadowProject pin, OutboundBindings roles)

@@ -19,7 +19,8 @@ public sealed record NativeShadowConfig(string ManualConfigFile, string Observat
     string ObservationTokenEnvironmentVariable, string ObservationSessionRef,
     string NativeConversationId, string ApprovedRevision, string JournalDirectory, int MaxInteractions = 5,
     NativeReplayPlan? Recovery = null, Dictionary<string, string>? GroupParticipants = null,
-    NativeSelfMentionIdentity? SelfMentionIdentity = null, string? NativeSourceGroupJid = null);
+    NativeSelfMentionIdentity? SelfMentionIdentity = null, string? NativeSourceGroupJid = null,
+    NativeMemberDmMemoryReadinessTemplate? NewDmMemoryReadiness = null);
 
 /// <summary>Bounded, operator-stepped reader handoff. Never constructs the legacy host.</summary>
 public static class NativeShadowCommand
@@ -64,8 +65,13 @@ public static class NativeShadowCommand
             ManualShadowCommand.ValidateRoles(pin, config.OutboundBindings);
             live?.ValidateReplyWiring(config.OutboundBindings);
             SystemOneParticipationHost.Validate(config.SystemOneParticipation, pin);
-            binding = NativeObservationHostBinding.Create(config, native.NativeConversationId, native.GroupParticipants,
-                live is not null, live?.AllowExactGroupDelivery == true);
+            if ((live?.ManagedMemberDm != true && native.NewDmMemoryReadiness is not null)
+                || (live?.ManagedMemberDm == true && (native.NewDmMemoryReadiness is null || config.GraphitiProbes.Length != 0)))
+                throw new InvalidDataException("member_dm_memory_readiness_binding_mismatch");
+            binding = live?.ManagedMemberDm == true
+                ? NativeObservationHostBinding.CreateManagedMemberDm(config)
+                : NativeObservationHostBinding.Create(config, native.NativeConversationId, native.GroupParticipants,
+                    live is not null, live?.AllowExactGroupDelivery == true);
             if (binding.Kind == Filomena.Core.Flows.Sessions.SessionEntryKind.Group)
                 NativeObservationHostBinding.ValidateGroupSendWiring(pin, config.OutboundBindings);
             if (live?.ContinuousGroup == true && (binding.Kind != Filomena.Core.Flows.Sessions.SessionEntryKind.Group
@@ -137,7 +143,8 @@ public static class NativeShadowCommand
             using var transportHttp = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { Timeout = TimeSpan.FromSeconds(30) };
             var reader = new NativeObservationReader(transportHttp, new Uri(native.ObservationEndpoint), credential, binding,
                 native.ObservationSessionRef, config.SelfActorIds[0], config.PeerActorId,
-                config.Session with { NativeConversationId = native.NativeConversationId }, native.GroupParticipants, native.SelfMentionIdentity);
+                config.Session with { NativeConversationId = native.NativeConversationId }, native.GroupParticipants, native.SelfMentionIdentity,
+                live?.ManagedMemberDm == true ? memberDmExecutionContext!.ScopeFacts.NativeAliases : null);
             var approvedRevision = native.ApprovedRevision;
             NativeObservationApproval? windowApproval = null;
             NativeObservationCursor? windowCursor = null;
@@ -157,12 +164,21 @@ public static class NativeShadowCommand
                 revision = pin.Project.ProjectRevision, sessionRef = binding.OpaqueRef,
                 outboundMode = live is null ? "shadow" : "disabled_pending_preflight", transportSenderAvailable = live is not null });
             await using var graphiti = new GraphitiReadClient(new Uri(config.GraphitiEndpoint), TimeSpan.FromSeconds(30));
-            foreach (var probe in config.GraphitiProbes)
+            if (live?.ManagedMemberDm == true)
             {
-                var checks = await new ShadowGraphitiProbe(graphiti).RunAsync(probe, token);
+                var proof = native.NewDmMemoryReadiness!;
+                var checks = await new ShadowGraphitiProbe(graphiti).RunNewDmAsync(
+                    new(config.ConversationNamespace, config.PeerActorId, proof.ForeignNamespace, proof.ForeignCanary), token);
                 await Emit(new { phase = "graphiti_live_preflight", checks });
                 if (checks.Any(c => !c.Passed)) throw new InvalidDataException("graphiti_preflight_failed");
             }
+            else
+                foreach (var probe in config.GraphitiProbes)
+                {
+                    var checks = await new ShadowGraphitiProbe(graphiti).RunAsync(probe, token);
+                    await Emit(new { phase = "graphiti_live_preflight", checks });
+                    if (checks.Any(c => !c.Passed)) throw new InvalidDataException("graphiti_preflight_failed");
+                }
             await CheckTransport();
             var approval = await reader.PreflightAsync(token);
             if (approval.Revision != native.ApprovedRevision) throw new NativeObservationException("preflight_stale");
