@@ -43,6 +43,7 @@ import { createMessageLifecycleRecorder } from "./message-lifecycle.js";
 import { TurnCorrelationRegistry } from "./turn-correlation.js";
 import { buildSocialMemoryContext } from "./social-recall.js";
 import { InboundEventBridge } from "./event-bridge.js";
+import { composeNativeMemoryIngest } from "./native-ingest-bootstrap.js";
 
 const SOCIAL_EXTRACTION_INSTRUCTIONS = [
   "Extract only concrete, directly evidenced social observations.",
@@ -193,6 +194,7 @@ const memoryGraphitiPlugin = {
       getLastWriteToken: () => lastWriteToken,
       setLastWriteToken: (token) => { lastWriteToken = token; },
     });
+    composeNativeMemoryIngest(api, messageRecorder);
 
     api.logger.info(
       `openclaw-memory-graphiti: registered (graphiti: ${cfg.graphiti.endpoint}, spicedb: ${cfg.spicedb.endpoint})`,

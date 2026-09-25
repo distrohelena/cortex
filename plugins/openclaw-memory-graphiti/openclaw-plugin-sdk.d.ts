@@ -54,6 +54,12 @@ declare module "openclaw/plugin-sdk/plugin-entry" {
   };
 
   export type OpenClawPluginApi = {
+    registerHttpRoute(params: {
+      path: string;
+      auth: "gateway" | "plugin";
+      match?: "exact" | "prefix";
+      handler(req: import("node:http").IncomingMessage, res: import("node:http").ServerResponse): Promise<boolean | void> | boolean | void;
+    }): void;
     pluginConfig: unknown;
     logger: Logger;
     registerTool(
