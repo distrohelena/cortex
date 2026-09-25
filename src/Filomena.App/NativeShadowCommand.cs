@@ -63,7 +63,7 @@ public static class NativeShadowCommand
             pin = PinnedShadowProject.FromBytes(await File.ReadAllBytesAsync(Path.GetFullPath(config.ProjectFile, Path.GetDirectoryName(manualFile)!), token),
                 config.ProjectId, config.ProjectVersion, config.ExpectedProjectSha256);
             ManualShadowCommand.ValidateRoles(pin, config.OutboundBindings);
-            live?.ValidateReplyWiring(config.OutboundBindings);
+            live?.ValidateReplyWiring(config.OutboundBindings, managedMemberDm: live.ManagedMemberDm);
             SystemOneParticipationHost.Validate(config.SystemOneParticipation, pin);
             if ((live?.ManagedMemberDm != true && native.NewDmMemoryReadiness is not null)
                 || (live?.ManagedMemberDm == true && (native.NewDmMemoryReadiness is null || config.GraphitiProbes.Length != 0)))

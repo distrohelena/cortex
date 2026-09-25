@@ -18,8 +18,22 @@ public sealed record NativeLiveConfig(string NativeConfigFile, OpenClawMcpClient
 {
     internal NativeLiveCapabilityEvidence? Evidence { get; init; }
 
-    public void ValidateReplyWiring(OutboundBindings roles)
+    public void ValidateReplyWiring(OutboundBindings roles, bool managedMemberDm = false)
     {
+        if (managedMemberDm)
+        {
+            // Preserve the frozen graph's reply port mapping, but do not turn it into
+            // group-reply authority for this DM. Member-DM's current bound-send
+            // contract has no reply-target field, so quote sends remain fail-closed.
+            if (!ManagedMemberDm || !ContinuousDm || AllowExactGroupDelivery || AllowNativeGroupReplies
+                || AllowNativeGroupParticipants
+                || roles.ReplyTargetPorts.Any(pair => !roles.CandidatePorts.ContainsKey(pair.Key)
+                    || string.IsNullOrWhiteSpace(pair.Value)))
+                throw new InvalidDataException("unapproved_native_reply_wiring");
+            return;
+        }
+        if (ManagedMemberDm)
+            throw new InvalidDataException("unapproved_native_reply_wiring");
         if (AllowNativeGroupReplies != (roles.ReplyTargetPorts.Count > 0)
             || (AllowNativeGroupReplies && !AllowExactGroupDelivery)
             || roles.ReplyTargetPorts.Any(pair => !roles.CandidatePorts.ContainsKey(pair.Key)

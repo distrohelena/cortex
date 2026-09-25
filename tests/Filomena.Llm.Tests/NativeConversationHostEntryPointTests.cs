@@ -124,7 +124,10 @@ public sealed class NativeConversationHostEntryPointTests
                 FilomenaIdentity.WhatsAppConversationNamespace(groupJid), [self], [groupPeer], SessionEntryKind.Group);
             var groupRoles = new OutboundBindings(["group-response-boundaries"], ["group-compiled-boundaries"],
                 new Dictionary<string, string> { ["group-generation"] = "texto", ["group-regeneration"] = "texto" },
-                ["group-validator-1", "group-validator-2"], "participation-engaged-v1");
+                ["group-validator-1", "group-validator-2"], "participation-engaged-v1")
+            {
+                ReplyTargetPorts = new Dictionary<string, string> { ["group-generation"] = "replyTo" }
+            };
             var groupManualPath = Path.Combine(root.FullName, "group-manual.json");
             var groupManual = new ManualShadowConfig(projectPath, "group-pilot-test", 3, projectSha,
                 groupSession, FilomenaIdentity.WhatsAppConversationNamespace(groupJid), [self], groupPeer, "Group",
@@ -145,15 +148,16 @@ public sealed class NativeConversationHostEntryPointTests
             var groupEvidence = new { version = "native-live-capabilities:v1", approvedRevision = "group-native-revision",
                 observationSessionRef = groupSessionRef,
                 routeBindingRef = NativeObservationReader.RouteBindingRef(groupSession),
-                boundSendContract = "whatsapp-bound-group-text:v1", capabilities, maxInteractions = 1,
+                boundSendContract = "whatsapp-bound-group-reply:v1", capabilities, maxInteractions = 1,
                 revalidateReceiverWithinWindow = false, continuousGroup = true, continueAfter = (NativeObservationCursor?)null,
-                allowNativeGroupParticipants = false, continuousDm = false, managedMemberDm = false };
+                allowNativeGroupParticipants = false, allowNativeGroupReplies = true, continuousDm = false, managedMemberDm = false };
             await WriteJson(groupEvidencePath, groupEvidence);
             var groupEvidenceBytes = await File.ReadAllBytesAsync(groupEvidencePath, TestContext.Current.CancellationToken);
             var groupLivePath = Path.Combine(root.FullName, "group-live.json");
             var groupLive = new NativeLiveConfig(groupNativePath, new("fake-mcp", []), "group-route", "Filomena", 1000,
                 capabilities, groupEvidencePath, Convert.ToHexString(SHA256.HashData(groupEvidenceBytes)),
-                AllowExactGroupDelivery: true, ContinuousGroup: true);
+                AllowExactGroupDelivery: true, ContinuousGroup: true, AllowNativeGroupReplies: true);
+            groupLive.ValidateReplyWiring(groupRoles);
             await WriteJson(groupLivePath, groupLive);
 
             var memberTemplatePath = Path.Combine(root.FullName, "member-template.json");
@@ -229,6 +233,13 @@ public sealed class NativeConversationHostEntryPointTests
                 var live = JsonSerializer.Deserialize<NativeLiveConfig>(File.ReadAllText(item.LivePath),
                     new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
                 Assert.True(live.ManagedMemberDm);
+                var memberNative = JsonSerializer.Deserialize<NativeShadowConfig>(File.ReadAllText(live.NativeConfigFile),
+                    new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+                var memberManual = JsonSerializer.Deserialize<ManualShadowConfig>(File.ReadAllText(memberNative.ManualConfigFile),
+                    new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+                Assert.Equal(groupRoles.ReplyTargetPorts, memberManual.OutboundBindings.ReplyTargetPorts);
+                live.ValidateReplyWiring(memberManual.OutboundBindings, managedMemberDm: true);
+                Assert.Throws<InvalidDataException>(() => live.ValidateReplyWiring(memberManual.OutboundBindings));
                 Assert.Contains("whatsapp-bound-member-dm-text:v1", File.ReadAllText(live.CapabilityEvidenceFile));
                 Assert.DoesNotContain("fake-reader-token-never-printed", File.ReadAllText(item.LivePath));
                 var native = JsonSerializer.Deserialize<NativeShadowConfig>(File.ReadAllText(live.NativeConfigFile),

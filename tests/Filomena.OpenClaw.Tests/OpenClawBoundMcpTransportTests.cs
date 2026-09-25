@@ -94,6 +94,24 @@ public sealed class OpenClawBoundMcpTransportTests
         Assert.Equal("lease-generation-3", expected.GetProperty("membershipLeaseRef").GetString());
     }
 
+    [Fact]
+    public async Task ManagedMemberDmDoesNotTreatFrozenReplyPortAsBoundQuoteAuthority()
+    {
+        const string canonicalPn = "15550001@s.whatsapp.net";
+        var request = Request with
+        {
+            Recipient = canonicalPn,
+            MemberDm = new(canonicalPn, "dm-scope", "dm-route", "dispatch-rev-7", "lease-generation-3"),
+            ReplyToMessageId = "observed-message-9",
+        };
+        await using var client = new Client();
+
+        await Assert.ThrowsAsync<ArgumentException>(() => new OpenClawBoundMcpTransport(client)
+            .SendBoundTextAsync(request, TestContext.Current.CancellationToken));
+
+        Assert.Empty(client.Calls);
+    }
+
     [Theory]
     [InlineData("missing-lease")]
     [InlineData("lid-alias-recipient")]
