@@ -60,7 +60,8 @@ public static class NativeConversationHostCommand
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             return await FailAsync(output, exception is NativeObservationException observation
-                ? observation.Code : "invalid_host_configuration");
+                ? observation.Code : exception is InvalidDataException { Message: "member_dm_template_binding_mismatch" }
+                    ? "member_dm_template_binding_mismatch" : "invalid_host_configuration");
         }
 
         await using var supervisor = new NativeConversationSupervisor();
@@ -309,6 +310,7 @@ public static class NativeConversationHostCommand
             ConversationNamespace = namespaceId,
             PeerActorId = peer,
             PeerDisplayName = "",
+            OutboundBindings = setup.MemberDmOutboundBindings,
             JournalDirectory = stateDirectory,
             GraphitiProbes = [],
         };
@@ -383,13 +385,44 @@ public static class NativeConversationHostCommand
             groupManual.ExpectedProjectSha256);
         if (pin.Project.ProjectRevision != host.PinnedProjectRevision)
             throw new InvalidDataException("pinned_project_revision_mismatch");
+        var memberNativePath = Path.GetFullPath(memberTemplate.NativeConfigFile, Path.GetDirectoryName(memberTemplatePath)!);
+        if (string.Equals(memberNativePath, groupNativePath, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("member_dm_template_binding_mismatch");
+        var memberNative = await ReadJsonAsync<NativeShadowConfig>(memberNativePath, token);
+        var memberManualPath = Path.GetFullPath(memberNative.ManualConfigFile, Path.GetDirectoryName(memberNativePath)!);
+        if (string.Equals(memberManualPath, groupManualPath, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("member_dm_template_binding_mismatch");
+        var memberManual = await ReadJsonAsync<ManualShadowConfig>(memberManualPath, token);
+        var groupProjectFile = Path.GetFullPath(groupManual.ProjectFile, Path.GetDirectoryName(groupManualPath)!);
+        var memberProjectFile = Path.GetFullPath(memberManual.ProjectFile, Path.GetDirectoryName(memberManualPath)!);
+        if (memberNative.NativeConversationId != memberManual.Session.NativeConversationId
+            || memberManual.Session.AccountId != host.AccountId
+            || !memberManual.SelfActorIds.SequenceEqual(groupManual.SelfActorIds, StringComparer.Ordinal)
+            || memberManual.ProjectId != groupManual.ProjectId
+            || memberManual.ProjectVersion != groupManual.ProjectVersion
+            || !string.Equals(memberManual.ExpectedProjectSha256, groupManual.ExpectedProjectSha256, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(memberProjectFile, groupProjectFile, StringComparison.OrdinalIgnoreCase)
+            || memberManual.OutboundBindings.CandidatePorts.Count == 0
+            || memberManual.OutboundBindings.ReplyTargetPorts.Count != 0)
+            throw new InvalidDataException("member_dm_template_binding_mismatch");
+        try { _ = NativeObservationHostBinding.CreateManagedMemberDm(memberManual); }
+        catch (ArgumentException exception) { throw new InvalidDataException("member_dm_template_binding_mismatch", exception); }
+        try
+        {
+            ManualShadowCommand.ValidateRoles(pin, memberManual.OutboundBindings);
+            NativeObservationHostBinding.ValidateManagedMemberDmSendWiring(pin, memberManual.OutboundBindings);
+        }
+        catch (InvalidDataException exception)
+        {
+            throw new InvalidDataException("member_dm_template_binding_mismatch", exception);
+        }
         var groupBinding = NativeObservationHostBinding.Create(groupManual, host.SourceGroupJid,
             groupNative.GroupParticipants, live: true, allowExactGroupDelivery: groupLive.AllowExactGroupDelivery);
         NativeObservationHostBinding.ValidateGroupSendWiring(pin, groupManual.OutboundBindings);
         if (host.ForeignControlNamespace == groupManual.ConversationNamespace)
             throw new InvalidDataException("foreign_memory_control_must_be_separate");
         return new(fullConfigPath, host, groupLivePath, groupLive, groupNativePath, groupNative,
-            groupManualPath, groupManual, projectPath, memberTemplate, groupBinding, groupDirectory,
+            groupManualPath, groupManual, projectPath, memberTemplate, memberManual.OutboundBindings, groupBinding, groupDirectory,
             stateRoot, readerToken, TimeSpan.FromMilliseconds(host.DiscoveryIntervalMilliseconds));
     }
 
@@ -427,7 +460,8 @@ public static class NativeConversationHostCommand
     private sealed record HostSetup(string HostPath, NativeConversationHostConfig HostConfig,
         string GroupLiveConfigPath, NativeLiveConfig GroupLive, string GroupNativePath, NativeShadowConfig GroupNative,
         string GroupManualPath, ManualShadowConfig GroupManual, string ProjectFile, NativeLiveConfig MemberTemplate,
-        ShadowSessionBinding GroupBinding, string GroupStateDirectory, string MemberDmStateRoot, string ReaderToken,
+        OutboundBindings MemberDmOutboundBindings, ShadowSessionBinding GroupBinding, string GroupStateDirectory,
+        string MemberDmStateRoot, string ReaderToken,
         TimeSpan PollInterval);
 
     private sealed record ManagedWorker(ShadowSessionBinding Binding, NativeConversationSupervisor.NativeConversationWorker Worker);

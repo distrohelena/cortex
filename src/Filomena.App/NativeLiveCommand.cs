@@ -1,9 +1,12 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Runtime.CompilerServices;
 using Filomena.Core.Outbound;
 using Filomena.Core.Shadow;
 using Filomena.OpenClaw.Mcp;
 using Filomena.OpenClaw.Observation;
+
+[assembly: InternalsVisibleTo("Filomena.Llm.Tests")]
 
 namespace Filomena.App;
 
@@ -73,8 +76,20 @@ public static class NativeLiveCommand
         RespectRequiredConstructorParameters = true, RespectNullableAnnotations = true
     };
 
-    public static async Task<int> RunAsync(string[] args, TextReader input, TextWriter output, CancellationToken token,
-        NativeMemberDmExecutionContext? memberDmExecutionContext = null)
+    public static Task<int> RunAsync(string[] args, TextReader input, TextWriter output, CancellationToken token,
+        NativeMemberDmExecutionContext? memberDmExecutionContext = null) =>
+        RunCoreAsync(args, input, output, token, memberDmExecutionContext, null);
+
+    internal static Task<int> RunManagedMemberDmWithFactoriesAsync(string[] args, TextReader input, TextWriter output,
+        CancellationToken token, NativeMemberDmExecutionContext executionContext, NativeShadowExternalFactories factories)
+    {
+        ArgumentNullException.ThrowIfNull(executionContext);
+        ArgumentNullException.ThrowIfNull(factories);
+        return RunCoreAsync(args, input, output, token, executionContext, factories);
+    }
+
+    private static async Task<int> RunCoreAsync(string[] args, TextReader input, TextWriter output, CancellationToken token,
+        NativeMemberDmExecutionContext? memberDmExecutionContext, NativeShadowExternalFactories? externalFactories)
     {
         NativeLiveConfig live;
         string nativeFile;
@@ -158,7 +173,7 @@ public static class NativeLiveCommand
             return 2;
         }
         return await NativeShadowCommand.RunCoreAsync(["--native-shadow", nativeFile], input, output, token, live,
-            memberDmExecutionContext);
+            memberDmExecutionContext, externalFactories);
     }
 
     public static Task<int> RunManagedMemberDmAsync(string[] args, TextReader input, TextWriter output,

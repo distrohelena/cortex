@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Collections.Concurrent;
 using Filomena.Core.Flows;
 using Filomena.Core.Identity;
 using Filomena.Core.Outbound;
@@ -11,8 +12,39 @@ using Filomena.Memory;
 using Filomena.OpenClaw.Observation;
 using Filomena.OpenClaw.Mcp;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Logging;
 
 namespace Filomena.App;
+
+// Narrow boundary for deterministic composition tests. Production defaults below
+// preserve the existing provider, Graphiti, MCP and local-model construction.
+internal sealed record NativeShadowExternalFactories(
+    Func<Uri, TimeSpan, (IGraphitiReadClient Client, IAsyncDisposable Lifetime)> CreateGraphiti,
+    Func<OpenClawMcpClientOptions, ILoggerFactory, CancellationToken, Task<IMcpToolClient>> ConnectMcp,
+    Func<AsyncLocal<string?>, ConcurrentQueue<object>, HttpClient> CreateModelHttpClient,
+    Func<HttpClient, Func<string?>, IFlowCompletion> CreateCompletion)
+{
+    internal static NativeShadowExternalFactories Production { get; } = new(
+        (endpoint, timeout) =>
+        {
+            var client = new GraphitiReadClient(endpoint, timeout);
+            return (client, client);
+        },
+        async (options, loggerFactory, token) => (IMcpToolClient)await OpenClawMcpClient.ConnectAsync(options, loggerFactory, token),
+        (role, calls) => new HttpClient(new ManualShadowUsage(role, calls))
+        {
+            BaseAddress = new Uri("http://127.0.0.1:1234/v1/"), Timeout = Timeout.InfiniteTimeSpan
+        },
+        (http, key) =>
+        {
+            var local = new LmStudioOptions { GenerationTemperature = 0.3, GenerationMaxTokens = 8192, RequestTimeoutSeconds = Timeout.Infinite };
+            return new ProviderFlowCompletion(new Dictionary<string, IFlowCompletion>
+            {
+                ["openai"] = new OpenAiFlowCompletion(http, key),
+                ["lmstudio"] = new FlowModelCompletion(new LmStudioClient(http, local), local.Model)
+            });
+        });
+}
 
 // Operator-only document, separate from the frozen project. No control credential or sender.
 public sealed record NativeShadowConfig(string ManualConfigFile, string ObservationEndpoint,
@@ -35,8 +67,10 @@ public static class NativeShadowCommand
         => await RunCoreAsync(args, input, output, token, null, null);
 
     internal static async Task<int> RunCoreAsync(string[] args, TextReader input, TextWriter output, CancellationToken token,
-        NativeLiveConfig? live, NativeMemberDmExecutionContext? memberDmExecutionContext = null)
+        NativeLiveConfig? live, NativeMemberDmExecutionContext? memberDmExecutionContext = null,
+        NativeShadowExternalFactories? externalFactories = null)
     {
+        externalFactories ??= NativeShadowExternalFactories.Production;
         NativeShadowConfig native;
         ManualShadowConfig config;
         PinnedShadowProject pin;
@@ -163,7 +197,9 @@ public static class NativeShadowCommand
             await Emit(new { phase = "transport_preflight", status = "PASS", projectId = pin.Project.ProjectId,
                 revision = pin.Project.ProjectRevision, sessionRef = binding.OpaqueRef,
                 outboundMode = live is null ? "shadow" : "disabled_pending_preflight", transportSenderAvailable = live is not null });
-            await using var graphiti = new GraphitiReadClient(new Uri(config.GraphitiEndpoint), TimeSpan.FromSeconds(30));
+            var graphitiResources = externalFactories.CreateGraphiti(new Uri(config.GraphitiEndpoint), TimeSpan.FromSeconds(30));
+            await using var graphitiLifetime = graphitiResources.Lifetime;
+            var graphiti = graphitiResources.Client;
             if (live?.ManagedMemberDm == true)
             {
                 var proof = native.NewDmMemoryReadiness!;
@@ -221,19 +257,13 @@ public static class NativeShadowCommand
             if (string.IsNullOrWhiteSpace(key)) throw new InvalidDataException("model_credential_unavailable");
             var calls = new System.Collections.Concurrent.ConcurrentQueue<object>();
             var role = new AsyncLocal<string?>();
-            using var meter = new ManualShadowUsage(role, calls);
-            using var http = new HttpClient(meter) { BaseAddress = new Uri("http://127.0.0.1:1234/v1/"), Timeout = Timeout.InfiniteTimeSpan };
-            var local = new LmStudioOptions { GenerationTemperature = 0.3, GenerationMaxTokens = 8192, RequestTimeoutSeconds = Timeout.Infinite };
-            var providers = new ProviderFlowCompletion(new Dictionary<string, IFlowCompletion>
-            {
-                ["openai"] = new OpenAiFlowCompletion(http, () => key),
-                ["lmstudio"] = new FlowModelCompletion(new LmStudioClient(http, local), local.Model)
-            });
+            using var http = externalFactories.CreateModelHttpClient(role, calls);
+            var providers = externalFactories.CreateCompletion(http, () => key);
             var routed = SystemOneParticipationHost.Create(config.SystemOneParticipation, pin, providers, http,
                 Environment.GetEnvironmentVariable, (node, result) => calls.Enqueue(new { kind = "systemone", node, provider = "jev",
                     result.Model, result.InputTokens, result.OutputTokens, result.ProbabilityPolicy, milliseconds = result.Elapsed.TotalMilliseconds }));
             var completion = new ManualShadowCommand.RecordedCompletion(routed, role, calls);
-            await using var mcp = live is null ? null : await OpenClawMcpClient.ConnectAsync(live.Mcp, NullLoggerFactory.Instance, token);
+            await using var mcp = live is null ? null : await externalFactories.ConnectMcp(live.Mcp, NullLoggerFactory.Instance, token);
             var sender = mcp is null ? null : new OpenClawBoundMcpTransport(mcp, live?.AllowExactGroupDelivery == true);
             var liveRoute = live?.BindRoute(binding);
             if (live is not null)

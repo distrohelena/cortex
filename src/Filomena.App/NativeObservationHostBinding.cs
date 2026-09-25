@@ -27,6 +27,13 @@ public static class NativeObservationHostBinding
     // Operational project validation, not a participation/FSM rule. Candidate paths
     // must cross the existing Send boundary before any state-switch exit.
     public static void ValidateGroupSendWiring(PinnedShadowProject pin, OutboundBindings roles)
+        => ValidateScopedSendWiring(pin, roles, "group", "Group");
+
+    public static void ValidateManagedMemberDmSendWiring(PinnedShadowProject pin, OutboundBindings roles)
+        => ValidateScopedSendWiring(pin, roles, "dm", "Member-DM");
+
+    private static void ValidateScopedSendWiring(PinnedShadowProject pin, OutboundBindings roles,
+        string entryKind, string scopeName)
     {
         foreach (var state in pin.Project.Document.GetProperty("states").EnumerateArray())
         {
@@ -36,7 +43,7 @@ public static class NativeObservationHostBinding
             var data = graph.GetProperty("edges").EnumerateArray().ToArray();
             var control = graph.GetProperty("controlEdges").EnumerateArray().ToArray();
             var groupReachable = new HashSet<string>(StringComparer.Ordinal);
-            var groupPending = new Queue<string>(nodes.Where(pair => pair.Value.GetProperty("kind").GetString() == "group")
+            var groupPending = new Queue<string>(nodes.Where(pair => pair.Value.GetProperty("kind").GetString() == entryKind)
                 .Select(pair => pair.Key));
             while (groupPending.TryDequeue(out var source))
             {
@@ -51,7 +58,7 @@ public static class NativeObservationHostBinding
                     && edge.GetProperty("sourcePort").GetString() == candidate.Value
                     && edge.GetProperty("targetPort").GetString() == "message"
                     && nodes[edge.GetProperty("target").GetString()!].GetProperty("kind").GetString() == "send"))
-                    throw new InvalidDataException("Group candidate has no bound Send node.");
+                    throw new InvalidDataException($"{scopeName} candidate has no bound Send node.");
                 var pending = new Queue<string>([candidate.Key]);
                 var visited = new HashSet<string>(StringComparer.Ordinal);
                 var reachedSend = false;
@@ -63,11 +70,11 @@ public static class NativeObservationHostBinding
                     if (kind == "send") { reachedSend = true; continue; }
                     if (kind == "exit" && node.TryGetProperty("settings", out var settings)
                         && settings.TryGetProperty("mode", out var mode) && mode.GetString() == "switch")
-                        throw new InvalidDataException("Group candidate bypasses Send before a transition.");
+                        throw new InvalidDataException($"{scopeName} candidate bypasses Send before a transition.");
                     foreach (var edge in control.Where(edge => edge.GetProperty("source").GetString() == id))
                         pending.Enqueue(edge.GetProperty("target").GetString()!);
                 }
-                if (!reachedSend) throw new InvalidDataException("Group Send node is unreachable.");
+                if (!reachedSend) throw new InvalidDataException($"{scopeName} Send node is unreachable.");
             }
         }
     }

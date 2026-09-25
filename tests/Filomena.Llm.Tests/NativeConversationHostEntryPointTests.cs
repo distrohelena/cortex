@@ -227,14 +227,74 @@ public sealed class NativeConversationHostEntryPointTests
             groupLive.ValidateReplyWiring(groupRoles);
             await WriteJson(groupLivePath, groupLive);
 
+            var templatePeer = "15550004@s.whatsapp.net";
+            var templateSession = groupSession with { NativeConversationId = templatePeer };
+            var memberRoles = new OutboundBindings(["dm-response-boundaries"], ["dm-compiled-boundaries"],
+                new Dictionary<string, string> { ["dm-generation"] = "texto", ["dm-regeneration"] = "texto" },
+                ["dm-validator-1", "dm-validator-2"], "participation-engaged-v1");
+            var memberManualPath = Path.Combine(root.FullName, "member-template-manual.json");
+            var memberManual = groupManual with
+            {
+                Session = templateSession,
+                ConversationNamespace = FilomenaIdentity.WhatsAppConversationNamespace(templatePeer),
+                PeerActorId = "whatsapp:" + templatePeer,
+                PeerDisplayName = "Template DM",
+                OutboundBindings = memberRoles,
+                JournalDirectory = groupDirectory,
+                GraphitiProbes = [],
+            };
+            await WriteJson(memberManualPath, memberManual);
+            var memberNativePath = Path.Combine(root.FullName, "member-template-native.json");
+            await WriteJson(memberNativePath, groupNative with
+            {
+                ManualConfigFile = memberManualPath,
+                NativeConversationId = templatePeer,
+                JournalDirectory = groupDirectory,
+                GroupParticipants = null,
+            });
             var memberTemplatePath = Path.Combine(root.FullName, "member-template.json");
-            var memberTemplate = new NativeLiveConfig(groupNativePath, new("fake-mcp", []), "member-route", "Filomena", 1000,
+            var memberTemplate = new NativeLiveConfig(memberNativePath, new("fake-mcp", []), "member-route", "Filomena", 1000,
                 capabilities, "unused-template-proof.json", "unused-template-hash", ContinuousDm: true, ManagedMemberDm: true);
             await WriteJson(memberTemplatePath, memberTemplate);
             var hostConfigPath = Path.Combine(root.FullName, "conversation-host.json");
             await WriteJson(hostConfigPath, new NativeConversationHostConfig(groupLivePath, memberTemplatePath, dmRoot,
                 account, groupJid, pin.Project.ProjectRevision, "operator-foreign-namespace", "operator-foreign-control",
                 DiscoveryIntervalMilliseconds: 30000));
+
+            // A managed-member template that aliases the group NativeConfig must fail before
+            // constructing a reader, capturing the group worker, or starting either worker.
+            var groupOnlyTemplateLivePath = Path.Combine(root.FullName, "member-template-group-only.json");
+            await WriteJson(groupOnlyTemplateLivePath, memberTemplate with { NativeConfigFile = groupNativePath });
+            var groupOnlyHostPath = Path.Combine(root.FullName, "host-group-only-template.json");
+            await WriteJson(groupOnlyHostPath, new NativeConversationHostConfig(groupLivePath, groupOnlyTemplateLivePath,
+                dmRoot, account, groupJid, pin.Project.ProjectRevision, "operator-foreign-namespace", "operator-foreign-control",
+                DiscoveryIntervalMilliseconds: 30000));
+            var readerFactories = 0;
+            var groupWorkers = 0;
+            var memberWorkers = 0;
+            var groupOnlyOutput = new StringWriter();
+            var groupOnlyDependencies = new NativeConversationHostDependencies(
+                _ => { Interlocked.Increment(ref readerFactories); return new HttpClient(new FakeHandler(_ => new { })); },
+                async (_, _, _, _, cancellation) =>
+                {
+                    Interlocked.Increment(ref groupWorkers);
+                    await WaitForCancellationAsync(cancellation);
+                    return 0;
+                },
+                async (_, _, _, _, _, cancellation) =>
+                {
+                    Interlocked.Increment(ref memberWorkers);
+                    await WaitForCancellationAsync(cancellation);
+                    return 0;
+                });
+            var invalidTemplateResult = await NativeConversationHostCommand.RunAsync(
+                ["--native-conversation-host", groupOnlyHostPath], new StringReader("/quit\n"), groupOnlyOutput,
+                TestContext.Current.CancellationToken, groupOnlyDependencies);
+            Assert.Equal(2, invalidTemplateResult);
+            Assert.Contains("member_dm_template_binding_mismatch", groupOnlyOutput.ToString());
+            Assert.Equal(0, readerFactories);
+            Assert.Equal(0, groupWorkers);
+            Assert.Equal(0, memberWorkers);
 
             var scope1 = Scope("15550002@s.whatsapp.net", "dm-scope-2", "lease-2", "dm-epoch-2", NativeRevision(), ["15550002@s.whatsapp.net", "991002@lid"]);
             var scope2 = Scope("15550003@s.whatsapp.net", "dm-scope-3", "lease-3", "dm-epoch-3", NativeRevision(), ["15550003@s.whatsapp.net", "991003@lid"]);
@@ -304,7 +364,12 @@ public sealed class NativeConversationHostEntryPointTests
                     new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
                 var memberManual = JsonSerializer.Deserialize<ManualShadowConfig>(File.ReadAllText(memberNative.ManualConfigFile),
                     new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
-                Assert.Equal(groupRoles.ReplyTargetPorts, memberManual.OutboundBindings.ReplyTargetPorts);
+                Assert.Equal(memberRoles.CandidatePorts.OrderBy(pair => pair.Key),
+                    memberManual.OutboundBindings.CandidatePorts.OrderBy(pair => pair.Key));
+                Assert.Equal(memberRoles.RecallNodes, memberManual.OutboundBindings.RecallNodes);
+                Assert.Equal(memberRoles.CompilerNodes, memberManual.OutboundBindings.CompilerNodes);
+                Assert.Equal(memberRoles.EnforcementNodes, memberManual.OutboundBindings.EnforcementNodes);
+                Assert.Empty(memberManual.OutboundBindings.ReplyTargetPorts);
                 live.ValidateReplyWiring(memberManual.OutboundBindings, managedMemberDm: true);
                 Assert.Throws<InvalidDataException>(() => live.ValidateReplyWiring(memberManual.OutboundBindings));
                 Assert.Contains("whatsapp-bound-member-dm-text:v1", File.ReadAllText(live.CapabilityEvidenceFile));
