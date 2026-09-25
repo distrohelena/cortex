@@ -5,6 +5,49 @@ using System.Collections.ObjectModel;
 
 namespace Filomena.App;
 
+/// <summary>Immutable authority bundle created only by the native conversation supervisor.</summary>
+public sealed class NativeMemberDmExecutionContext
+{
+    private readonly Func<CancellationToken, Task> ensureCurrentGeneration;
+
+    internal NativeMemberDmExecutionContext(
+        NativeConversationSupervisor.ValidatedMemberDmScopeFacts scopeFacts,
+        MemberDmBoundTextBinding sendBinding,
+        Func<CancellationToken, Task> ensureCurrentGeneration)
+    {
+        ScopeFacts = scopeFacts;
+        SendBinding = sendBinding;
+        this.ensureCurrentGeneration = ensureCurrentGeneration;
+    }
+
+    public NativeConversationSupervisor.ValidatedMemberDmScopeFacts ScopeFacts { get; }
+    public MemberDmBoundTextBinding SendBinding { get; }
+
+    public Task EnsureCurrentGenerationAsync(CancellationToken cancellationToken) =>
+        ensureCurrentGeneration(cancellationToken);
+
+    public Task<string?> ResolveEventLeaseAsync(NativeObservationEvent observed, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(observed);
+        cancellationToken.ThrowIfCancellationRequested();
+        var authority = observed.MembershipAuthority;
+        return Task.FromResult(authority is { Version: "native-member-dm-admission:v1" }
+            && !string.IsNullOrWhiteSpace(authority.MembershipLeaseRef) ? authority.MembershipLeaseRef : null);
+    }
+
+    internal bool HasSameGeneration(NativeMemberDmExecutionContext other) =>
+        SendBinding == other.SendBinding
+        && ScopeFacts.PinnedProjectRevision == other.ScopeFacts.PinnedProjectRevision
+        && ScopeFacts.AccountId == other.ScopeFacts.AccountId
+        && ScopeFacts.SourceGroupJid == other.ScopeFacts.SourceGroupJid
+        && ScopeFacts.NativeConversationId == other.ScopeFacts.NativeConversationId
+        && ScopeFacts.NativeAliases.SequenceEqual(other.ScopeFacts.NativeAliases, StringComparer.Ordinal)
+        && ScopeFacts.ReaderEndpoint == other.ScopeFacts.ReaderEndpoint
+        && ScopeFacts.ContinueAfter == other.ScopeFacts.ContinueAfter
+        && ScopeFacts.ObservationCapabilities.OrderBy(pair => pair.Key, StringComparer.Ordinal)
+            .SequenceEqual(other.ScopeFacts.ObservationCapabilities.OrderBy(pair => pair.Key, StringComparer.Ordinal));
+}
+
 /// <summary>Host-owned coordination for independently persisted native conversations.</summary>
 public sealed class NativeConversationSupervisor : IAsyncDisposable
 {
@@ -38,6 +81,26 @@ public sealed class NativeConversationSupervisor : IAsyncDisposable
             (directory, _, token) => runSession(directory, memberBinding, token));
     }
 
+    /// <summary>Starts a managed worker only when both captured-generation proof sources are host-wired.</summary>
+    public NativeConversationWorker StartMemberDmSession(ValidatedMemberDmScopeFacts facts,
+        ShadowSessionBinding binding, string stateRoot, NativeObservationReader authenticatedGroupReader,
+        Func<string, NativeMemberDmExecutionContext, CancellationToken, Task> runSession)
+    {
+        ArgumentNullException.ThrowIfNull(facts);
+        ArgumentNullException.ThrowIfNull(binding);
+        ArgumentNullException.ThrowIfNull(authenticatedGroupReader);
+        ArgumentNullException.ThrowIfNull(runSession);
+        var memberBinding = facts.ToBoundTextBinding();
+        if (binding.Kind != Filomena.Core.Flows.Sessions.SessionEntryKind.Dm
+            || binding.Session.AccountId != facts.AccountId
+            || binding.Session.NativeConversationId != facts.NativeConversationId)
+            throw new InvalidDataException("member_dm_worker_binding_mismatch");
+        var context = new NativeMemberDmExecutionContext(facts, facts.ToBoundTextBinding(),
+            CreateMemberDmExecutionGenerationGuard(authenticatedGroupReader, facts));
+        return StartSessionCore(binding, stateRoot, null, memberBinding,
+            (directory, _, token) => runSession(directory, context, token), context);
+    }
+
     public async Task<NativeConversationWorker> RestartMemberDmSessionAsync(
         NativeConversationWorker currentWorker,
         Func<CancellationToken, Task<ValidatedMemberDmScopeFacts>> revalidateFreshLease,
@@ -50,6 +113,8 @@ public sealed class NativeConversationSupervisor : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(runSession);
         if (currentWorker.MemberDmBinding is not { } previousBinding)
             throw new InvalidDataException("member_dm_worker_binding_missing");
+        if (currentWorker.ExecutionContext is not null)
+            throw new InvalidOperationException("managed_member_dm_restart_requires_authenticated_group_reader");
         await StopSessionAsync(currentWorker.Binding, cancellationToken);
         var replacementFacts = await revalidateFreshLease(cancellationToken);
         ArgumentNullException.ThrowIfNull(replacementFacts);
@@ -64,9 +129,40 @@ public sealed class NativeConversationSupervisor : IAsyncDisposable
         return next;
     }
 
+    public async Task<NativeConversationWorker> RestartMemberDmSessionAsync(
+        NativeConversationWorker currentWorker,
+        Func<CancellationToken, Task<ValidatedMemberDmScopeFacts>> revalidateFreshLease,
+        NativeObservationReader authenticatedGroupReader,
+        string stateRoot,
+        Func<string, NativeMemberDmExecutionContext, CancellationToken, Task> runSession,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(currentWorker);
+        ArgumentNullException.ThrowIfNull(revalidateFreshLease);
+        ArgumentNullException.ThrowIfNull(authenticatedGroupReader);
+        ArgumentNullException.ThrowIfNull(runSession);
+        if (currentWorker.MemberDmBinding is not { } previousBinding
+            || currentWorker.ExecutionContext is null)
+            throw new InvalidDataException("managed_member_dm_execution_context_missing");
+        await StopSessionAsync(currentWorker.Binding, cancellationToken);
+        var replacementFacts = await revalidateFreshLease(cancellationToken);
+        ArgumentNullException.ThrowIfNull(replacementFacts);
+        var replacement = await AcceptRevalidatedMemberDmLeaseAsync(previousBinding,
+            replacementFacts.ToBoundTextBinding(), currentWorker.Completion, cancellationToken);
+        var next = StartMemberDmSession(replacementFacts, currentWorker.Binding, stateRoot,
+            authenticatedGroupReader, runSession);
+        if (next.StateDirectory != currentWorker.StateDirectory || next.MemberDmBinding != replacement)
+        {
+            await StopSessionAsync(currentWorker.Binding, cancellationToken);
+            throw new InvalidDataException("member_dm_state_path_changed");
+        }
+        return next;
+    }
+
     private NativeConversationWorker StartSessionCore(ShadowSessionBinding binding, string stateRoot,
         string? existingGroupStateDirectory, MemberDmBoundTextBinding? memberDmBinding,
-        Func<string, MemberDmBoundTextBinding?, CancellationToken, Task> runSession)
+        Func<string, MemberDmBoundTextBinding?, CancellationToken, Task> runSession,
+        NativeMemberDmExecutionContext? executionContext = null)
     {
         var stateDirectory = ResolveSessionDirectory(stateRoot, binding, existingGroupStateDirectory);
         var reference = binding.OpaqueRef;
@@ -79,10 +175,13 @@ public sealed class NativeConversationSupervisor : IAsyncDisposable
                     throw new InvalidDataException("native_session_binding_conflict");
                 if (existing.MemberDmBinding != memberDmBinding)
                     throw new InvalidOperationException("member_dm_worker_must_drain_before_rebind");
+                if ((existing.ExecutionContext is null) != (executionContext is null)
+                    || (executionContext is not null && !existing.ExecutionContext!.HasSameGeneration(executionContext)))
+                    throw new InvalidDataException("member_dm_worker_generation_conflict");
                 return existing;
             }
             var cancellation = CancellationTokenSource.CreateLinkedTokenSource(shutdown.Token);
-            var worker = new NativeConversationWorker(binding, stateDirectory, cancellation, memberDmBinding);
+            var worker = new NativeConversationWorker(binding, stateDirectory, cancellation, memberDmBinding, executionContext);
             workers.Add(reference, worker);
             worker.SetCompletion(RunWorkerAsync(worker, runSession));
             return worker;
@@ -303,6 +402,21 @@ public sealed class NativeConversationSupervisor : IAsyncDisposable
             facts.AccountId, facts.SourceGroupJid, authenticatedGroupReader.BoundSessionRef, cancellationToken);
     }
 
+    /// <summary>
+    /// Rejects observations unless a native-owner durable mapping proves the exact
+    /// generation captured by this worker. Never resolve this from current discovery.
+    /// </summary>
+    public static void ValidateMemberDmEventGeneration(NativeObservationEvent observed,
+        string expectedScopeRef, string? observedMembershipLeaseRef, string expectedMembershipLeaseRef)
+    {
+        ArgumentNullException.ThrowIfNull(observed);
+        if (string.IsNullOrWhiteSpace(expectedScopeRef) || string.IsNullOrWhiteSpace(expectedMembershipLeaseRef)
+            || observed.SessionRef != expectedScopeRef
+            || string.IsNullOrWhiteSpace(observedMembershipLeaseRef)
+            || observedMembershipLeaseRef != expectedMembershipLeaseRef)
+            throw new NativeObservationException("member_dm_event_generation_unproven");
+    }
+
     private static async Task EnsureCurrentMembershipLeaseAsync(NativeObservationReader groupReader,
         NativeMemberDmDiscoveredScope selectedScope, string accountId, string groupJid,
         string groupSessionRef, CancellationToken cancellationToken)
@@ -314,7 +428,7 @@ public sealed class NativeConversationSupervisor : IAsyncDisposable
             throw new NativeObservationException("member_dm_membership_lease_stale");
     }
 
-    private static bool SameReaderEndpoint(Uri endpoint, string? expected) =>
+    internal static bool SameReaderEndpoint(Uri endpoint, string? expected) =>
         Uri.TryCreate(expected, UriKind.Absolute, out var expectedUri)
         && endpoint.GetLeftPart(UriPartial.Authority) + endpoint.AbsolutePath.TrimEnd('/')
             == expectedUri.GetLeftPart(UriPartial.Authority) + expectedUri.AbsolutePath.TrimEnd('/');
@@ -340,12 +454,14 @@ public sealed class NativeConversationSupervisor : IAsyncDisposable
             Task.FromResult(new NativeConversationWorkerResult("pending", null));
 
         internal NativeConversationWorker(ShadowSessionBinding binding, string stateDirectory,
-            CancellationTokenSource cancellation, MemberDmBoundTextBinding? memberDmBinding)
-        { Binding = binding; StateDirectory = stateDirectory; this.cancellation = cancellation; MemberDmBinding = memberDmBinding; }
+            CancellationTokenSource cancellation, MemberDmBoundTextBinding? memberDmBinding,
+            NativeMemberDmExecutionContext? executionContext)
+        { Binding = binding; StateDirectory = stateDirectory; this.cancellation = cancellation; MemberDmBinding = memberDmBinding; ExecutionContext = executionContext; }
 
         public ShadowSessionBinding Binding { get; }
         public string StateDirectory { get; }
         public MemberDmBoundTextBinding? MemberDmBinding { get; }
+        public NativeMemberDmExecutionContext? ExecutionContext { get; }
         internal CancellationToken CancellationToken => cancellation.Token;
         public Task<NativeConversationWorkerResult> Completion => completion;
         internal void SetCompletion(Task<NativeConversationWorkerResult> value) => completion = value;

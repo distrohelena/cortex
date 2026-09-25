@@ -34,7 +34,7 @@ public static class NativeShadowCommand
         => await RunCoreAsync(args, input, output, token, null, null);
 
     internal static async Task<int> RunCoreAsync(string[] args, TextReader input, TextWriter output, CancellationToken token,
-        NativeLiveConfig? live, Func<CancellationToken, Task>? memberDmExecutionGuard = null)
+        NativeLiveConfig? live, NativeMemberDmExecutionContext? memberDmExecutionContext = null)
     {
         NativeShadowConfig native;
         ManualShadowConfig config;
@@ -47,8 +47,8 @@ public static class NativeShadowCommand
             if (at < 0 || at + 1 >= args.Length || args[at + 1].StartsWith("--", StringComparison.Ordinal)) throw new ArgumentException();
             var file = Path.GetFullPath(args[at + 1]);
             native = JsonSerializer.Deserialize<NativeShadowConfig>(await File.ReadAllTextAsync(file, token), Json) ?? throw new JsonException();
-            if (live?.ManagedMemberDm == true && memberDmExecutionGuard is null)
-                throw new InvalidDataException("member_dm_execution_guard_required");
+            if (live?.ManagedMemberDm == true && memberDmExecutionContext is null)
+                throw new InvalidDataException("member_dm_generation_authority_unavailable");
             if (live is not null && native.MaxInteractions != live.MaxInteractions)
                 throw new InvalidDataException("live_window_budget_mismatch");
             if (native.Recovery is not null)
@@ -82,7 +82,24 @@ public static class NativeShadowCommand
                 || memberProof.NativeConversationId != native.NativeConversationId
                 || memberProof.NativeAccountId != config.Session.AccountId
                 || memberProof.NativeSourceGroupJid != native.NativeSourceGroupJid
-                || string.IsNullOrWhiteSpace(memberProof.MembershipLeaseRef)))
+                || string.IsNullOrWhiteSpace(memberProof.MembershipLeaseRef)
+                || memberDmExecutionContext!.ScopeFacts.PinnedProjectRevision != pin.Project.ProjectRevision
+                || memberDmExecutionContext.ScopeFacts.AccountId != config.Session.AccountId
+                || memberDmExecutionContext.ScopeFacts.SourceGroupJid != native.NativeSourceGroupJid
+                || memberDmExecutionContext.ScopeFacts.NativeConversationId != native.NativeConversationId
+                || memberDmExecutionContext.ScopeFacts.ScopeRef != native.ObservationSessionRef
+                || memberDmExecutionContext.ScopeFacts.ReaderEndpoint is not { } factsEndpoint
+                || !NativeConversationSupervisor.SameReaderEndpoint(new Uri(native.ObservationEndpoint), factsEndpoint)
+                || memberDmExecutionContext.SendBinding.NativeConversationId != memberProof.NativeConversationId
+                || memberDmExecutionContext.SendBinding.ScopeRef != memberProof.ObservationSessionRef
+                || memberDmExecutionContext.SendBinding.RouteBindingRef != memberProof.RouteBindingRef
+                || memberDmExecutionContext.SendBinding.EffectiveConfigRevision != memberProof.ApprovedRevision
+                || memberDmExecutionContext.SendBinding.MembershipLeaseRef != memberProof.MembershipLeaseRef
+                || memberDmExecutionContext.ScopeFacts.NativeAliases.SequenceEqual(memberProof.NativeAliases ?? [], StringComparer.Ordinal) is false
+                || memberDmExecutionContext.ScopeFacts.ContinueAfter != memberProof.ContinueAfter
+                || config.Session.NativeConversationId != memberProof.NativeConversationId
+                || config.ConversationNamespace != Filomena.Core.Identity.FilomenaIdentity.WhatsAppConversationNamespace(memberProof.NativeConversationId!)
+                || config.PeerActorId != "whatsapp:" + memberProof.NativeConversationId))
                 throw new InvalidDataException("managed_member_dm_authority_mismatch");
             if (live?.AllowNativeGroupParticipants == true) binding.EnableNativeGroupParticipants();
             if (native.MaxInteractions is < 1 or > 20 || string.IsNullOrWhiteSpace(native.ApprovedRevision))
@@ -94,6 +111,10 @@ public static class NativeShadowCommand
             directory = binding.Kind == Filomena.Core.Flows.Sessions.SessionEntryKind.Group
                 ? NativeConversationSupervisor.ResolveSessionDirectory(configuredJournalDirectory, binding, configuredJournalDirectory)
                 : configuredJournalDirectory;
+            var manualConfigDirectory = Path.GetDirectoryName(Path.GetFullPath(native.ManualConfigFile, Path.GetDirectoryName(file)!))!;
+            if (live?.ManagedMemberDm == true
+                && Path.GetFullPath(config.JournalDirectory, manualConfigDirectory) != directory)
+                throw new InvalidDataException("managed_member_dm_state_path_mismatch");
             if (!Directory.Exists(directory)) throw new DirectoryNotFoundException();
         }
         catch (Exception e) when (e is not OperationCanceledException and not OutOfMemoryException)
@@ -123,7 +144,7 @@ public static class NativeShadowCommand
             async Task CheckTransport()
             {
                 if (live?.ManagedMemberDm == true)
-                    await memberDmExecutionGuard!(token);
+                    await memberDmExecutionContext!.EnsureCurrentGenerationAsync(token);
                 var current = live?.RevalidateReceiverWithinWindow == true && windowApproval is not null && windowCursor is not null
                     ? await reader.RevalidateAsync(windowApproval, windowCursor, token)
                     : await reader.PreflightAsync(token);
@@ -264,6 +285,18 @@ public static class NativeShadowCommand
                 }
                 await CheckTransport();
                 batch = await reader.PollAsync(approval, cursor, token);
+                if (live?.ManagedMemberDm == true)
+                {
+                    // Recheck current scope immediately after poll, before resolving or
+                    // enriching any event that may have crossed a lease boundary.
+                    await CheckTransport();
+                    foreach (var observed in batch.Records)
+                    {
+                        var eventLease = await memberDmExecutionContext!.ResolveEventLeaseAsync(observed, token);
+                        NativeConversationSupervisor.ValidateMemberDmEventGeneration(observed,
+                            live.Evidence!.ObservationSessionRef, eventLease, live.Evidence.MembershipLeaseRef!);
+                    }
+                }
                 }
                 catch (NativeObservationException e) when ((live?.ContinuousGroup == true || live?.ContinuousDm == true)
                     && NativeObservationReader.IsPollingUnavailable(e))

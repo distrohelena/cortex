@@ -60,7 +60,7 @@ public static class NativeLiveCommand
     };
 
     public static async Task<int> RunAsync(string[] args, TextReader input, TextWriter output, CancellationToken token,
-        Func<CancellationToken, Task>? memberDmExecutionGuard = null)
+        NativeMemberDmExecutionContext? memberDmExecutionContext = null)
     {
         NativeLiveConfig live;
         string nativeFile;
@@ -144,6 +144,13 @@ public static class NativeLiveCommand
             return 2;
         }
         return await NativeShadowCommand.RunCoreAsync(["--native-shadow", nativeFile], input, output, token, live,
-            memberDmExecutionGuard);
+            memberDmExecutionContext);
+    }
+
+    public static Task<int> RunManagedMemberDmAsync(string[] args, TextReader input, TextWriter output,
+        CancellationToken token, NativeMemberDmExecutionContext executionContext)
+    {
+        ArgumentNullException.ThrowIfNull(executionContext);
+        return RunAsync(args, input, output, token, executionContext);
     }
 }

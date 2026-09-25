@@ -11,8 +11,12 @@ namespace Filomena.OpenClaw.Observation;
 
 public sealed class NativeObservationException(string code) : Exception(code) { public string Code { get; } = code; }
 public sealed record NativeObservationCursor(string Version, string Epoch, string SessionRef, long Sequence);
+public sealed record NativeMemberDmAdmissionAuthority(string Version, string MembershipLeaseRef);
 public sealed record NativeObservationEvent(long Sequence, string NativeMessageId, string SessionRef, string ActorRef,
-    bool FromMe, string SelfIdentityRef, DateTimeOffset? OccurredAt, JsonElement Payload, string JournalEpoch);
+    bool FromMe, string SelfIdentityRef, DateTimeOffset? OccurredAt, JsonElement Payload, string JournalEpoch)
+{
+    public NativeMemberDmAdmissionAuthority? MembershipAuthority { get; init; }
+}
 public sealed record NativeObservationBatch(IReadOnlyList<NativeObservationEvent> Records, NativeObservationCursor Cursor, bool EpochClosed);
 public sealed record NativeSelfMentionIdentity(string AccountPn, string? AccountLid, string DisplayName);
 public sealed record NativeObservationInspection(NativeObservationSourceStatus Source, string Revision,
@@ -299,7 +303,9 @@ public sealed partial class NativeObservationReader
                     BindNativeGroupActor(row.GetProperty("payload"), actor, fromMe);
                 if (!actorBindings.ContainsKey(actor) || (fromMe && actor != self)) throw new NativeObservationException("integrity_violation");
                 DateTimeOffset? occurred = row.TryGetProperty("occurredAt", out var at) ? DateTimeOffset.FromUnixTimeMilliseconds(at.GetInt64()) : null;
-                records.Add(new(sequence, native, sourceSession, actor, fromMe, self, occurred, row.GetProperty("payload").Clone(), next.Epoch));
+                records.Add(new NativeObservationEvent(sequence, native, sourceSession, actor, fromMe, self,
+                    occurred, row.GetProperty("payload").Clone(), next.Epoch)
+                { MembershipAuthority = ParseMembershipAuthority(row) });
             }
             if (expected != next.Sequence) throw new NativeObservationException("gap_detected");
             return new(records.AsReadOnly(), next, closed);
@@ -307,6 +313,21 @@ public sealed partial class NativeObservationReader
         catch (NativeObservationException) { throw; }
         catch (Exception e) when (e is JsonException or InvalidOperationException or KeyNotFoundException or ArgumentException or OverflowException)
         { throw new NativeObservationException("invalid_output"); }
+    }
+
+    private static NativeMemberDmAdmissionAuthority? ParseMembershipAuthority(JsonElement row)
+    {
+        if (!row.TryGetProperty("membershipAuthority", out var authority)) return null;
+        if (authority.ValueKind != JsonValueKind.Object
+            || authority.EnumerateObject().Count() != 2
+            || !authority.TryGetProperty("version", out var version)
+            || version.ValueKind != JsonValueKind.String
+            || version.GetString() != "native-member-dm-admission:v1"
+            || !authority.TryGetProperty("membershipLeaseRef", out var lease)
+            || lease.ValueKind != JsonValueKind.String
+            || string.IsNullOrWhiteSpace(lease.GetString()))
+            throw new NativeObservationException("invalid_output");
+        return new(version.GetString()!, lease.GetString()!);
     }
 
     public CanonicalShadowInbound ToInbound(NativeObservationEvent record)

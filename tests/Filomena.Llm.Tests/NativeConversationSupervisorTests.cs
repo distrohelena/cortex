@@ -84,6 +84,22 @@ public sealed class NativeConversationSupervisorTests : IDisposable
     }
 
     [Fact]
+    public void Managed_member_event_requires_owner_proven_captured_generation()
+    {
+        using var payload = JsonDocument.Parse("{}");
+        var observed = new NativeObservationEvent(1, "native-message-1", "dm-scope", "peer", false,
+            "self", DateTimeOffset.UnixEpoch, payload.RootElement, "dm-epoch");
+
+        Assert.Throws<NativeObservationException>(() => NativeConversationSupervisor.ValidateMemberDmEventGeneration(
+            observed, "dm-scope", null, "lease-1"));
+        Assert.Throws<NativeObservationException>(() => NativeConversationSupervisor.ValidateMemberDmEventGeneration(
+            observed, "dm-scope", "lease-2", "lease-1"));
+        Assert.Throws<NativeObservationException>(() => NativeConversationSupervisor.ValidateMemberDmEventGeneration(
+            observed with { SessionRef = "other-scope" }, "dm-scope", "lease-1", "lease-1"));
+        NativeConversationSupervisor.ValidateMemberDmEventGeneration(observed, "dm-scope", "lease-1", "lease-1");
+    }
+
+    [Fact]
     public async Task Failed_DM_worker_and_individual_drain_do_not_cancel_group_worker()
     {
         var group = Binding("120363318973251043@g.us", SessionEntryKind.Group);
@@ -275,16 +291,33 @@ public sealed class NativeConversationSupervisorTests : IDisposable
 
         await using var supervisor = new NativeConversationSupervisor();
         var oldWorkerStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        var oldWorker = supervisor.StartMemberDmSession(facts, dmBinding, root,
-            async (_, _, token) =>
+        var executionContextReady = new TaskCompletionSource<NativeMemberDmExecutionContext>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var oldWorker = supervisor.StartMemberDmSession(facts, dmBinding, root, groupReader,
+            async (_, context, token) =>
             {
+                executionContextReady.TrySetResult(context);
                 oldWorkerStarted.TrySetResult();
                 await Task.Delay(Timeout.InfiniteTimeSpan, token);
             });
         await oldWorkerStarted.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        var executionContext = await executionContextReady.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        await executionContext.EnsureCurrentGenerationAsync(TestContext.Current.CancellationToken);
+        using (var eventPayload = JsonDocument.Parse("{}"))
+        {
+            var observed = new NativeObservationEvent(1, "native-message-1", scopeRef, peerActor, false,
+                "self-ref", DateTimeOffset.UnixEpoch, eventPayload.RootElement, "dm-epoch-1")
+            { MembershipAuthority = new("native-member-dm-admission:v1", lease) };
+            var eventLease = await executionContext.ResolveEventLeaseAsync(observed, TestContext.Current.CancellationToken);
+            NativeConversationSupervisor.ValidateMemberDmEventGeneration(observed,
+                executionContext.ScopeFacts.ScopeRef, eventLease, executionContext.SendBinding.MembershipLeaseRef);
+        }
+        membershipDiscovery!["scopes"]![0]!["membershipLeaseRef"] = "lease-rotated-while-worker-queued";
+        await Assert.ThrowsAsync<NativeObservationException>(() =>
+            executionContext.EnsureCurrentGenerationAsync(TestContext.Current.CancellationToken));
+        membershipDiscovery["scopes"]![0]!["membershipLeaseRef"] = lease;
         var reconstructedBinding = new ShadowSessionBinding(dmSession,
             FilomenaIdentity.WhatsAppConversationNamespace(nativeId), [selfActor], [peerActor]);
-        var rediscoveredWorker = supervisor.StartMemberDmSession(facts, reconstructedBinding, root,
+        var rediscoveredWorker = supervisor.StartMemberDmSession(facts, reconstructedBinding, root, groupReader,
             (_, _, _) => throw new InvalidOperationException("equivalent rediscovery must reuse active worker"));
         Assert.Same(oldWorker, rediscoveredWorker);
 
@@ -302,10 +335,10 @@ public sealed class NativeConversationSupervisorTests : IDisposable
             return await NativeConversationSupervisor.ValidateMemberDmScopeAsync(groupReader, dmReader,
                 refreshedDiscovery, Assert.Single(refreshedDiscovery.Scopes), account, groupJid, groupSessionRef,
                 "project-pin-P3", cancellation);
-        }, root,
-            (_, binding, _) =>
+        }, groupReader, root,
+            (_, context, _) =>
             {
-                futureWorkBinding.TrySetResult(binding);
+                futureWorkBinding.TrySetResult(context.SendBinding);
                 return Task.CompletedTask;
             }, TestContext.Current.CancellationToken);
 

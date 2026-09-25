@@ -27,6 +27,50 @@ public sealed class NativeObservationReaderTests
         Assert.Equal("/inbound-observation/v1/status?session=source", requestPath);
     }
 
+    [Fact]
+    public async Task Reader_preserves_the_exact_optional_member_admission_generation_projection()
+    {
+        var memberEvent = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(Event()))!;
+        memberEvent["membershipAuthority"] = new System.Text.Json.Nodes.JsonObject
+        {
+            ["version"] = "native-member-dm-admission:v1",
+            ["membershipLeaseRef"] = "lease-captured-on-admission",
+        };
+        using var client = new HttpClient(new Handler(request => request.RequestUri!.AbsolutePath.EndsWith("/status")
+            ? Status() : Batch(false, [memberEvent])));
+        var reader = new NativeObservationReader(client, new("http://127.0.0.1:12345"), "token", Binding, "source", Self, Peer);
+        var approval = await reader.PreflightAsync(TestContext.Current.CancellationToken);
+
+        var record = Assert.Single((await reader.PollAsync(approval,
+            new("inbound-observation:v1", "epoch", "source", 0), TestContext.Current.CancellationToken)).Records);
+
+        Assert.Equal("native-member-dm-admission:v1", record.MembershipAuthority!.Version);
+        Assert.Equal("lease-captured-on-admission", record.MembershipAuthority.MembershipLeaseRef);
+    }
+
+    [Theory]
+    [InlineData("unknown_version")]
+    [InlineData("missing_lease")]
+    [InlineData("extra_field")]
+    public async Task Reader_rejects_unknown_or_malformed_member_admission_projection(string mutation)
+    {
+        var memberEvent = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(Event()))!;
+        var authority = new System.Text.Json.Nodes.JsonObject
+        {
+            ["version"] = mutation == "unknown_version" ? "native-member-dm-admission:v2" : "native-member-dm-admission:v1",
+            ["membershipLeaseRef"] = mutation == "missing_lease" ? null : "lease-captured-on-admission",
+        };
+        if (mutation == "extra_field") authority["untrusted"] = true;
+        memberEvent["membershipAuthority"] = authority;
+        using var client = new HttpClient(new Handler(request => request.RequestUri!.AbsolutePath.EndsWith("/status")
+            ? Status() : Batch(false, [memberEvent])));
+        var reader = new NativeObservationReader(client, new("http://127.0.0.1:12345"), "token", Binding, "source", Self, Peer);
+        var approval = await reader.PreflightAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("invalid_output", (await Assert.ThrowsAsync<NativeObservationException>(() => reader.PollAsync(approval,
+            new("inbound-observation:v1", "epoch", "source", 0), TestContext.Current.CancellationToken))).Code);
+    }
+
     [Theory]
     [InlineData("700@s.whatsapp.net", true, false, "@Filo tá aí")]
     [InlineData("800@lid", true, false, "@Filo tá aí")]
@@ -575,6 +619,7 @@ public sealed class NativeObservationReaderTests
         Assert.Empty(runtime.ReadOutcomes(Session));
         var poll = await reader.PollAsync(approval, opened.Cursor, TestContext.Current.CancellationToken);
         var record = Assert.Single(poll.Records);
+        Assert.Null(record.MembershipAuthority); // ordinary DM keeps the original projection shape
         Assert.Equal("N1", record.NativeMessageId); Assert.Equal(1, record.Sequence);
         Assert.Equal(DateTimeOffset.FromUnixTimeMilliseconds(1000), record.OccurredAt);
         var inbound = reader.ToInbound(record);
