@@ -31,10 +31,10 @@ public static class NativeShadowCommand
     };
 
     public static async Task<int> RunAsync(string[] args, TextReader input, TextWriter output, CancellationToken token)
-        => await RunCoreAsync(args, input, output, token, null);
+        => await RunCoreAsync(args, input, output, token, null, null);
 
     internal static async Task<int> RunCoreAsync(string[] args, TextReader input, TextWriter output, CancellationToken token,
-        NativeLiveConfig? live)
+        NativeLiveConfig? live, Func<CancellationToken, Task>? memberDmExecutionGuard = null)
     {
         NativeShadowConfig native;
         ManualShadowConfig config;
@@ -47,6 +47,8 @@ public static class NativeShadowCommand
             if (at < 0 || at + 1 >= args.Length || args[at + 1].StartsWith("--", StringComparison.Ordinal)) throw new ArgumentException();
             var file = Path.GetFullPath(args[at + 1]);
             native = JsonSerializer.Deserialize<NativeShadowConfig>(await File.ReadAllTextAsync(file, token), Json) ?? throw new JsonException();
+            if (live?.ManagedMemberDm == true && memberDmExecutionGuard is null)
+                throw new InvalidDataException("member_dm_execution_guard_required");
             if (live is not null && native.MaxInteractions != live.MaxInteractions)
                 throw new InvalidDataException("live_window_budget_mismatch");
             if (native.Recovery is not null)
@@ -120,6 +122,8 @@ public static class NativeShadowCommand
             NativeObservationCursor? windowCursor = null;
             async Task CheckTransport()
             {
+                if (live?.ManagedMemberDm == true)
+                    await memberDmExecutionGuard!(token);
                 var current = live?.RevalidateReceiverWithinWindow == true && windowApproval is not null && windowCursor is not null
                     ? await reader.RevalidateAsync(windowApproval, windowCursor, token)
                     : await reader.PreflightAsync(token);

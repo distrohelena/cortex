@@ -77,6 +77,7 @@ public static class NativeMemberDmDiscoveryValidator
                     || !RegexCanonicalPn(scope.NativeConversationId)
                     || !nativePeers.Add(scope.NativeConversationId!)
                     || string.IsNullOrWhiteSpace(scope.MembershipLeaseRef)
+                    || scope.LeaseExpiresAt is null
                     || string.IsNullOrWhiteSpace(scope.Epoch)
                     || scope.Reader is null || scope.Reader.Version != "inbound-observation:v1"
                     || !LoopbackReaderEndpoint(scope.Reader.Endpoint)
@@ -111,7 +112,8 @@ public static class NativeMemberDmDiscoveryValidator
 
     private static bool LoopbackReaderEndpoint(string endpoint) => Uri.TryCreate(endpoint, UriKind.Absolute, out var uri)
         && uri.Scheme == "http" && uri.IsLoopback && string.IsNullOrEmpty(uri.UserInfo)
-        && uri.AbsolutePath == "/" && uri.Query.Length == 0 && uri.Fragment.Length == 0;
+        && uri.AbsolutePath is "/" or "/inbound-observation/v1" or "/inbound-observation/v1/"
+        && uri.Query.Length == 0 && uri.Fragment.Length == 0;
 
     private static bool RegexCanonicalPn(string? value) => value is not null
         && System.Text.RegularExpressions.Regex.IsMatch(value, @"\A[0-9]+@s\.whatsapp\.net\z");

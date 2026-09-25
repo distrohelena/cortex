@@ -10,6 +10,23 @@ namespace Filomena.OpenClaw.Tests;
 
 public sealed class NativeObservationReaderTests
 {
+    [Fact]
+    public async Task Reader_uses_the_exact_native_versioned_endpoint_base_without_double_prefix()
+    {
+        string? requestPath = null;
+        using var client = new HttpClient(new Handler(request =>
+        {
+            requestPath = request.RequestUri!.PathAndQuery;
+            return Status();
+        }));
+        var endpoint = new Uri("http://127.0.0.1:12345/inbound-observation/v1");
+        var reader = new NativeObservationReader(client, endpoint, "token", Binding, "source", Self, Peer);
+
+        await reader.InspectAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("/inbound-observation/v1/status?session=source", requestPath);
+    }
+
     [Theory]
     [InlineData("700@s.whatsapp.net", true, false, "@Filo tá aí")]
     [InlineData("800@lid", true, false, "@Filo tá aí")]

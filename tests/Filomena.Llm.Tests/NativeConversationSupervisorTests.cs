@@ -137,6 +137,35 @@ public sealed class NativeConversationSupervisorTests : IDisposable
     }
 
     [Fact]
+    public void Member_discovery_accepts_only_the_exact_native_versioned_reader_base()
+    {
+        var wire = JsonNode.Parse(MemberDiscovery([
+            MemberScope("ready", "15550001@s.whatsapp.net", ["15550001@s.whatsapp.net"], "dm-scope-1"),
+        ]))!;
+        wire["scopes"]![0]!["reader"]!["endpoint"] = "http://127.0.0.1:3456/inbound-observation/v1";
+        using var nativeShape = JsonDocument.Parse(wire.ToJsonString());
+
+        var parsed = NativeMemberDmDiscoveryValidator.Parse(nativeShape.RootElement,
+            "account-a", "120363318973251043@g.us", "group-session");
+
+        Assert.Equal("http://127.0.0.1:3456/inbound-observation/v1",
+            Assert.Single(parsed.Scopes).ReaderEndpoint);
+    }
+
+    [Fact]
+    public void Ready_member_discovery_requires_lease_expiry_diagnostic_field()
+    {
+        var wire = JsonNode.Parse(MemberDiscovery([
+            MemberScope("ready", "15550001@s.whatsapp.net", ["15550001@s.whatsapp.net"], "dm-scope-1"),
+        ]))!;
+        wire["scopes"]![0]!["leaseExpiresAt"] = null;
+        using var noDiagnosticExpiry = JsonDocument.Parse(wire.ToJsonString());
+
+        Assert.Throws<InvalidDataException>(() => NativeMemberDmDiscoveryValidator.Parse(noDiagnosticExpiry.RootElement,
+            "account-a", "120363318973251043@g.us", "group-session"));
+    }
+
+    [Fact]
     public void Member_discovery_rejects_missing_lease_or_alias_claimed_by_two_peers()
     {
         using var missingLease = JsonDocument.Parse(MemberDiscovery([
@@ -209,6 +238,11 @@ public sealed class NativeConversationSupervisorTests : IDisposable
         var facts = await NativeConversationSupervisor.ValidateMemberDmScopeAsync(groupReader, dmReader, discovery,
             Assert.Single(discovery.Scopes), account, groupJid, groupSessionRef, "project-pin-P3",
             TestContext.Current.CancellationToken);
+        var executionGuard = NativeConversationSupervisor.CreateMemberDmExecutionGenerationGuard(groupReader, facts);
+        await executionGuard(TestContext.Current.CancellationToken);
+        membershipDiscovery!["scopes"]![0]!["membershipLeaseRef"] = "lease-rotated-during-poll";
+        await Assert.ThrowsAsync<NativeObservationException>(() => executionGuard(TestContext.Current.CancellationToken));
+        membershipDiscovery["scopes"]![0]!["membershipLeaseRef"] = lease;
         var template = new NativeLiveConfig("native-template.json", new("fake-mcp", []), "route", "Filomena", 1000,
             new(true, true, true, true, true, true, true), "template.json", "template-hash",
             ContinuousDm: true, ManagedMemberDm: true);
@@ -248,6 +282,11 @@ public sealed class NativeConversationSupervisorTests : IDisposable
                 await Task.Delay(Timeout.InfiniteTimeSpan, token);
             });
         await oldWorkerStarted.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+        var reconstructedBinding = new ShadowSessionBinding(dmSession,
+            FilomenaIdentity.WhatsAppConversationNamespace(nativeId), [selfActor], [peerActor]);
+        var rediscoveredWorker = supervisor.StartMemberDmSession(facts, reconstructedBinding, root,
+            (_, _, _) => throw new InvalidOperationException("equivalent rediscovery must reuse active worker"));
+        Assert.Same(oldWorker, rediscoveredWorker);
 
         // Simulate the native five-minute lease expiring/reconnect invalidating it.
         // Fresh owner facts and a distinct lease are then re-read and host-validated.

@@ -75,7 +75,7 @@ public sealed class NativeConversationSupervisor : IAsyncDisposable
             ObjectDisposedException.ThrowIf(disposed, this);
             if (workers.TryGetValue(reference, out var existing))
             {
-                if (!ReferenceEquals(existing.Binding, binding))
+                if (!existing.Binding.HasSameAuthority(binding))
                     throw new InvalidDataException("native_session_binding_conflict");
                 if (existing.MemberDmBinding != memberDmBinding)
                     throw new InvalidOperationException("member_dm_worker_must_drain_before_rebind");
@@ -142,7 +142,7 @@ public sealed class NativeConversationSupervisor : IAsyncDisposable
     {
         internal ValidatedMemberDmScopeFacts(string pinnedProjectRevision, string accountId,
             string sourceGroupJid, string nativeConversationId, IReadOnlyList<string> nativeAliases,
-            string membershipLeaseRef, string scopeRef, string nativeApprovedRevision,
+            string membershipLeaseRef, string scopeRef, string readerEndpoint, string nativeApprovedRevision,
             string routeBindingRef, NativeObservationCursor continueAfter,
             IReadOnlyDictionary<string, bool> observationCapabilities)
         {
@@ -153,6 +153,7 @@ public sealed class NativeConversationSupervisor : IAsyncDisposable
             NativeAliases = Array.AsReadOnly(nativeAliases.ToArray());
             MembershipLeaseRef = membershipLeaseRef;
             ScopeRef = scopeRef;
+            ReaderEndpoint = readerEndpoint;
             NativeApprovedRevision = nativeApprovedRevision;
             RouteBindingRef = routeBindingRef;
             ContinueAfter = continueAfter;
@@ -167,6 +168,7 @@ public sealed class NativeConversationSupervisor : IAsyncDisposable
         public IReadOnlyList<string> NativeAliases { get; }
         public string MembershipLeaseRef { get; }
         public string ScopeRef { get; }
+        public string ReaderEndpoint { get; }
         public string NativeApprovedRevision { get; }
         public string RouteBindingRef { get; }
         public NativeObservationCursor ContinueAfter { get; }
@@ -216,7 +218,7 @@ public sealed class NativeConversationSupervisor : IAsyncDisposable
         if (transportSession.AccountId != pinnedAccountId
             || transportSession.NativeConversationId != selectedScope.NativeConversationId
             || dmReader.BoundSessionRef != selectedScope.ScopeRef
-            || dmReader.BoundEndpoint.AbsoluteUri != selectedScope.ReaderEndpoint)
+            || !SameReaderEndpoint(dmReader.BoundEndpoint, selectedScope.ReaderEndpoint))
             throw new InvalidDataException("member_dm_reader_binding_mismatch");
 
         var inspection = await dmReader.InspectAsync(cancellationToken);
@@ -245,7 +247,7 @@ public sealed class NativeConversationSupervisor : IAsyncDisposable
         var cursor = selectedScope.InitialCursor!;
         return new ValidatedMemberDmScopeFacts(pinnedProjectRevision, pinnedAccountId, pinnedGroupJid,
             selectedScope.NativeConversationId!, selectedScope.NativeAliases,
-            selectedScope.MembershipLeaseRef!, selectedScope.ScopeRef!,
+            selectedScope.MembershipLeaseRef!, selectedScope.ScopeRef!, selectedScope.ReaderEndpoint!,
             selectedScope.EffectiveConfigRevision!, selectedScope.RouteBindingRef!,
             new(cursor.Version, cursor.Epoch, cursor.SessionRef, cursor.Sequence),
             inspection.Source.Capabilities.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal));
@@ -279,6 +281,28 @@ public sealed class NativeConversationSupervisor : IAsyncDisposable
         return replacement;
     }
 
+    /// <summary>Captures one validated membership generation for pre-poll and pre-admission checks.</summary>
+    public static Func<CancellationToken, Task> CreateMemberDmExecutionGenerationGuard(
+        NativeObservationReader authenticatedGroupReader, ValidatedMemberDmScopeFacts facts)
+    {
+        ArgumentNullException.ThrowIfNull(authenticatedGroupReader);
+        ArgumentNullException.ThrowIfNull(facts);
+        var groupSession = authenticatedGroupReader.BoundTransportSession;
+        if (authenticatedGroupReader.BoundKind != Filomena.Core.Flows.Sessions.SessionEntryKind.Group
+            || groupSession.AccountId != facts.AccountId
+            || groupSession.NativeConversationId != facts.SourceGroupJid
+            || string.IsNullOrWhiteSpace(authenticatedGroupReader.BoundSessionRef))
+            throw new InvalidDataException("member_dm_execution_guard_group_binding_mismatch");
+
+        var capturedScope = new NativeMemberDmDiscoveredScope("ready", null, facts.ScopeRef,
+            facts.NativeConversationId, facts.NativeAliases, facts.MembershipLeaseRef, null,
+            facts.ReaderEndpoint, facts.RouteBindingRef, facts.NativeApprovedRevision,
+            facts.ContinueAfter.Epoch, new NativeMemberDmCursor(facts.ContinueAfter.Version,
+                facts.ContinueAfter.Epoch, facts.ContinueAfter.SessionRef, facts.ContinueAfter.Sequence));
+        return cancellationToken => EnsureCurrentMembershipLeaseAsync(authenticatedGroupReader, capturedScope,
+            facts.AccountId, facts.SourceGroupJid, authenticatedGroupReader.BoundSessionRef, cancellationToken);
+    }
+
     private static async Task EnsureCurrentMembershipLeaseAsync(NativeObservationReader groupReader,
         NativeMemberDmDiscoveredScope selectedScope, string accountId, string groupJid,
         string groupSessionRef, CancellationToken cancellationToken)
@@ -289,6 +313,11 @@ public sealed class NativeConversationSupervisor : IAsyncDisposable
             || !current.Scopes.Any(scope => SameScope(scope, selectedScope)))
             throw new NativeObservationException("member_dm_membership_lease_stale");
     }
+
+    private static bool SameReaderEndpoint(Uri endpoint, string? expected) =>
+        Uri.TryCreate(expected, UriKind.Absolute, out var expectedUri)
+        && endpoint.GetLeftPart(UriPartial.Authority) + endpoint.AbsolutePath.TrimEnd('/')
+            == expectedUri.GetLeftPart(UriPartial.Authority) + expectedUri.AbsolutePath.TrimEnd('/');
 
     private static bool SameScope(NativeMemberDmDiscoveredScope left, NativeMemberDmDiscoveredScope right) =>
         left.IsRunnable && right.IsRunnable

@@ -31,6 +31,11 @@ public sealed class ShadowSessionBinding
         ? Ref(JsonSerializer.Serialize(new { Session, ConversationNamespace, self = self.Order(StringComparer.Ordinal), peers = peers.Order(StringComparer.Ordinal) }))
         : Ref(JsonSerializer.Serialize(new { Session, Kind, ConversationNamespace, self = self.Order(StringComparer.Ordinal), peers = peers.Order(StringComparer.Ordinal) }));
 
+    public bool HasSameAuthority(ShadowSessionBinding other) => other is not null
+        && Session == other.Session && Kind == other.Kind && ConversationNamespace == other.ConversationNamespace
+        && AllowsNativeGroupParticipants == other.AllowsNativeGroupParticipants
+        && self.SetEquals(other.self) && peers.SetEquals(other.peers);
+
     public ShadowSessionBinding(SessionKey session, string conversationNamespace, IEnumerable<string> selfActors, IEnumerable<string> peerActors,
         SessionEntryKind kind = SessionEntryKind.Dm)
     {

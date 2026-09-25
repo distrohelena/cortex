@@ -51,6 +51,7 @@ public sealed partial class NativeObservationReader
     public Uri BoundEndpoint => endpoint;
     public string BoundSessionRef => sourceSession;
     public SessionKey BoundTransportSession => transportSession;
+    public SessionEntryKind BoundKind => binding.Kind;
 
     // Cross-language host binding, not message identity and not authorization by itself.
     public static string RouteBindingRef(SessionKey session) => Convert.ToHexStringLower(SHA256.HashData(
@@ -61,12 +62,18 @@ public sealed partial class NativeObservationReader
         string expectedSourceSessionRef, string selfActor, string peerActor, SessionKey? transportSession = null,
         IReadOnlyDictionary<string, string>? groupParticipants = null, NativeSelfMentionIdentity? selfMentionIdentity = null)
     {
+        var endpointVersion = binding.Kind == SessionEntryKind.Group ? "v2" : "v1";
         if (endpoint.Scheme != "http" || endpoint.Host is not ("127.0.0.1" or "[::1]" or "::1")
-            || endpoint.UserInfo.Length != 0 || endpoint.AbsolutePath != "/" || endpoint.Query.Length != 0 || endpoint.Fragment.Length != 0
+            || endpoint.UserInfo.Length != 0
+            || (endpoint.AbsolutePath != "/" && endpoint.AbsolutePath != "/inbound-observation/" + endpointVersion
+                && endpoint.AbsolutePath != "/inbound-observation/" + endpointVersion + "/")
+            || endpoint.Query.Length != 0 || endpoint.Fragment.Length != 0
             || string.IsNullOrWhiteSpace(bearerToken) || string.IsNullOrWhiteSpace(expectedSourceSessionRef)
             || !binding.IsSelf(selfActor) || binding.IsSelf(peerActor) || selfActor == peerActor)
             throw new ArgumentException("Invalid native observation host binding.");
-        this.client = client; this.endpoint = endpoint; token = bearerToken; this.binding = binding;
+        this.client = client;
+        this.endpoint = endpoint.AbsolutePath == "/" ? endpoint : new Uri(endpoint.AbsoluteUri.TrimEnd('/') + "/");
+        token = bearerToken; this.binding = binding;
         if (selfMentionIdentity is { } identity &&
             (!System.Text.RegularExpressions.Regex.IsMatch(identity.AccountPn, @"\A\d+@s\.whatsapp\.net\z")
             || (identity.AccountLid is not null && !System.Text.RegularExpressions.Regex.IsMatch(identity.AccountLid, @"\A\d+@lid\z"))
@@ -413,9 +420,11 @@ public sealed partial class NativeObservationReader
 
     private async Task<JsonElement> GetAsync(string operation, string query, CancellationToken cancellationToken)
     {
+        var relativePath = endpoint.AbsolutePath == "/"
+            ? "inbound-observation/" + (binding.Kind == SessionEntryKind.Group ? "v2" : "v1") + "/" + operation
+            : operation;
         using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(endpoint,
-            "inbound-observation/" + (binding.Kind == SessionEntryKind.Group ? "v2" : "v1") + "/"
-            + operation + "?session=" + Uri.EscapeDataString(sourceSession) + query));
+            relativePath + "?session=" + Uri.EscapeDataString(sourceSession) + query));
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         try
         {

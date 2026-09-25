@@ -59,7 +59,8 @@ public static class NativeLiveCommand
         RespectRequiredConstructorParameters = true, RespectNullableAnnotations = true
     };
 
-    public static async Task<int> RunAsync(string[] args, TextReader input, TextWriter output, CancellationToken token)
+    public static async Task<int> RunAsync(string[] args, TextReader input, TextWriter output, CancellationToken token,
+        Func<CancellationToken, Task>? memberDmExecutionGuard = null)
     {
         NativeLiveConfig live;
         string nativeFile;
@@ -142,6 +143,7 @@ public static class NativeLiveCommand
             await output.WriteLineAsync("{\"status\":\"FAIL\",\"diagnostic\":\"invalid_live_authorization\"}");
             return 2;
         }
-        return await NativeShadowCommand.RunCoreAsync(["--native-shadow", nativeFile], input, output, token, live);
+        return await NativeShadowCommand.RunCoreAsync(["--native-shadow", nativeFile], input, output, token, live,
+            memberDmExecutionGuard);
     }
 }
