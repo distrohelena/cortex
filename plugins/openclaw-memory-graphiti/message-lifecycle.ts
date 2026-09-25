@@ -141,6 +141,8 @@ type LifecycleLogger = {
 };
 
 export type MessageLifecycleRecorder = {
+  submitInbound(message: NormalizedInboundMessage): Promise<{ capture: MessageCapture; state: "queued" }>;
+  confirmInbound(capture: MessageCapture): Promise<"pending" | "persisted">;
   recordInbound(message: NormalizedInboundMessage): Promise<MessageCapture | undefined>;
   recordOutbound(message: NormalizedOutboundMessage, correlation?: TurnCorrelation): Promise<MessageCapture | undefined>;
 };
@@ -161,6 +163,13 @@ export function createMessageLifecycleRecorder(input: {
 }): MessageLifecycleRecorder {
   const capturedEpisodes = new Map<string, Promise<void>>();
   const maxRememberedEpisodes = input.maxRememberedEpisodes ?? 4096;
+
+  // Native ingestion cannot grant itself membership. Provisioning owns that decision.
+  const requireNativeWrite = async (namespace: string) => {
+    if (!await input.spicedb.checkPermission({ resourceType: "group", resourceId: namespace,
+      permission: "contribute", subjectType: input.subject.type, subjectId: input.subject.id,
+      consistency: { mode: "full" } })) throw new Error("native_ingest_authorization_denied");
+  };
 
   const captureOnce = async (episodeUuid: string, operation: () => Promise<void>) => {
     const existing = capturedEpisodes.get(episodeUuid);
@@ -251,6 +260,31 @@ export function createMessageLifecycleRecorder(input: {
   };
 
   return {
+    async submitInbound(message) {
+      const capture = buildInboundCapture(message);
+      await requireNativeWrite(capture.conversationNamespace);
+      await input.graphiti.addEpisode({ name: capture.episodeName, episode_body: capture.episodeBody,
+        source_description: `OpenClaw inbound ${capture.providerLabel} message`, source: "json",
+        group_id: capture.conversationNamespace, episode_uuid: capture.episodeUuid, reference_time: capture.referenceTime,
+        bound_entities: capture.boundEntities, extraction_body: capture.extractionBody,
+        custom_extraction_instructions: input.extractionInstructions });
+      return { capture, state: "queued" };
+    },
+    async confirmInbound(capture) {
+      await requireNativeWrite(capture.conversationNamespace);
+      const episodes = await input.graphiti.getEpisodes(capture.conversationNamespace, 100);
+      if (!Array.isArray(episodes)) throw new Error("native_ingest_episode_contract_invalid");
+      const matches = episodes.filter(e => e.uuid === capture.episodeUuid);
+      if (!matches.length) return "pending";
+      if (matches.length !== 1 || matches[0].group_id !== capture.conversationNamespace
+        || matches[0].name !== capture.episodeName || matches[0].content !== capture.episodeBody)
+        throw new Error("native_ingest_episode_provenance_mismatch");
+      const token = await writeFragmentRelationships(input.spicedb, { fragmentId: capture.episodeUuid,
+        groupId: capture.conversationNamespace, sharedBy: input.subject,
+        involves: capture.boundEntities.filter(e => e.entity_type === "Person").map(e => ({ type: "person" as const, id: e.uuid })) });
+      if (token) input.setLastWriteToken(token);
+      return "persisted";
+    },
     async recordInbound(message) {
       return persist(buildInboundCapture(message), "inbound");
     },
