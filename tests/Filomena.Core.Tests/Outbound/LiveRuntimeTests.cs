@@ -234,6 +234,7 @@ public sealed class LiveRuntimeTests : IDisposable
         public Exception? SendError { get; init; }
         public string ProviderPrefix { get; init; } = "provider-";
         public List<(string Route, string Text)> Sends { get; } = [];
+        public List<BoundSendRequest> Requests { get; } = [];
         public int Describes { get; private set; }
         public Task<TransportRouteDescription> DescribeRouteAsync(string route, CancellationToken cancellationToken)
         {
@@ -245,7 +246,7 @@ public sealed class LiveRuntimeTests : IDisposable
 
         public Task<SendReceipt> SendBoundTextAsync(BoundSendRequest request, CancellationToken cancellationToken)
         {
-            lock (Sends) Sends.Add((request.TransportRoute, request.Text));
+            lock (Sends) { Sends.Add((request.TransportRoute, request.Text)); Requests.Add(request); }
             if (SendError is not null) throw SendError;
             var id = ProviderPrefix + Interlocked.Increment(ref sequence);
             return Task.FromResult(new SendReceipt(id) { Channel = "whatsapp", AccountId = "default", Recipient = Session.NativeConversationId, GatewayRunId = "run-" + id });

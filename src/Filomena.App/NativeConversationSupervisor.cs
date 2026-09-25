@@ -1,10 +1,39 @@
 using Filomena.Core.Shadow;
+using Filomena.Core.Outbound;
 
 namespace Filomena.App;
 
 /// <summary>Host-owned coordination for independently persisted native conversations.</summary>
 public sealed class NativeConversationSupervisor
 {
+    /// <summary>
+    /// Accepts only a host-validated replacement lease after the previous session
+    /// worker has fully drained. The scope, native peer and dispatch route remain pinned.
+    /// </summary>
+    public static async Task<MemberDmBoundTextBinding> AcceptRevalidatedMemberDmLeaseAsync(
+        MemberDmBoundTextBinding current,
+        MemberDmBoundTextBinding replacement,
+        Task previousWorkerDrained,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        ArgumentNullException.ThrowIfNull(replacement);
+        ArgumentNullException.ThrowIfNull(previousWorkerDrained);
+        await previousWorkerDrained.WaitAsync(cancellationToken);
+
+        if (!System.Text.RegularExpressions.Regex.IsMatch(current.NativeConversationId, @"\A[0-9]+@s\.whatsapp\.net\z")
+            || replacement.NativeConversationId != current.NativeConversationId
+            || replacement.ScopeRef != current.ScopeRef
+            || replacement.RouteBindingRef != current.RouteBindingRef
+            || replacement.EffectiveConfigRevision != current.EffectiveConfigRevision
+            || string.IsNullOrWhiteSpace(current.MembershipLeaseRef)
+            || string.IsNullOrWhiteSpace(replacement.MembershipLeaseRef)
+            || replacement.MembershipLeaseRef == current.MembershipLeaseRef)
+            throw new InvalidDataException("member_dm_lease_replacement_mismatch");
+
+        return replacement;
+    }
+
     /// <summary>
     /// Keeps the host's existing group checkpoint in place; dynamic DM scopes use
     /// isolated opaque directories under the host-selected state root.

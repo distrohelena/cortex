@@ -75,6 +75,11 @@ public static class NativeShadowCommand
                 || proof.ObservationSessionRef != native.ObservationSessionRef
                 || proof.RouteBindingRef != NativeObservationReader.RouteBindingRef(config.Session with { NativeConversationId = native.NativeConversationId })))
                 throw new InvalidDataException("live_capability_proof_mismatch");
+            if (live?.ManagedMemberDm == true && (live.Evidence is not { } memberProof
+                || memberProof.BoundSendContract != "whatsapp-bound-member-dm-text:v1"
+                || memberProof.NativeConversationId != native.NativeConversationId
+                || string.IsNullOrWhiteSpace(memberProof.MembershipLeaseRef)))
+                throw new InvalidDataException("managed_member_dm_authority_mismatch");
             if (live?.AllowNativeGroupParticipants == true) binding.EnableNativeGroupParticipants();
             if (native.MaxInteractions is < 1 or > 20 || string.IsNullOrWhiteSpace(native.ApprovedRevision))
                 throw new InvalidDataException();
@@ -205,7 +210,10 @@ public static class NativeShadowCommand
                     cancellation.ThrowIfCancellationRequested();
                     await CheckTransport();
                     Interlocked.Increment(ref sendBoundaryAttempts);
-                }, live.MaxInteractions, live.ContinuousGroup, live.ContinuousDm);
+                }, live.MaxInteractions, live.ContinuousGroup, live.ContinuousDm,
+                live.ManagedMemberDm ? new Filomena.Core.Outbound.MemberDmBoundTextBinding(
+                    live.Evidence!.NativeConversationId!, live.Evidence.ObservationSessionRef,
+                    live.Evidence.RouteBindingRef, live.Evidence.ApprovedRevision, live.Evidence.MembershipLeaseRef!) : null);
             var runId = shadowRun?.RunId ?? liveRun!.RunId;
             readPosition?.Save(cursor);
             var historyBeforeRecovery = liveRun?.History.ToArray();

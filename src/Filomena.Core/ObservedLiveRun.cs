@@ -18,7 +18,7 @@ public sealed class ObservedLiveRun : IAsyncDisposable
         OutboundBindings roles, IFlowCompletion completion, IMemoryReader memory, string nativeEpoch, long initialTail,
         LiveRouteBinding route, IBoundOutboundTransport transport, TransportSafetyCapabilities capabilities,
         Func<CancellationToken, Task> beforeSend, int maxInteractions = 1, bool continuousGroup = false,
-        bool continuousDm = false)
+        bool continuousDm = false, MemberDmBoundTextBinding? memberDmBinding = null)
     {
         ArgumentNullException.ThrowIfNull(transport);
         ArgumentNullException.ThrowIfNull(beforeSend);
@@ -30,9 +30,18 @@ public sealed class ObservedLiveRun : IAsyncDisposable
             throw new InvalidOperationException("Continuous DM requires exact DM authority.");
         if (continuousGroup && continuousDm)
             throw new InvalidOperationException("Continuous group and DM authorities are mutually exclusive.");
+        if (memberDmBinding is not null && (!continuousDm || binding.Kind != SessionEntryKind.Dm
+                || memberDmBinding.NativeConversationId != binding.Session.NativeConversationId
+                || route.Recipient != memberDmBinding.NativeConversationId
+                || string.IsNullOrWhiteSpace(memberDmBinding.ScopeRef)
+                || string.IsNullOrWhiteSpace(memberDmBinding.RouteBindingRef)
+                || string.IsNullOrWhiteSpace(memberDmBinding.EffectiveConfigRevision)
+                || string.IsNullOrWhiteSpace(memberDmBinding.MembershipLeaseRef)))
+            throw new InvalidOperationException("Managed member-DM authority must be complete and exact.");
         if (!capabilities.Complete) throw new InvalidOperationException("Unproven live transport capabilities.");
         run = new(project, binding, journalDirectory, roles, completion, memory, nativeEpoch, initialTail,
-            new(route, new BoundedAttemptTransport(transport, beforeSend, continuousGroup || continuousDm ? null : maxInteractions),
+            new(route, new BoundedAttemptTransport(transport, beforeSend, continuousGroup || continuousDm ? null : maxInteractions,
+                    memberDmBinding),
                 capabilities, maxInteractions, continuousGroup || continuousDm));
     }
 
@@ -46,7 +55,8 @@ public sealed class ObservedLiveRun : IAsyncDisposable
     public ValueTask DisposeAsync() => run.DisposeAsync();
 
     // The durable host still reserves/reconciles the attempt. This fence only narrows the operational window.
-    private sealed class BoundedAttemptTransport(IBoundOutboundTransport inner, Func<CancellationToken, Task> beforeSend, int? limit)
+    private sealed class BoundedAttemptTransport(IBoundOutboundTransport inner, Func<CancellationToken, Task> beforeSend,
+        int? limit, MemberDmBoundTextBinding? memberDmBinding)
         : IBoundOutboundTransport
     {
         private int used;
@@ -60,6 +70,8 @@ public sealed class ObservedLiveRun : IAsyncDisposable
                 throw new InvalidOperationException("Live window already consumed.");
             await beforeSend(token);
             token.ThrowIfCancellationRequested();
+            if (memberDmBinding is not null)
+                request = request with { MemberDm = memberDmBinding };
             return await inner.SendBoundTextAsync(request, token);
         }
     }

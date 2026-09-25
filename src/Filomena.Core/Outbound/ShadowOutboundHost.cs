@@ -37,7 +37,12 @@ public sealed record BoundSendRequest(string AttemptRef, string TransportRoute, 
     string AccountId, string Recipient, string Text, int MaxSinglePartCharacters)
 {
     public string? ReplyToMessageId { get; init; }
+    public MemberDmBoundTextBinding? MemberDm { get; init; }
 }
+
+/// <summary>Validated native membership and route facts for one enrolled member-DM send.</summary>
+public sealed record MemberDmBoundTextBinding(string NativeConversationId, string ScopeRef,
+    string RouteBindingRef, string EffectiveConfigRevision, string MembershipLeaseRef);
 
 /// <summary>
 /// Trusted sender contract: compare the expected destination at the physical dispatch boundary,

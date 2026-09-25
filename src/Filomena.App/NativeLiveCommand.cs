@@ -13,7 +13,7 @@ public sealed record NativeLiveConfig(string NativeConfigFile, OpenClawMcpClient
     TransportSafetyCapabilities Capabilities, string CapabilityEvidenceFile, string CapabilityEvidenceSha256,
     int MaxInteractions = 1, bool RevalidateReceiverWithinWindow = false, bool AllowExactGroupDelivery = false,
     bool ContinuousGroup = false, NativeObservationCursor? ContinueAfter = null, bool AllowNativeGroupParticipants = false,
-    bool AllowNativeGroupReplies = false, bool ContinuousDm = false)
+    bool AllowNativeGroupReplies = false, bool ContinuousDm = false, bool ManagedMemberDm = false)
 {
     internal NativeLiveCapabilityEvidence? Evidence { get; init; }
 
@@ -35,7 +35,8 @@ internal sealed record NativeLiveCapabilityEvidence(string Version, string Appro
     string ObservationSessionRef, string RouteBindingRef, string BoundSendContract,
     TransportSafetyCapabilities Capabilities, int MaxInteractions = 1, bool RevalidateReceiverWithinWindow = false,
     bool ContinuousGroup = false, NativeObservationCursor? ContinueAfter = null, bool AllowNativeGroupParticipants = false,
-    bool ContinuousDm = false);
+    bool ContinuousDm = false, bool ManagedMemberDm = false, string? NativeConversationId = null,
+    string? MembershipLeaseRef = null);
 
 public static class NativeLiveCommand
 {
@@ -81,6 +82,7 @@ public static class NativeLiveCommand
             var continuousDmFlag = args[2] == "--authorize-continuous-dm";
             if (live.ContinuousGroup != continuousGroupFlag || live.ContinuousDm != continuousDmFlag
                 || (live.ContinuousGroup && live.ContinuousDm)
+                || (live.ManagedMemberDm && !live.ContinuousDm)
                 || (live.ContinuousGroup ? !live.AllowExactGroupDelivery || live.MaxInteractions != 1
                     : live.ContinuousDm ? live.AllowExactGroupDelivery || live.AllowNativeGroupParticipants
                         || live.AllowNativeGroupReplies || live.MaxInteractions != 1
@@ -94,7 +96,8 @@ public static class NativeLiveCommand
             if (Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(evidence)) != live.CapabilityEvidenceSha256)
                 throw new InvalidDataException();
             var proof = JsonSerializer.Deserialize<NativeLiveCapabilityEvidence>(evidence, Json) ?? throw new JsonException();
-            var expectedContract = live.AllowNativeGroupReplies ? "whatsapp-bound-group-reply:v1"
+            var expectedContract = live.ManagedMemberDm ? "whatsapp-bound-member-dm-text:v1"
+                : live.AllowNativeGroupReplies ? "whatsapp-bound-group-reply:v1"
                 : live.AllowExactGroupDelivery ? "whatsapp-bound-group-text:v1" : "whatsapp-bound-text:v1";
             if (proof.Version != "native-live-capabilities:v1" || proof.BoundSendContract != expectedContract
                 || (live.AllowNativeGroupReplies && !live.AllowExactGroupDelivery)
@@ -102,6 +105,11 @@ public static class NativeLiveCommand
                 || proof.MaxInteractions != live.MaxInteractions
                 || proof.ContinuousGroup != live.ContinuousGroup
                 || proof.ContinuousDm != live.ContinuousDm
+                || proof.ManagedMemberDm != live.ManagedMemberDm
+                || (live.ManagedMemberDm
+                    && (!System.Text.RegularExpressions.Regex.IsMatch(proof.NativeConversationId ?? "", @"\A[0-9]+@s\.whatsapp\.net\z")
+                        || string.IsNullOrWhiteSpace(proof.MembershipLeaseRef)))
+                || (!live.ManagedMemberDm && (proof.NativeConversationId is not null || proof.MembershipLeaseRef is not null))
                 || proof.AllowNativeGroupParticipants != live.AllowNativeGroupParticipants
                 || (live.AllowNativeGroupParticipants && !live.AllowExactGroupDelivery)
                 || proof.ContinueAfter != live.ContinueAfter

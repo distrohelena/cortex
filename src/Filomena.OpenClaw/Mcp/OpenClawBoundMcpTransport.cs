@@ -11,6 +11,7 @@ public sealed class OpenClawBoundMcpTransport(IMcpToolClient client, bool allowE
     private const string Contract = "whatsapp-bound-text:v1";
     private const string GroupContract = "whatsapp-bound-group-text:v1";
     private const string GroupReplyContract = "whatsapp-bound-group-reply:v1";
+    private const string MemberDmContract = "whatsapp-bound-member-dm-text:v1";
     private bool IsApprovedGroup(string? recipient) => allowExactGroupDelivery
         && Regex.IsMatch(recipient ?? "", @"\A[0-9]+(-[0-9]+)?@g\.us\z");
 
@@ -47,11 +48,20 @@ public sealed class OpenClawBoundMcpTransport(IMcpToolClient client, bool allowE
             request.MaxSinglePartCharacters is < 1 or > 4000 ||
             request.Text.Length > request.MaxSinglePartCharacters)
             throw new ArgumentException("Invalid bound single-part request.", nameof(request));
+        if (request.MemberDm is { } memberDm
+            && (!Regex.IsMatch(memberDm.NativeConversationId ?? "", @"\A[0-9]+@s\.whatsapp\.net\z")
+                || request.Recipient != memberDm.NativeConversationId
+                || string.IsNullOrWhiteSpace(memberDm.ScopeRef)
+                || string.IsNullOrWhiteSpace(memberDm.RouteBindingRef)
+                || string.IsNullOrWhiteSpace(memberDm.EffectiveConfigRevision)
+                || string.IsNullOrWhiteSpace(memberDm.MembershipLeaseRef)))
+            throw new ArgumentException("Invalid managed member-DM binding.", nameof(request));
         cancellationToken.ThrowIfCancellationRequested();
         if (request.ReplyToMessageId is { } target && (!IsApprovedGroup(request.Recipient) ||
             target.Length > 256 || !Regex.IsMatch(target, @"\A\S+\z")))
             throw new ArgumentException("Invalid bound group reply target.", nameof(request));
-        var contract = request.ReplyToMessageId is not null ? GroupReplyContract
+        var contract = request.MemberDm is not null ? MemberDmContract
+            : request.ReplyToMessageId is not null ? GroupReplyContract
             : IsApprovedGroup(request.Recipient) ? GroupContract : Contract;
         var expected = new Dictionary<string, object?>
         {
@@ -59,6 +69,14 @@ public sealed class OpenClawBoundMcpTransport(IMcpToolClient client, bool allowE
             ["accountId"] = request.AccountId, ["recipient"] = request.Recipient,
             ["maxSinglePartCharacters"] = request.MaxSinglePartCharacters,
         };
+        if (request.MemberDm is { } binding)
+        {
+            expected["nativeConversationId"] = binding.NativeConversationId;
+            expected["scopeRef"] = binding.ScopeRef;
+            expected["routeBindingRef"] = binding.RouteBindingRef;
+            expected["effectiveConfigRevision"] = binding.EffectiveConfigRevision;
+            expected["membershipLeaseRef"] = binding.MembershipLeaseRef;
+        }
         if (request.ReplyToMessageId is not null) expected["replyToMessageId"] = request.ReplyToMessageId;
         var response = await client.CallToolAsync("messages_send_bound", new Dictionary<string, object?>
         {
@@ -71,7 +89,11 @@ public sealed class OpenClawBoundMcpTransport(IMcpToolClient client, bool allowE
             Read(result, "contractVersion") != contract || Read(result, "attemptRef") != request.AttemptRef ||
             Read(result, "channel") != request.Channel || Read(result, "accountId") != request.AccountId ||
             Read(result, "recipient") != request.Recipient || Read(result, "messageId") is not { } messageId ||
-            Read(result, "replyToMessageId") != request.ReplyToMessageId)
+            Read(result, "replyToMessageId") != request.ReplyToMessageId ||
+            (request.MemberDm is { } expectedMemberDm
+                && (Read(result, "nativeConversationId") != expectedMemberDm.NativeConversationId
+                    || Read(result, "scopeRef") != expectedMemberDm.ScopeRef
+                    || Read(result, "membershipLeaseRef") != expectedMemberDm.MembershipLeaseRef)))
             throw new InvalidDataException("Bound send outcome unverified. Do not retry automatically.");
         return new SendReceipt(messageId)
         {

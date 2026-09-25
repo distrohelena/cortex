@@ -1,6 +1,7 @@
 using Filomena.App;
 using Filomena.Core.Flows.Sessions;
 using Filomena.Core.Identity;
+using Filomena.Core.Outbound;
 using Filomena.Core.Shadow;
 using Filomena.OpenClaw.Observation;
 using Xunit;
@@ -62,6 +63,21 @@ public sealed class NativeConversationSupervisorTests : IDisposable
         Assert.Throws<InvalidOperationException>(() => NativeConversationSupervisor.ResolveSessionDirectory(root, group));
         Assert.Throws<DirectoryNotFoundException>(() => NativeConversationSupervisor.ResolveSessionDirectory(
             root, group, Path.Combine(root, "not-migrated")));
+    }
+
+    [Fact]
+    public async Task Revalidated_member_lease_is_not_accepted_until_old_worker_drains()
+    {
+        var original = new MemberDmBoundTextBinding("15550001@s.whatsapp.net", "dm-scope", "dm-route", "native-rev-7", "lease-1");
+        var refreshed = original with { MembershipLeaseRef = "lease-2" };
+        var drain = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        var replacement = NativeConversationSupervisor.AcceptRevalidatedMemberDmLeaseAsync(original, refreshed, drain.Task,
+            TestContext.Current.CancellationToken);
+
+        Assert.False(replacement.IsCompleted);
+        drain.SetResult();
+        Assert.Equal(refreshed, await replacement);
     }
 
     private static ShadowSessionBinding Binding(string nativeId, SessionEntryKind kind)

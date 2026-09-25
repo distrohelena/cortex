@@ -73,6 +73,48 @@ public sealed class OpenClawBoundMcpTransportTests
         Assert.Equal(4000, expected.GetProperty("maxSinglePartCharacters").GetInt32());
     }
 
+    [Fact]
+    public async Task ManagedMemberDmUsesStrictVersionAndCarriesExactLeaseBinding()
+    {
+        const string canonicalPn = "15550001@s.whatsapp.net";
+        var binding = new MemberDmBoundTextBinding(canonicalPn, "dm-scope", "dm-route", "dispatch-rev-7", "lease-generation-3");
+        await using var client = new Client { ReceiptRecipient = canonicalPn, ReceiptContract = "whatsapp-bound-member-dm-text:v1",
+            MemberDmReceipt = binding };
+        var request = Request with { Recipient = canonicalPn, MemberDm = binding };
+
+        await new OpenClawBoundMcpTransport(client).SendBoundTextAsync(request, TestContext.Current.CancellationToken);
+
+        var args = JsonSerializer.SerializeToElement(Assert.Single(client.Calls).Arguments);
+        var expected = args.GetProperty("expected");
+        Assert.Equal("whatsapp-bound-member-dm-text:v1", expected.GetProperty("contractVersion").GetString());
+        Assert.Equal(canonicalPn, expected.GetProperty("nativeConversationId").GetString());
+        Assert.Equal("dm-scope", expected.GetProperty("scopeRef").GetString());
+        Assert.Equal("dm-route", expected.GetProperty("routeBindingRef").GetString());
+        Assert.Equal("dispatch-rev-7", expected.GetProperty("effectiveConfigRevision").GetString());
+        Assert.Equal("lease-generation-3", expected.GetProperty("membershipLeaseRef").GetString());
+    }
+
+    [Theory]
+    [InlineData("missing-lease")]
+    [InlineData("lid-alias-recipient")]
+    public async Task InvalidManagedMemberDmNeverFallsBackToLegacyContract(string variant)
+    {
+        const string canonicalPn = "15550001@s.whatsapp.net";
+        var binding = new MemberDmBoundTextBinding(canonicalPn, "dm-scope", "dm-route", "dispatch-rev-7",
+            variant == "missing-lease" ? "" : "lease-generation-3");
+        var request = Request with
+        {
+            Recipient = variant == "lid-alias-recipient" ? "991234@lid" : canonicalPn,
+            MemberDm = binding,
+        };
+        await using var client = new Client();
+
+        await Assert.ThrowsAsync<ArgumentException>(() => new OpenClawBoundMcpTransport(client)
+            .SendBoundTextAsync(request, TestContext.Current.CancellationToken));
+
+        Assert.Empty(client.Calls);
+    }
+
     [Theory]
     [InlineData("contractVersion", "whatsapp-bound-text:v1")]
     [InlineData("recipient", "120399999999@g.us")]
@@ -196,6 +238,7 @@ public sealed class OpenClawBoundMcpTransportTests
         public string RouteRecipient { get; init; } = "5550001@lid";
         public string ReceiptRecipient { get; init; } = "5550001@lid";
         public string ReceiptContract { get; init; } = "whatsapp-bound-text:v1";
+        public MemberDmBoundTextBinding? MemberDmReceipt { get; init; }
         public Task<IReadOnlyList<McpToolDescriptor>> ListToolsAsync(CancellationToken cancellationToken) =>
             Task.FromResult<IReadOnlyList<McpToolDescriptor>>(AdvertiseBound
                 ? [new("messages_send_bound", null, JsonSerializer.SerializeToElement(new { }))] : []);
@@ -214,6 +257,12 @@ public sealed class OpenClawBoundMcpTransportTests
                 ["channel"] = "whatsapp", ["accountId"] = "test-account",
                 ["recipient"] = ReceiptRecipient, ["messageId"] = "provider-id",
             };
+            if (MemberDmReceipt is { } memberDm)
+            {
+                result["nativeConversationId"] = memberDm.NativeConversationId;
+                result["scopeRef"] = memberDm.ScopeRef;
+                result["membershipLeaseRef"] = memberDm.MembershipLeaseRef;
+            }
             if (ChangedField is not null) result[ChangedField] = ChangedValue;
             return Task.FromResult(JsonSerializer.SerializeToElement(new { result }));
         }

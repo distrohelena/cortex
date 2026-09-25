@@ -137,6 +137,42 @@ public sealed class NativeLiveCommandTests
     }
 
     [Theory]
+    [InlineData(true, true, "whatsapp-bound-text:v1", null, null, false)]
+    [InlineData(true, true, "whatsapp-bound-member-dm-text:v1", "15550001@s.whatsapp.net", null, false)]
+    [InlineData(true, true, "whatsapp-bound-member-dm-text:v1", "15550001@s.whatsapp.net", "lease-7", true)]
+    [InlineData(false, false, "whatsapp-bound-text:v1", null, null, true)]
+    [InlineData(false, true, "whatsapp-bound-member-dm-text:v1", "15550001@s.whatsapp.net", "lease-7", false)]
+    public async Task Managed_member_DM_cannot_downgrade_or_lose_its_membership_lease(
+        bool managedHost, bool managedEvidence, string contract, string? nativeConversationId,
+        string? membershipLeaseRef, bool valid)
+    {
+        var dir = Directory.CreateTempSubdirectory("managed-member-dm-auth-");
+        try
+        {
+            var json = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
+            var capabilities = new Filomena.Core.Outbound.TransportSafetyCapabilities(true, true, true, true, true, true, true);
+            var bytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new {
+                version = "native-live-capabilities:v1", approvedRevision = "native-dispatch-R7", observationSessionRef = "dm-scope",
+                routeBindingRef = "dm-route", boundSendContract = contract, capabilities, continuousDm = true,
+                managedMemberDm = managedEvidence, nativeConversationId, membershipLeaseRef
+            }, json);
+            await File.WriteAllBytesAsync(Path.Combine(dir.FullName, "proof.json"), bytes, TestContext.Current.CancellationToken);
+            var config = new NativeLiveConfig("missing-native.json", new("never-start", []), "route", "Agent", 1000,
+                capabilities, "proof.json", Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)),
+                ContinuousDm: true, ManagedMemberDm: managedHost);
+            var file = Path.Combine(dir.FullName, "live.json");
+            await File.WriteAllTextAsync(file, System.Text.Json.JsonSerializer.Serialize(config, json), TestContext.Current.CancellationToken);
+            using var output = new StringWriter();
+
+            Assert.Equal(2, await NativeLiveCommand.RunAsync(["--native-live", file, "--authorize-continuous-dm"],
+                new StringReader("/quit"), output, TestContext.Current.CancellationToken));
+
+            Assert.Contains(valid ? "invalid_host_configuration" : "invalid_live_authorization", output.ToString());
+        }
+        finally { dir.Delete(true); }
+    }
+
+    [Theory]
     [InlineData(true, "whatsapp-bound-text:v1", false, false)]
     [InlineData(false, "whatsapp-bound-group-text:v1", false, false)]
     [InlineData(true, "whatsapp-bound-group-text:v1", false, true)]

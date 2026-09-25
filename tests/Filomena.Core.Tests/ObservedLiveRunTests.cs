@@ -19,11 +19,11 @@ public sealed class ObservedLiveRunTests : IDisposable
     private static CancellationToken Token => TestContext.Current.CancellationToken;
     private ObservedLiveRun Create(LiveRuntimeTests.SequencedTransport transport, Func<CancellationToken, Task>? fence = null,
         TransportSafetyCapabilities? capabilities = null, int maxInteractions = 1, string epoch = "epoch", long tail = 10,
-        int version = 1, bool continuousDm = false) => new(new(ShadowRuntimeTests.Project(false, sendExit: "sent", history: true, version: version)), Binding,
+        int version = 1, bool continuousDm = false, MemberDmBoundTextBinding? memberDmBinding = null) => new(new(ShadowRuntimeTests.Project(false, sendExit: "sent", history: true, version: version)), Binding,
         directory, Roles, new ShadowRuntimeTests.Completion("empty"), new ShadowRuntimeTests.Reader("empty"), epoch, tail,
         LiveRouteBindings.FromShadow(Binding, "opaque-route", Session.NativeConversationId, "Filomena", 1000), transport,
         capabilities ?? new(true, true, true, true, true, true, true), fence ?? (_ => Task.CompletedTask), maxInteractions,
-        continuousDm: continuousDm);
+        continuousDm: continuousDm, memberDmBinding: memberDmBinding);
 
     [Theory]
     [InlineData(false, 1)]
@@ -54,6 +54,47 @@ public sealed class ObservedLiveRunTests : IDisposable
         if (removeAge) Assert.Equal(old.Message.Message.GetProperty("texto").GetString(), selected[0].GetProperty("texto").GetString());
         Assert.Single(sender.Sends);
     }
+
+    [Fact]
+    public async Task Standalone_continuous_DM_keeps_legacy_sender_binding()
+    {
+        await using var run = Create(new LiveRuntimeTests.SequencedTransport(), continuousDm: true);
+        var result = await run.AcceptAsync([Input(11, "standalone-dm")], Token);
+
+        Assert.True(Assert.Single(result.Outcomes).Success);
+    }
+
+    [Fact]
+    public async Task Explicit_new_member_lease_resumes_future_work_with_private_history_preserved()
+    {
+        var oldLease = MemberDmLease("lease-generation-1");
+        var firstSender = new LiveRuntimeTests.SequencedTransport();
+        await using (var first = Create(firstSender, continuousDm: true, memberDmBinding: oldLease))
+        {
+            var accepted = await first.AcceptAsync([Input(11, "before-lease-expiry")], Token);
+            Assert.True(Assert.Single(accepted.Outcomes).Success);
+            Assert.Equal("lease-generation-1", Assert.Single(firstSender.Requests).MemberDm!.MembershipLeaseRef);
+        }
+
+        // A fresh host validation supplies a new immutable binding. The old run is
+        // already drained; reopening the same private directory restores its journal.
+        var newLease = oldLease with { MembershipLeaseRef = "lease-generation-2" };
+        var resumedSender = new LiveRuntimeTests.SequencedTransport();
+        await using var resumed = Create(resumedSender, continuousDm: true, memberDmBinding: newLease);
+        var duplicate = await resumed.AcceptAsync([Input(11, "before-lease-expiry")], Token);
+        Assert.Equal("duplicate", Assert.Single(duplicate.Decisions).Status);
+        Assert.Empty(resumedSender.Sends);
+        Assert.Equal(2, resumed.History.Count);
+
+        var future = await resumed.AcceptAsync([Input(12, "after-lease-revalidation")], Token);
+        Assert.True(Assert.Single(future.Outcomes).Success);
+        Assert.Equal("lease-generation-2", Assert.Single(resumedSender.Requests).MemberDm!.MembershipLeaseRef);
+        Assert.Equal(new[] { "before-lease-expiry", "after-lease-revalidation" }, resumed.History
+            .Where(entry => entry.Direction == SessionMessageDirection.Inbound).Select(entry => entry.ProviderMessageId));
+    }
+
+    private static MemberDmBoundTextBinding MemberDmLease(string leaseRef) => new(
+        Session.NativeConversationId, "member-dm-scope", "member-dm-route", "native-dispatch-R7", leaseRef);
 
     [Fact]
     public async Task Native_events_missed_before_poll_recover_in_order_once_across_restart()
