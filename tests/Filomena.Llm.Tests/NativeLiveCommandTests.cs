@@ -154,12 +154,19 @@ public sealed class NativeLiveCommandTests
             var bytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new {
                 version = "native-live-capabilities:v1", approvedRevision = "native-dispatch-R7", observationSessionRef = "dm-scope",
                 routeBindingRef = "dm-route", boundSendContract = contract, capabilities, continuousDm = true,
-                managedMemberDm = managedEvidence, nativeConversationId, membershipLeaseRef
+                managedMemberDm = managedEvidence, nativeConversationId, membershipLeaseRef,
+                nativeObservationCapabilities = managedEvidence
+                    ? Filomena.Core.Shadow.NativeObservationPreflight.RequiredCapabilities.ToDictionary(capability => capability, _ => true)
+                    : null,
+                nativeAccountId = managedEvidence ? "account-a" : null,
+                nativeSourceGroupJid = managedEvidence ? "120363318973251043@g.us" : null,
+                nativeAliases = managedEvidence ? new[] { "15550001@s.whatsapp.net", "991234:8@lid" } : null,
             }, json);
             await File.WriteAllBytesAsync(Path.Combine(dir.FullName, "proof.json"), bytes, TestContext.Current.CancellationToken);
             var config = new NativeLiveConfig("missing-native.json", new("never-start", []), "route", "Agent", 1000,
                 capabilities, "proof.json", Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)),
-                ContinuousDm: true, ManagedMemberDm: managedHost);
+                ContinuousDm: true, ManagedMemberDm: managedHost,
+                MemberDmSourceGroupJid: managedHost ? "120363318973251043@g.us" : null);
             var file = Path.Combine(dir.FullName, "live.json");
             await File.WriteAllTextAsync(file, System.Text.Json.JsonSerializer.Serialize(config, json), TestContext.Current.CancellationToken);
             using var output = new StringWriter();

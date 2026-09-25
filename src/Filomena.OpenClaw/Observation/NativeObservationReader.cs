@@ -20,6 +20,8 @@ public sealed record NativeObservationInspection(NativeObservationSourceStatus S
 {
     internal NativeReceiverScope? ReceiverScope { get; init; }
     internal IReadOnlyList<string> ParticipantActorRefs { get; init; } = [];
+    public string RouteBindingRef { get; init; } = "";
+    public string? ReceiverEpoch => ReceiverScope?.Epoch;
 }
 
 // A serialized report or project-supplied revision cannot mint this reader-local approval.
@@ -45,6 +47,10 @@ public sealed partial class NativeObservationReader
     private readonly NativeSelfMentionIdentity? selfMentionIdentity;
     private readonly object authority = new();
     private readonly Dictionary<string, string> actorBindings = new(StringComparer.Ordinal);
+
+    public Uri BoundEndpoint => endpoint;
+    public string BoundSessionRef => sourceSession;
+    public SessionKey BoundTransportSession => transportSession;
 
     // Cross-language host binding, not message identity and not authorization by itself.
     public static string RouteBindingRef(SessionKey session) => Convert.ToHexStringLower(SHA256.HashData(
@@ -128,7 +134,28 @@ public sealed partial class NativeObservationReader
             var capabilities = root.GetProperty("capabilities").EnumerateObject().ToDictionary(p => p.Name, p => p.Value.GetBoolean(), StringComparer.Ordinal);
             var paths = dispatch.GetProperty("paths").EnumerateArray().Select(p => Text(p, "family") + ":" + Text(p, "status")).ToArray();
             return new(new(version, health, sourceSession, status, capabilities), revision, self, peer, paths)
-            { ReceiverScope = ReadReceiverScope(root), ParticipantActorRefs = participants };
+            { ReceiverScope = ReadReceiverScope(root), ParticipantActorRefs = participants,
+                RouteBindingRef = Text(root, "routeBindingRef") };
+        }
+        catch (NativeObservationException) { throw; }
+        catch (Exception e) when (e is JsonException or InvalidOperationException or KeyNotFoundException or ArgumentException)
+        { throw new NativeObservationException("invalid_output"); }
+    }
+
+    /// <summary>Reads the additive member-DM descriptor from this authenticated group's existing status route.</summary>
+    public async Task<JsonElement> ReadMemberDmDiscoveryAsync(CancellationToken cancellationToken)
+    {
+        if (binding.Kind != SessionEntryKind.Group)
+            throw new NativeObservationException("member_dm_discovery_requires_group_reader");
+        var root = await GetAsync("status", "", cancellationToken);
+        try
+        {
+            CheckVersion(root);
+            Exact(Text(root, "sessionRef"), sourceSession);
+            Exact(Text(root, "channel"), binding.Session.ChannelId);
+            Exact(Text(root, "kind"), "group");
+            Exact(Text(root, "routeBindingRef"), RouteBindingRef(binding.Session));
+            return root.GetProperty("memberDmDiscovery").Clone();
         }
         catch (NativeObservationException) { throw; }
         catch (Exception e) when (e is JsonException or InvalidOperationException or KeyNotFoundException or ArgumentException)

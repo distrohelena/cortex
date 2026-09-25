@@ -19,7 +19,7 @@ public sealed record NativeShadowConfig(string ManualConfigFile, string Observat
     string ObservationTokenEnvironmentVariable, string ObservationSessionRef,
     string NativeConversationId, string ApprovedRevision, string JournalDirectory, int MaxInteractions = 5,
     NativeReplayPlan? Recovery = null, Dictionary<string, string>? GroupParticipants = null,
-    NativeSelfMentionIdentity? SelfMentionIdentity = null);
+    NativeSelfMentionIdentity? SelfMentionIdentity = null, string? NativeSourceGroupJid = null);
 
 /// <summary>Bounded, operator-stepped reader handoff. Never constructs the legacy host.</summary>
 public static class NativeShadowCommand
@@ -78,6 +78,8 @@ public static class NativeShadowCommand
             if (live?.ManagedMemberDm == true && (live.Evidence is not { } memberProof
                 || memberProof.BoundSendContract != "whatsapp-bound-member-dm-text:v1"
                 || memberProof.NativeConversationId != native.NativeConversationId
+                || memberProof.NativeAccountId != config.Session.AccountId
+                || memberProof.NativeSourceGroupJid != native.NativeSourceGroupJid
                 || string.IsNullOrWhiteSpace(memberProof.MembershipLeaseRef)))
                 throw new InvalidDataException("managed_member_dm_authority_mismatch");
             if (live?.AllowNativeGroupParticipants == true) binding.EnableNativeGroupParticipants();

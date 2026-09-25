@@ -13,7 +13,8 @@ public sealed record NativeLiveConfig(string NativeConfigFile, OpenClawMcpClient
     TransportSafetyCapabilities Capabilities, string CapabilityEvidenceFile, string CapabilityEvidenceSha256,
     int MaxInteractions = 1, bool RevalidateReceiverWithinWindow = false, bool AllowExactGroupDelivery = false,
     bool ContinuousGroup = false, NativeObservationCursor? ContinueAfter = null, bool AllowNativeGroupParticipants = false,
-    bool AllowNativeGroupReplies = false, bool ContinuousDm = false, bool ManagedMemberDm = false)
+    bool AllowNativeGroupReplies = false, bool ContinuousDm = false, bool ManagedMemberDm = false,
+    string? MemberDmSourceGroupJid = null)
 {
     internal NativeLiveCapabilityEvidence? Evidence { get; init; }
 
@@ -36,7 +37,8 @@ internal sealed record NativeLiveCapabilityEvidence(string Version, string Appro
     TransportSafetyCapabilities Capabilities, int MaxInteractions = 1, bool RevalidateReceiverWithinWindow = false,
     bool ContinuousGroup = false, NativeObservationCursor? ContinueAfter = null, bool AllowNativeGroupParticipants = false,
     bool ContinuousDm = false, bool ManagedMemberDm = false, string? NativeConversationId = null,
-    string? MembershipLeaseRef = null);
+    string? MembershipLeaseRef = null, IReadOnlyDictionary<string, bool>? NativeObservationCapabilities = null,
+    string? NativeAccountId = null, string? NativeSourceGroupJid = null, string[]? NativeAliases = null);
 
 public static class NativeLiveCommand
 {
@@ -108,8 +110,23 @@ public static class NativeLiveCommand
                 || proof.ManagedMemberDm != live.ManagedMemberDm
                 || (live.ManagedMemberDm
                     && (!System.Text.RegularExpressions.Regex.IsMatch(proof.NativeConversationId ?? "", @"\A[0-9]+@s\.whatsapp\.net\z")
-                        || string.IsNullOrWhiteSpace(proof.MembershipLeaseRef)))
-                || (!live.ManagedMemberDm && (proof.NativeConversationId is not null || proof.MembershipLeaseRef is not null))
+                        || string.IsNullOrWhiteSpace(proof.MembershipLeaseRef)
+                        || string.IsNullOrWhiteSpace(proof.NativeAccountId)
+                        || string.IsNullOrWhiteSpace(proof.NativeSourceGroupJid)
+                        || proof.NativeSourceGroupJid != live.MemberDmSourceGroupJid
+                        || !System.Text.RegularExpressions.Regex.IsMatch(proof.NativeSourceGroupJid, @"\A[0-9]+(?:-[0-9]+)?@g\.us\z")
+                        || proof.NativeAliases is not { Length: > 0 }
+                        || !proof.NativeAliases.Contains(proof.NativeConversationId, StringComparer.Ordinal)
+                        || proof.NativeAliases.Any(alias => !System.Text.RegularExpressions.Regex.IsMatch(alias,
+                            @"\A[0-9]+(?::[0-9]+)?@(s\.whatsapp\.net|lid)\z"))
+                        || proof.NativeAliases.Distinct(StringComparer.Ordinal).Count() != proof.NativeAliases.Length
+                        || proof.NativeObservationCapabilities is null
+                        || Filomena.Core.Shadow.NativeObservationPreflight.RequiredCapabilities.Any(capability =>
+                            !proof.NativeObservationCapabilities.GetValueOrDefault(capability))))
+                || (!live.ManagedMemberDm && (proof.NativeConversationId is not null || proof.MembershipLeaseRef is not null
+                    || proof.NativeObservationCapabilities is not null || proof.NativeAccountId is not null
+                    || proof.NativeSourceGroupJid is not null || proof.NativeAliases is not null
+                    || live.MemberDmSourceGroupJid is not null))
                 || proof.AllowNativeGroupParticipants != live.AllowNativeGroupParticipants
                 || (live.AllowNativeGroupParticipants && !live.AllowExactGroupDelivery)
                 || proof.ContinueAfter != live.ContinueAfter

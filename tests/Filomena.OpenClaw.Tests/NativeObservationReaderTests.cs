@@ -61,6 +61,34 @@ public sealed class NativeObservationReaderTests
     }
 
     [Fact]
+    public async Task Member_DM_discovery_uses_only_the_authenticated_group_status_reader()
+    {
+        var paths = new List<string>();
+        var memberDiscovery = new { version = "native-group-member-dm-discovery:v1", source = new { accountId = "default", groupJid = GroupSession.NativeConversationId,
+            groupSessionRef = "source" }, enrollment = "enabled", scopes = Array.Empty<object>() };
+        using var client = new HttpClient(new Handler(request =>
+        {
+            paths.Add(request.RequestUri!.PathAndQuery);
+            Assert.Equal("Bearer token", request.Headers.Authorization!.ToString());
+            var root = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(Status()))!;
+            root["version"] = "inbound-observation:v2";
+            root["kind"] = "group";
+            root["routeBindingRef"] = NativeObservationReader.RouteBindingRef(GroupSession);
+            root.AsObject().Remove("peerActorRef");
+            root["participantActorRefs"] = JsonSerializer.SerializeToNode(new[] { GroupActorRef(GroupParticipant) });
+            root["memberDmDiscovery"] = JsonSerializer.SerializeToNode(memberDiscovery);
+            return root;
+        }));
+        var reader = new NativeObservationReader(client, new("http://127.0.0.1:12345"), "token", GroupBinding, "source", Self, Peer,
+            groupParticipants: new Dictionary<string, string> { [GroupParticipant] = Peer });
+
+        var discovery = await reader.ReadMemberDmDiscoveryAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("native-group-member-dm-discovery:v1", discovery.GetProperty("version").GetString());
+        Assert.Equal(new[] { "/inbound-observation/v2/status?session=source" }, paths);
+    }
+
+    [Fact]
     public async Task Self_mention_identity_must_match_the_native_account_proof()
     {
         using var client = new HttpClient(new Handler(_ => Status()));
