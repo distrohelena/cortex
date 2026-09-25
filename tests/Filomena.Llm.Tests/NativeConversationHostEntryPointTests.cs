@@ -16,6 +16,71 @@ namespace Filomena.Llm.Tests;
 public sealed class NativeConversationHostEntryPointTests
 {
     [Fact]
+    public async Task Complete_native_http_fixture_validates_managed_scope_and_maps_admitted_LID_event()
+    {
+        var fixturePath = Path.Combine(ParticipationGateV1Tests.Root,
+            "tests/Filomena.Llm.Tests/Fixtures/native-member-dm-fixture.json");
+        using var fixture = JsonDocument.Parse(await File.ReadAllTextAsync(fixturePath, TestContext.Current.CancellationToken));
+        var root = fixture.RootElement;
+        var groupWire = root.GetProperty("groupDiscovery");
+        var source = groupWire.GetProperty("source");
+        var account = source.GetProperty("accountId").GetString()!;
+        var groupJid = source.GetProperty("groupJid").GetString()!;
+        var groupSessionRef = source.GetProperty("groupSessionRef").GetString()!;
+        var scope = Assert.Single(NativeMemberDmDiscoveryValidator.Parse(groupWire, account, groupJid,
+            groupSessionRef).Scopes);
+        var dmStatus = root.GetProperty("childStatus");
+        Assert.Equal("inbound-observation:v1", dmStatus.GetProperty("version").GetString());
+        Assert.Equal("dispatch-inspection:v1", dmStatus.GetProperty("dispatch").GetProperty("version").GetString());
+        Assert.Equal("dm", dmStatus.GetProperty("kind").GetString());
+        Assert.Equal("healthy", dmStatus.GetProperty("journalHealth").GetString());
+        Assert.Equal("clear", dmStatus.GetProperty("bootstrap").GetProperty("legacyRecovery").GetProperty("status").GetString());
+
+        var groupSession = new SessionKey("runtime", "filomena", "whatsapp", account, groupJid);
+        var dmSession = groupSession with { NativeConversationId = scope.NativeConversationId! };
+        const string selfActor = "whatsapp:200@s.whatsapp.net";
+        var peerActor = "whatsapp:" + scope.NativeConversationId;
+        var groupBinding = new ShadowSessionBinding(groupSession,
+            FilomenaIdentity.WhatsAppConversationNamespace(groupJid), [selfActor], [peerActor], SessionEntryKind.Group);
+        var dmBinding = new ShadowSessionBinding(dmSession,
+            FilomenaIdentity.WhatsAppConversationNamespace(scope.NativeConversationId!), [selfActor], [peerActor]);
+        var groupStatus = new
+        {
+            version = "inbound-observation:v2", sessionRef = groupSessionRef, channel = "whatsapp", kind = "group",
+            routeBindingRef = NativeObservationReader.RouteBindingRef(groupSession), memberDmDiscovery = groupWire,
+        };
+        using var http = new HttpClient(new FakeHandler(request =>
+        {
+            var path = request.RequestUri!.AbsolutePath;
+            if (path.EndsWith("/inbound-observation/v2/status", StringComparison.Ordinal)) return groupStatus;
+            if (path.EndsWith("/status", StringComparison.Ordinal)) return dmStatus;
+            if (path.EndsWith("/poll", StringComparison.Ordinal)) return root.GetProperty("poll");
+            throw new InvalidDataException("unexpected_fixture_route");
+        }));
+        var groupReader = new NativeObservationReader(http, new("http://127.0.0.1:61000/"), "fixture-token",
+            groupBinding, groupSessionRef, selfActor, peerActor,
+            groupParticipants: new Dictionary<string, string> { [scope.NativeConversationId!] = peerActor });
+        var dmReader = new NativeObservationReader(http, new Uri(scope.ReaderEndpoint!), "fixture-token", dmBinding,
+            scope.ScopeRef!, selfActor, peerActor, trustedManagedMemberDmAliases: scope.NativeAliases);
+
+        var authenticatedDiscovery = await NativeConversationSupervisor.ReadMemberDmDiscoveryAsync(groupReader,
+            account, groupJid, groupSessionRef, TestContext.Current.CancellationToken);
+        var facts = await NativeConversationSupervisor.ValidateMemberDmScopeAsync(groupReader, dmReader,
+            authenticatedDiscovery, Assert.Single(authenticatedDiscovery.Scopes), account, groupJid, groupSessionRef,
+            "fixture-project-pin", TestContext.Current.CancellationToken);
+        Assert.Equal(scope.MembershipLeaseRef, facts.MembershipLeaseRef);
+
+        var approval = await dmReader.PreflightAsync(TestContext.Current.CancellationToken);
+        var batch = await dmReader.PollAsync(approval, facts.ContinueAfter, TestContext.Current.CancellationToken);
+        var record = Assert.Single(batch.Records);
+        Assert.Equal(facts.MembershipLeaseRef, record.MembershipAuthority!.MembershipLeaseRef);
+        var inbound = dmReader.ToInbound(record);
+        Assert.Equal(scope.NativeConversationId, inbound.Session.NativeConversationId);
+        Assert.Equal(peerActor, inbound.ActorId);
+        Assert.Equal("synthetic fixture only", inbound.Message.Message.GetProperty("texto").GetString());
+    }
+
+    [Fact]
     public async Task Native_generated_fixture_roundtrips_discovery_route_and_admission_metadata()
     {
         var fixturePath = Path.Combine(ParticipationGateV1Tests.Root,
@@ -28,7 +93,9 @@ public sealed class NativeConversationHostEntryPointTests
         var scope = Assert.Single(discovery.Scopes);
         var session = new SessionKey("runtime", "filomena", "whatsapp", "default", scope.NativeConversationId!);
         Assert.Equal(scope.RouteBindingRef, NativeObservationReader.RouteBindingRef(session));
-        Assert.Equal("http://127.0.0.1:64683/inbound-observation/v1", scope.ReaderEndpoint);
+        Assert.Equal(group.GetProperty("scopes")[0].GetProperty("reader").GetProperty("endpoint").GetString(),
+            scope.ReaderEndpoint);
+        Assert.Equal("/inbound-observation/v1", new Uri(scope.ReaderEndpoint!).AbsolutePath);
         Assert.Equal(new[] { "15550000000@s.whatsapp.net", "987654321@lid" }, scope.NativeAliases);
 
         var effectiveRevision = scope.EffectiveConfigRevision!;
@@ -65,7 +132,8 @@ public sealed class NativeConversationHostEntryPointTests
         Assert.Equal(scope.ScopeRef, record.SessionRef);
         Assert.Equal(scope.Epoch, record.JournalEpoch);
         Assert.Equal(1, batch.Cursor.Sequence);
-        Assert.Equal("987654321@lid", record.Payload.GetProperty("key").GetProperty("remoteJid").GetString());
+        Assert.Equal("987654321@lid", record.Payload.GetProperty("message").GetProperty("key")
+            .GetProperty("remoteJid").GetString());
     }
 
     [Fact]
@@ -76,11 +144,10 @@ public sealed class NativeConversationHostEntryPointTests
         using var fixture = JsonDocument.Parse(await File.ReadAllTextAsync(fixturePath, TestContext.Current.CancellationToken));
         var root = JsonNode.Parse(fixture.RootElement.GetProperty("childStatus").GetRawText())!.AsObject();
         var bootstrap = root["bootstrap"]!.AsObject();
-        Assert.False(bootstrap["controlAvailable"]!.GetValue<bool>());
-        root["dispatch"] = new JsonObject
-        {
-            ["effectiveConfigRevision"] = bootstrap["effectiveConfigRevision"]!.DeepClone(),
-        };
+        Assert.True(bootstrap["controlAvailable"]!.GetValue<bool>());
+        // Explicit negative mutation of the captured complete response, not a
+        // claim that the production child lacks control.
+        bootstrap["controlAvailable"] = false;
         var discovery = fixture.RootElement.GetProperty("groupDiscovery");
         var scope = discovery.GetProperty("scopes")[0];
         var session = new SessionKey("runtime", "filomena", "whatsapp", "default",

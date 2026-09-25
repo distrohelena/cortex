@@ -1,6 +1,4 @@
 {
-  "generatedBy": "src/channels/message/native-observation-bootstrap.test.ts :: emits a real group/child/poll HTTP fixture with an immutable member lease projection",
-  "syntheticOnly": true,
   "groupDiscovery": {
     "version": "native-group-member-dm-discovery:v1",
     "source": {
@@ -14,19 +12,22 @@
         "status": "ready",
         "scopeRef": "d1bf596adad46939d4efeca770ca670911877f8340b2f0e98185abd040056021",
         "nativeConversationId": "15550000000@s.whatsapp.net",
-        "nativeAliases": ["15550000000@s.whatsapp.net", "987654321@lid"],
+        "nativeAliases": [
+          "15550000000@s.whatsapp.net",
+          "987654321@lid"
+        ],
         "membershipLeaseRef": "lease-generation-1",
-        "leaseExpiresAt": 1790339676642,
+        "leaseExpiresAt": 1790343651252,
         "reader": {
-          "endpoint": "http://127.0.0.1:64683/inbound-observation/v1",
+          "endpoint": "http://127.0.0.1:54832/inbound-observation/v1",
           "version": "inbound-observation:v1",
           "routeBindingRef": "051086e6b3dd8f7305f5501f8b29c712e55d31b7c0e04ca36299b22038e2311a",
-          "effectiveConfigRevision": "3b13ced5-d747-4fac-a175-82bbc67ebbf3:1:RBNvo1WzZ4oRRq0W9-hknpT7T8If536DEMBg9hyq_4o:registry-1:isolation-f96de906-f7c6-497a-8573-a979cc285d87"
+          "effectiveConfigRevision": "572e29c3-c13a-4448-98c8-b28039975818:1:3p4DYzXvH9oSBtW81UnxA_RIgAfMBleaDbqCEwe1xtc:producer-77170c3a-ca12-466c-bb67-0ff53ef675fb:33ce21601e4ce96a73f7bb215b837afc3c2e6f8dba906322a8845ec02ed6c769:registry-1:isolation-4f4f3ca8-4144-4e1d-a52f-115d05b04c05"
         },
-        "epoch": "b0efcc5e-4c41-4ca5-bdcf-7affd1c01e09",
+        "epoch": "22ff9462-6003-4731-b627-7990a4c1913d",
         "initialCursor": {
           "version": "inbound-observation:v1",
-          "epoch": "b0efcc5e-4c41-4ca5-bdcf-7affd1c01e09",
+          "epoch": "22ff9462-6003-4731-b627-7990a4c1913d",
           "sessionRef": "d1bf596adad46939d4efeca770ca670911877f8340b2f0e98185abd040056021",
           "sequence": 0
         }
@@ -39,9 +40,9 @@
     "journalHealth": "healthy",
     "readerAvailable": true,
     "captureState": "armed",
-    "activeEpoch": "b0efcc5e-4c41-4ca5-bdcf-7affd1c01e09",
+    "activeEpoch": "22ff9462-6003-4731-b627-7990a4c1913d",
     "sessionRef": "d1bf596adad46939d4efeca770ca670911877f8340b2f0e98185abd040056021",
-    "journalEpoch": "b0efcc5e-4c41-4ca5-bdcf-7affd1c01e09",
+    "journalEpoch": "22ff9462-6003-4731-b627-7990a4c1913d",
     "capabilities": {
       "stableNativeMessageId": true,
       "durableObservationCursor": true,
@@ -58,9 +59,9 @@
       "journalHealth": "healthy",
       "readerAvailable": true,
       "captureState": "armed",
-      "activeEpoch": "b0efcc5e-4c41-4ca5-bdcf-7affd1c01e09",
+      "activeEpoch": "22ff9462-6003-4731-b627-7990a4c1913d",
       "sessionRef": "d1bf596adad46939d4efeca770ca670911877f8340b2f0e98185abd040056021",
-      "journalEpoch": "b0efcc5e-4c41-4ca5-bdcf-7affd1c01e09",
+      "journalEpoch": "22ff9462-6003-4731-b627-7990a4c1913d",
       "capabilities": {
         "stableNativeMessageId": true,
         "durableObservationCursor": true,
@@ -72,21 +73,32 @@
         "dispatchInspection": false
       },
       "subsystemOperational": true,
-      "controlAvailable": false,
+      "controlAvailable": true,
       "configSnapshotAvailable": true,
-      "configSnapshotRevision": "3b13ced5-d747-4fac-a175-82bbc67ebbf3:1:RBNvo1WzZ4oRRq0W9-hknpT7T8If536DEMBg9hyq_4o",
+      "configSnapshotRevision": "572e29c3-c13a-4448-98c8-b28039975818:1:3p4DYzXvH9oSBtW81UnxA_RIgAfMBleaDbqCEwe1xtc",
       "dispatchInspectorAvailable": true,
-      "effectiveConfigRevision": "3b13ced5-d747-4fac-a175-82bbc67ebbf3:1:RBNvo1WzZ4oRRq0W9-hknpT7T8If536DEMBg9hyq_4o:registry-1:isolation-f96de906-f7c6-497a-8573-a979cc285d87",
+      "effectiveConfigRevision": "572e29c3-c13a-4448-98c8-b28039975818:1:3p4DYzXvH9oSBtW81UnxA_RIgAfMBleaDbqCEwe1xtc:producer-77170c3a-ca12-466c-bb67-0ff53ef675fb:33ce21601e4ce96a73f7bb215b837afc3c2e6f8dba906322a8845ec02ed6c769:registry-1:isolation-4f4f3ca8-4144-4e1d-a52f-115d05b04c05",
       "dispatchStatus": "inactive",
       "legacyIsolationConfigured": true,
       "isolationBarrier": "protecting_until_receiver_drain",
       "isolationGate": {
         "gateVersion": "native-dm-isolation:v1",
-        "gateInstanceRevision": "f96de906-f7c6-497a-8573-a979cc285d87",
-        "approvedEffectiveConfigRevision": "3b13ced5-d747-4fac-a175-82bbc67ebbf3:1:RBNvo1WzZ4oRRq0W9-hknpT7T8If536DEMBg9hyq_4o",
+        "gateInstanceRevision": "4f4f3ca8-4144-4e1d-a52f-115d05b04c05",
+        "approvedEffectiveConfigRevision": "572e29c3-c13a-4448-98c8-b28039975818:1:3p4DYzXvH9oSBtW81UnxA_RIgAfMBleaDbqCEwe1xtc",
         "accountRef": "f68e90df3178c21259db68fe79ddd7c0c7c2e53bf265c52957a3f5828e6c5495",
         "sessionRef": "169171076717215eea116c8f3f9ba84a38c0f9c309c52ed6ad2c6de958b8f038",
-        "coveredPathIds": ["allow_rules", "approval_reactions", "commands", "plugins", "agents", "route_bindings", "transport_only", "runtime_registry_live_inbound", "runtime_registry_restart_recovery", "runtime_registry_imperative"],
+        "coveredPathIds": [
+          "allow_rules",
+          "approval_reactions",
+          "commands",
+          "plugins",
+          "agents",
+          "route_bindings",
+          "transport_only",
+          "runtime_registry_live_inbound",
+          "runtime_registry_restart_recovery",
+          "runtime_registry_imperative"
+        ],
         "placementProof": "whatsapp-receiver:pre-approval-and-durable-replay:v1",
         "runtimePlacements": {
           "runtime_registry_live_inbound": "native-channel-origin:pre-ingest-and-callback:v1",
@@ -97,7 +109,7 @@
       },
       "legacyRecovery": {
         "status": "clear",
-        "effectiveConfigRevision": "3b13ced5-d747-4fac-a175-82bbc67ebbf3:1:RBNvo1WzZ4oRRq0W9-hknpT7T8If536DEMBg9hyq_4o",
+        "effectiveConfigRevision": "572e29c3-c13a-4448-98c8-b28039975818:1:3p4DYzXvH9oSBtW81UnxA_RIgAfMBleaDbqCEwe1xtc",
         "pendingLegacyRecoveryCount": 0,
         "quarantinedCount": 0,
         "uncoveredOwnerCount": 0,
@@ -107,15 +119,162 @@
       "effectiveSnapshotProof": {
         "status": "valid",
         "version": "effective-runtime-config:v1",
-        "revision": "3b13ced5-d747-4fac-a175-82bbc67ebbf3:1:RBNvo1WzZ4oRRq0W9-hknpT7T8If536DEMBg9hyq_4o"
+        "revision": "572e29c3-c13a-4448-98c8-b28039975818:1:3p4DYzXvH9oSBtW81UnxA_RIgAfMBleaDbqCEwe1xtc"
       }
     },
-    "routeBindingRef": "051086e6b3dd8f7305f5501f8b29c712e55d31b7c0e04ca36299b22038e2311a"
+    "channel": "whatsapp",
+    "kind": "dm",
+    "dispatch": {
+      "version": "dispatch-inspection:v1",
+      "status": "inactive",
+      "diagnostic": "native_exact_dm_ingress_isolated",
+      "effectiveSnapshotProof": {
+        "status": "valid",
+        "version": "effective-runtime-config:v1",
+        "revision": "572e29c3-c13a-4448-98c8-b28039975818:1:3p4DYzXvH9oSBtW81UnxA_RIgAfMBleaDbqCEwe1xtc"
+      },
+      "effectiveConfigRevision": "572e29c3-c13a-4448-98c8-b28039975818:1:3p4DYzXvH9oSBtW81UnxA_RIgAfMBleaDbqCEwe1xtc:producer-77170c3a-ca12-466c-bb67-0ff53ef675fb:33ce21601e4ce96a73f7bb215b837afc3c2e6f8dba906322a8845ec02ed6c769:registry-1:isolation-4f4f3ca8-4144-4e1d-a52f-115d05b04c05",
+      "producerRevision": "77170c3a-ca12-466c-bb67-0ff53ef675fb:33ce21601e4ce96a73f7bb215b837afc3c2e6f8dba906322a8845ec02ed6c769",
+      "capturedAt": 1790343591322,
+      "paths": [
+        {
+          "family": "allow_rules",
+          "rawStatus": "active",
+          "diagnostic": "legacy_command_plugin_and_agent_route_reachable",
+          "effectiveConfigRevision": "572e29c3-c13a-4448-98c8-b28039975818:1:3p4DYzXvH9oSBtW81UnxA_RIgAfMBleaDbqCEwe1xtc",
+          "status": "excluded",
+          "exclusionStatus": "excluded_by_gate",
+          "placementProof": "whatsapp-receiver:pre-approval-and-durable-replay:v1",
+          "effectiveStatus": "excluded"
+        },
+        {
+          "family": "approval_reactions",
+          "rawStatus": "active",
+          "diagnostic": "legacy_command_plugin_and_agent_route_reachable",
+          "effectiveConfigRevision": "572e29c3-c13a-4448-98c8-b28039975818:1:3p4DYzXvH9oSBtW81UnxA_RIgAfMBleaDbqCEwe1xtc",
+          "status": "excluded",
+          "exclusionStatus": "excluded_by_gate",
+          "placementProof": "whatsapp-receiver:pre-approval-and-durable-replay:v1",
+          "effectiveStatus": "excluded"
+        },
+        {
+          "family": "commands",
+          "rawStatus": "active",
+          "diagnostic": "legacy_command_plugin_and_agent_route_reachable",
+          "effectiveConfigRevision": "572e29c3-c13a-4448-98c8-b28039975818:1:3p4DYzXvH9oSBtW81UnxA_RIgAfMBleaDbqCEwe1xtc",
+          "status": "excluded",
+          "exclusionStatus": "excluded_by_gate",
+          "placementProof": "whatsapp-receiver:pre-approval-and-durable-replay:v1",
+          "effectiveStatus": "excluded"
+        },
+        {
+          "family": "plugins",
+          "rawStatus": "active",
+          "diagnostic": "legacy_command_plugin_and_agent_route_reachable",
+          "effectiveConfigRevision": "572e29c3-c13a-4448-98c8-b28039975818:1:3p4DYzXvH9oSBtW81UnxA_RIgAfMBleaDbqCEwe1xtc",
+          "status": "excluded",
+          "exclusionStatus": "excluded_by_gate",
+          "placementProof": "whatsapp-receiver:pre-approval-and-durable-replay:v1",
+          "effectiveStatus": "excluded"
+        },
+        {
+          "family": "agents",
+          "rawStatus": "active",
+          "diagnostic": "legacy_command_plugin_and_agent_route_reachable",
+          "effectiveConfigRevision": "572e29c3-c13a-4448-98c8-b28039975818:1:3p4DYzXvH9oSBtW81UnxA_RIgAfMBleaDbqCEwe1xtc",
+          "status": "excluded",
+          "exclusionStatus": "excluded_by_gate",
+          "placementProof": "whatsapp-receiver:pre-approval-and-durable-replay:v1",
+          "effectiveStatus": "excluded"
+        },
+        {
+          "family": "route_bindings",
+          "rawStatus": "active",
+          "diagnostic": "legacy_command_plugin_and_agent_route_reachable",
+          "effectiveConfigRevision": "572e29c3-c13a-4448-98c8-b28039975818:1:3p4DYzXvH9oSBtW81UnxA_RIgAfMBleaDbqCEwe1xtc",
+          "status": "excluded",
+          "exclusionStatus": "excluded_by_gate",
+          "placementProof": "whatsapp-receiver:pre-approval-and-durable-replay:v1",
+          "effectiveStatus": "excluded"
+        },
+        {
+          "family": "transport_only",
+          "rawStatus": "active",
+          "diagnostic": "legacy_command_plugin_and_agent_route_reachable",
+          "effectiveConfigRevision": "572e29c3-c13a-4448-98c8-b28039975818:1:3p4DYzXvH9oSBtW81UnxA_RIgAfMBleaDbqCEwe1xtc",
+          "status": "excluded",
+          "exclusionStatus": "excluded_by_gate",
+          "placementProof": "whatsapp-receiver:pre-approval-and-durable-replay:v1",
+          "effectiveStatus": "excluded"
+        },
+        {
+          "family": "runtime_registry_live_inbound",
+          "status": "excluded",
+          "rawStatus": "unknown",
+          "effectiveConfigRevision": "572e29c3-c13a-4448-98c8-b28039975818:1:3p4DYzXvH9oSBtW81UnxA_RIgAfMBleaDbqCEwe1xtc",
+          "diagnostic": "native_runtime_dispatch_requires_origin_admission",
+          "exclusionStatus": "excluded_by_gate",
+          "placementProof": "native-channel-origin:pre-ingest-and-callback:v1",
+          "effectiveStatus": "excluded"
+        },
+        {
+          "family": "runtime_registry_restart_recovery",
+          "status": "excluded",
+          "rawStatus": "unknown",
+          "effectiveConfigRevision": "572e29c3-c13a-4448-98c8-b28039975818:1:3p4DYzXvH9oSBtW81UnxA_RIgAfMBleaDbqCEwe1xtc",
+          "diagnostic": "native_runtime_dispatch_requires_origin_admission",
+          "exclusionStatus": "excluded_by_gate",
+          "placementProof": "native-persisted-recovery:pre-mutation-quarantine:v1",
+          "effectiveStatus": "excluded"
+        },
+        {
+          "family": "runtime_registry_imperative",
+          "status": "excluded",
+          "rawStatus": "unknown",
+          "effectiveConfigRevision": "572e29c3-c13a-4448-98c8-b28039975818:1:3p4DYzXvH9oSBtW81UnxA_RIgAfMBleaDbqCEwe1xtc",
+          "diagnostic": "native_runtime_dispatch_requires_origin_admission",
+          "exclusionStatus": "excluded_by_gate",
+          "placementProof": "native-host-origin:admission-and-actual-settlement:v1",
+          "effectiveStatus": "excluded"
+        }
+      ],
+      "producerStatus": "active",
+      "producerDiagnostic": "legacy_command_plugin_and_agent_route_reachable",
+      "isolationGate": {
+        "gateVersion": "native-dm-isolation:v1",
+        "gateInstanceRevision": "4f4f3ca8-4144-4e1d-a52f-115d05b04c05",
+        "approvedEffectiveConfigRevision": "572e29c3-c13a-4448-98c8-b28039975818:1:3p4DYzXvH9oSBtW81UnxA_RIgAfMBleaDbqCEwe1xtc",
+        "accountRef": "f68e90df3178c21259db68fe79ddd7c0c7c2e53bf265c52957a3f5828e6c5495",
+        "sessionRef": "169171076717215eea116c8f3f9ba84a38c0f9c309c52ed6ad2c6de958b8f038",
+        "coveredPathIds": [
+          "allow_rules",
+          "approval_reactions",
+          "commands",
+          "plugins",
+          "agents",
+          "route_bindings",
+          "transport_only",
+          "runtime_registry_live_inbound",
+          "runtime_registry_restart_recovery",
+          "runtime_registry_imperative"
+        ],
+        "placementProof": "whatsapp-receiver:pre-approval-and-durable-replay:v1",
+        "runtimePlacements": {
+          "runtime_registry_live_inbound": "native-channel-origin:pre-ingest-and-callback:v1",
+          "runtime_registry_restart_recovery": "native-persisted-recovery:pre-mutation-quarantine:v1",
+          "runtime_registry_imperative": "native-host-origin:admission-and-actual-settlement:v1"
+        },
+        "lifecycleState": "armed"
+      }
+    },
+    "routeBindingRef": "051086e6b3dd8f7305f5501f8b29c712e55d31b7c0e04ca36299b22038e2311a",
+    "selfIdentityRef": "995ac5f72d402ffb4848a3725d465d2afd3b621fc10b29dc9a3d655c5f7cb96c",
+    "peerActorRef": "1e5cf649043bfe035d63706525c5da2c0c9ae4f4dd2da6958ddcbb903383daae"
   },
   "poll": {
     "version": "inbound-observation:v1",
     "sessionRef": "d1bf596adad46939d4efeca770ca670911877f8340b2f0e98185abd040056021",
-    "effectiveConfigRevision": "3b13ced5-d747-4fac-a175-82bbc67ebbf3:1:RBNvo1WzZ4oRRq0W9-hknpT7T8If536DEMBg9hyq_4o:registry-1:isolation-f96de906-f7c6-497a-8573-a979cc285d87",
+    "effectiveConfigRevision": "572e29c3-c13a-4448-98c8-b28039975818:1:3p4DYzXvH9oSBtW81UnxA_RIgAfMBleaDbqCEwe1xtc:producer-77170c3a-ca12-466c-bb67-0ff53ef675fb:33ce21601e4ce96a73f7bb215b837afc3c2e6f8dba906322a8845ec02ed6c769:registry-1:isolation-4f4f3ca8-4144-4e1d-a52f-115d05b04c05",
     "status": "healthy",
     "epochClosed": false,
     "events": [
@@ -131,15 +290,51 @@
           "membershipLeaseRef": "lease-generation-1"
         },
         "payload": {
-          "text": "synthetic fixture only",
-          "key": { "remoteJid": "987654321@lid", "id": "fixture-native-message-id" }
+          "message": {
+            "key": {
+              "remoteJid": "987654321@lid",
+              "id": "fixture-native-message-id",
+              "fromMe": false
+            },
+            "message": {
+              "conversation": "synthetic fixture only"
+            },
+            "messageTimestamp": 1700000000
+          },
+          "receivedAt": 1700000000000,
+          "memberDmScope": {
+            "accountId": "default",
+            "groupJid": "123456@g.us",
+            "nativeConversationId": "15550000000@s.whatsapp.net",
+            "aliases": [
+              "15550000000@s.whatsapp.net",
+              "987654321@lid"
+            ],
+            "membershipLeaseRef": "lease-generation-1"
+          },
+          "observationIdentity": {
+            "nativeMessageId": "fixture-native-message-id",
+            "actorId": "987654321@lid",
+            "fromMe": false,
+            "selfIdentity": {
+              "accountIdentity": "self",
+              "aliases": [
+                "self",
+                "self-lid"
+              ]
+            },
+            "memberDmAuthority": {
+              "version": "native-member-dm-admission:v1",
+              "membershipLeaseRef": "lease-generation-1"
+            }
+          }
         },
-        "journalEpoch": "b0efcc5e-4c41-4ca5-bdcf-7affd1c01e09"
+        "journalEpoch": "22ff9462-6003-4731-b627-7990a4c1913d"
       }
     ],
     "nextCursor": {
       "version": "inbound-observation:v1",
-      "epoch": "b0efcc5e-4c41-4ca5-bdcf-7affd1c01e09",
+      "epoch": "22ff9462-6003-4731-b627-7990a4c1913d",
       "sessionRef": "d1bf596adad46939d4efeca770ca670911877f8340b2f0e98185abd040056021",
       "sequence": 1
     }
