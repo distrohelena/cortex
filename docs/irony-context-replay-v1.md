@@ -123,3 +123,77 @@ automatically reopening an obsolete response opportunity. Preserve quotes and
 speaker identity, label missing history explicitly, and test topic migration and
 large intervening-message counts. Do not infer that this queue, its scheduling,
 or a live analyzer has already been implemented.
+
+## Offline pending-entry spike (2026-09-26)
+
+Implemented **only in the test assembly** as `PendingIronyReplay` in
+`IronyPendingReplayTests.cs`. This is a disposable sequential state-machine probe,
+not a deployed queue, durable scheduler, concurrency implementation or brain node.
+The question was whether interpretation can evolve without reviving an obsolete
+reply opportunity. No production files were changed for this slice.
+
+The probe reserves one analysis per context version, with at most one in flight
+per entry. It binds completion to that exact reservation and run instance. Newer
+context invalidates an older result. Invalid analysis remains failure, not a
+literal reading or permission to reply. Repeated polling/duplicate context does
+not schedule more work. A separate handled marker prevents duplicate response
+opportunities for an already-handled original.
+
+| Controlled input/event | Observed result |
+| --- | --- |
+| Ambiguous message, no new context | No reassessment scheduled |
+| Clarification, high-confidence interpretation, still relevant | Diagnostic `needs_participation_review`, never send authorization |
+| Better interpretation but opportunity obsolete | Interpretation updated; entry closed |
+| Topic closed while analysis is in flight | Entry stays closed; late result cannot reopen it |
+| 149 then 150 intervening synthetic messages | Experimental distance boundary closes at 150, including in-flight work |
+| Context advances while an earlier job runs | Earlier result marked stale, not applied |
+| Duplicate completion or completion from another run | Rejected |
+| Wrong group/target or changed payload under same ID | Rejected |
+| Invalid JSON/schema or fabricated evidence | Analysis failure; no retry on the same context |
+| Repeated inconclusive analyses | Experimental budget closes the entry |
+
+### Saved-output replay
+
+An explicit read-only test reapplied the prior private eight-result artifact,
+preserving group, target, quoted message, speaker and declared history gaps.
+All four pairs closed as obsolete; two readings changed, matching the recorded
+experiment. No new inference or history transmission was performed. This proves
+state-machine application of those recorded outputs, **not** their semantic
+correctness or the accuracy of topic-migration detection.
+
+### Deliberate experimental limits
+
+- Topic closure is supplied by the synthetic driver, not detected by a new model.
+- The 150-message horizon and two-attempt budget are configurable probe settings,
+  not approved production thresholds. No wall-clock expiration was introduced.
+- Low/medium confidence or ambiguity queues an entry in this probe; these are
+  qualitative labels, not calibrated probabilities or a final selection policy.
+- `needs_participation_review` is only a diagnostic. No automatic late replies,
+  generation, participation calls, memory profiles or writes are wired up.
+- State is process-local. A new run rejects old jobs; durable recovery, queue-wide
+  capacity, fairness, cancellation and real multi-threaded races remain untested.
+- Explicit message edits are rejected here rather than silently treated as new
+  evidence. Production edit semantics remain a separate integration concern.
+
+### Verification
+
+Initial 15 checks failed against unimplemented probe methods, then passed. An
+additional identity-integrity test reproduced acceptance of a changed payload
+under an existing ID; the local probe now rejects that case. Eighteen synthetic
+checks plus the saved private replay passed. Full `Filomena.Llm.Tests` regression
+with only the file-replay opt-in: **631 passed, 44 skipped, zero failed**. Build
+includes compiler/analyzer enforcement (`TreatWarningsAsErrors`).
+
+For the saved replay, set `FILOMENA_IRONY_QUEUE_REPLAY_FILE` to the restricted
+existing JSONL and run `dotnet test tests/Filomena.Llm.Tests/Filomena.Llm.Tests.csproj
+-c NativeMemory --filter FullyQualifiedName~IronyPendingReplayTests`. It reads a
+local file; do not enable the separate `FILOMENA_IRONY_REPLAY` model experiment.
+
+This slice used zero model calls, zero Graphiti calls/writes and zero transport
+calls. It did not start the conversational host or change the memory worker.
+
+Recommendation: retain the two separate concepts (interpretation revision and
+current response opportunity). A production integration should consume trusted
+session/handled state and the existing participation boundary, rather than letting
+the analyzer or an old queue entry dispatch a reply. That integration is not
+implemented by this spike.
