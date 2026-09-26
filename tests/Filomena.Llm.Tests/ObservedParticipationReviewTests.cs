@@ -169,6 +169,8 @@ public sealed class ObservedParticipationReviewTests
             Assert.Equal(OutboundMode.Shadow, run.OutboundMode);
             if (previewEnabled && expectedDecision == ParticipationReviewDecision.Respond)
             {
+                Assert.Single(model.Reviews, request => request.NodeId == "group-situation");
+                Assert.Single(model.Reviews, request => request.NodeId == "group-presence");
                 var preview = Assert.IsType<SessionResponsePreviewResult>(review.Preview);
                 if (action == "preview-outage")
                 {
@@ -178,6 +180,8 @@ public sealed class ObservedParticipationReviewTests
                     return;
                 }
                 Assert.Equal(ParticipationReviewStatus.Completed, preview.Status);
+                Assert.Equal(new[] { "group-situation", "group-presence" }, preview.Trace
+                    .Where(t => t.EventName == "participation-decision-reused").Select(t => t.NodeId));
                 var generation = Assert.Single(model.Reviews, r => r.NodeId == "group-generation");
                 Assert.Equal("provocacao", generation.Inputs.GetProperty("reavaliacao").GetProperty("interpretacao_contextual").GetProperty("Reading").GetString());
                 Assert.Equal("Agora entendi a brincadeira da lista.", preview.Outputs["group-generation"]["texto"].GetString());

@@ -39,7 +39,8 @@ public sealed partial class SessionFlowRuntime
                     flow.Nodes.Values.SingleOrDefault(n => n.Source.Kind == "accumulate")?.Source.Id,
                     [original], state.History.ToArray(), state.AdmissionWatermark, timeProvider.GetUtcNow(), SessionBatchCloseReason.Immediate);
                 state.ParticipationReviewInProgress = true;
-                var task = Task.Run(() => RunResponsePreviewAsync(state, batch, context.Snapshot, interpretation, cancellationToken));
+                var responses = new Dictionary<string, string>(review.CompletedPromptResponses, StringComparer.Ordinal);
+                var task = Task.Run(() => RunResponsePreviewAsync(state, batch, context.Snapshot, interpretation, responses, cancellationToken));
                 state.Tail = task;
                 return task;
             }
@@ -47,7 +48,8 @@ public sealed partial class SessionFlowRuntime
     }
 
     private async Task<SessionResponsePreviewResult> RunResponsePreviewAsync(RuntimeSession state, FlowBatch batch,
-        SessionSnapshot snapshot, ParticipationInterpretation? interpretation, CancellationToken cancellationToken)
+        SessionSnapshot snapshot, ParticipationInterpretation? interpretation, IReadOnlyDictionary<string, string> reviewedResponses,
+        CancellationToken cancellationToken)
     {
         var originalId = batch.Messages[0].Envelope.ProviderMessageId;
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetime.Token);
@@ -67,8 +69,10 @@ public sealed partial class SessionFlowRuntime
             var outbound = outboundHost!.Begin(batch.Project.Document, batch.ExecutionId, batch.Session, batch.EntryKind,
                 [originalId], batch.History.Select(item => item.Envelope.ProviderMessageId), shadowOnly: true);
             var registry = new BoundaryExecutionRegistry(ConversationNamespace(batch.Session), timeProvider);
-            var completion = new ParticipationReviewCompletion(completionFactory(batch.Session), CheckCurrent,
+            var freshCompletion = new ParticipationReviewCompletion(completionFactory(batch.Session), CheckCurrent,
                 batch.Messages[0].Envelope.Timestamp, batch.ClosedAt, interpretation);
+            var completion = new ReviewedParticipationCompletion(freshCompletion, reviewedResponses, CheckCurrent,
+                id => Record(Trace(batch, "participation-decision-reused", id)));
             var result = await TypedFlowRunner.RunSessionAsync(batch.Flow,
                 MessageWithReplyIdentity(batch.Messages[0].Envelope, outbound.SupportsReplySelection), completion,
                 RuntimeOutputs(batch, outbound.SupportsReplySelection, participationReview: true), timeProvider,
@@ -109,4 +113,19 @@ public sealed partial class SessionFlowRuntime
     private static SessionResponsePreviewResult PreviewResult(ParticipationReviewStatus status,
         string diagnostic, string id, SessionSnapshot? snapshot = null) => new(status, diagnostic, id,
             snapshot, [], new Dictionary<string, IReadOnlyDictionary<string, JsonElement>>(), []);
+
+    private sealed class ReviewedParticipationCompletion(IFlowCompletion inner, IReadOnlyDictionary<string, string> responses,
+        Action checkCurrent, Action<string> reused) : IFlowCompletion
+    {
+        public Task<string> CompleteAsync(FlowCompletionRequest request, CancellationToken token)
+        {
+            token.ThrowIfCancellationRequested();
+            checkCurrent();
+            if (!responses.TryGetValue(request.NodeId, out var response)) return inner.CompleteAsync(request, token);
+            // Only completed prompts from the validated side-effect-free participation cut exist here.
+            // The normal runner still validates their schema and executes branches; generation is never cached.
+            reused(request.NodeId);
+            return Task.FromResult(response);
+        }
+    }
 }

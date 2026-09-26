@@ -26,7 +26,11 @@ public sealed record SessionParticipationReviewResult(
     ParticipationReviewStatus Status, string Diagnostic, string OriginalMessageId,
     SessionSnapshot? Snapshot, ParticipationReviewDecision? Decision,
     IReadOnlyList<TypedStep> Steps,
-    IReadOnlyDictionary<string, IReadOnlyDictionary<string, JsonElement>> Outputs);
+    IReadOnlyDictionary<string, IReadOnlyDictionary<string, JsonElement>> Outputs)
+{
+    // Runtime-issued, process-local completion data. Never reconstructed from a report/model/project.
+    internal IReadOnlyDictionary<string, string> CompletedPromptResponses { get; init; } = new Dictionary<string, string>();
+}
 
 public sealed partial class SessionFlowRuntime
 {
@@ -107,8 +111,9 @@ public sealed partial class SessionFlowRuntime
         try
         {
             CheckCurrent();
+            var promptResponses = new Dictionary<string, string>(StringComparer.Ordinal);
             var completion = new ParticipationReviewCompletion(completionFactory(batch.Session), CheckCurrent,
-                batch.Messages[0].Envelope.Timestamp, batch.ClosedAt, interpretation);
+                batch.Messages[0].Envelope.Timestamp, batch.ClosedAt, interpretation, promptResponses);
             var result = await TypedFlowRunner.RunSessionAsync(cut.Flow, batch.Messages[0].Envelope.Message,
                 completion, RuntimeOutputs(batch, false, participationReview: true), timeProvider, _ => { },
                 (_, _, _, _) => throw new InvalidOperationException("Memory is outside the review boundary."),
@@ -127,7 +132,8 @@ public sealed partial class SessionFlowRuntime
                         || last?.Exit is null || !cut.Decisions.TryGetValue(new(last.NodeId, last.Exit), out var decision))
                         return ReviewResult(ParticipationReviewStatus.Failed, "review-decision-unavailable", originalId, snapshot);
                     return new(ParticipationReviewStatus.Completed, "participation-review-only", originalId,
-                        snapshot, decision, result.Steps.ToArray(), CloneOutputs(result.Outputs));
+                        snapshot, decision, result.Steps.ToArray(), CloneOutputs(result.Outputs))
+                    { CompletedPromptResponses = new Dictionary<string, string>(promptResponses, StringComparer.Ordinal) };
                 }
         }
         catch (OperationCanceledException)
@@ -153,7 +159,8 @@ public sealed partial class SessionFlowRuntime
             snapshot, null, [], new Dictionary<string, IReadOnlyDictionary<string, JsonElement>>());
 
     private sealed class ParticipationReviewCompletion(IFlowCompletion inner, Action checkCurrent,
-        DateTimeOffset originalAt, DateTimeOffset contextAt, ParticipationInterpretation? interpretation = null) : IFlowCompletion
+        DateTimeOffset originalAt, DateTimeOffset contextAt, ParticipationInterpretation? interpretation = null,
+        IDictionary<string, string>? completedPromptResponses = null) : IFlowCompletion
     {
         public async Task<string> CompleteAsync(FlowCompletionRequest request, CancellationToken token)
         {
@@ -171,6 +178,7 @@ public sealed partial class SessionFlowRuntime
             }));
             var output = await inner.CompleteAsync(request with { Inputs = JsonSerializer.SerializeToElement(inputs) }, token).ConfigureAwait(false);
             checkCurrent();
+            if (completedPromptResponses is not null) completedPromptResponses[request.NodeId] = output;
             return output;
         }
     }

@@ -15,8 +15,10 @@ and later reassessment reaching WOULD_SEND, with controlled model/memory inputs.
 The JSON-to-host and observation matrix passed 25 cases. No endpoint from the
 fixture is contacted, and no credential is loaded.
 
-Remaining evidence: fresh model-quality evaluation of the integrated flow and
-active deployment. The eight historical analyzer calls below only measured
+Remaining evidence: real-model quality of an actual delayed response and
+active deployment. Initial integrated generation and later-context interpretation
+have now been exercised with synthetic inputs as recorded below. The eight
+historical analyzer calls below only measured
 interpretation, not the new integrated response behavior. Local passing tests
 do not prove conversational quality or that Filomena is online. The following
 sections are chronological; later sections supersede earlier implementation gaps.
@@ -667,6 +669,45 @@ backend failure, invalid evidence, invalid opportunity or revision mismatch fail
 the batch before conversational model calls; failure is not converted to a
 literal/empty reading. The observer still cannot override participation or bypass
 Boundary/SendGuard checks.
+
+### Continue the validated participation decision
+
+The preview no longer asks the participation prompts a second time after a
+completed Respond review. The runtime retains their raw structured responses in
+an internal, process-local field only after the safe participation cut succeeds.
+The preview copies those responses while checking the same session/context,
+project revision and state. The ordinary graph runner validates their schemas
+again and executes its branches; it does not force a Respond output. Generation,
+regeneration, memory and enforcement are still executed normally, never cached.
+
+Reports, project JSON and model output cannot supply this internal field.
+`participation-decision-reused` trace entries identify each reused prompt. A new
+inbound, state/project change, cancellation, previously answered target or mode
+change still invalidates the preview. The immutable shadow-only outbound ceiling
+remains in place even if the host is rearmed concurrently.
+
+Before the change, six controlled cases exposed repeated participation calls.
+The focused regression set now passes 40 cases, including regeneration, final
+Block, outages and stale-context checks. Full local regressions after the trace
+assertion: Core 640 passed/10 skipped; Llm/App 710 passed/47 skipped; OpenClaw
+175 passed. Total 1,525 passed, 57 skipped, zero failed. External opt-ins and
+credentials were removed from the regression test environment.
+
+One synthetic real-model run after this change used the same three late-context
+inputs, without sampling until a desired answer appeared. Interpretation changed
+from ambiguous/low to irony/high; participation chose Wait, so generation and
+preview were not entered. This is not evidence of a real-model delayed candidate
+or of response-cache use: the controlled Respond cases establish that wiring.
+The local situation model also marked care as needed without strong support;
+that quality observation remains open and no brain prompt was tuned.
+
+That run made four Luna and eight local Gemma calls, with 4,014 Luna input tokens
+and 1,010 output tokens, 68.732 seconds across the three inputs. Monetary cost is
+unverified. Artifacts are in temporary directory
+`filomena-synthetic-continuation-b43ae6ec55cc45daaf86ed61267126e7`.
+No candidate, transport send, Graphiti call or memory write occurred in this run.
+The group remains disconnected from this feature; live delayed sending is not
+implemented by this Shadow-only surface.
 
 ### Host configuration and invocation
 
