@@ -36,6 +36,16 @@ public sealed partial class SessionFlowRuntime
     /// </summary>
     public Task<SessionParticipationReviewResult> ReviewParticipationAsync(SessionKey session,
         string originalMessageId, ParticipationReviewDefinition definition, CancellationToken cancellationToken = default)
+        => ReviewParticipationCoreAsync(session, originalMessageId, definition, null, null, cancellationToken);
+
+    internal Task<SessionParticipationReviewResult> ReviewParticipationWithInterpretationAsync(SessionKey session,
+        string originalMessageId, ParticipationReviewDefinition definition, SessionSnapshot snapshot,
+        ParticipationInterpretation? interpretation, CancellationToken cancellationToken)
+        => ReviewParticipationCoreAsync(session, originalMessageId, definition, snapshot, interpretation, cancellationToken);
+
+    private Task<SessionParticipationReviewResult> ReviewParticipationCoreAsync(SessionKey session,
+        string originalMessageId, ParticipationReviewDefinition definition, SessionSnapshot? expectedSnapshot,
+        ParticipationInterpretation? interpretation, CancellationToken cancellationToken)
     {
         Task<SessionParticipationReviewResult> Reject(string diagnostic) => Task.FromResult(
             ReviewResult(ParticipationReviewStatus.Rejected, diagnostic, originalMessageId));
@@ -65,6 +75,8 @@ public sealed partial class SessionFlowRuntime
                     ProjectVersion = project.ProjectVersion,
                     ProjectRevision = project.ProjectRevision
                 };
+                if (expectedSnapshot is not null && snapshot != expectedSnapshot)
+                    return Reject("interpretation-context-stale");
                 var batch = new FlowBatch(Guid.NewGuid().ToString("N"), Guid.NewGuid().ToString("N"),
                     session, project, cut.Flow, state.CurrentStateId, state.StateVersion, state.EntryKind,
                     cut.Flow.Nodes.Values.SingleOrDefault(n => n.Source.Kind == "accumulate")?.Source.Id,
@@ -72,7 +84,7 @@ public sealed partial class SessionFlowRuntime
                     SessionBatchCloseReason.Immediate);
                 state.ParticipationReviewInProgress = true;
                 // Shares the normal session scheduling frontier, not admission, outcomes or state mutation.
-                var task = Task.Run(() => RunParticipationReviewAsync(state, batch, cut, snapshot, cancellationToken));
+                var task = Task.Run(() => RunParticipationReviewAsync(state, batch, cut, snapshot, interpretation, cancellationToken));
                 state.Tail = task;
                 return task;
             }
@@ -80,7 +92,8 @@ public sealed partial class SessionFlowRuntime
     }
 
     private async Task<SessionParticipationReviewResult> RunParticipationReviewAsync(RuntimeSession state,
-        FlowBatch batch, ParticipationReviewCut cut, SessionSnapshot snapshot, CancellationToken cancellationToken)
+        FlowBatch batch, ParticipationReviewCut cut, SessionSnapshot snapshot, ParticipationInterpretation? interpretation,
+        CancellationToken cancellationToken)
     {
         var originalId = batch.Messages[0].Envelope.ProviderMessageId;
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, lifetime.Token);
@@ -95,7 +108,7 @@ public sealed partial class SessionFlowRuntime
         {
             CheckCurrent();
             var completion = new ParticipationReviewCompletion(completionFactory(batch.Session), CheckCurrent,
-                batch.Messages[0].Envelope.Timestamp, batch.ClosedAt);
+                batch.Messages[0].Envelope.Timestamp, batch.ClosedAt, interpretation);
             var result = await TypedFlowRunner.RunSessionAsync(cut.Flow, batch.Messages[0].Envelope.Message,
                 completion, RuntimeOutputs(batch, false, participationReview: true), timeProvider, _ => { },
                 (_, _, _, _) => throw new InvalidOperationException("Memory is outside the review boundary."),

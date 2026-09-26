@@ -203,7 +203,8 @@ public sealed class PendingParticipationReviews
                         continue;
                     }
                 }
-                var review = await runtime.ReviewParticipationAsync(session, id, definition, token).ConfigureAwait(false);
+                var review = await runtime.ReviewParticipationWithInterpretationAsync(session, id, definition,
+                    context!.Snapshot, analysis.Interpretation, token).ConfigureAwait(false);
                 token.ThrowIfCancellationRequested();
                 lock (gate)
                 {

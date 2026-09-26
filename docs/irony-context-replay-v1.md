@@ -112,6 +112,51 @@ The integrated test requires the separate explicit opt-in
 available. It caps completion calls at 18. Ordinary regressions skip this test;
 they cannot silently start inference or reconnect the group.
 
+### Real reassessment and interpretation handoff fix
+
+The same opt-in pipeline supports `FILOMENA_IRONY_PIPELINE_SCENARIO=late`:
+an ambiguous “Sensacional esse plano”, clarification that it was irony about
+deleting backups, and explicit topic closure. These are invented messages, not
+retained group history. There was one initial run and one repeat after a concrete
+integration fix; no prompt tuning or repeated sampling to obtain a preferred reply.
+
+The initial run reached a real pending entry and high-confidence reassessment,
+but exposed an integration defect: the interpretation was attached to response
+preview, not to the preceding participation-only review. That review inaccurately
+described the comment as praise despite the new explanation. It chose Respond,
+then the full preview's participation pass chose Silence. No candidate or send
+result was produced. This illustrates that a completed preview is not WOULD_SEND.
+
+The pending controller now passes the validated interpretation and its exact
+snapshot to an internal runtime review entrypoint. The runtime rejects a different
+snapshot before inference and preserves its existing during/after-call freshness
+checks. The unchanged public participation-only API still needs no interpretation;
+this metadata grants no send authority. Twelve controlled cases reproduced missing
+metadata before the fix; all 40 observation/review cases passed afterward.
+
+In the repeat, the original was tracked as ambiguous/low, then reclassified as
+irony/high using later evidence. The actual participation review received the
+interpretation and described the irony correctly, but chose Silence. The original
+entry closed; topic closure did not reopen it. All three ordinary executions
+completed with three retained inbound messages, no outbound, no late generation
+and no duplicate admission. This is positive evidence for reinterpretation and
+non-intrusion, **not** proof of a late candidate's real-model quality.
+
+Known model observations: the local situation model marked `necessita_cuidado`
+for the initial context-free sentence in both runs. Before the fix it also
+misrepresented the clarified irony in a review summary. These intermediate
+quality issues are recorded, not repaired by changing the frozen prompts or FSM.
+
+| Run | Luna calls | Local calls | Luna input/output tokens | Pipeline time |
+| --- | --- | --- | --- | --- |
+| Before handoff fix | 4 | 10 | 4,010 / 1,090 | 72.241 s |
+| After handoff fix | 4 | 8 | 4,040 / 1,067 | 58.486 s |
+
+Cost remains unpriced rather than inferred. Artifacts are retained in temporary
+directories `filomena-synthetic-late-9c057a57e0c54c239f2e3981b942d964` and
+`filomena-synthetic-late-fixed-4012fa17700742f9bde5df7c22576e7d`. Neither run used
+Graphiti, private history, an outbound transport, or the active group's worker.
+
 ## Question and approved scope
 
 Does later, actually observed conversation change the interpretation of the four

@@ -20,6 +20,8 @@ public sealed class ContextInterpretationPipelineLiveTests
     public async Task Synthetic_natural_project_runs_real_models_with_shadow_only_transport_and_explicit_empty_memory()
     {
         Assert.SkipWhen(Environment.GetEnvironmentVariable("FILOMENA_IRONY_PIPELINE_LIVE") != "1", "Explicit bounded synthetic pipeline experiment.");
+        var scenario = Environment.GetEnvironmentVariable("FILOMENA_IRONY_PIPELINE_SCENARIO") ?? "initial";
+        Assert.Contains(scenario, new[] { "initial", "late" });
         var directory = Environment.GetEnvironmentVariable("FILOMENA_IRONY_SYNTHETIC_OUTPUT") ?? throw new InvalidOperationException("Output required.");
         Assert.True(Path.IsPathFullyQualified(directory) && Directory.Exists(directory));
         var key = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
@@ -56,7 +58,12 @@ public sealed class ContextInterpretationPipelineLiveTests
         await using var run = new ObservedShadowRun(pin, binding, journal.FullName, roles, completion, memory, "synthetic-epoch", 0);
         var config = ContextInterpretationHostTests.ReadOperationalConfig(true);
         ContextInterpretationHost.Configure(config with { Participation = config.Participation with { ProjectRevision = revision } }, pin, binding, run, completion);
-        string[] inputs =
+        string[] inputs = scenario == "late" ?
+        [
+            "Sensacional esse plano.",
+            "Aquele sensacional foi ironia sobre apagar todos os backups. Ainda estou discutindo essa ideia, não elogiei o plano.",
+            "Já descartamos a ideia de apagar os backups. Assunto encerrado, agora vamos escolher um filme."
+        ] :
         [
             "Filomena, que maravilha: o aplicativo apagou meu rascunho de novo. Estou sendo irônica, não quero um tutorial.",
             "Já recuperei o rascunho. Resolvido, vamos mudar de assunto.",
@@ -79,6 +86,7 @@ public sealed class ContextInterpretationPipelineLiveTests
             await writer.WriteLineAsync(JsonSerializer.Serialize(new
             {
                 kind = "interaction",
+                scenario,
                 index,
                 revision,
                 input = inputs[index],
@@ -92,6 +100,8 @@ public sealed class ContextInterpretationPipelineLiveTests
             Assert.Equal(OutboundMode.Shadow, run.OutboundMode);
             Assert.DoesNotContain(result.Trace, t => t.EventName == "speech-committed" || t.MemoryMetadata?.GetValueOrDefault("result") == "sent");
             Assert.Equal(index + 1, run.History.Count);
+            foreach (var preview in result.ParticipationReviews.Select(r => r.Preview).OfType<SessionResponsePreviewResult>())
+                Assert.DoesNotContain(preview.Trace, t => t.EventName == "speech-committed" || t.MemoryMetadata?.GetValueOrDefault("result") == "sent");
         }
         TestContext.Current.TestOutputHelper!.WriteLine($"Synthetic pipeline report: {path}");
     }
@@ -102,6 +112,8 @@ public sealed class ContextInterpretationPipelineLiveTests
         public async Task<string> CompleteAsync(FlowCompletionRequest request, CancellationToken token)
         {
             if (Interlocked.Increment(ref calls) > 18) throw new InvalidOperationException("Synthetic experiment call budget exceeded.");
+            if (request.Inputs.TryGetProperty("reavaliacao", out var review))
+                Assert.Equal(JsonValueKind.Object, review.GetProperty("interpretacao_contextual").ValueKind);
             usage.Value = null;
             var start = Stopwatch.GetTimestamp();
             var output = await inner.CompleteAsync(request, token);
@@ -111,6 +123,8 @@ public sealed class ContextInterpretationPipelineLiveTests
                 request.NodeId,
                 request.Model,
                 request.Provider,
+                reassessment = request.Inputs.TryGetProperty("reavaliacao", out _),
+                interpretationPhase = request.Inputs.TryGetProperty("phase", out var phase) ? phase.GetString() : null,
                 output,
                 milliseconds = Stopwatch.GetElapsedTime(start).TotalMilliseconds,
                 usage = request.Provider == "openai" ? usage.Value : null

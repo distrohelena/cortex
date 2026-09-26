@@ -155,6 +155,9 @@ public sealed class ObservedParticipationReviewTests
             var review = Assert.Single(result.ParticipationReviews);
             Assert.Equal(expectedStatus, review.Status);
             Assert.Equal(expectedDecision, review.Review?.Decision);
+            if (expectedDecision is not null)
+                Assert.All(model.Reviews, request => Assert.Equal("provocacao", request.Inputs.GetProperty("reavaliacao")
+                    .GetProperty("interpretacao_contextual").GetProperty("Reading").GetString()));
             Assert.Equal("provocacao", review.Assessment!.Interpretation!.Reading);
             Assert.Equal(["clarification"], review.Assessment.EvidenceMessageIds);
             Assert.Equal(automatic ? 3 : 1, interpretationModel.Requests.Count);
