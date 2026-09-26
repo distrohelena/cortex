@@ -77,7 +77,7 @@ public sealed class ContextInterpretationSyntheticLiveTests
         reply = (object?)null
     });
 
-    private sealed class Usage() : DelegatingHandler(new HttpClientHandler { AllowAutoRedirect = false })
+    internal sealed class Usage() : DelegatingHandler(new HttpClientHandler { AllowAutoRedirect = false })
     {
         internal JsonElement? Value;
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken token)

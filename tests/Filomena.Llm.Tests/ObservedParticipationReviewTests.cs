@@ -36,7 +36,7 @@ public sealed class ObservedParticipationReviewTests
         try
         {
             var project = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine(ParticipationGateV1Tests.Root,
-                "docs/manual-group-shadow-project-v3-gpt6-luna.json")))!;
+                "docs/manual-group-live-project-v3-natural-v1.json")))!;
             // Controlled clock window only; real graph, prompt bodies and routing remain unchanged.
             foreach (var state in project["project"]!["states"]!.AsArray())
                 foreach (var node in state!["graph"]!["nodes"]!.AsArray().Where(n => n!["kind"]!.ToString() == "accumulate"))

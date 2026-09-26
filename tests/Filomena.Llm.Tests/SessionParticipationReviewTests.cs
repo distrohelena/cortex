@@ -261,9 +261,9 @@ public sealed class SessionParticipationReviewTests
             if ((review || RespondInitially) && AllowGeneration && request.NodeId.EndsWith("-generation"))
             {
                 if (BeforeGeneration is not null) await BeforeGeneration(token);
-                return "Agora entendi a brincadeira da lista.";
+                return Candidate("Agora entendi a brincadeira da lista.", request);
             }
-            if (review && AllowGeneration && request.NodeId.EndsWith("-regeneration")) return "Agora ficou claro.";
+            if (review && AllowGeneration && request.NodeId.EndsWith("-regeneration")) return Candidate("Agora ficou claro.", request);
             if (review && AllowGeneration && request.NodeId.Contains("validator"))
             {
                 var fields = request.ResponseSchema!.Value.GetProperty("properties").EnumerateObject().ToDictionary(p => p.Name, _ => "nao");
@@ -275,6 +275,11 @@ public sealed class SessionParticipationReviewTests
             return await new DirectParticipationRuleTests.Signals(review ? Involvement : "indireto", review ? Action : "calar")
                 .CompleteAsync(request, token);
         }
+
+        private static string Candidate(string text, FlowCompletionRequest request) =>
+            request.ResponseSchema is { } schema && schema.GetProperty("properties").TryGetProperty("replyTo", out _)
+                ? JsonSerializer.Serialize(new { texto = text, replyTo = (string?)null })
+                : text;
     }
 
     internal sealed class Memory : IMemoryReader

@@ -54,6 +54,64 @@ directory `filomena-synthetic-context-4d4a6b9c79b941588cc4c7615bab270c`. This ch
 does not activate the group, validate delayed live sending, or replace the pending
 integrated-flow quality assessment.
 
+### Integrated synthetic model run
+
+The next replay uses `manual-group-live-project-v3-natural-v1.json`, not the older
+group-shadow artifact. Only accumulator quiet time is shortened for the test;
+the resulting artifact is hash-pinned. Its existing model assignments are kept:
+Gemma locally for situation/presence, GPT-6 Luna for generation. This does not
+claim coverage of the separate operational Jev host overlay.
+
+Updating controlled replay to this artifact first exposed six fixture failures:
+the fake generator returned plain text, whereas natural-v1 requires structured
+`texto` and nullable `replyTo`. The fake now honors that schema; all 17 controlled
+observation cases pass against natural-v1, including regeneration and final Block.
+No project, production prompt or runtime behavior was changed for this correction.
+
+`ContextInterpretationPipelineLiveTests` then completed three synthetic inputs
+through real interpretation, participation, generation, runtime and SendGuard:
+
+| Input summary | Interpretation | Actual pipeline outcome | Total latency |
+| --- | --- | --- | --- |
+| Direct explicit irony about an app deleting a draft, no tutorial wanted | irony / high | WOULD_SEND; playful criticism of app, no tutorial | 26.656 s |
+| Draft recovered, topic explicitly closed | literal / high, obsolete opportunity | Silence; presence says calar | 13.633 s |
+| Direct sincere happiness, asks if Filomena would celebrate | literal / high | WOULD_SEND; recognizes happiness | 13.543 s |
+
+Candidates from this synthetic-only run:
+
+> Claro, tutorial nenhum. Esse aplicativo está fazendo questão de transformar cada rascunho numa instalação artística efêmera.
+
+> Comemoraria, sim. Tudo recuperado automaticamente? Isso merece uma pequena vitória. Fico feliz por você.
+
+Review: no clear factual/personal-attribution error in these candidates; neither
+mistook the explicit ironic complaint for praise. The first response's elaborate
+metaphor and second's generic phrasing remain style observations, not proof of
+ideal voice. Two candidates are a smoke sample, not an accuracy benchmark.
+
+Nine calls: five Luna, four local Gemma. Luna usage: 7,596 input and 1,031 output
+tokens (8,627 total); monetary cost unverified. Overall 53.832 s, mean 17.944 s.
+The first local situation call took 21.552 s; later local situation calls took
+6.668 and 6.231 s. No latency optimization was attempted.
+
+All three ordinary executions completed once, history contains only the three
+inbounds, and no spoken-state transition was committed. Two outbound traces were
+`shadowed/would_send`, with no transport implementation supplied. No Graphiti was
+called: memory/Boundaries were explicitly controlled empty. Consequently this run
+does not exercise the detectors or live recall. Every initial reading was high
+confidence, so it also does not establish real-model delayed-preview quality.
+
+The existing LM Studio app and loopback server were started for the test after
+the CLI's daemon wake attempt failed. No model was downloaded, assignment changed,
+group connected or conversational worker started. The initial harness attempt
+failed creating its local journal directory before inference; that setup issue
+was fixed before the successful run. Artifacts are under temporary directory
+`filomena-synthetic-pipeline-6215fee8e5344b4d8e13673cfb5421f6`.
+
+The integrated test requires the separate explicit opt-in
+`FILOMENA_IRONY_PIPELINE_LIVE=1`, an existing output directory, and providers already
+available. It caps completion calls at 18. Ordinary regressions skip this test;
+they cannot silently start inference or reconnect the group.
+
 ## Question and approved scope
 
 Does later, actually observed conversation change the interpretation of the four
