@@ -12,10 +12,11 @@ namespace Filomena.Llm.Tests;
 public sealed class ObservedLiveParticipationTests
 {
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public async Task Local_live_host_reassesses_without_reopening_inbox_and_restores_only_confirmed_context(bool respond, bool wait)
+    [InlineData(false, false, false)]
+    [InlineData(true, false, false)]
+    [InlineData(true, true, false)]
+    [InlineData(true, false, true)]
+    public async Task Local_live_host_reassesses_without_reopening_inbox_and_restores_only_confirmed_context(bool respond, bool wait, bool ordinaryReply)
     {
         var directory = Directory.CreateTempSubdirectory("observed-live-participation-");
         try
@@ -57,8 +58,26 @@ public sealed class ObservedLiveParticipationTests
                 var first = await run.AcceptAsync([Input(1, "original", "Agora com 1000.")], TestContext.Current.CancellationToken);
                 Assert.Equal("tracked", Assert.Single(first.InitialInterpretations).Status);
                 Assert.Equal(0, sender.Calls);
+                model.RespondInitially = ordinaryReply;
                 var clarification = Input(2, "clarification", "Era brincadeira sobre a lista.");
                 var second = await run.AcceptAsync([clarification], TestContext.Current.CancellationToken);
+                if (ordinaryReply)
+                {
+                    Assert.Equal(1, sender.Calls);
+                    Assert.Empty(second.ParticipationReviews);
+                    Assert.DoesNotContain(second.Outcomes, outcome => outcome.ReassessmentOfMessageId is not null);
+                    Assert.Single(run.History, item => item.Direction == SessionMessageDirection.Outbound);
+                    Assert.Empty(model.Reviews);
+                    Assert.Equal(OutboundMode.Enabled, run.OutboundMode);
+                    Assert.Empty((await run.AcceptAsync([clarification], TestContext.Current.CancellationToken)).ParticipationReviews);
+                    Assert.Equal(1, sender.Calls);
+                    model.RespondInitially = false;
+                    var resumed = await run.AcceptAsync([Input(3, "return-to-original", "Voltando ao primeiro comentário, ainda quero discutir aquela brincadeira.")],
+                        TestContext.Current.CancellationToken);
+                    Assert.Equal("original", Assert.Single(resumed.ParticipationReviews).OriginalMessageId);
+                    Assert.Equal(2, sender.Calls);
+                    return;
+                }
                 Assert.Equal(wait ? ParticipationReviewDecision.Wait : ParticipationReviewDecision.Respond,
                     Assert.Single(second.ParticipationReviews).Review!.Decision);
                 if (wait)

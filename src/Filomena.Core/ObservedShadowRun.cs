@@ -240,7 +240,11 @@ public sealed class ObservedShadowRun : IAsyncDisposable
                     (context, _) => Task.FromResult(evaluated.TryGetValue(context.Original.ProviderMessageId, out var analysis)
                         ? analysis : throw new InvalidDataException("Initial interpretation unavailable for this batch.")), reviewCancellation.Token)
                 : [];
-            var reviews = participationObserver is not null && Volatile.Read(ref stopped) == 0
+            // Reassessment is opportunistic, not an extra reply appended to a turn that
+            // already spoke. Keep pending targets for later new context, without claiming
+            // that a reply to another message answered them. Replay is not new context.
+            var reviews = admitted && !trace.Any(t => t.EventName == "speech-committed")
+                && participationObserver is not null && Volatile.Read(ref stopped) == 0
                 ? await participationObserver.ReviewPendingAsync(reassess!, reviewCancellation.Token)
                 : [];
             if (previewResponses)

@@ -430,7 +430,7 @@ public sealed partial class SessionFlowRuntime
             if (batch.ReviewedResponse is { } reviewed)
                 completion = new ReviewedParticipationCompletion(
                     new ParticipationReviewCompletion(completion, () => CheckReviewedResponse(batch, executionToken),
-                        batch.Messages[0].Envelope.Timestamp, batch.ClosedAt, reviewed.Interpretation),
+                        batch.Messages[0].Envelope.Timestamp, batch.ClosedAt, reviewed.Interpretation, participationOnly: false),
                     reviewed.Responses, () => CheckReviewedResponse(batch, executionToken),
                     id => AddTrace(batch.Session, Trace(batch, "participation-decision-reused", id)));
             if (initialInterpretations.Count != 0)

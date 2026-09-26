@@ -160,22 +160,26 @@ public sealed partial class SessionFlowRuntime
 
     private sealed class ParticipationReviewCompletion(IFlowCompletion inner, Action checkCurrent,
         DateTimeOffset originalAt, DateTimeOffset contextAt, ParticipationInterpretation? interpretation = null,
-        IDictionary<string, string>? completedPromptResponses = null) : IFlowCompletion
+        IDictionary<string, string>? completedPromptResponses = null, bool participationOnly = true) : IFlowCompletion
     {
         public async Task<string> CompleteAsync(FlowCompletionRequest request, CancellationToken token)
         {
             checkCurrent();
             var inputs = request.Inputs.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.Clone());
             // Host metadata, not a fabricated new inbound or an instruction appended to the frozen prompt.
-            inputs.Add("reavaliacao", JsonSerializer.SerializeToElement(new
+            var metadata = new Dictionary<string, object?>
             {
-                tipo = "mensagem_original_retida",
-                contexto_pode_ser_posterior = true,
-                mensagem_original_em = originalAt,
-                contexto_capturado_em = contextAt,
-                interpretacao_contextual = interpretation,
-                autoriza_envio = false
-            }));
+                ["tipo"] = "mensagem_original_retida",
+                ["contexto_pode_ser_posterior"] = true,
+                ["mensagem_original_em"] = originalAt,
+                ["contexto_capturado_em"] = contextAt,
+                ["interpretacao_contextual"] = interpretation
+            };
+            // The read-only participation cut cannot send. Its advisory flag must not
+            // leak into generation as a contradictory instruction to produce no text.
+            // Neither presence nor absence of this model input grants host authority.
+            if (participationOnly) metadata.Add("autoriza_envio", false);
+            inputs.Add("reavaliacao", JsonSerializer.SerializeToElement(metadata));
             var output = await inner.CompleteAsync(request with { Inputs = JsonSerializer.SerializeToElement(inputs) }, token).ConfigureAwait(false);
             checkCurrent();
             if (completedPromptResponses is not null) completedPromptResponses[request.NodeId] = output;

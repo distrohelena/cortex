@@ -17,9 +17,10 @@ and later reassessment reaching WOULD_SEND, with controlled model/memory inputs.
 The JSON-to-host and observation matrix passed 25 cases. No endpoint from the
 fixture is contacted, and no credential is loaded.
 
-Remaining evidence: real-model quality of an actual delayed response and
-active deployment. Initial integrated generation and later-context interpretation
-have now been exercised with synthetic inputs as recorded below. The eight
+Remaining operational step: active deployment, which has not been performed.
+A real-model delayed candidate has now been exercised in a synthetic Shadow run,
+including diagnosis and correction of an empty-generation defect documented below.
+This is a smoke sample, not broad conversational-quality or participant-profile coverage. The eight
 historical analyzer calls below only measured
 interpretation, not the new integrated response behavior. Local passing tests
 do not prove conversational quality or that Filomena is online. The following
@@ -800,12 +801,79 @@ messages, so pruning cannot resurrect them. Still-eligible tombstones remain;
 pending expiration is reported before cleanup. Three new regressions first failed
 on permanent capacity exhaustion, then passed across repeated admission cycles.
 
-Remaining verification is conversational quality of a delayed real-model candidate
-and any explicitly authorized active rollout. The last real synthetic replay
-chose Wait; it is not represented as a successful delayed reply. Capacity and
+The earlier real synthetic replay chose Wait; the later invitation experiment below
+reaches delayed generation. Active rollout remains unperformed. Capacity and
 attempt budgets remain explicit; saturation can still reject new work while all
 slots remain eligible. This slice does not establish persistent participant sarcasm
 profiles or measure production fairness under sustained group load.
+
+### Delayed real generation: metadata diagnosis and validation
+
+The `late-invitation` scenario adds an explicit invitation after an initially
+ambiguous statement, then closes the topic. All text is invented. The first run
+reached a real Respond review, but the delayed generator returned empty `texto`.
+The existing Shadow guard incorrectly recorded this as WOULD_SEND. It is **not**
+counted as a valid candidate. Four local regressions also reproduced empty and
+whitespace payload acceptance in Enabled mode with a fake transport.
+
+The guard now returns `blocked/empty_candidate` before any journal reservation,
+route lookup or transport call, in both Shadow and Enabled. It creates no delivery,
+hypothetical transition or reconciliation requirement. No automatic generation
+retry was added to disguise the failure.
+
+A two-call diagnostic replay reconstructed the same generation request with the
+real runtime, replaying earlier synthetic model outputs (including run-bound
+evidence identity). The only A/B difference was `reavaliacao.autoriza_envio=false`:
+
+| Variant | Real Luna output |
+| --- | --- |
+| Flag retained | Empty text again |
+| Flag omitted | Nonempty, contextually correct criticism of deleting all backups |
+
+This one pair supports the metadata-conflict diagnosis; it does not establish a
+statistical model guarantee. The readonly participation cut still carries its
+advisory flag, but generation/regeneration no longer receive it. This does **not**
+authorize a send: host mode, binding, provenance, enforcement and receipt handling
+remain the authority. No project prompt, detector, personality or FSM was tuned.
+
+One full real-model repeat after the fix completed all three inputs. Original
+ambiguity was tracked without a reply; clarification reached Respond and a
+nonempty delayed preview; topic closure was obsolete and silent. Candidate:
+
+> Ah, agora entendi a ironia. Não, apagar todos os backups é uma péssima ideia: elimina justamente a possibilidade de recuperar os dados se algo der errado.
+
+The candidate preserves the supplied facts and interpretation, with no clear
+material attribution error. Its explanatory tone is a style limitation, not proof
+of ideal voice. This sample has controlled empty memory/Boundaries, not live
+Graphiti or detector coverage. It uses the pinned natural-v1 artifact's local
+Gemma participation and Luna generation, not an untested claim about the Jev overlay.
+
+| Experiment | Luna/local calls | Luna input/output tokens | Total interaction time |
+| --- | --- | --- | --- |
+| Before fix | 7 / 6 | 9,901 / 2,546 | 71.375 s |
+| Metadata A/B only | 2 / 0 | 4,612 / 405 | 7.752 s of model calls |
+| After fix | 7 / 6 | 9,887 / 2,279 | 61.952 s |
+
+Monetary cost is unverified. Artifacts remain under temporary directories
+`filomena-synthetic-invitation-d63d649d836942fc8a34621fc681350b`,
+`filomena-synthetic-metadata-5630ad1cc0ff4475bb12ac6785da90ed`, and
+`filomena-synthetic-invitation-fixed-11c42e8ec80541c8b13493a01c8f15c9`.
+The first metadata-replay setup attempt failed before inference because evidence
+references were intentionally run-bound; the corrected harness preserves that
+synthetic identity. It does not weaken the analyzer's validation.
+
+Shadow generated one ordinary candidate and one delayed preview for the invitation;
+neither enters spoken history. That does not authorize two actual replies. A new
+Enabled-host regression proved that the prior host could append a late response
+after an ordinary confirmed response in the same cycle (two fake sends). The host
+now postpones pending review for a cycle that already committed speech. Pending
+targets are not declared answered or deleted; only later newly admitted context
+can revisit them. Replayed input cannot reopen that opportunity. The fixed test
+makes one send, then only a subsequent new-context cycle can continue the old target.
+
+Final local regression suites: **1,559 passed, 57 skipped, zero failures**
+(Core 644, Llm/App 740, OpenClaw 175). This work made zero Graphiti calls, memory
+writes or WhatsApp sends; no live group worker or configuration was activated.
 
 ### Host configuration and invocation
 

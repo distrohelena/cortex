@@ -70,7 +70,7 @@ public sealed partial class SessionFlowRuntime
                 [originalId], batch.History.Select(item => item.Envelope.ProviderMessageId), shadowOnly: true);
             var registry = new BoundaryExecutionRegistry(ConversationNamespace(batch.Session), timeProvider);
             var freshCompletion = new ParticipationReviewCompletion(completionFactory(batch.Session), CheckCurrent,
-                batch.Messages[0].Envelope.Timestamp, batch.ClosedAt, interpretation);
+                batch.Messages[0].Envelope.Timestamp, batch.ClosedAt, interpretation, participationOnly: false);
             var completion = new ReviewedParticipationCompletion(freshCompletion, reviewedResponses, CheckCurrent,
                 id => Record(Trace(batch, "participation-decision-reused", id)));
             var result = await TypedFlowRunner.RunSessionAsync(batch.Flow,

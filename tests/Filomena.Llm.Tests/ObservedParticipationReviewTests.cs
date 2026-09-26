@@ -184,6 +184,7 @@ public sealed class ObservedParticipationReviewTests
                 Assert.Equal(new[] { "group-situation", "group-presence" }, preview.Trace
                     .Where(t => t.EventName == "participation-decision-reused").Select(t => t.NodeId));
                 var generation = Assert.Single(model.Reviews, r => r.NodeId == "group-generation");
+                Assert.False(generation.Inputs.GetProperty("reavaliacao").TryGetProperty("autoriza_envio", out _));
                 Assert.Equal("provocacao", generation.Inputs.GetProperty("reavaliacao").GetProperty("interpretacao_contextual").GetProperty("Reading").GetString());
                 Assert.Equal("Agora entendi a brincadeira da lista.", preview.Outputs["group-generation"]["texto"].GetString());
                 if (action == "preview-abort")

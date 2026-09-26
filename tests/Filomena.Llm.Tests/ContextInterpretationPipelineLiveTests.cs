@@ -21,9 +21,12 @@ public sealed class ContextInterpretationPipelineLiveTests
     {
         Assert.SkipWhen(Environment.GetEnvironmentVariable("FILOMENA_IRONY_PIPELINE_LIVE") != "1", "Explicit bounded synthetic pipeline experiment.");
         var scenario = Environment.GetEnvironmentVariable("FILOMENA_IRONY_PIPELINE_SCENARIO") ?? "initial";
-        Assert.Contains(scenario, new[] { "initial", "late" });
+        Assert.Contains(scenario, new[] { "initial", "late", "late-invitation" });
         var directory = Environment.GetEnvironmentVariable("FILOMENA_IRONY_SYNTHETIC_OUTPUT") ?? throw new InvalidOperationException("Output required.");
         Assert.True(Path.IsPathFullyQualified(directory) && Directory.Exists(directory));
+        var replayPath = Environment.GetEnvironmentVariable("FILOMENA_IRONY_PIPELINE_REPLAY");
+        var replayRows = replayPath is null ? null : File.ReadLines(replayPath)
+            .Select(line => JsonSerializer.Deserialize<JsonElement>(line)).ToArray();
         var key = Environment.GetEnvironmentVariable("OPENAI_API_KEY");
         Assert.False(string.IsNullOrWhiteSpace(key));
         var project = JsonNode.Parse(File.ReadAllText(Path.Combine(ParticipationGateV1Tests.Root,
@@ -33,7 +36,10 @@ public sealed class ContextInterpretationPipelineLiveTests
                 node!["settings"]!["quietSeconds"] = 0.001;
         var revision = Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(project)));
         var pin = new PinnedShadowProject(new("synthetic-irony-natural", 1, revision, JsonSerializer.SerializeToElement(project)));
-        var runId = Guid.NewGuid().ToString("N");
+        // Replay the synthetic identity too: analyzer evidence refs are intentionally run-bound.
+        var runId = replayRows is null ? Guid.NewGuid().ToString("N") : replayRows
+            .First(row => row.GetProperty("kind").GetString() == "interaction")
+            .GetProperty("result").GetProperty("Trace")[0].GetProperty("Session").GetProperty("RuntimeId").GetString()!;
         var session = new SessionKey(runId, "filomena", "whatsapp", "synthetic-account", "synthetic-group@g.us");
         const string peer = "whatsapp:5511000000000@s.whatsapp.net";
         var binding = new ShadowSessionBinding(session, FilomenaIdentity.WhatsAppConversationNamespace(session.NativeConversationId),
@@ -52,13 +58,30 @@ public sealed class ContextInterpretationPipelineLiveTests
         });
         var path = Path.Combine(directory, $"pipeline-{runId}.jsonl");
         await using var writer = new StreamWriter(new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.Read)) { AutoFlush = true };
-        var completion = new Recording(provider, usage, writer);
+        Queue<JsonElement>? replay = null;
+        if (replayRows is not null)
+        {
+            Assert.Equal("late-invitation", scenario);
+            Assert.All(replayRows.Where(row => row.GetProperty("kind").GetString() == "interaction"), row =>
+            {
+                Assert.Equal("late-invitation", row.GetProperty("scenario").GetString());
+                Assert.False(row.GetProperty("transportAvailable").GetBoolean());
+                Assert.Equal("controlled_empty", row.GetProperty("memoryCoverage").GetString());
+            });
+            replay = new(replayRows.Where(row => row.GetProperty("kind").GetString() == "completion"));
+        }
+        var completion = new Recording(provider, usage, writer, replay);
         var memory = new SessionParticipationReviewTests.Memory { AllowEmpty = true };
         var journal = Directory.CreateDirectory(Path.Combine(directory, "journal"));
         await using var run = new ObservedShadowRun(pin, binding, journal.FullName, roles, completion, memory, "synthetic-epoch", 0);
         var config = ContextInterpretationHostTests.ReadOperationalConfig(true);
         ContextInterpretationHost.Configure(config with { Participation = config.Participation with { ProjectRevision = revision } }, pin, binding, run, completion);
-        string[] inputs = scenario == "late" ?
+        string[] inputs = scenario == "late-invitation" ?
+        [
+            "Sensacional esse plano.",
+            "Filomena, aquele sensacional foi ironia sobre a ideia de apagar todos os backups. Agora que expliquei, responde àquela provocação: você também achou essa ideia ótima?",
+            "Isso, era deboche da ideia, não uma instrução para apagar nada. Já descartamos o plano, assunto encerrado."
+        ] : scenario == "late" ?
         [
             "Sensacional esse plano.",
             "Aquele sensacional foi ironia sobre apagar todos os backups. Ainda estou discutindo essa ideia, não elogiei o plano.",
@@ -103,17 +126,54 @@ public sealed class ContextInterpretationPipelineLiveTests
             foreach (var preview in result.ParticipationReviews.Select(r => r.Preview).OfType<SessionResponsePreviewResult>())
                 Assert.DoesNotContain(preview.Trace, t => t.EventName == "speech-committed" || t.MemoryMetadata?.GetValueOrDefault("result") == "sent");
         }
+        if (replay is not null) Assert.Empty(replay);
         TestContext.Current.TestOutputHelper!.WriteLine($"Synthetic pipeline report: {path}");
     }
 
-    private sealed class Recording(IFlowCompletion inner, ContextInterpretationSyntheticLiveTests.Usage usage, StreamWriter writer) : IFlowCompletion
+    private sealed class Recording(IFlowCompletion inner, ContextInterpretationSyntheticLiveTests.Usage usage, StreamWriter writer,
+        Queue<JsonElement>? replay = null) : IFlowCompletion
     {
         private int calls;
+        private int diagnosticCalls;
         public async Task<string> CompleteAsync(FlowCompletionRequest request, CancellationToken token)
         {
             if (Interlocked.Increment(ref calls) > 18) throw new InvalidOperationException("Synthetic experiment call budget exceeded.");
             if (request.Inputs.TryGetProperty("reavaliacao", out var review))
                 Assert.Equal(JsonValueKind.Object, review.GetProperty("interpretacao_contextual").ValueKind);
+            if (replay is not null)
+            {
+                var recorded = replay.Dequeue();
+                Assert.Equal(request.NodeId, recorded.GetProperty("NodeId").GetString());
+                Assert.Equal(request.Inputs.TryGetProperty("reavaliacao", out _), recorded.GetProperty("reassessment").GetBoolean());
+                if (request.NodeId == "group-generation" && request.Inputs.TryGetProperty("reavaliacao", out _))
+                {
+                    // Diagnostic only: same runtime-built request, one metadata difference, two calls.
+                    // Neither diagnostic output enters the flow or supplies sending authority.
+                    foreach (var omitFlag in new[] { false, true })
+                    {
+                        if (++diagnosticCalls > 2) throw new InvalidOperationException("Metadata comparison budget exceeded.");
+                        var inputs = JsonNode.Parse(request.Inputs.GetRawText())!;
+                        if (omitFlag) inputs["reavaliacao"]!.AsObject().Remove("autoriza_envio");
+                        else inputs["reavaliacao"]!["autoriza_envio"] = false;
+                        usage.Value = null;
+                        var watch = Stopwatch.GetTimestamp();
+                        var diagnostic = await inner.CompleteAsync(request with { Inputs = JsonSerializer.SerializeToElement(inputs) }, token);
+                        await writer.WriteLineAsync(JsonSerializer.Serialize(new
+                        {
+                            kind = "generation_metadata_comparison",
+                            omitFlag,
+                            request.NodeId,
+                            request.Model,
+                            request.Provider,
+                            inputs,
+                            output = diagnostic,
+                            milliseconds = Stopwatch.GetElapsedTime(watch).TotalMilliseconds,
+                            usage = usage.Value
+                        }));
+                    }
+                }
+                return recorded.GetProperty("output").GetString()!;
+            }
             usage.Value = null;
             var start = Stopwatch.GetTimestamp();
             var output = await inner.CompleteAsync(request, token);

@@ -70,6 +70,28 @@ public sealed class LiveOutboundHostTests : IDisposable
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 
     [Theory]
+    [InlineData(OutboundMode.Shadow, "")]
+    [InlineData(OutboundMode.Shadow, " \t\r\n")]
+    [InlineData(OutboundMode.Enabled, "")]
+    [InlineData(OutboundMode.Enabled, " \t\r\n")]
+    public async Task Empty_candidate_is_neither_would_send_nor_delivery_and_creates_no_attempt(OutboundMode mode, string text)
+    {
+        var transport = new FakeTransport();
+        using var host = Armed(Host(), transport);
+        host.Rearm(mode);
+        var execution = Begin(host);
+        var result = await execution.SendAsync(Approve(execution, text), Token);
+        Assert.Equal("blocked", result.Status);
+        Assert.Equal("empty_candidate", result.DiagnosticCode);
+        Assert.Null(result.WouldTransitionTo);
+        Assert.Null(result.ProviderMessageId);
+        Assert.Empty(transport.Sends);
+        Assert.Equal(0, transport.Describes);
+        Assert.Empty(JournalLines());
+        Assert.False(host.RequiresReconciliation(Session));
+    }
+
+    [Theory]
     [InlineData(OutboundMode.Enabled, "disabled")]
     [InlineData(OutboundMode.Disabled, "disabled")]
     [InlineData(OutboundMode.Shadow, "shadowed")]

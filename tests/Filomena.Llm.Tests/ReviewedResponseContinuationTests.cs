@@ -52,8 +52,15 @@ public sealed class ReviewedResponseContinuationTests
         {
             var generation = Assert.Single(h.Model.Reviews, r => r.NodeId == "group-generation");
             Assert.Equal("ironia", generation.Inputs.GetProperty("reavaliacao").GetProperty("interpretacao_contextual").GetProperty("Reading").GetString());
+            Assert.False(generation.Inputs.GetProperty("reavaliacao").TryGetProperty("autoriza_envio", out _));
         }
-        if (scenario == "regenerate") Assert.Single(h.Model.Reviews, r => r.NodeId == "group-regeneration");
+        Assert.False(h.Model.Reviews.First(r => r.NodeId == "group-situation").Inputs
+            .GetProperty("reavaliacao").GetProperty("autoriza_envio").GetBoolean());
+        if (scenario == "regenerate")
+        {
+            var regeneration = Assert.Single(h.Model.Reviews, r => r.NodeId == "group-regeneration");
+            Assert.False(regeneration.Inputs.GetProperty("reavaliacao").TryGetProperty("autoriza_envio", out _));
+        }
         if (scenario == "uncertain") Assert.True(h.Host.RequiresReconciliation(h.Session));
         var calls = h.Sender.Calls;
         var duplicate = await h.Runtime.ContinueReviewedResponseAsync(h.Session, review, null, Token);

@@ -181,6 +181,7 @@ public sealed class ShadowOutboundHost : IDisposable
                 return new("blocked", "dm_only");
             if (!sessions.Contains(execution.Session)) return new("blocked", "session_not_allowlisted");
             if (!provenance) return new("blocked", "invalid_provenance");
+            if (string.IsNullOrWhiteSpace(text)) return new("blocked", "empty_candidate");
             if (!execution.ReplySelectionValid) return new("blocked", "invalid_reply_target");
             if (execution.InboundIds.Count == 0 || execution.InboundIds.Any(string.IsNullOrWhiteSpace)) return new("blocked", "invalid_origin_identity");
             var inputRefs = execution.InboundIds.Select(id => Hash(execution.SessionRef + "\n" + id)).ToArray();
