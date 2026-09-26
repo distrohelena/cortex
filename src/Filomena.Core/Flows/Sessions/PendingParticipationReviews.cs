@@ -4,9 +4,17 @@ public enum ReassessmentOpportunity { Uncertain, Relevant, Obsolete }
 public sealed record ParticipationReassessmentContext(SessionSnapshot Snapshot,
     SessionHistoryEntry Original, IReadOnlyList<SessionHistoryEntry> History, bool HasConfirmedSpeech);
 public sealed record ParticipationReassessment(bool Confident, ReassessmentOpportunity Opportunity,
-    IReadOnlyList<string> EvidenceMessageIds);
+    IReadOnlyList<string> EvidenceMessageIds)
+{
+    public ParticipationInterpretation? Interpretation { get; init; }
+}
+public sealed record ParticipationInterpretation(string Reading, string? Alternative, string Confidence, string Explanation);
 public sealed record PendingParticipationReview(string OriginalMessageId, string Status,
-    SessionParticipationReviewResult? Review = null);
+    SessionParticipationReviewResult? Review = null)
+{
+    // Experimental/private report data. Not a permanent participant profile or an instruction.
+    public ParticipationReassessment? Assessment { get; init; }
+}
 
 /// <summary>Host-owned, process-local observation controller. No admission or sending authority.</summary>
 public sealed class PendingParticipationReviews
@@ -118,12 +126,12 @@ public sealed class PendingParticipationReviews
                     if (analysis.Opportunity == ReassessmentOpportunity.Obsolete)
                     {
                         entry.Closed = true;
-                        results.Add(new(id, "obsolete"));
+                        results.Add(new(id, "obsolete") { Assessment = analysis });
                         continue;
                     }
                     if (!analysis.Confident || analysis.Opportunity != ReassessmentOpportunity.Relevant)
                     {
-                        results.Add(new(id, "pending"));
+                        results.Add(new(id, "pending") { Assessment = analysis });
                         continue;
                     }
                 }
@@ -136,7 +144,7 @@ public sealed class PendingParticipationReviews
                     else if (review.Status == ParticipationReviewStatus.Completed && review.Snapshot == context.Snapshot)
                     {
                         entry.Closed = true;
-                        results.Add(new(id, "reviewed", review));
+                        results.Add(new(id, "reviewed", review) { Assessment = analysis });
                     }
                     else results.Add(new(id, review.Status == ParticipationReviewStatus.Stale || review.Snapshot != context.Snapshot
                         ? "stale" : "review_failed"));

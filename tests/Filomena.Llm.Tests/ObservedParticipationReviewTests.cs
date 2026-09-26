@@ -3,6 +3,7 @@ using Filomena.Core.Flows.Sessions;
 using Filomena.Core.Identity;
 using Filomena.Core.Outbound;
 using Filomena.Core.Shadow;
+using Filomena.Llm.Context;
 using Xunit;
 
 namespace Filomena.Llm.Tests;
@@ -36,6 +37,9 @@ public sealed class ObservedParticipationReviewTests
                 ["group-validator-1", "group-validator-2"], "participation-engaged-v1");
             var model = new SessionParticipationReviewTests.Model { Action = action };
             var memory = new SessionParticipationReviewTests.Memory();
+            var interpretationModel = new ContextInterpretationAnalyzerTests.Completion("provocacao", "high",
+                opportunity == ReassessmentOpportunity.Obsolete ? "obsolete" : "still_relevant");
+            var analyzer = new ContextInterpretationAnalyzer(interpretationModel, ContextInterpretationAnalyzerTests.Settings);
             var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             CancellationToken analysisToken = default;
@@ -50,7 +54,7 @@ public sealed class ObservedParticipationReviewTests
                     entered.SetResult();
                     await release.Task.WaitAsync(token);
                 }
-                return new ParticipationReassessment(true, opportunity, ["clarification"]);
+                return await analyzer.ReassessAsync(context, token);
             }, 150, 2, 10);
             CanonicalShadowInbound Input(long sequence, string id, string text) => new("replay-epoch", sequence,
                 session, SessionEntryKind.Group, binding.ConversationNamespace, peer,
@@ -85,6 +89,9 @@ public sealed class ObservedParticipationReviewTests
             var review = Assert.Single(result.ParticipationReviews);
             Assert.Equal(expectedStatus, review.Status);
             Assert.Equal(expectedDecision, review.Review?.Decision);
+            Assert.Equal("provocacao", review.Assessment!.Interpretation!.Reading);
+            Assert.Equal(["clarification"], review.Assessment.EvidenceMessageIds);
+            Assert.Single(interpretationModel.Requests);
             if (opportunity == ReassessmentOpportunity.Obsolete) Assert.Empty(model.Reviews);
             Assert.Equal(2, run.Outcomes.Count);
             Assert.Equal(2, run.History.Count);

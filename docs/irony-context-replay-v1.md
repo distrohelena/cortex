@@ -360,3 +360,43 @@ uncertainty selection, gather model/replay quality data, then explicitly activat
 the reviewed group configuration. Automatic late generation/send is still absent.
 No new calls to real models, Graphiti or WhatsApp occurred in this slice, and no
 conversational service or memory worker was restarted or modified.
+
+## Interpretation adapter connected locally (2026-09-26)
+
+`Filomena.Llm.Context.ContextInterpretationAnalyzer` now implements the analysis
+function used above. Its `ContextInterpretationContract` preserves the exact
+experimental prompt/schema and validation rules. It uses the existing
+`IFlowCompletion` provider interface; model/provider/effort and context limits
+are explicit host settings. No new endpoint, secret, inference runtime, memory
+writer or participant-profile store was added.
+
+The adapter checks session/account/group and original identity before inference.
+It selects bounded earlier/later retained context by admission order, preserves
+observed quotes, declares missing/truncated context, and projects transport and
+speaker IDs to session-scoped opaque references. Text remains private, not
+anonymized. Output evidence is validated against only the projected messages and
+mapped back to trusted internal IDs. A quoted ID alone is not evidence that its
+original message was present. Outage remains failure, not an empty/literal result.
+
+Pending results retain the reading, alternative, qualitative confidence,
+explanation, opportunity and evidence for **private experimental reports**.
+They are not permanent claims about a participant. Stale results expose no fresh
+decision/assessment. Interpretation still does not authorize a late response.
+
+The observed-host integration tests now use this real adapter and validator,
+with only completion responses controlled locally. Four non-shutdown replay
+cases each make one interpretation call; relevant cases additionally execute
+the existing participation cut. Obsolete context never reaches that cut. This
+is end-to-end local wiring coverage, not new live model accuracy evidence.
+
+Twelve adapter cases cover the qualitative mapping, malformed/foreign/quote-only
+evidence, backend failure, wrong account, already-answered target, outbound target
+and explicit truncation. Final fresh regressions: **1,483 passed, 55 skipped,
+zero failed** (Core 625; Llm/App 683; OpenClaw 175). Compilation and targeted
+whitespace checks passed, with the previously noted formatter workspace warning.
+
+Still not activated: automatic initial uncertainty selection, live group
+subscription, and delayed generation/send. The opt-in shadow host can now accept
+an explicitly selected pending message and execute the full reassessment chain.
+No real model requests, Graphiti calls/writes or WhatsApp sends were made by this
+work. Do not conflate local passing tests with Filomena being back online.
