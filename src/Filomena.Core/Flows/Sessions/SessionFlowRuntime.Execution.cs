@@ -515,7 +515,8 @@ public sealed partial class SessionFlowRuntime
         return JsonSerializer.SerializeToElement(message);
     }
 
-    private IReadOnlyDictionary<string, IReadOnlyDictionary<string, TypedValue>> RuntimeOutputs(FlowBatch batch, bool exposeReplyTargets)
+    private IReadOnlyDictionary<string, IReadOnlyDictionary<string, TypedValue>> RuntimeOutputs(FlowBatch batch, bool exposeReplyTargets,
+        bool participationReview = false)
     {
         var outputs = new Dictionary<string, IReadOnlyDictionary<string, TypedValue>>(StringComparer.Ordinal);
         if (batch.AccumulatorNodeId is not null)
@@ -528,7 +529,7 @@ public sealed partial class SessionFlowRuntime
         }
         foreach (var history in batch.Flow.Nodes.Values.Where(node => node.Source.Kind == "history"))
         {
-            var messages = SelectHistory(batch, history.Source.Config, exposeReplyTargets);
+            var messages = SelectHistory(batch, history.Source.Config, exposeReplyTargets, participationReview);
             outputs[history.Source.Id] = new Dictionary<string, TypedValue>
             {
                 ["messages"] = new(new ArrayType(FlowDomain.Message), JsonSerializer.SerializeToElement(messages)),
@@ -537,7 +538,8 @@ public sealed partial class SessionFlowRuntime
         return outputs;
     }
 
-    private static JsonElement[] SelectHistory(FlowBatch batch, JsonElement config, bool exposeReplyTargets)
+    private static JsonElement[] SelectHistory(FlowBatch batch, JsonElement config, bool exposeReplyTargets,
+        bool participationReview = false)
     {
         var settings = config.GetProperty("settings");
         var maxMessages = settings.GetProperty("maxMessages").GetInt32();
@@ -546,7 +548,7 @@ public sealed partial class SessionFlowRuntime
         var mode = settings.TryGetProperty("mode", out var modeValue) && modeValue.ValueKind == JsonValueKind.String
             ? modeValue.GetString()
             : "before-current-batch";
-        var boundary = mode == "through-current-batch" ? batch.HistoryWatermark : batch.Messages.Min(item => item.Watermark) - 1;
+        var boundary = participationReview || mode == "through-current-batch" ? batch.HistoryWatermark : batch.Messages.Min(item => item.Watermark) - 1;
         DateTimeOffset? oldest = null;
         if (settings.TryGetProperty("maxAgeMinutes", out var age) && age.ValueKind != JsonValueKind.Null)
             oldest = batch.ClosedAt - TimeSpan.FromMinutes(age.GetDouble());
@@ -554,6 +556,7 @@ public sealed partial class SessionFlowRuntime
         // Confirmed predecessor speech past the batch watermark is part of the effective history; future inbound is not.
         var eligible = batch.History
             .Where(item => item.Watermark <= boundary || item.ConfirmedSendOf is not null)
+            .Where(item => !participationReview || !batch.Messages.Any(original => original.Watermark == item.Watermark))
             .Where(item => includeCharacter || item.Envelope.Direction != SessionMessageDirection.Outbound)
             .Where(item => oldest is null || item.Envelope.Timestamp >= oldest)
             .ToArray();
@@ -685,6 +688,7 @@ public sealed partial class SessionFlowRuntime
         public List<SessionTraceEvent> Trace { get; } = [];
         public Task Tail { get; set; } = Task.CompletedTask;
         public int PendingExecutions { get; set; }
+        public bool ParticipationReviewInProgress { get; set; }
     }
 
     // ConfirmedSendOf marks provider-accepted speech committed by this runtime for the named execution.

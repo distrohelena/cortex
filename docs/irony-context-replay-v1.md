@@ -197,3 +197,63 @@ current response opportunity). A production integration should consume trusted
 session/handled state and the existing participation boundary, rather than letting
 the analyzer or an old queue entry dispatch a reply. That integration is not
 implemented by this spike.
+
+## Runtime participation review boundary (2026-09-26)
+
+Implemented `SessionFlowRuntime.ReviewParticipationAsync`: a host-selected,
+revision-bound projection of the existing compiled participation graph. This is
+now production runtime code, but has no live caller or automatic scheduler.
+The pending-entry controller remains a test-only replay probe.
+
+The caller supplies an exact session, retained original provider message ID,
+current project revision, allowlisted structured decision prompts and explicit
+decision exits. The runtime uses the current state and current retained context,
+including later messages, without admitting the original again. The original is
+excluded from the context list to avoid duplication; its timestamp and observed
+quote remain intact. Existing history size/age settings still apply.
+
+The real typed runner executes only entry/history/accumulation, selected decision
+prompts, branches/switches and pure property/count dependencies. Every control
+path must terminate at a declared decision exit. Generation, memory nodes,
+Boundary enforcement, transitions and outbound are outside the accepted cut.
+Host metadata explicitly labels this as an old-message reassessment using later
+context, not a new inbound. Frozen system prompts are unchanged.
+
+Reviews share session scheduling and shutdown cancellation. A new admission,
+state change or project replacement during evaluation invalidates the result.
+A busy session, wrong binding/revision, missing retained inbound or unsafe graph
+cut is rejected before inference. Failures do not become silence or permission to
+respond. Completed results are diagnostic decisions, not reusable send authority.
+
+| Controlled case | Result |
+| --- | --- |
+| Original plus later clarification | Current context evaluated; no history/readmission duplication |
+| Direct involvement in Inactive, Attentive, Engaged | Existing direct route responds; presence prompt bypassed |
+| Non-direct involvement | Existing presence graph can respond, wait or remain silent |
+| Relevant and unhandled pending entry | Participation review runs; may still choose silence |
+| Obsolete or already-handled entry | Replay controller does not invoke participation review |
+| Context/project changes during inference | Result discarded as stale; no decision exposed |
+| Malformed output/provider failure | Failed result, no response authorization |
+| Runtime disposal during inference | Cancellation awaited; retained history preserved |
+
+### Verification and remaining boundary
+
+Initial 18 tests failed against an unimplemented entrypoint, then passed; expanded
+coverage contains 23 passing tests using the real v3 graph/runtime and controlled
+completion responses. Fresh per-project regressions in `NativeMemory`:
+
+- Core: 621 passed, 10 skipped.
+- OpenClaw adapter: 175 passed.
+- Llm/App: 653 passed, 45 skipped.
+- Total: 1,449 passed, 55 skipped, zero failures.
+
+The solution does not define `NativeMemory`; tests were run per project instead.
+These are local controlled tests, not evidence of live model quality. No model,
+Graphiti or transport calls were made by this slice. No conversational host was
+started, and the separate memory worker was not changed.
+
+Still not implemented: a production pending-message controller, live selection
+policy, automatic analysis scheduling, or authorization/generation of late
+responses. In particular, `Respond` from review does not send anything. Those
+must preserve relevance and handled-state checks at their eventual execution
+boundary; this API alone does not make delayed replies safe or enable the bot.
