@@ -21,6 +21,39 @@ interpretation, not the new integrated response behavior. Local passing tests
 do not prove conversational quality or that Filomena is online. The following
 sections are chronological; later sections supersede earlier implementation gaps.
 
+### Synthetic real-model check
+
+`ContextInterpretationSyntheticLiveTests` ran six sequential real GPT-6 Luna
+medium calls through the production analyzer: three invented messages, each
+first without and then with a synthetic clarification. No private history,
+Graphiti, transport, or live conversational execution was involved. The local
+runtime fixture supplies identity/context structure only; no real conversational
+generation was requested. Outputs were inspected after the run, not selected or
+retried until a preferred label appeared.
+
+| Synthetic case | Initial | With later context | Response opportunity afterward |
+| --- | --- | --- | --- |
+| “Nossa, que maravilha”, then explicit irony about lost/recovered draft | ambiguous / low | irony / high | obsolete |
+| Same sentence, then sincere happiness about recovered draft | ambiguous / low | literal / high | relevant |
+| “Organiza meus próximos mil anos”, then joke/topic closure | irony / medium | irony / medium | obsolete |
+
+All six responses passed the real schema/evidence validator. The two explicit
+topic closures were recognized; increased confidence was not forced in the third
+case. These easy, explicit clarifications do not establish subtle sarcasm accuracy,
+participant-specific knowledge, or integrated response quality. No permanent
+speaker profile or memory fact was created.
+
+Usage: 5,739 input tokens, 1,670 output tokens, 7,409 total. Summed call latency
+21.669 seconds, mean 3.612 seconds, range 2.571–4.347 seconds. Monetary cost was
+not inferred from the model alias. The opt-in defaults to skipped and requires
+`FILOMENA_IRONY_SYNTHETIC_LIVE=1` plus an explicit existing output directory in
+`FILOMENA_IRONY_SYNTHETIC_OUTPUT`; it never reads the private replay artifact.
+
+The observed run produced `synthetic-context-*.jsonl` under the isolated temporary
+directory `filomena-synthetic-context-4d4a6b9c79b941588cc4c7615bab270c`. This check
+does not activate the group, validate delayed live sending, or replace the pending
+integrated-flow quality assessment.
+
 ## Question and approved scope
 
 Does later, actually observed conversation change the interpretation of the four
