@@ -97,6 +97,7 @@ public sealed record SessionFlowOutcome(
 {
     public IReadOnlyDictionary<string, ParticipationReassessment> InitialInterpretations { get; init; } =
         new Dictionary<string, ParticipationReassessment>();
+    public string? ReassessmentOfMessageId { get; init; }
 }
 
 public sealed record SessionTraceEvent(

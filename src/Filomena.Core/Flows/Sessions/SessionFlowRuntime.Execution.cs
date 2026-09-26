@@ -331,7 +331,8 @@ public sealed partial class SessionFlowRuntime
                 batch.StateId, batch.StateVersion, batch.EntryKind, batch.CloseReason,
                 batch.Messages.Select(item => item.Envelope.ProviderMessageId).ToArray(),
                 now, now, false, "runtime-execution-failed", null, false,
-                new Dictionary<string, IReadOnlyDictionary<string, JsonElement>>(StringComparer.Ordinal)));
+                new Dictionary<string, IReadOnlyDictionary<string, JsonElement>>(StringComparer.Ordinal))
+            { ReassessmentOfMessageId = batch.ReviewedResponse is null ? null : batch.Messages[0].Envelope.ProviderMessageId });
             AddTraceLocked(state, Trace(batch, "execution-failed", errorCode: ErrorCode(exception.GetType().Name), timestamp: now));
         }
     }
@@ -346,13 +347,17 @@ public sealed partial class SessionFlowRuntime
             batch.StateId, batch.StateVersion, batch.EntryKind, batch.CloseReason,
             batch.Messages.Select(item => item.Envelope.ProviderMessageId).ToArray(),
             at, at, false, diagnostic, null, false,
-            new Dictionary<string, IReadOnlyDictionary<string, JsonElement>>(StringComparer.Ordinal)));
+            new Dictionary<string, IReadOnlyDictionary<string, JsonElement>>(StringComparer.Ordinal))
+        { ReassessmentOfMessageId = batch.ReviewedResponse is null ? null : batch.Messages[0].Envelope.ProviderMessageId });
         AddTraceLocked(state, Trace(batch, "batch-blocked-stale", targetStateId: state.CurrentStateId, errorCode: diagnostic, timestamp: at));
         AddTraceLocked(state, Trace(batch, "execution-failed", errorCode: diagnostic, timestamp: at));
     }
 
     private async Task ExecuteBatchAsync(FlowBatch batch)
     {
+        using var executionLifetime = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token,
+            batch.ReviewedResponse?.Cancellation ?? CancellationToken.None);
+        var executionToken = executionLifetime.Token;
         var startedAt = timeProvider.GetUtcNow();
         AddTrace(batch.Session, Trace(batch, "execution-started", timestamp: startedAt));
         // Outbound commit frontier: executions are serialized per session, so every confirmed send of a predecessor
@@ -370,6 +375,11 @@ public sealed partial class SessionFlowRuntime
                 var stale = frontierState.StateVersion != batch.StateVersion || !StringComparer.Ordinal.Equals(frontierState.CurrentStateId, batch.StateId);
                 if (stale && batch.Flow.Nodes.Values.Any(node => node.Source.Kind == "send"))
                 {
+                    if (batch.ReviewedResponse is not null)
+                    {
+                        BlockStaleBatchLocked(frontierState, batch, "reviewed-response-stale", startedAt);
+                        return;
+                    }
                     var (fromStateId, fromStateVersion) = (batch.StateId, batch.StateVersion);
                     var flow = batch.Project.States.TryGetValue(frontierState.CurrentStateId, out var confirmedState)
                         && confirmedState.Entries.TryGetValue(batch.EntryKind, out var entry) ? entry : null;
@@ -405,15 +415,24 @@ public sealed partial class SessionFlowRuntime
             batch.History.Concat(batch.Messages).Where(item =>
                 item.Envelope.ChannelId == batch.Session.ChannelId && item.Envelope.AccountId == batch.Session.AccountId
                 && item.Envelope.NativeConversationId == batch.Session.NativeConversationId)
-                .Select(item => item.Envelope.ProviderMessageId));
+                .Select(item => item.Envelope.ProviderMessageId), validateCurrentContext: batch.ReviewedResponse is null
+                    ? null : () => CheckReviewedResponse(batch, executionToken));
         var exposeReplyTargets = outbound?.SupportsReplySelection == true;
         TypedRunResult? result = null;
         IReadOnlyDictionary<string, ParticipationReassessment> initialInterpretations = new Dictionary<string, ParticipationReassessment>();
         string? executionError = null;
         try
         {
-            initialInterpretations = await InterpretBatchAsync(batch, lifetime.Token).ConfigureAwait(false);
+            CheckReviewedResponse(batch, executionToken);
+            if (batch.ReviewedResponse is null)
+                initialInterpretations = await InterpretBatchAsync(batch, executionToken).ConfigureAwait(false);
             var completion = completionFactory(batch.Session);
+            if (batch.ReviewedResponse is { } reviewed)
+                completion = new ReviewedParticipationCompletion(
+                    new ParticipationReviewCompletion(completion, () => CheckReviewedResponse(batch, executionToken),
+                        batch.Messages[0].Envelope.Timestamp, batch.ClosedAt, reviewed.Interpretation),
+                    reviewed.Responses, () => CheckReviewedResponse(batch, executionToken),
+                    id => AddTrace(batch.Session, Trace(batch, "participation-decision-reused", id)));
             if (initialInterpretations.Count != 0)
                 completion = new InitialInterpretationCompletion(completion, batch.Messages.Select((item, index) => new
                 {
@@ -428,7 +447,7 @@ public sealed partial class SessionFlowRuntime
                 batch.Flow,
                 MessageWithReplyIdentity(batch.Messages[0].Envelope, exposeReplyTargets),
                 completion,
-                RuntimeOutputs(batch, exposeReplyTargets),
+                RuntimeOutputs(batch, exposeReplyTargets, participationReview: batch.ReviewedResponse is not null),
                 timeProvider,
                 node => AddTrace(batch.Session, Trace(batch, "node-" + node.Status, node.NodeId, node.Exit,
                     duration: node.Duration.TotalMilliseconds, errorCode: node.Error, timestamp: node.Timestamp) with
@@ -438,10 +457,15 @@ public sealed partial class SessionFlowRuntime
                 instructionOutput is null ? null : (nodeId, outputs, token) =>
                     instructionOutput(new(batch.ExecutionId, batch.BatchId, batch.Session, batch.StateId,
                         batch.StateVersion, batch.Project.ProjectRevision, nodeId, outputs), token),
-                nodeStarting is null ? null : (nodeId, outputs, token) =>
-                    nodeStarting(new(batch.ExecutionId, batch.BatchId, batch.Session, batch.StateId,
-                        batch.StateVersion, batch.Project.ProjectRevision, nodeId, outputs), token),
-                boundaryRegistry, lifetime.Token, outbound).ConfigureAwait(false);
+                nodeStarting is null && batch.ReviewedResponse is null ? null : async (nodeId, outputs, token) =>
+                {
+                    CheckReviewedResponse(batch, token);
+                    if (nodeStarting is not null)
+                        await nodeStarting(new(batch.ExecutionId, batch.BatchId, batch.Session, batch.StateId,
+                            batch.StateVersion, batch.Project.ProjectRevision, nodeId, outputs), token).ConfigureAwait(false);
+                    CheckReviewedResponse(batch, token);
+                },
+                boundaryRegistry, executionToken, outbound).ConfigureAwait(false);
             if (!result.Success) executionError = result.Steps.LastOrDefault(step => step.Status == "failed")?.Error ?? "flow-execution-failed";
         }
         catch (OperationCanceledException)
@@ -508,7 +532,10 @@ public sealed partial class SessionFlowRuntime
                 batch.Messages.Select(item => item.Envelope.ProviderMessageId).ToArray(),
                 startedAt, completedAt, success, executionError, target, transitionApplied,
                 CloneOutputs(result?.Outputs))
-            { InitialInterpretations = initialInterpretations };
+            {
+                InitialInterpretations = initialInterpretations,
+                ReassessmentOfMessageId = batch.ReviewedResponse is null ? null : batch.Messages[0].Envelope.ProviderMessageId
+            };
             state.Outcomes.Add(outcome);
             state.PendingExecutions--;
             AddTraceLocked(state, Trace(batch, success ? "execution-completed" : "execution-failed",
@@ -769,5 +796,8 @@ public sealed partial class SessionFlowRuntime
         IReadOnlyList<AdmittedMessage> History,
         long HistoryWatermark,
         DateTimeOffset ClosedAt,
-        SessionBatchCloseReason CloseReason);
+        SessionBatchCloseReason CloseReason)
+    {
+        internal ReviewedResponseExecution? ReviewedResponse { get; init; }
+    }
 }

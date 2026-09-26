@@ -290,7 +290,8 @@ public static class NativeShadowCommand
                 }, live.MaxInteractions, live.ContinuousGroup, live.ContinuousDm,
                 live.ManagedMemberDm ? new Filomena.Core.Outbound.MemberDmBoundTextBinding(
                     live.Evidence!.NativeConversationId!, live.Evidence.ObservationSessionRef,
-                    live.Evidence.RouteBindingRef, live.Evidence.ApprovedRevision, live.Evidence.MembershipLeaseRef!) : null);
+                    live.Evidence.RouteBindingRef, live.Evidence.ApprovedRevision, live.Evidence.MembershipLeaseRef!) : null,
+                participation: ContextInterpretationHost.CreateLiveOptions(native.ContextInterpretation, pin, binding, completion));
             var runId = shadowRun?.RunId ?? liveRun!.RunId;
             readPosition?.Save(cursor);
             var historyBeforeRecovery = liveRun?.History.ToArray();
@@ -403,6 +404,8 @@ public static class NativeShadowCommand
                 await Emit(new { phase = "interaction", result.RunId, result.DurationMilliseconds, decisions = result.Decisions,
                     nativeEventRefs = batch.Records.Select(r => new { idRef = ShadowSessionBinding.Ref(r.NativeMessageId), r.Sequence, r.FromMe }), cursor,
                     outcomes = result.Outcomes.Select(o => new { o.ExecutionId, o.BatchId, o.StateId, o.Success, o.Error, o.TransitionApplied,
+                        purpose = o.ReassessmentOfMessageId is null ? "inbound" : "contextual_reassessment",
+                        reassessmentTargetRef = o.ReassessmentOfMessageId is null ? null : ShadowSessionBinding.Ref(o.ReassessmentOfMessageId),
                         outputs = o.Outputs.Where(p => prompts.Contains(p.Key)).ToDictionary() }),
                     trace = result.Trace.Select(t => new { t.EventName, t.NodeId, t.Exit, t.StateId, t.CurrentSessionStateId, t.DurationMilliseconds, t.ErrorCode, t.MemoryMetadata }),
                     initialInterpretations = result.InitialInterpretations.Select(r => ContextInterpretationHost.Report(r, prompts)),

@@ -156,14 +156,18 @@ public sealed class ShadowOutboundHost : IDisposable
     }
 
     internal OutboundExecution Begin(JsonElement project, string executionId, SessionKey session, SessionEntryKind kind,
-        IEnumerable<string> inboundIds, IEnumerable<string>? replyTargetIds = null, bool shadowOnly = false) =>
-        new(this, bindings, Fingerprint(project) == projectHash, executionId, session, kind, inboundIds.ToArray(), replyTargetIds?.ToHashSet(StringComparer.Ordinal) ?? [], shadowOnly);
+        IEnumerable<string> inboundIds, IEnumerable<string>? replyTargetIds = null, bool shadowOnly = false,
+        Action? validateCurrentContext = null) =>
+        new(this, bindings, Fingerprint(project) == projectHash, executionId, session, kind, inboundIds.ToArray(),
+            replyTargetIds?.ToHashSet(StringComparer.Ordinal) ?? [], shadowOnly, validateCurrentContext);
 
     internal async Task<ShadowSendResult> GuardAsync(OutboundExecution execution, bool provenance, string? enforcementRevision, string text, CancellationToken cancellationToken)
     {
         LiveRouteBinding binding;
         IBoundOutboundTransport sender;
         string attempt;
+        // Runtime-owned narrowing only. Invoke outside the host lock to avoid runtime/host lock inversion.
+        if (!execution.ContextStillValid()) return new("blocked", "context_stale_before_reservation");
         // Authorization is sampled at the sink, not at generation. Rearm is serialized with this decision.
         lock (gate)
         {
@@ -220,6 +224,7 @@ public sealed class ShadowOutboundHost : IDisposable
             !Same(description.AccountId, binding.AccountId, ignoreCase: false) || !Same(description.Recipient, binding.Recipient, ignoreCase: false))
             return Resolve(attempt, "not_sent", "route_mismatch", "failed");
 
+        if (!execution.ContextStillValid()) return Resolve(attempt, "not_sent", "context_stale_before_dispatch", "blocked");
         // Short fence: kill switch and cancellation are rechecked immediately before the external call.
         lock (gate)
         {
@@ -369,17 +374,25 @@ internal sealed class OutboundExecution
     internal string? AttemptRef { get; private set; }
     internal string? ProviderMessageId { get; private set; }
     private readonly HashSet<string> replyTargetIds;
+    private readonly Action? validateCurrentContext;
     internal bool SupportsReplySelection => bindings.ReplyTargetPorts.Count > 0;
     internal bool ReplySelectionValid { get; private set; } = true;
     internal string? ReplyToMessageId { get; private set; }
     internal OutboundExecution(ShadowOutboundHost host, OutboundBindings bindings, bool projectAuthorized,
-        string executionId, SessionKey session, SessionEntryKind kind, string[] inboundIds, HashSet<string> replyTargetIds, bool shadowOnly)
+        string executionId, SessionKey session, SessionEntryKind kind, string[] inboundIds, HashSet<string> replyTargetIds,
+        bool shadowOnly, Action? validateCurrentContext = null)
     {
         this.host = host; this.bindings = bindings; ProjectAuthorized = projectAuthorized;
         ShadowOnly = shadowOnly;
         ExecutionId = executionId; Session = session; Kind = kind; InboundIds = inboundIds;
         this.replyTargetIds = replyTargetIds;
+        this.validateCurrentContext = validateCurrentContext;
         SessionRef = ShadowOutboundHost.Hash(JsonSerializer.Serialize(session));
+    }
+    internal bool ContextStillValid()
+    {
+        try { validateCurrentContext?.Invoke(); return true; }
+        catch (Exception) { return false; }
     }
     internal void Recall(string node, TypedValue value)
     {

@@ -15,6 +15,7 @@ public sealed record PendingParticipationReview(string OriginalMessageId, string
     // Experimental/private report data. Not a permanent participant profile or an instruction.
     public ParticipationReassessment? Assessment { get; init; }
     public SessionResponsePreviewResult? Preview { get; init; }
+    public SessionReviewedResponseResult? Continuation { get; init; }
 }
 
 /// <summary>Host-owned, process-local observation controller. No admission or sending authority.</summary>
@@ -51,9 +52,14 @@ public sealed class PendingParticipationReviews
         lock (gate)
         {
             var context = runtime.ReadReassessmentContext(session, originalMessageId);
+            if (context is not null) PruneExpiredClosedEntries(context.Snapshot.AdmissionWatermark);
             if (context is null || context.HasConfirmedSpeech || context.Snapshot.ProjectRevision != definition.ProjectRevision
+                || context.Snapshot.AdmissionWatermark - context.Original.AdmissionWatermark >= messageHorizon
                 || entries.Count >= capacity || entries.ContainsKey(originalMessageId)) return false;
-            entries.Add(originalMessageId, new(context.Snapshot.AdmissionWatermark));
+            entries.Add(originalMessageId, new(context.Original.AdmissionWatermark)
+            {
+                LastWatermark = context.Snapshot.AdmissionWatermark
+            });
             return true;
         }
     }
@@ -85,8 +91,10 @@ public sealed class PendingParticipationReviews
                 {
                     if (string.IsNullOrWhiteSpace(id) || entries.ContainsKey(id)) continue;
                     current = runtime.ReadReassessmentContext(session, id);
+                    if (current is not null) PruneExpiredClosedEntries(current.Snapshot.AdmissionWatermark);
                     var rejection = current is null ? "context_unavailable" : current.HasConfirmedSpeech ? "already_answered"
                         : current.Snapshot.ProjectRevision != definition.ProjectRevision ? "stale"
+                        : current.Snapshot.AdmissionWatermark - current.Original.AdmissionWatermark >= messageHorizon ? "distance_exceeded"
                         : current.Snapshot.OpenBufferCount != 0 || current.Snapshot.PendingExecutionCount != 0 ? "busy"
                         : entries.Count >= capacity ? "capacity_exhausted" : null;
                     if (rejection is not null) { results.Add(new(id, rejection)); continue; }
@@ -244,9 +252,19 @@ public sealed class PendingParticipationReviews
             throw new InvalidDataException("Invalid reassessment evidence.");
     }
 
-    // Closed entries remain tombstones within the bounded run; repeated registration cannot reopen them.
+    // Keep tombstones while a message can still be eligible. Once outside the horizon,
+    // registration itself rejects it, so retaining the tombstone cannot add protection.
+    // Pending entries are closed by ReviewPendingAsync first, preserving its diagnostic.
+    private void PruneExpiredClosedEntries(long currentWatermark)
+    {
+        foreach (var id in entries.Where(p => p.Value.Closed
+            && currentWatermark - p.Value.OriginalWatermark >= messageHorizon).Select(p => p.Key).ToArray())
+            entries.Remove(id);
+    }
+
     private sealed class Entry(long watermark)
     {
+        internal readonly long OriginalWatermark = watermark;
         internal long LastWatermark = watermark;
         internal int Attempts;
         internal bool Closed;

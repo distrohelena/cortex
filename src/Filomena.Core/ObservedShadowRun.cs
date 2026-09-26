@@ -37,6 +37,7 @@ public sealed class ObservedShadowRun : IAsyncDisposable
     private Func<ParticipationReassessmentContext, CancellationToken, Task<ParticipationReassessment>>? initialInterpretation;
     private readonly CancellationTokenSource participationLifetime = new();
     private bool previewResponses;
+    private bool continueResponses;
 
     public ObservedShadowRun(PinnedShadowProject project, ShadowSessionBinding binding, string journalDirectory,
         OutboundBindings roles, IFlowCompletion completion, IMemoryReader memory, string nativeEpoch, long initialTail)
@@ -86,8 +87,16 @@ public sealed class ObservedShadowRun : IAsyncDisposable
             {
                 handoff = created = live is null
                     ? new ShadowRuntimeHandoff(project, binding, inbox, host, completion, memory)
-                    : new LiveRuntimeHandoff(project, binding, inbox, host, completion, memory);
+                    : new LiveRuntimeHandoff(project, binding, inbox, host, completion, memory, live.Participation);
                 if (context is not null) handoff.RestoreContext(context);
+                if (live?.Participation is { } participation)
+                {
+                    participationObserver = handoff.CreateParticipationObserver(participation.Definition,
+                        participation.MessageHorizon, participation.AttemptBudget, participation.Capacity);
+                    reassess = participation.Reassess;
+                    initialInterpretation = participation.AnalyzeInitial;
+                    continueResponses = participation.RespondToReassessedMessages;
+                }
                 contextStore?.Save(handoff.CaptureContext());
             }
             catch
@@ -223,7 +232,6 @@ public sealed class ObservedShadowRun : IAsyncDisposable
             {
                 try { contextStore?.Save(handoff.CaptureContext()); }
                 catch { Stop(); throw; }
-                if (ceiling == OutboundMode.Enabled && !continuous && liveInteractions >= liveInteractionLimit) Stop();
             }
             using var reviewCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, participationLifetime.Token);
             var evaluated = outcomes.SelectMany(o => o.InitialInterpretations).ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
@@ -244,8 +252,30 @@ public sealed class ObservedShadowRun : IAsyncDisposable
                         : review);
                 reviews = previews;
             }
-            return Interaction(watch, decisionsForBatch, outcomes, trace) with { ParticipationReviews = reviews, InitialInterpretations = initial };
+            if (continueResponses && Volatile.Read(ref stopped) == 0)
+            {
+                var continued = new List<PendingParticipationReview>();
+                foreach (var review in reviews)
+                {
+                    if (Volatile.Read(ref stopped) == 0 && review.Review is
+                        { Status: ParticipationReviewStatus.Completed, Decision: ParticipationReviewDecision.Respond } decision)
+                    {
+                        var response = await handoff.ContinueReviewedResponseAsync(decision, review.Assessment?.Interpretation, reviewCancellation.Token);
+                        continued.Add(review with { Continuation = response });
+                        if (response.Status == ParticipationReviewStatus.Failed || host.RequiresReconciliation(binding.Session)
+                            || HasBadOutbound(Trace.Skip(traceBefore)) || OutboundMode != ceiling) Stop();
+                        else contextStore?.Save(handoff.CaptureContext());
+                    }
+                    else continued.Add(review);
+                }
+                reviews = continued;
+            }
+            if (ceiling == OutboundMode.Enabled && !continuous && liveInteractions >= liveInteractionLimit) Stop();
+            return Interaction(watch, decisionsForBatch, Outcomes.Skip(outcomesBefore).ToArray(), Trace.Skip(traceBefore).ToArray())
+                with
+            { ParticipationReviews = reviews, InitialInterpretations = initial };
         }
+        catch { Stop(); throw; }
         finally { serial.Release(); }
     }
 

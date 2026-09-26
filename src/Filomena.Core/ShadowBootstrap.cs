@@ -90,11 +90,17 @@ internal abstract class RuntimeHandoffCore : IAsyncDisposable
         if (ceiling != OutboundMode.Shadow) throw new InvalidOperationException("Response preview requires a shadow run.");
         return runtime.PreviewResponseAsync(binding.Session, review, interpretation, token);
     }
+    internal Task<SessionReviewedResponseResult> ContinueReviewedResponseAsync(SessionParticipationReviewResult review,
+        ParticipationInterpretation? interpretation, CancellationToken token)
+    {
+        if (ceiling != OutboundMode.Enabled || !Armed) throw new InvalidOperationException("Enabled host required for reviewed response.");
+        return runtime.ContinueReviewedResponseAsync(binding.Session, review, interpretation, token);
+    }
     internal void RestoreContext(SessionRuntimeContext context) => runtime.RestoreContext(binding.Session, context, binding.Kind);
     private bool Armed => host.EffectiveMode == ceiling;
 
     private protected RuntimeHandoffCore(OutboundMode ceiling, PinnedShadowProject project, ShadowSessionBinding binding, ShadowInboundJournal inbox,
-        ShadowOutboundHost host, IFlowCompletion completion, IMemoryReader memory)
+        ShadowOutboundHost host, IFlowCompletion completion, IMemoryReader memory, LiveParticipationOptions? participation = null)
     {
         if (ceiling is not (OutboundMode.Shadow or OutboundMode.Enabled)) throw new ArgumentOutOfRangeException(nameof(ceiling));
         if (!inbox.IsBoundTo(binding, project.Project.ProjectRevision)) throw new InvalidOperationException("Inbox binding mismatch.");
@@ -104,6 +110,8 @@ internal abstract class RuntimeHandoffCore : IAsyncDisposable
         this.ceiling = ceiling; this.binding = binding; this.inbox = inbox; this.host = host;
         runtime = new(TimeProvider.System, completion, memory, outboundHost: host);
         runtime.UpdateProject(project.Project);
+        if (participation is not null)
+            runtime.ConfigureInitialInterpretation(binding.Session, participation.Definition.ProjectRevision, participation.AnalyzeInitial);
     }
 
     private protected void RecordAudit(ShadowIngressAudit item) => audit.Enqueue(item);
@@ -145,6 +153,12 @@ internal abstract class RuntimeHandoffCore : IAsyncDisposable
         {
             foreach (var outcome in Outcomes.Where(o => !completed.Contains(o.ExecutionId)))
             {
+                if (outcome.ReassessmentOfMessageId is not null)
+                {
+                    // The original admission is already terminal. A continuation must not complete it again.
+                    completed.Add(outcome.ExecutionId);
+                    continue;
+                }
                 foreach (var providerId in outcome.ProviderMessageIds)
                 {
                     inbox.Completed(providerId, outcome.BatchId, outcome.ExecutionId, outcome.Success);
@@ -171,8 +185,8 @@ internal sealed class ShadowRuntimeHandoff(PinnedShadowProject project, ShadowSe
 internal sealed class LiveRuntimeHandoff : RuntimeHandoffCore
 {
     internal LiveRuntimeHandoff(PinnedShadowProject project, ShadowSessionBinding binding, ShadowInboundJournal inbox,
-        ShadowOutboundHost host, IFlowCompletion completion, IMemoryReader memory)
-        : base(OutboundMode.Enabled, project, binding, inbox, host, completion, memory)
+        ShadowOutboundHost host, IFlowCompletion completion, IMemoryReader memory, LiveParticipationOptions? participation = null)
+        : base(OutboundMode.Enabled, project, binding, inbox, host, completion, memory, participation)
     {
         foreach (var commit in host.PendingSpeechCommits(binding.Session))
         {

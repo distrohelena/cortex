@@ -255,4 +255,54 @@ public sealed class PendingParticipationReviewsTests
         }, TestContext.Current.CancellationToken);
         Assert.Equal(new[] { "tracked", "capacity_exhausted" }, results.Select(r => r.Status));
     }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Closed_entries_release_capacity_only_after_horizon_without_reopening_old_messages(bool automatic)
+    {
+        await using var h = await Harness.Start();
+        var controller = Controller(h, horizon: 2, capacity: 1);
+        Assert.True(controller.Track("original"));
+        controller.Close("original");
+        Assert.False(controller.Track("original"));
+        Assert.False(controller.Track("clarification"));
+
+        for (var i = 0; i < 8; i++)
+        {
+            var id = "fresh-" + i;
+            await Advance(h, "gap-" + i);
+            await Advance(h, id);
+            if (automatic)
+            {
+                var result = Assert.Single(await controller.ObserveNewAsync([id], Relevant, TestContext.Current.CancellationToken));
+                Assert.Equal("clear", result.Status);
+            }
+            else
+            {
+                Assert.True(controller.Track(id));
+                controller.Close(id);
+            }
+            Assert.False(controller.Track("original"));
+            var expired = Assert.Single(await controller.ObserveNewAsync(["original"],
+                (_, _) => throw new Exception("Expired message must not be analyzed"), TestContext.Current.CancellationToken));
+            Assert.Equal("distance_exceeded", expired.Status);
+        }
+        Assert.Empty(await controller.ReviewPendingAsync(Relevant, TestContext.Current.CancellationToken));
+        Assert.Empty(h.Model.Reviews);
+    }
+
+    [Fact]
+    public async Task New_registration_does_not_erase_pending_expiration_diagnostic()
+    {
+        await using var h = await Harness.Start();
+        var controller = Controller(h, horizon: 2, capacity: 1);
+        Assert.True(controller.Track("original"));
+        await Advance(h);
+        Assert.False(controller.Track("later"));
+        Assert.Equal("distance_exceeded", Assert.Single(await controller.ReviewPendingAsync(Relevant,
+            TestContext.Current.CancellationToken)).Status);
+        Assert.True(controller.Track("later"));
+        Assert.False(controller.Track("original"));
+    }
 }

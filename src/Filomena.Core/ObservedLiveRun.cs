@@ -6,8 +6,13 @@ using Filomena.Core.Outbound;
 
 namespace Filomena.Core.Shadow;
 
+public sealed record LiveParticipationOptions(ParticipationReviewDefinition Definition,
+    Func<ParticipationReassessmentContext, CancellationToken, Task<ParticipationReassessment>> AnalyzeInitial,
+    Func<ParticipationReassessmentContext, CancellationToken, Task<ParticipationReassessment>> Reassess,
+    int MessageHorizon, int AttemptBudget, int Capacity, bool RespondToReassessedMessages = false);
+
 internal sealed record ObservedLiveWindow(LiveRouteBinding Route, IBoundOutboundTransport Transport,
-    TransportSafetyCapabilities Capabilities, int MaxInteractions, bool Continuous);
+    TransportSafetyCapabilities Capabilities, int MaxInteractions, bool Continuous, LiveParticipationOptions? Participation);
 
 /// <summary>Explicit host-only, bounded live window. No automatic listener, restart or rearm.</summary>
 public sealed class ObservedLiveRun : IAsyncDisposable
@@ -18,7 +23,7 @@ public sealed class ObservedLiveRun : IAsyncDisposable
         OutboundBindings roles, IFlowCompletion completion, IMemoryReader memory, string nativeEpoch, long initialTail,
         LiveRouteBinding route, IBoundOutboundTransport transport, TransportSafetyCapabilities capabilities,
         Func<CancellationToken, Task> beforeSend, int maxInteractions = 1, bool continuousGroup = false,
-        bool continuousDm = false, MemberDmBoundTextBinding? memberDmBinding = null)
+        bool continuousDm = false, MemberDmBoundTextBinding? memberDmBinding = null, LiveParticipationOptions? participation = null)
     {
         ArgumentNullException.ThrowIfNull(transport);
         ArgumentNullException.ThrowIfNull(beforeSend);
@@ -39,10 +44,18 @@ public sealed class ObservedLiveRun : IAsyncDisposable
                 || string.IsNullOrWhiteSpace(memberDmBinding.MembershipLeaseRef)))
             throw new InvalidOperationException("Managed member-DM authority must be complete and exact.");
         if (!capabilities.Complete) throw new InvalidOperationException("Unproven live transport capabilities.");
+        if (participation is not null)
+        {
+            if (binding.Kind != SessionEntryKind.Group || participation.Definition is null
+                || participation.AnalyzeInitial is null || participation.Reassess is null
+                || participation.MessageHorizon < 1 || participation.AttemptBudget < 1 || participation.Capacity < 1)
+                throw new InvalidDataException("Invalid live participation configuration.");
+            participation.Definition.Validate(project.Project, binding.Kind);
+        }
         run = new(project, binding, journalDirectory, roles, completion, memory, nativeEpoch, initialTail,
             new(route, new BoundedAttemptTransport(transport, beforeSend, continuousGroup || continuousDm ? null : maxInteractions,
                     memberDmBinding),
-                capabilities, maxInteractions, continuousGroup || continuousDm));
+                capabilities, maxInteractions, continuousGroup || continuousDm, participation));
     }
 
     public string RunId => run.RunId;

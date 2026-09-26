@@ -6,7 +6,9 @@ The implementation now supports initial interpretation before the normal flow,
 bounded pending entries, later-context reassessment, the existing participation
 decision, and a full response preview through the existing memory/generation/
 enforcement pipeline. It is available through explicit host-owned configuration
-on `--native-shadow`; it is not enabled on live runs or deployed to the group.
+on `--native-shadow`. Local code also supports the existing Enabled group host,
+with delayed responses behind a separate default-off host option. That composition
+has been tested with fake transport only; no active configuration or group was changed.
 
 The local operational replay reads a literal host JSON document with the same
 strict serializer settings as the command, then exercises the real host
@@ -734,6 +736,77 @@ the sequential retry after the other builds completed passed. No antivirus
 settings or exclusions were changed. No external model or Graphiti calls were
 made for this correction.
 
+### Local Enabled-host continuation (not deployed)
+
+The existing `ObservedLiveRun` can now receive host-owned `LiveParticipationOptions`.
+Initial interpretation is bound before context restoration and any new admission.
+Only newly admitted messages can become new pending targets; old pending entries
+are not reconstructed after restart. Ordinary history and confirmed speech still
+use the existing durable context store.
+
+`ContextInterpretationHost.CreateLiveOptions` connects the same production analyzer
+and graph-bound review. The existing native command passes it to the live wrapper;
+there is no additional worker or listener. Existing live configurations without
+`contextInterpretation` are unchanged. This integration is restricted to exact
+group bindings, not DMs. It neither arms transport nor supplies route authority.
+
+Within the optional host section, these settings have distinct meanings:
+
+| Host mode | Setting | Effect |
+| --- | --- | --- |
+| Shadow | `previewResponses=true` | Full pipeline to WOULD_SEND only |
+| Enabled group | `previewResponses=false`, `respondToReassessedMessages=false` | Initial interpretation plus review, no late send |
+| Enabled group | `previewResponses=false`, `respondToReassessedMessages=true` | A current Respond review may enter the ordinary execution/send pipeline |
+
+The last flag defaults to false. Enabled+preview or Shadow+late-send combinations
+are rejected. This is an available local configuration contract, **not permission
+to activate the current group**; none of these settings were applied there.
+
+The continuation reuses only runtime-issued participation responses for the same
+retained original, revision, state and context. It generates a new candidate and
+runs real memory, Boundary compilation, enforcement and regeneration through the
+existing executor. It never promotes a Shadow receipt or candidate to a live send.
+`ReassessmentOfMessageId` distinguishes its outcome from original inbound execution;
+the handoff does not complete the already-terminal inbox entry again. Operational
+reports expose a masked target and `purpose=contextual_reassessment`.
+
+The ordinary outbound owner still verifies exact route, capabilities, provenance,
+single-part limit, mode, receipt and durable attempt deduplication. A new internal
+context fence additionally rechecks the retained review before reservation and
+after asynchronous route resolution. The latter was necessary: a local regression
+first showed one fake send after a new inbound arrived during route resolution.
+After the fix it makes zero sends and records `not_sent`, not an invented success
+or indeterminate receipt. The fence runs outside the outbound lock to avoid
+runtime/host lock inversion. Ordinary executions have no new context callback.
+
+Confirmed delivery commits speech and the normal FSM transition once; Block,
+outage, stale context, cancellation or disarm cannot fabricate speech. A genuinely
+uncertain fake transport result retains the existing reconciliation requirement.
+The host saves context after a successful continuation and stops on failures.
+Window send budgets remain enforced by the existing bound transport wrapper.
+
+Local verification covers original silence followed by review/send, Wait followed
+by later Respond, late-send opt-out, restart without queue resurrection, ordinary
+drain after continuation, raw report copies lacking runtime proof, wrong session,
+revision/context changes, Boundary Block/regeneration, memory outage, uncertain
+receipt, cancellation and disarm during route resolution. No live model, Graphiti
+or WhatsApp call was made for these tests. Full suites: Core 640, Llm/App 739,
+OpenClaw 175 passed; 57 skipped; zero failures (1,554 passed total).
+
+Closed entries now release their bounded capacity after the original message
+passes the message horizon. Original and last-attempt watermarks are distinct:
+reassessment never extends eligibility. Both registration paths reject expired
+messages, so pruning cannot resurrect them. Still-eligible tombstones remain;
+pending expiration is reported before cleanup. Three new regressions first failed
+on permanent capacity exhaustion, then passed across repeated admission cycles.
+
+Remaining verification is conversational quality of a delayed real-model candidate
+and any explicitly authorized active rollout. The last real synthetic replay
+chose Wait; it is not represented as a successful delayed reply. Capacity and
+attempt budgets remain explicit; saturation can still reject new work while all
+slots remain eligible. This slice does not establish persistent participant sarcasm
+profiles or measure production fairness under sustained group load.
+
 ### Host configuration and invocation
 
 The existing `--native-shadow <host.json>` command now accepts an optional
@@ -772,8 +845,10 @@ existing command still requires all of its normal transport/session/memory
 preflights and operator-stepped `/poll`; this option does not open a listener.
 Validation checks every state’s participation cut against the pinned graph before
 external setup. Unsupported version, wrong revision, missing/unsafe cut, invalid
-limits, DM scope or an Enabled/live invocation are rejected. A missing section
-leaves the existing host unchanged.
+limits or DM scope are rejected. Enabled groups use the distinct default-off
+late-response flag described above; the Shadow example must not be copied into
+an Enabled host with `previewResponses=true`. A missing section leaves the
+existing host unchanged.
 
 Interaction reports now expose initial interpretations and pending reviews,
 including preview outputs/traces. Target/evidence IDs are hashed in those report

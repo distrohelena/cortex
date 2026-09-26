@@ -47,6 +47,8 @@ public sealed class ContextInterpretationHostTests
     [Theory]
     [InlineData("valid")]
     [InlineData("live")]
+    [InlineData("live-preview")]
+    [InlineData("shadow-send")]
     [InlineData("dm")]
     [InlineData("version")]
     [InlineData("revision")]
@@ -59,7 +61,8 @@ public sealed class ContextInterpretationHostTests
         var session = new SessionKey("fixture", "filomena", "whatsapp", "fixture-account", mutation == "dm" ? "5511000000000@s.whatsapp.net" : "fixture-group@g.us");
         var binding = new ShadowSessionBinding(session, FilomenaIdentity.WhatsAppConversationNamespace(session.NativeConversationId),
             ["self"], ["peer"], mutation == "dm" ? SessionEntryKind.Dm : SessionEntryKind.Group);
-        var config = ReadOperationalConfig(true);
+        var config = ReadOperationalConfig(mutation != "live");
+        if (mutation == "shadow-send") config = config with { RespondToReassessedMessages = true };
         config = mutation switch
         {
             "version" => config with { Version = "future" },
@@ -69,8 +72,8 @@ public sealed class ContextInterpretationHostTests
             "missing-node" => config with { Participation = config.Participation with { PromptNodeIds = ["absent"] } },
             _ => config
         };
-        var error = Record.Exception(() => ContextInterpretationHost.Validate(config, pin, binding, mutation == "live"));
-        if (mutation == "valid") Assert.Null(error);
+        var error = Record.Exception(() => ContextInterpretationHost.Validate(config, pin, binding, mutation is "live" or "live-preview"));
+        if (mutation is "valid" or "live") Assert.Null(error);
         else Assert.IsType<InvalidDataException>(error);
         ContextInterpretationHost.Validate(null, pin, binding, true); // Existing hosts remain unchanged.
     }
