@@ -709,6 +709,31 @@ No candidate, transport send, Graphiti call or memory write occurred in this run
 The group remains disconnected from this feature; live delayed sending is not
 implemented by this Shadow-only surface.
 
+### Wait is bounded, not terminal
+
+A completed participation review that chooses Wait now keeps its pending target
+eligible for later context. It does not generate or send, and cannot re-run at the
+same admission watermark. The existing attempt budget and message-distance
+horizon still apply. Respond and Silence remain terminal decisions; an obsolete
+opportunity, expired distance or exhausted budget closes the entry permanently
+for this run. Restart does not reconstruct this pending queue.
+
+Four regression cases reproduced the previous premature closure before the fix:
+Wait followed by Respond, topic closure, attempt exhaustion and distance expiry.
+The operational JSON/observer integration also exercises an initially ambiguous
+message, a first clarification choosing Wait, and further context choosing
+Respond and reaching WOULD_SEND. Three native inputs produce three ordinary
+executions, not a second admission of the original; only one preview is generated,
+and duplicate polling cannot generate another. Memory/model results in these
+tests are explicitly controlled fixtures, not additional live model evidence.
+
+Verification after this correction: 1,530 passed (Core 640, Llm/App 715,
+OpenClaw 175), 57 skipped, zero test failures. An initial parallel Llm build
+terminated with CS2012, a shared App assembly file lock reported against Defender;
+the sequential retry after the other builds completed passed. No antivirus
+settings or exclusions were changed. No external model or Graphiti calls were
+made for this correction.
+
 ### Host configuration and invocation
 
 The existing `--native-shadow <host.json>` command now accepts an optional

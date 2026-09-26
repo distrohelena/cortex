@@ -212,7 +212,9 @@ public sealed class PendingParticipationReviews
                     if (invalid is not null) results.Add(new(id, invalid));
                     else if (review.Status == ParticipationReviewStatus.Completed && review.Snapshot == context.Snapshot)
                     {
-                        entry.Closed = true;
+                        // Wait is not a terminal participation decision. Another attempt still requires
+                        // a new watermark and remains bounded by the same horizon/attempt budget.
+                        entry.Closed = review.Decision != ParticipationReviewDecision.Wait;
                         results.Add(new(id, "reviewed", review) { Assessment = analysis });
                     }
                     else results.Add(new(id, review.Status == ParticipationReviewStatus.Stale || review.Snapshot != context.Snapshot

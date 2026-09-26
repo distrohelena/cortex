@@ -63,6 +63,41 @@ public sealed class PendingParticipationReviewsTests
     }
 
     [Theory]
+    [InlineData("respond", "reviewed")]
+    [InlineData("obsolete", "obsolete")]
+    [InlineData("budget", "budget_exhausted")]
+    [InlineData("distance", "distance_exceeded")]
+    public async Task Wait_preserves_opportunity_only_for_new_context_within_existing_limits(string next, string expected)
+    {
+        await using var h = await Harness.Start();
+        var controller = Controller(h, horizon: next == "distance" ? 3 : 150, budget: next == "budget" ? 1 : 2);
+        Assert.True(controller.Track("original"));
+        h.Model.Action = "esperar";
+        await Advance(h);
+        var waiting = Assert.Single(await controller.ReviewPendingAsync(Relevant, TestContext.Current.CancellationToken));
+        Assert.Equal(ParticipationReviewDecision.Wait, waiting.Review!.Decision);
+        Assert.Empty(await controller.ReviewPendingAsync(Relevant, TestContext.Current.CancellationToken));
+        Assert.Equal(2, h.Model.Reviews.Count);
+
+        h.Model.Action = "responder";
+        await Advance(h, "new-context");
+        var result = Assert.Single(await controller.ReviewPendingAsync((context, token) => next == "obsolete"
+            ? Task.FromResult(new ParticipationReassessment(true, ReassessmentOpportunity.Obsolete, ["new-context"]))
+            : Relevant(context, token), TestContext.Current.CancellationToken));
+        Assert.Equal(expected, result.Status);
+        if (next == "respond") Assert.Equal(ParticipationReviewDecision.Respond, result.Review!.Decision);
+        else Assert.Null(result.Review);
+        Assert.Equal(next == "respond" ? 4 : 2, h.Model.Reviews.Count);
+        Assert.Equal(4, h.Runtime.ReadOutcomes(h.Session).Count);
+        Assert.Equal(4, h.Runtime.ReadHistory(h.Session).Count);
+        Assert.DoesNotContain(h.Runtime.ReadTrace(h.Session), t => t.EventName == "speech-committed");
+
+        await Advance(h, "after-closure");
+        Assert.Empty(await controller.ReviewPendingAsync(Relevant, TestContext.Current.CancellationToken));
+        Assert.False(controller.Track("original"));
+    }
+
+    [Theory]
     [InlineData("context", "stale")]
     [InlineData("project", "stale")]
     [InlineData("closed", "closed")]

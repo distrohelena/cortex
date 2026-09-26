@@ -26,6 +26,7 @@ public sealed class ObservedParticipationReviewTests
     [InlineData("preview-cancel", ReassessmentOpportunity.Relevant, "reviewed", ParticipationReviewDecision.Respond)]
     [InlineData("preview-automatic", ReassessmentOpportunity.Relevant, "reviewed", ParticipationReviewDecision.Respond)]
     [InlineData("preview-wait", ReassessmentOpportunity.Relevant, "reviewed", ParticipationReviewDecision.Wait)]
+    [InlineData("preview-wait-later", ReassessmentOpportunity.Relevant, "reviewed", ParticipationReviewDecision.Wait)]
     [InlineData("preview-silence", ReassessmentOpportunity.Relevant, "reviewed", ParticipationReviewDecision.Silence)]
     [InlineData("preview", ReassessmentOpportunity.Obsolete, "obsolete", null)]
     [InlineData("initial-response", ReassessmentOpportunity.Relevant, "clear", null)]
@@ -50,10 +51,10 @@ public sealed class ObservedParticipationReviewTests
                 new Dictionary<string, string> { ["group-generation"] = "texto", ["group-regeneration"] = "texto" },
                 ["group-validator-1", "group-validator-2"], "participation-engaged-v1");
             var previewEnabled = action.StartsWith("preview", StringComparison.Ordinal);
-            var automatic = action is "automatic" or "preview-automatic" or "initial-response";
+            var automatic = action is "automatic" or "preview-automatic" or "preview-wait-later" or "initial-response";
             var model = new SessionParticipationReviewTests.Model
             {
-                Action = action == "preview-wait" ? "esperar" : action == "preview-silence" ? "calar"
+                Action = action is "preview-wait" or "preview-wait-later" ? "esperar" : action == "preview-silence" ? "calar"
                     : automatic || previewEnabled ? "responder" : action,
                 AllowGeneration = previewEnabled || action == "initial-response",
                 RespondInitially = action == "initial-response",
@@ -206,6 +207,26 @@ public sealed class ObservedParticipationReviewTests
             }
             Assert.False(run.TrackParticipationReview("original"));
             Assert.Empty((await run.AcceptAsync([next], TestContext.Current.CancellationToken)).ParticipationReviews);
+            if (action == "preview-wait-later")
+            {
+                model.Action = "responder";
+                var third = Input(3, "further-context", "Ainda estou falando da brincadeira da lista.");
+                var later = await run.AcceptAsync([third], TestContext.Current.CancellationToken);
+                var resumed = Assert.Single(later.ParticipationReviews);
+                Assert.Equal("original", resumed.OriginalMessageId);
+                Assert.Equal(ParticipationReviewDecision.Respond, resumed.Review!.Decision);
+                var preview = Assert.IsType<SessionResponsePreviewResult>(resumed.Preview);
+                Assert.Equal(ParticipationReviewStatus.Completed, preview.Status);
+                var send = Assert.Single(preview.Trace, t => t.EventName == "node-outbound");
+                Assert.Equal("shadowed", send.MemoryMetadata!["result"]);
+                Assert.Single(model.Reviews, r => r.NodeId == "group-generation");
+                Assert.Equal(2, model.Reviews.Count(r => r.NodeId == "group-presence"));
+                Assert.Equal(3, run.Outcomes.Count);
+                Assert.Equal(3, run.History.Count);
+                Assert.Single(run.Outcomes, o => o.ProviderMessageIds.Contains("original"));
+                Assert.Empty((await run.AcceptAsync([third], TestContext.Current.CancellationToken)).ParticipationReviews);
+                Assert.DoesNotContain(run.Trace, t => t.EventName == "speech-committed");
+            }
         }
         finally { directory.Delete(true); }
     }
