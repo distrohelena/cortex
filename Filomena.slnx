@@ -1,10 +1,13 @@
 <Solution>
   <Project Path="src/Filomena.App/Filomena.App.csproj" />
   <Project Path="src/Filomena.Core/Filomena.Core.csproj" />
+  <Project Path="src/Filomena.Evaluation/Filomena.Evaluation.csproj" />
+  <Project Path="src/Filomena.Evaluation.Cli/Filomena.Evaluation.Cli.csproj" />
   <Project Path="src/Filomena.Llm/Filomena.Llm.csproj" />
   <Project Path="src/Filomena.Memory/Filomena.Memory.csproj" />
   <Project Path="src/Filomena.OpenClaw/Filomena.OpenClaw.csproj" />
   <Project Path="tests/Filomena.Core.Tests/Filomena.Core.Tests.csproj" />
+  <Project Path="tests/Filomena.Evaluation.Tests/Filomena.Evaluation.Tests.csproj" />
   <Project Path="tests/Filomena.Llm.Tests/Filomena.Llm.Tests.csproj" />
   <Project Path="tests/Filomena.OpenClaw.Tests/Filomena.OpenClaw.Tests.csproj" />
 </Solution>
