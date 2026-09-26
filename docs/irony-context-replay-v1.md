@@ -257,3 +257,35 @@ policy, automatic analysis scheduling, or authorization/generation of late
 responses. In particular, `Respond` from review does not send anything. Those
 must preserve relevance and handled-state checks at their eventual execution
 boundary; this API alone does not make delayed replies safe or enable the bot.
+
+## Host integration source audit (not implementation)
+
+The existing operational path is `NativeConversationHostCommand` ->
+`NativeLiveCommand` -> `ObservedLiveRun` -> `ObservedShadowRun` ->
+`RuntimeHandoffCore` -> `SessionFlowRuntime`. Filomena is not present in the
+available codebase-memory index; these findings were checked in source, not
+inferred from graph absence.
+
+Important distinction for the proposed pending controller:
+
+- `ShadowInboundJournal.Completed` records execution success, not a sent reply.
+  `RuntimeHandoffCore.DrainAsync` sets it from `SessionFlowOutcome.Success`,
+  including successful silence and shadow execution.
+- Runtime `speech-committed` records actual provider-accepted speech. It carries
+  execution/batch identity. Join it to the same session's outcome provider IDs;
+  do not match reply text, sender display names or message adjacency.
+- Speech can have been committed even when execution ends in failure (for example,
+  a stale transition). Therefore `Success == false` does not prove no reply.
+- A batch receipt does not prove the answer semantically addressed every message
+  in the batch. Conservatively suppressing another reply for those inputs avoids
+  duplicate attempts; it must not be reported as comprehension coverage.
+- `node-outbound/result=shadowed` and WOULD_SEND are not speech. They can be used
+  as simulation evidence only, never as a claim that the group received a reply.
+- Persisted context restores history and seen IDs but not the full outcome/trace
+  relationship. A process-local pending controller must not recover old response
+  opportunities from history alone after restart.
+
+The available narrow integration point is after the existing normal batch drain,
+under the run's serialization boundary. This does not grant send authority or
+remove the need to invalidate results when context changes. Implementation of
+that controller and operational activation remain separate from this audit.
