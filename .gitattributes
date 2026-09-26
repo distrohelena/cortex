@@ -1,0 +1,4 @@
+# These artifacts are pinned by byte hash or compared to literal prompt fixtures.
+/docs/manual*project*.json text eol=lf
+/docs/*clause*.txt text eol=lf
+/tests/Filomena.Llm.Tests/BoundaryValidatorProbeTests.cs text eol=lf
