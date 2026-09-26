@@ -918,6 +918,50 @@ late-response flag described above; the Shadow example must not be copied into
 an Enabled host with `previewResponses=true`. A missing section leaves the
 existing host unchanged.
 
+### Operational handoff: prepared, not activated
+
+The actual continuous supervisor path was checked in source, not inferred from
+the standalone harness:
+
+`NativeConversationHostCommand` → `GroupLiveConfigFile` → `NativeLiveCommand`
+→ `NativeConfigFile` → `NativeShadowCommand.RunCoreAsync`
+→ `ContextInterpretationHost.CreateLiveOptions` → `ObservedLiveRun`.
+
+Thus the section belongs in the group's existing **native config**, not in the
+supervisor JSON, project graph, member-DM template or model output. It does not
+require a second worker. No Filomena.App conversational process with the native
+or manual entrypoints was present in the process check on 2026-09-26.
+
+For an explicitly authorized later activation:
+
+1. Keep the conversation worker stopped. Preserve its current app artifact,
+   group-native config and launcher references in the existing private rollback
+   location; record hashes. Do not alter Gateway or memory/backfill services.
+2. Build/package this revision locally. Keep the current project artifact and
+   its exact pin, generation/participation assignments, routes, evidence and
+   journal locations unchanged. Validate the participation node IDs against that
+   pin; the example above is not a substitute for checking the operational graph.
+3. Add the section to a private candidate copy of the group-native config. For
+   the already-authorized Enabled group contract, set `previewResponses=false`
+   and `respondToReassessedMessages=true`. Retain the explicit model, horizon,
+   budget and capacity fields. Do not copy this section into member-DM configs.
+4. Activate only through the existing supervisor/launcher and existing live
+   preflights, not by bypassing `NativeLiveCommand` or invoking an extra listener.
+   Validation failure, uncertain delivery or wrong binding still stops the worker.
+5. Observe initial interpretation, pending/review status and the masked
+   `purpose=contextual_reassessment` outcome. A confirmed normal reply prevents
+   a late reply in the same admission cycle. Actual delivery, not an inference
+   label, remains the only source of committed speech.
+6. For rollback, request the existing graceful stop/drain first, then restore
+   the saved app/config/launcher references. Preserve journals and confirmed
+   speech. Never delete attempts or restore an older journal to make a restart
+   succeed. Any indeterminate attempt retains its reconciliation requirement.
+
+This list is a handoff procedure, **not an executed deployment**. No active
+configuration was edited, no conversational process was started and no WhatsApp
+send occurred in this implementation/verification work. Re-enabling the current
+chat is distinct from finishing the local feature while Filomena is offline.
+
 Interaction reports now expose initial interpretations and pending reviews,
 including preview outputs/traces. Target/evidence IDs are hashed in those report
 fields. Text, hypotheses and candidates are still private experimental data, not
