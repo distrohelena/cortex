@@ -60,14 +60,66 @@ Local test gate: five tests first failed against unimplemented helpers, then
 passed. Full Llm/App test project: 612 passed, 44 skipped, zero failed. Skipped
 tests include the replay's explicit external-model opt-in.
 
-## Current result
+## Authorization and observed result (2026-09-26)
 
-**Model comparison NOT RUN.** The tool authorization review rejected transmission
-of private historical excerpts to the external model API because that payload and
-destination were not explicitly approved. Zero replay model calls occurred. No
-semantic accuracy, improvement, latency or cost result is claimed.
+The first attempt was rejected before execution because transmission of private
+historical excerpts to the external API was not explicitly approved. Helena then
+explicitly approved the four excerpts, eight messages before/after, and eight
+external GPT-6 Luna analyses. Only after that approval was the experiment run.
 
-The next step requires explicit approval for those eight external analyses, or a
-separately chosen local-model experiment. Do not work around the rejection by
-indirectly invoking the same API. Do not activate this analyzer in the live brain
-or infer that the reconsideration queue has been implemented.
+Eight sequential calls completed using `gpt-6-luna`, medium reasoning. The opt-in
+test passed, including schema and visible-evidence-ID validation. Private inputs,
+outputs, prompt/corpus hashes and usage are retained outside git in
+`replay-1767b6e5931f4e96a0c1ac2d9457a1a7.jsonl` in the restricted replay directory.
+
+| Case | Initial reading / confidence | Later-context reading / confidence |
+| --- | --- | --- |
+| Megabrain/Copythief | literal / medium | provocation / medium; literal alternative retained |
+| You are woke | provocation / medium | provocation / high; irony alternative retained |
+| Moggei | provocation / medium | provocation / medium; reference alternative retained |
+| Now with 1000 | ambiguous / medium | provocation / medium; literal alternative retained |
+
+Two primary readings changed; one unchanged reading gained qualitative confidence.
+All four response-opportunity labels changed from `still_relevant` to `obsolete`.
+These are observed model judgments, not validated participation decisions.
+
+### Evidence review and limitations
+
+The cited later messages were checked against the retained corpus. They support
+a playful/challenge interpretation, but do not establish hidden speaker intent.
+The Megabrain case later changes topic; those later statements are not independently
+fact-checked and must not be treated as proof that the original request was false.
+The 1000 case includes a provider quote connecting it to a previous digits-of-pi
+response and subsequent challenge reactions. It also includes Helena's explicit
+comment about adding sarcasm detection: this is natural contextual evidence, but
+it contaminates any claim of independent sarcasm-discovery accuracy.
+
+The initial woke explanation says there is no visible response. That is only a
+property of this partial input: account-sent messages were excluded, so absence
+of a visible reply is not evidence that Filomena did not respond. The experiment
+must not turn that gap into a conversational fact.
+
+One sample per phase, four correlated examples, no blind human labels, no
+randomized repeated comparison. Changes may include sampling variance. Schema
+success is not semantic correctness; this is a feasibility observation, not a
+detector benchmark or a basis for permanent participant profiles.
+
+### Usage and safety
+
+- 8 calls; 13,539 input tokens and 4,160 output tokens (17,699 total).
+- Sum of measured call latency: 49.325 s; mean 6.166 s; range 3.880–9.042 s.
+- Monetary cost unverified; no price inferred from the model alias.
+- This replay made zero transport calls, conversational runtime executions,
+  Graphiti calls or memory writes. Separate memory-only recovery is not part of
+  these counters and was not changed.
+- No deployment or conversational restart was performed.
+
+## Recommended next bounded slice
+
+The result supports testing contextual reassessment while keeping interpretation
+separate from permission to reply. Before live integration, use an offline
+pending-message replay to verify that new context may revise a hypothesis without
+automatically reopening an obsolete response opportunity. Preserve quotes and
+speaker identity, label missing history explicitly, and test topic migration and
+large intervening-message counts. Do not infer that this queue, its scheduling,
+or a live analyzer has already been implemented.
