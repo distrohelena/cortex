@@ -234,11 +234,13 @@ public sealed class SessionParticipationReviewTests
 
     internal sealed class Model : IFlowCompletion
     {
+        internal ConcurrentQueue<FlowCompletionRequest> Requests { get; } = new();
         internal ConcurrentQueue<FlowCompletionRequest> Reviews { get; } = new();
         internal string Involvement = "indireto";
         internal string Action = "responder";
         internal bool Invalid;
         internal bool AllowGeneration;
+        internal bool RespondInitially;
         internal bool BlockFirst;
         internal bool BlockAll;
         internal Func<CancellationToken, Task>? BeforeGeneration;
@@ -246,6 +248,7 @@ public sealed class SessionParticipationReviewTests
         internal Func<CancellationToken, Task>? BeforeReview;
         public async Task<string> CompleteAsync(FlowCompletionRequest request, CancellationToken token)
         {
+            Requests.Enqueue(request);
             var review = request.Inputs.TryGetProperty("reavaliacao", out _);
             if (review)
             {
@@ -254,8 +257,8 @@ public sealed class SessionParticipationReviewTests
                 if (Invalid) return "{}";
             }
             if (!review && request.NodeId.EndsWith("-presence"))
-                return JsonSerializer.Serialize(new { acao = "calar", continuar_acompanhando = SeedState != Inactive, motivo = "sem_contribuicao" });
-            if (review && AllowGeneration && request.NodeId.EndsWith("-generation"))
+                return JsonSerializer.Serialize(new { acao = RespondInitially ? "responder" : "calar", continuar_acompanhando = SeedState != Inactive, motivo = "sem_contribuicao" });
+            if ((review || RespondInitially) && AllowGeneration && request.NodeId.EndsWith("-generation"))
             {
                 if (BeforeGeneration is not null) await BeforeGeneration(token);
                 return "Agora entendi a brincadeira da lista.";

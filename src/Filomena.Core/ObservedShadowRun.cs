@@ -119,7 +119,9 @@ public sealed class ObservedShadowRun : IAsyncDisposable
             EnsureRunning();
             if (ceiling != OutboundMode.Shadow || participationObserver is not null)
                 throw new InvalidOperationException("Participation observation requires an unconfigured shadow run.");
-            participationObserver = handoff.CreateParticipationObserver(definition, messageHorizon, attemptBudget, capacity);
+            var observer = handoff.CreateParticipationObserver(definition, messageHorizon, attemptBudget, capacity);
+            if (analyzeInitial is not null) handoff.ConfigureInitialInterpretation(definition.ProjectRevision, analyzeInitial);
+            participationObserver = observer;
             reassess = analyze;
             initialInterpretation = analyzeInitial;
             this.previewResponses = previewResponses;
@@ -224,8 +226,11 @@ public sealed class ObservedShadowRun : IAsyncDisposable
                 if (ceiling == OutboundMode.Enabled && !continuous && liveInteractions >= liveInteractionLimit) Stop();
             }
             using var reviewCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, participationLifetime.Token);
+            var evaluated = outcomes.SelectMany(o => o.InitialInterpretations).ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
             var initial = participationObserver is not null && initialInterpretation is not null && Volatile.Read(ref stopped) == 0
-                ? await participationObserver.ObserveNewAsync(outcomes.SelectMany(o => o.ProviderMessageIds).ToArray(), initialInterpretation, reviewCancellation.Token)
+                ? await participationObserver.ObserveNewAsync(outcomes.SelectMany(o => o.ProviderMessageIds).ToArray(),
+                    (context, _) => Task.FromResult(evaluated.TryGetValue(context.Original.ProviderMessageId, out var analysis)
+                        ? analysis : throw new InvalidDataException("Initial interpretation unavailable for this batch.")), reviewCancellation.Token)
                 : [];
             var reviews = participationObserver is not null && Volatile.Read(ref stopped) == 0
                 ? await participationObserver.ReviewPendingAsync(reassess!, reviewCancellation.Token)

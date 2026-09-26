@@ -78,6 +78,12 @@ internal abstract class RuntimeHandoffCore : IAsyncDisposable
         int messageHorizon, int attemptBudget, int capacity) =>
         new(runtime, binding.Session, definition, messageHorizon, attemptBudget, capacity);
     internal SessionRuntimeContext? CaptureContext() => runtime.CaptureContext(binding.Session);
+    internal void ConfigureInitialInterpretation(string revision,
+        Func<ParticipationReassessmentContext, CancellationToken, Task<ParticipationReassessment>> analyze)
+    {
+        if (ceiling != OutboundMode.Shadow) throw new InvalidOperationException("Initial interpretation requires a shadow run.");
+        runtime.ConfigureInitialInterpretation(binding.Session, revision, analyze);
+    }
     internal Task<SessionResponsePreviewResult> PreviewResponseAsync(SessionParticipationReviewResult review,
         ParticipationInterpretation? interpretation, CancellationToken token)
     {

@@ -5,6 +5,7 @@ using Filomena.Core.Outbound;
 using Filomena.Core.Shadow;
 using Filomena.Llm.Context;
 using Xunit;
+using Filomena.App;
 
 namespace Filomena.Llm.Tests;
 
@@ -27,6 +28,7 @@ public sealed class ObservedParticipationReviewTests
     [InlineData("preview-wait", ReassessmentOpportunity.Relevant, "reviewed", ParticipationReviewDecision.Wait)]
     [InlineData("preview-silence", ReassessmentOpportunity.Relevant, "reviewed", ParticipationReviewDecision.Silence)]
     [InlineData("preview", ReassessmentOpportunity.Obsolete, "obsolete", null)]
+    [InlineData("initial-response", ReassessmentOpportunity.Relevant, "clear", null)]
     public async Task Observed_host_processes_pending_original_after_next_normal_batch_without_second_execution(
         string action, ReassessmentOpportunity opportunity, string expectedStatus, ParticipationReviewDecision? expectedDecision)
     {
@@ -48,23 +50,24 @@ public sealed class ObservedParticipationReviewTests
                 new Dictionary<string, string> { ["group-generation"] = "texto", ["group-regeneration"] = "texto" },
                 ["group-validator-1", "group-validator-2"], "participation-engaged-v1");
             var previewEnabled = action.StartsWith("preview", StringComparison.Ordinal);
-            var automatic = action is "automatic" or "preview-automatic";
+            var automatic = action is "automatic" or "preview-automatic" or "initial-response";
             var model = new SessionParticipationReviewTests.Model
             {
                 Action = action == "preview-wait" ? "esperar" : action == "preview-silence" ? "calar"
                     : automatic || previewEnabled ? "responder" : action,
-                AllowGeneration = previewEnabled,
+                AllowGeneration = previewEnabled || action == "initial-response",
+                RespondInitially = action == "initial-response",
                 BlockFirst = action == "preview-regenerate",
                 BlockAll = action == "preview-abort"
             };
             var memory = new SessionParticipationReviewTests.Memory
             {
-                AllowEmpty = previewEnabled && action != "preview-outage",
+                AllowEmpty = (previewEnabled || action == "initial-response") && action != "preview-outage",
                 WithBoundary = action is "preview-boundary" or "preview-regenerate" or "preview-abort"
             };
             var interpretationModel = new ContextInterpretationAnalyzerTests.Completion("provocacao", "high",
                 opportunity == ReassessmentOpportunity.Obsolete ? "obsolete" : "still_relevant");
-            if (automatic) interpretationModel.Scenario = "initial-policy";
+            if (automatic && action != "initial-response") interpretationModel.Scenario = "initial-policy";
             var analyzer = new ContextInterpretationAnalyzer(interpretationModel, ContextInterpretationAnalyzerTests.Settings);
             var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -75,7 +78,9 @@ public sealed class ObservedParticipationReviewTests
             };
             CancellationToken analysisToken = default;
             await using var run = new ObservedShadowRun(pin, binding, directory.FullName, roles, model, memory, "replay-epoch", 0);
-            run.ConfigureParticipationObservation(SessionParticipationReviewTests.Definition(), async (context, token) =>
+            if (automatic) ContextInterpretationHost.Configure(new("contextual-interpretation:v1", SessionParticipationReviewTests.Definition(),
+                ContextInterpretationAnalyzerTests.Settings, 150, 2, 10, previewEnabled), pin, binding, run, interpretationModel);
+            else run.ConfigureParticipationObservation(SessionParticipationReviewTests.Definition(), async (context, token) =>
             {
                 Assert.Equal("original", context.Original.ProviderMessageId);
                 Assert.Contains(context.History, item => item.ProviderMessageId == "clarification");
@@ -100,7 +105,25 @@ public sealed class ObservedParticipationReviewTests
             var first = await run.AcceptAsync([Input(1, "original", "Agora com 1000.")], TestContext.Current.CancellationToken);
             Assert.True(Assert.Single(first.Outcomes).Success);
             Assert.Empty(first.ParticipationReviews);
-            if (automatic) Assert.Equal("tracked", Assert.Single(first.InitialInterpretations).Status);
+            if (action == "initial-response")
+            {
+                Assert.Equal("clear", Assert.Single(first.InitialInterpretations).Status);
+                var request = Assert.Single(model.Requests, r => r.NodeId == "group-generation");
+                Assert.Equal("provocacao", request.Inputs.GetProperty("interpretacoes_contextuais")[0].GetProperty("interpretacao").GetProperty("Reading").GetString());
+                Assert.Contains(first.Trace, t => t.EventName == "node-outbound" && t.MemoryMetadata!["result"] == "shadowed");
+                Assert.Single(interpretationModel.Requests);
+                Assert.Single(run.History);
+                return;
+            }
+            if (automatic)
+            {
+                Assert.Equal("tracked", Assert.Single(first.InitialInterpretations).Status);
+                var initialSituation = Assert.Single(model.Requests, r => r.NodeId == "group-situation");
+                var interpretation = Assert.Single(initialSituation.Inputs.GetProperty("interpretacoes_contextuais").EnumerateArray());
+                Assert.Equal("ambigua", interpretation.GetProperty("interpretacao").GetProperty("Reading").GetString());
+                Assert.Equal(0, interpretation.GetProperty("indice_no_batch").GetInt32());
+                Assert.False(interpretation.GetProperty("certeza").GetBoolean());
+            }
             else Assert.True(run.TrackParticipationReview("original"));
             var next = Input(2, "clarification", "Era brincadeira sobre a lista anterior.");
             var nextTask = run.AcceptAsync([next], TestContext.Current.CancellationToken);

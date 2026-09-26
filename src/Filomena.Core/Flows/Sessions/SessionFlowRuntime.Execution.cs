@@ -408,15 +408,26 @@ public sealed partial class SessionFlowRuntime
                 .Select(item => item.Envelope.ProviderMessageId));
         var exposeReplyTargets = outbound?.SupportsReplySelection == true;
         TypedRunResult? result = null;
+        IReadOnlyDictionary<string, ParticipationReassessment> initialInterpretations = new Dictionary<string, ParticipationReassessment>();
         string? executionError = null;
         try
         {
+            initialInterpretations = await InterpretBatchAsync(batch, lifetime.Token).ConfigureAwait(false);
+            var completion = completionFactory(batch.Session);
+            if (initialInterpretations.Count != 0)
+                completion = new InitialInterpretationCompletion(completion, batch.Messages.Select((item, index) => new
+                {
+                    indice_no_batch = index,
+                    interpretacao = initialInterpretations[item.Envelope.ProviderMessageId].Interpretation,
+                    certeza = initialInterpretations[item.Envelope.ProviderMessageId].Confident,
+                    hipotese_provisoria = true
+                }).ToArray());
             var boundaryRegistry = new BoundaryExecutionRegistry(batch.Flow.Nodes.Values.Any(node => node.Source.Kind is "memory" or "interpretBoundaries")
                 ? ConversationNamespace(batch.Session) : "", timeProvider);
             result = await TypedFlowRunner.RunSessionAsync(
                 batch.Flow,
                 MessageWithReplyIdentity(batch.Messages[0].Envelope, exposeReplyTargets),
-                completionFactory(batch.Session),
+                completion,
                 RuntimeOutputs(batch, exposeReplyTargets),
                 timeProvider,
                 node => AddTrace(batch.Session, Trace(batch, "node-" + node.Status, node.NodeId, node.Exit,
@@ -496,7 +507,8 @@ public sealed partial class SessionFlowRuntime
                 batch.StateId, batch.StateVersion, batch.EntryKind, batch.CloseReason,
                 batch.Messages.Select(item => item.Envelope.ProviderMessageId).ToArray(),
                 startedAt, completedAt, success, executionError, target, transitionApplied,
-                CloneOutputs(result?.Outputs));
+                CloneOutputs(result?.Outputs))
+            { InitialInterpretations = initialInterpretations };
             state.Outcomes.Add(outcome);
             state.PendingExecutions--;
             AddTraceLocked(state, Trace(batch, success ? "execution-completed" : "execution-failed",
@@ -615,6 +627,8 @@ public sealed partial class SessionFlowRuntime
     private static SessionFlowOutcome CloneOutcome(SessionFlowOutcome source) => source with
     {
         ProviderMessageIds = source.ProviderMessageIds.ToArray(),
+        InitialInterpretations = source.InitialInterpretations.ToDictionary(p => p.Key,
+            p => p.Value with { EvidenceMessageIds = p.Value.EvidenceMessageIds.ToArray() }, StringComparer.Ordinal),
         Outputs = source.Outputs.ToDictionary(
             node => node.Key,
             node => (IReadOnlyDictionary<string, JsonElement>)node.Value.ToDictionary(port => port.Key, port => port.Value.Clone()),

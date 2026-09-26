@@ -8,7 +8,19 @@ public enum ParticipationReviewStatus { Completed, Rejected, Stale, Failed, Canc
 // Host-selected cut of a pinned graph, never model input or send authorization.
 public sealed record ParticipationReviewBoundary(string NodeId, string Exit, ParticipationReviewDecision Decision);
 public sealed record ParticipationReviewDefinition(string ProjectRevision,
-    IReadOnlyList<string> PromptNodeIds, IReadOnlyList<ParticipationReviewBoundary> Boundaries);
+    IReadOnlyList<string> PromptNodeIds, IReadOnlyList<ParticipationReviewBoundary> Boundaries)
+{
+    public void Validate(SessionFlowProject project, SessionEntryKind kind)
+    {
+        if (project.ProjectRevision != ProjectRevision) throw new InvalidDataException("Review project revision mismatch.");
+        var compiled = SessionFlowProjectCompiler.Compile(project);
+        foreach (var state in compiled.States.Values)
+        {
+            if (!state.Entries.TryGetValue(kind, out var flow)) throw new InvalidDataException("Review entry unavailable.");
+            _ = ParticipationReviewCut.Create(flow, this);
+        }
+    }
+}
 
 public sealed record SessionParticipationReviewResult(
     ParticipationReviewStatus Status, string Diagnostic, string OriginalMessageId,

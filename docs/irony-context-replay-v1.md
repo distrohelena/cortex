@@ -488,3 +488,80 @@ Remaining operational distinction: this is still a post-batch shadow observation
 mode, not an active-group deployment or a live delayed sender. It does not alter
 an already-running initial response. The public participation-only method remains
 participation-only; generation requires the separate host preview opt-in above.
+
+## Initial interpretation and operational shadow configuration (2026-09-26)
+
+This section supersedes the post-batch-only limitation above. When the shadow
+host explicitly supplies `analyzeInitial`, it now runs at the beginning of the
+normal batch, before Ler Situação, Decidir Presença or generation. Each target sees
+only its own prefix of the pinned context. Later messages in the same batch, and
+messages arriving during the callback, cannot leak into its initial reading.
+
+The resulting provisional hypotheses are included in the existing completion
+inputs as `interpretacoes_contextuais`, indexed by position in the current batch.
+There are no raw transport IDs in that added field. Prompts, schemas, personality,
+model routing and FSM rules were not changed. The generation path can now see the
+interpretation on its first response, rather than only after it has responded.
+
+The normal outcome retains a cloned assessment. After draining the batch, the
+pending controller consumes that assessment without a second inference call.
+Low-confidence targets remain eligible for bounded later reassessment. Initial
+backend failure, invalid evidence, invalid opportunity or revision mismatch fails
+the batch before conversational model calls; failure is not converted to a
+literal/empty reading. The observer still cannot override participation or bypass
+Boundary/SendGuard checks.
+
+### Host configuration and invocation
+
+The existing `--native-shadow <host.json>` command now accepts an optional
+`contextInterpretation` section in its **host-owned** document. It is not accepted
+from the project, model output or memory. No active document was edited. Example
+section for the existing reviewed group node IDs (replace the project revision
+with the exact pinned artifact revision, not the Gateway config revision):
+
+```json
+{
+  "contextInterpretation": {
+    "version": "contextual-interpretation:v1",
+    "participation": {
+      "projectRevision": "<exact pinned project revision>",
+      "promptNodeIds": ["group-situation", "group-presence"],
+      "boundaries": [
+        { "nodeId": "group-direct-involvement", "exit": "direct_involvement_rule", "decision": 0 },
+        { "nodeId": "group-action", "exit": "case-responder", "decision": 0 },
+        { "nodeId": "group-action", "exit": "case-esperar", "decision": 1 },
+        { "nodeId": "group-action", "exit": "case-calar", "decision": 2 }
+      ]
+    },
+    "model": {
+      "model": "gpt-6-luna", "provider": "openai", "reasoningEffort": "medium",
+      "maxOutputTokens": 2048, "beforeMessages": 8, "afterMessages": 8, "maxTextCharacters": 2000
+    },
+    "messageHorizon": 150, "attemptBudget": 2, "capacity": 256,
+    "previewResponses": true
+  }
+}
+```
+
+The decision enum is `0=Respond`, `1=Wait`, `2=Silence`. Model and observation
+budgets are explicit operator settings, not defaults added to the brain. The
+existing command still requires all of its normal transport/session/memory
+preflights and operator-stepped `/poll`; this option does not open a listener.
+Validation checks every state’s participation cut against the pinned graph before
+external setup. Unsupported version, wrong revision, missing/unsafe cut, invalid
+limits, DM scope or an Enabled/live invocation are rejected. A missing section
+leaves the existing host unchanged.
+
+Interaction reports now expose initial interpretations and pending reviews,
+including preview outputs/traces. Target/evidence IDs are hashed in those report
+fields. Text, hypotheses and candidates are still private experimental data, not
+anonymized or suitable for general production logs.
+
+Local verification: **1,525 passed, 55 skipped, zero failed** (Core 640; Llm/App
+710; OpenClaw 175). Coverage includes a first response whose generator receives
+the initial hypothesis, automatic pending/reassessment/preview through the host
+configuration, no duplicate initial inference, same/queued-batch temporal
+isolation, failure before generation, cloned evidence and host scope rejection.
+Tests use controlled inference, memory and transport. They do not substitute for
+a live conversational quality assessment. No group was reconnected, no active
+config changed, and no real model/Graphiti/transport calls were made by this work.

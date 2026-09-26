@@ -205,6 +205,94 @@ public sealed class LiveRuntimeTests : IDisposable
     }
 
     [Theory]
+    [InlineData("valid")]
+    [InlineData("outage")]
+    [InlineData("foreign-evidence")]
+    [InlineData("invalid-enum")]
+    [InlineData("revision")]
+    public async Task Initial_interpretation_runs_before_the_flow_and_failure_never_becomes_empty_context(string scenario)
+    {
+        var project = ShadowRuntimeTests.Project(false, sendExit: "shadowed");
+        var transport = new SequencedTransport();
+        using var host = Host(project, transport, OutboundMode.Shadow);
+        var completion = new GatedCompletion();
+        await using var runtime = Runtime(project, completion, host);
+        var calls = 0;
+        runtime.ConfigureInitialInterpretation(Session, project.ProjectRevision, (context, _) =>
+        {
+            calls++;
+            Assert.Equal(0, completion.Calls);
+            Assert.Equal("original", context.Original.ProviderMessageId);
+            Assert.Single(context.History);
+            if (scenario == "outage") throw new HttpRequestException("Controlled outage");
+            return Task.FromResult(new ParticipationReassessment(true,
+                scenario == "invalid-enum" ? (ReassessmentOpportunity)999 : ReassessmentOpportunity.Relevant,
+                [scenario == "foreign-evidence" ? "not-observed" : "original"])
+            { Interpretation = new("ironia", "literal", "high", "Controlled context hypothesis") });
+        });
+        if (scenario == "revision") runtime.UpdateProject(project with { ProjectVersion = 2, ProjectRevision = "new-revision" });
+        await Inbound(runtime, "original", "Uma brincadeira.");
+        await runtime.WaitForIdleAsync(Session, Token);
+        var outcome = Assert.Single(runtime.ReadOutcomes(Session));
+        Assert.Equal(scenario == "valid", outcome.Success);
+        Assert.Equal(scenario == "revision" ? 0 : 1, calls);
+        if (scenario == "valid")
+        {
+            Assert.True(completion.Calls > 0);
+            Assert.Equal("ironia", outcome.InitialInterpretations["original"].Interpretation!.Reading);
+            ((string[])outcome.InitialInterpretations["original"].EvidenceMessageIds)[0] = "tampered";
+            Assert.Equal("original", runtime.ReadOutcomes(Session)[0].InitialInterpretations["original"].EvidenceMessageIds[0]);
+        }
+        else
+        {
+            Assert.Equal(0, completion.Calls);
+            Assert.Empty(outcome.InitialInterpretations);
+            Assert.DoesNotContain(runtime.ReadTrace(Session), t => t.EventName == "node-outbound");
+        }
+        Assert.Empty(transport.Sends);
+    }
+
+    [Fact]
+    public async Task Initial_interpretation_cannot_see_later_messages_in_the_same_or_queued_batch()
+    {
+        var project = ShadowRuntimeTests.Project(false, sendExit: "shadowed");
+        var document = System.Text.Json.Nodes.JsonNode.Parse(project.Document.GetRawText())!;
+        foreach (var state in document["states"]!.AsArray())
+            state!["graph"]!["nodes"]!.AsArray().Single(n => n!["id"]!.GetValue<string>() == "batch")!["settings"]!["maxMessages"] = 2;
+        project = project with { Document = JsonSerializer.SerializeToElement(document) };
+        var transport = new SequencedTransport();
+        using var host = Host(project, transport, OutboundMode.Shadow);
+        await using var runtime = Runtime(project, new GatedCompletion(), host);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var prefixes = new List<string[]>();
+        runtime.ConfigureInitialInterpretation(Session, project.ProjectRevision, async (context, token) =>
+        {
+            if (context.Original.ProviderMessageId == "1")
+            {
+                entered.SetResult();
+                await release.Task.WaitAsync(token);
+            }
+            prefixes.Add(context.History.Select(h => h.ProviderMessageId).ToArray());
+            return new ParticipationReassessment(false, ReassessmentOpportunity.Uncertain, [context.Original.ProviderMessageId]);
+        });
+        await Inbound(runtime, "1", "Agora com 1000.");
+        await Inbound(runtime, "2", "Era brincadeira.");
+        await entered.Task.WaitAsync(Token);
+        await Inbound(runtime, "3", "Outro assunto.");
+        await Inbound(runtime, "4", "Sim.");
+        release.SetResult();
+        await runtime.WaitForIdleAsync(Session, Token);
+        Assert.Equal(4, prefixes.Count);
+        Assert.Equal(["1"], prefixes[0]);
+        Assert.Equal(["1", "2"], prefixes[1]);
+        Assert.Equal(["1", "2", "3"], prefixes[2]);
+        Assert.Equal(["1", "2", "3", "4"], prefixes[3]);
+        Assert.All(runtime.ReadOutcomes(Session), o => Assert.True(o.Success, o.Error));
+        Assert.Empty(transport.Sends);
+    }
+
+    [Theory]
     [InlineData("indeterminate")]
     [InlineData("failed")]
     public async Task UnconfirmedOutcomeCommitsNeitherSpeechNorTransitionEvenWhenWiredToExit(string scenario)
@@ -372,6 +460,7 @@ public sealed class LiveRuntimeTests : IDisposable
 
     internal sealed class GatedCompletion : IFlowCompletion
     {
+        internal int Calls;
         private readonly object gate = new();
         private readonly Dictionary<int, TaskCompletionSource> started = [];
         private readonly Dictionary<int, TaskCompletionSource> released = [];
@@ -389,6 +478,7 @@ public sealed class LiveRuntimeTests : IDisposable
         }
         public async Task<string> CompleteAsync(FlowCompletionRequest request, CancellationToken token)
         {
+            Interlocked.Increment(ref Calls);
             if (request.NodeId == "generate")
             {
                 if (Gated)

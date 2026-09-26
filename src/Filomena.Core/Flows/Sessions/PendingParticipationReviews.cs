@@ -232,7 +232,7 @@ public sealed class PendingParticipationReviews
         return null;
     }
 
-    private static void ValidateAnalysis(ParticipationReassessment analysis, ParticipationReassessmentContext context)
+    internal static void ValidateAnalysis(ParticipationReassessment analysis, ParticipationReassessmentContext context)
     {
         var evidence = context.History.Select(m => m.ProviderMessageId).ToHashSet(StringComparer.Ordinal);
         if (analysis is null || !Enum.IsDefined(analysis.Opportunity) || analysis.EvidenceMessageIds is null

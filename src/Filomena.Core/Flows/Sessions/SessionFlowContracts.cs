@@ -93,7 +93,11 @@ public sealed record SessionFlowOutcome(
     string? Error,
     string? TransitionTargetStateId,
     bool TransitionApplied,
-    IReadOnlyDictionary<string, IReadOnlyDictionary<string, JsonElement>> Outputs);
+    IReadOnlyDictionary<string, IReadOnlyDictionary<string, JsonElement>> Outputs)
+{
+    public IReadOnlyDictionary<string, ParticipationReassessment> InitialInterpretations { get; init; } =
+        new Dictionary<string, ParticipationReassessment>();
+}
 
 public sealed record SessionTraceEvent(
     string EventName,

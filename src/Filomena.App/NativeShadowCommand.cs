@@ -53,7 +53,7 @@ public sealed record NativeShadowConfig(string ManualConfigFile, string Observat
     NativeReplayPlan? Recovery = null, Dictionary<string, string>? GroupParticipants = null,
     NativeSelfMentionIdentity? SelfMentionIdentity = null, string? NativeSourceGroupJid = null,
     NativeMemberDmMemoryReadinessTemplate? NewDmMemoryReadiness = null,
-    NativeMemoryIngestConfig? MemoryIngest = null);
+    NativeMemoryIngestConfig? MemoryIngest = null, ContextInterpretationHostConfig? ContextInterpretation = null);
 
 /// <summary>Bounded, operator-stepped reader handoff. Never constructs the legacy host.</summary>
 public static class NativeShadowCommand
@@ -107,6 +107,7 @@ public static class NativeShadowCommand
                 ? NativeObservationHostBinding.CreateManagedMemberDm(config)
                 : NativeObservationHostBinding.Create(config, native.NativeConversationId, native.GroupParticipants,
                     live is not null, live?.AllowExactGroupDelivery == true);
+            ContextInterpretationHost.Validate(native.ContextInterpretation, pin, binding, live is not null);
             if (binding.Kind == Filomena.Core.Flows.Sessions.SessionEntryKind.Group)
                 NativeObservationHostBinding.ValidateGroupSendWiring(pin, config.OutboundBindings);
             if (live?.ContinuousGroup == true && (binding.Kind != Filomena.Core.Flows.Sessions.SessionEntryKind.Group
@@ -277,6 +278,7 @@ public static class NativeShadowCommand
             }
             await using var shadowRun = live is null ? new ObservedShadowRun(pin, binding, directory, config.OutboundBindings, completion,
                 new GraphitiMemoryReader(graphiti), cursor.Epoch, cursor.Sequence) : null;
+            if (shadowRun is not null) ContextInterpretationHost.Configure(native.ContextInterpretation, pin, binding, shadowRun, completion);
             await using var liveRun = live is null ? null : new ObservedLiveRun(pin, binding, directory, config.OutboundBindings, completion,
                 new GraphitiMemoryReader(graphiti), cursor.Epoch, cursor.Sequence,
                 liveRoute!,
@@ -403,6 +405,8 @@ public static class NativeShadowCommand
                     outcomes = result.Outcomes.Select(o => new { o.ExecutionId, o.BatchId, o.StateId, o.Success, o.Error, o.TransitionApplied,
                         outputs = o.Outputs.Where(p => prompts.Contains(p.Key)).ToDictionary() }),
                     trace = result.Trace.Select(t => new { t.EventName, t.NodeId, t.Exit, t.StateId, t.CurrentSessionStateId, t.DurationMilliseconds, t.ErrorCode, t.MemoryMetadata }),
+                    initialInterpretations = result.InitialInterpretations.Select(r => ContextInterpretationHost.Report(r, prompts)),
+                    participationReviews = result.ParticipationReviews.Select(r => ContextInterpretationHost.Report(r, prompts)),
                     outcome = result.Trace.Any(t => t.EventName == "node-outbound" && t.MemoryMetadata?["result"] == "sent") ? "SENT"
                         : result.Trace.Any(t => t.EventName == "node-outbound" && t.MemoryMetadata?["result"] == "shadowed") ? "WOULD_SEND" : "NO_CONFIRMED_SEND",
                     calls = usage, sendBoundaryAttempts });
