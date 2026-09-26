@@ -1,7 +1,9 @@
 # Native memory ingestion V1 (local implementation)
 
-This slice is **not deployed**. It does not reactivate Filomena, start SpiceDB,
-change credentials, or run a live backfill. Inbound writing is disabled unless
+The Gateway/plugin and .NET rollout is **not deployed**. A separate, explicitly
+authorized memory-only operational process is now exercising the compiled slice
+(see the operational evidence below). It does not reactivate Filomena or change
+credentials. Normal native-host inbound writing is disabled unless
 the deployment explicitly configures both ends below. Existing read-only Graphiti
 composition and brain prompts are unchanged.
 
@@ -178,7 +180,59 @@ distinct eligible text messages after trusted LID/PN resolution, 123 self rows a
 are not a claim about the total WhatsApp conversation. No Graphiti write was made.
 Payload-retention gaps remain visible. This audit did not verify every group or
 claim that the messages have been indexed.
-No automatic retry is performed by plugin startup or GET status.
+GET status never performs a retry. The explicitly configured recovery service
+does schedule recurring passes; provisioning suppression prevents its startup.
+
+## Operational evidence: 2026-09-25 (local date)
+
+This is a memory-only operational window, not a conversational deployment or a
+claim that all history has been indexed. Private artifacts and SQLite receipts
+are in the existing restricted host operations directory, accessible only to
+Helena and SYSTEM. No tokens, transport IDs or message bodies belong in this doc.
+
+- Started the existing PostgreSQL and SpiceDB containers, without replacing data,
+  schema, credentials or grants. Health and existing `access`/`contribute` grants
+  passed for both explicitly configured group namespaces.
+- The live source audit found 398 eligible text messages in group ref `8ef80a2457`
+  and 42 in `b8cbf01709`. Those 440 messages were durably staged by the real
+  `NativeMemoryRecovery`; this number is **discovered**, not **persisted**.
+- One real historical message went through `NativeIngestService` and the real
+  recorder. Confirmation proved the exact episode content, namespace, canonical
+  participant and authorization. Repetition reused its persisted receipt. Its
+  exact person recall was valid empty; that is not a semantic-quality PASS.
+- Subsequent samples from both groups returned episode-linked facts and verified
+  canonical participant metadata. Nine confirmed samples yielded five linked
+  facts. Samples also showed low-value presence questions being retained as facts;
+  extraction usefulness/filtering is not declared complete by this evidence.
+- The operational process calls the **existing** `composeNativeMemoryIngest`
+  service; no second recovery engine, HTTP listener, Gateway startup, sender or
+  conversational runtime is started. It uses the same durable receipt/recovery
+  stores across restarts. Its temporary operational launcher is not an OS boot
+  service and is not a replacement for the final plugin/host deployment.
+- A controlled worker stop/drain/restart passed. The PID changed, durable counts
+  did not regress, and the controlled persisted receipt remained unchanged.
+- At 00:52:49 UTC on September 26, receipts showed 10 persisted and 145 queued;
+  remaining staged messages had not yet been submitted. These are a point-in-time
+  observation, not final completion counts. The memory-only worker was running;
+  the conversation supervisor remained stopped.
+- Graphiti extraction uses the configured local Gemma model and local embedding
+  model. No Luna conversational generation or WhatsApp outbound was invoked.
+- Fresh local verification: 294 plugin tests passed, 15 explicit opt-ins skipped;
+  TypeScript typecheck passed. Live writes were performed only through the separate
+  operational probe, never the ordinary test suite.
+
+Stop the operational worker by creating `native-memory/worker.stop` in its private
+operations directory; it drains the current service pass before closing stores.
+Already accepted backend extraction work is independent and can finish after the
+worker stops. Preserve receipts and journal files. Restart requires an explicit
+operator action; a stop request is not silently removed. No memory deletion is
+part of rollback.
+
+Still outstanding: completion/error reconciliation of the actual backlog, final
+deployment/start-on-restart wiring, provider history for retention gaps, and
+semantic filtering quality. Unsupported media and missing payloads remain explicit
+coverage gaps. Do not report memory as complete or reactivate conversational replies
+on the strength of these partial results.
 
 ## Local verification
 
