@@ -16,6 +16,7 @@ public sealed class ObservedParticipationReviewTests
     [InlineData("calar", ReassessmentOpportunity.Relevant, "reviewed", ParticipationReviewDecision.Silence)]
     [InlineData("responder", ReassessmentOpportunity.Obsolete, "obsolete", null)]
     [InlineData("shutdown", ReassessmentOpportunity.Relevant, "cancelled", null)]
+    [InlineData("automatic", ReassessmentOpportunity.Relevant, "reviewed", ParticipationReviewDecision.Respond)]
     public async Task Observed_host_processes_pending_original_after_next_normal_batch_without_second_execution(
         string action, ReassessmentOpportunity opportunity, string expectedStatus, ParticipationReviewDecision? expectedDecision)
     {
@@ -35,10 +36,11 @@ public sealed class ObservedParticipationReviewTests
             var roles = new OutboundBindings(["group-response-boundaries"], ["group-compiled-boundaries"],
                 new Dictionary<string, string> { ["group-generation"] = "texto", ["group-regeneration"] = "texto" },
                 ["group-validator-1", "group-validator-2"], "participation-engaged-v1");
-            var model = new SessionParticipationReviewTests.Model { Action = action };
+            var model = new SessionParticipationReviewTests.Model { Action = action == "automatic" ? "responder" : action };
             var memory = new SessionParticipationReviewTests.Memory();
             var interpretationModel = new ContextInterpretationAnalyzerTests.Completion("provocacao", "high",
                 opportunity == ReassessmentOpportunity.Obsolete ? "obsolete" : "still_relevant");
+            if (action == "automatic") interpretationModel.Scenario = "initial-policy";
             var analyzer = new ContextInterpretationAnalyzer(interpretationModel, ContextInterpretationAnalyzerTests.Settings);
             var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -55,7 +57,7 @@ public sealed class ObservedParticipationReviewTests
                     await release.Task.WaitAsync(token);
                 }
                 return await analyzer.ReassessAsync(context, token);
-            }, 150, 2, 10);
+            }, 150, 2, 10, action == "automatic" ? analyzer.AnalyzeInitialAsync : null);
             CanonicalShadowInbound Input(long sequence, string id, string text) => new("replay-epoch", sequence,
                 session, SessionEntryKind.Group, binding.ConversationNamespace, peer,
                 new(id, session.ChannelId, session.AccountId, session.NativeConversationId, DateTimeOffset.UtcNow,
@@ -69,7 +71,8 @@ public sealed class ObservedParticipationReviewTests
             var first = await run.AcceptAsync([Input(1, "original", "Agora com 1000.")], TestContext.Current.CancellationToken);
             Assert.True(Assert.Single(first.Outcomes).Success);
             Assert.Empty(first.ParticipationReviews);
-            Assert.True(run.TrackParticipationReview("original"));
+            if (action == "automatic") Assert.Equal("tracked", Assert.Single(first.InitialInterpretations).Status);
+            else Assert.True(run.TrackParticipationReview("original"));
             var next = Input(2, "clarification", "Era brincadeira sobre a lista anterior.");
             var nextTask = run.AcceptAsync([next], TestContext.Current.CancellationToken);
             if (action == "shutdown")
@@ -91,7 +94,8 @@ public sealed class ObservedParticipationReviewTests
             Assert.Equal(expectedDecision, review.Review?.Decision);
             Assert.Equal("provocacao", review.Assessment!.Interpretation!.Reading);
             Assert.Equal(["clarification"], review.Assessment.EvidenceMessageIds);
-            Assert.Single(interpretationModel.Requests);
+            Assert.Equal(action == "automatic" ? 3 : 1, interpretationModel.Requests.Count);
+            if (action == "automatic") Assert.Equal("clear", Assert.Single(result.InitialInterpretations).Status);
             if (opportunity == ReassessmentOpportunity.Obsolete) Assert.Empty(model.Reviews);
             Assert.Equal(2, run.Outcomes.Count);
             Assert.Equal(2, run.History.Count);

@@ -92,6 +92,23 @@ public sealed class ContextInterpretationAnalyzerTests
         Assert.Single(input.GetProperty("after").EnumerateArray());
     }
 
+    [Fact]
+    public async Task Initial_adapter_does_not_include_later_context_even_when_available_in_snapshot()
+    {
+        await using var h = await Harness.Start();
+        var history = h.Runtime.ReadHistory(h.Session);
+        var model = new Completion("ambigua", "low", "uncertain");
+        var analyzer = new ContextInterpretationAnalyzer(model, Settings);
+        var result = await analyzer.AnalyzeInitialAsync(new(h.Runtime.ReadSession(h.Session)!, history[0], history, false),
+            TestContext.Current.CancellationToken);
+        var input = Assert.Single(model.Requests).Inputs;
+        Assert.Equal("initial", input.GetProperty("phase").GetString());
+        Assert.Empty(input.GetProperty("after").EnumerateArray());
+        Assert.DoesNotContain("Era brincadeira", input.GetRawText());
+        Assert.False(result.Confident);
+        Assert.Equal(["original"], result.EvidenceMessageIds);
+    }
+
     internal sealed class Completion(string reading, string confidence, string opportunity) : IFlowCompletion
     {
         internal string? Scenario;
@@ -101,14 +118,17 @@ public sealed class ContextInterpretationAnalyzerTests
             Requests.Add(request);
             if (Scenario == "outage") throw new HttpRequestException("fixture outage");
             if (Scenario == "missing") return Task.FromResult("{}");
+            var initial = request.Inputs.GetProperty("phase").GetString() == "initial";
+            var uncertain = initial && request.Inputs.GetProperty("target").GetProperty("text").GetString()!.Contains("1000", StringComparison.Ordinal);
             var evidence = Scenario == "foreign" ? "unseen" : Scenario == "quote-only"
                 ? request.Inputs.GetProperty("target").GetProperty("quote").GetProperty("id").GetString()
+                : initial ? request.Inputs.GetProperty("target").GetProperty("id").GetString()
                 : request.Inputs.GetProperty("after")[0].GetProperty("id").GetString();
             return Task.FromResult(JsonSerializer.Serialize(new
             {
-                reading,
+                reading = Scenario == "initial-policy" && initial ? uncertain ? "ambigua" : "literal" : reading,
                 alternative = (string?)null,
-                confidence,
+                confidence = Scenario == "initial-policy" && initial ? uncertain ? "low" : "high" : confidence,
                 evidenceIds = new[] { evidence },
                 explanation = "O contexto posterior esclarece a brincadeira.",
                 responseOpportunity = opportunity

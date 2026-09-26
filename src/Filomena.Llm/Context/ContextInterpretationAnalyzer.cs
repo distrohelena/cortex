@@ -11,7 +11,13 @@ public sealed record ContextInterpretationSettings(string Model, string Provider
 
 public sealed class ContextInterpretationAnalyzer(IFlowCompletion completion, ContextInterpretationSettings settings)
 {
-    public async Task<ParticipationReassessment> ReassessAsync(ParticipationReassessmentContext context, CancellationToken token)
+    public Task<ParticipationReassessment> AnalyzeInitialAsync(ParticipationReassessmentContext context, CancellationToken token)
+        => AnalyzeAsync(context, false, token);
+
+    public Task<ParticipationReassessment> ReassessAsync(ParticipationReassessmentContext context, CancellationToken token)
+        => AnalyzeAsync(context, true, token);
+
+    private async Task<ParticipationReassessment> AnalyzeAsync(ParticipationReassessmentContext context, bool reassessment, CancellationToken token)
     {
         ArgumentNullException.ThrowIfNull(context);
         token.ThrowIfCancellationRequested();
@@ -34,7 +40,7 @@ public sealed class ContextInterpretationAnalyzer(IFlowCompletion completion, Co
         var scope = JsonSerializer.Serialize(session);
         string Ref(string kind, string value) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(scope + "\n" + kind + "\n" + value)));
         var before = history.Where(m => m.AdmissionWatermark < original.AdmissionWatermark).OrderBy(m => m.AdmissionWatermark).TakeLast(settings.BeforeMessages).ToArray();
-        var after = history.Where(m => m.AdmissionWatermark > original.AdmissionWatermark).OrderBy(m => m.AdmissionWatermark).TakeLast(settings.AfterMessages).ToArray();
+        var after = reassessment ? history.Where(m => m.AdmissionWatermark > original.AdmissionWatermark).OrderBy(m => m.AdmissionWatermark).TakeLast(settings.AfterMessages).ToArray() : [];
         var visible = before.Append(original).Concat(after).ToArray();
         var ids = visible.ToDictionary(m => Ref("message", m.ProviderMessageId), m => m.ProviderMessageId);
         var gaps = new HashSet<string> { "bounded_retained_history_not_complete_chat" };
@@ -71,7 +77,7 @@ public sealed class ContextInterpretationAnalyzer(IFlowCompletion completion, Co
         {
             caseId = Ref("message", original.ProviderMessageId),
             groupRef = Ref("session", scope),
-            phase = "reassessment",
+            phase = reassessment ? "reassessment" : "initial",
             gaps = gaps.Order().ToArray(),
             before = projectedBefore,
             target = projectedTarget,

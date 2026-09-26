@@ -400,3 +400,41 @@ subscription, and delayed generation/send. The opt-in shadow host can now accept
 an explicitly selected pending message and execute the full reassessment chain.
 No real model requests, Graphiti calls/writes or WhatsApp sends were made by this
 work. Do not conflate local passing tests with Filomena being back online.
+
+## Automatic initial selection in the observation host (2026-09-26)
+
+The host can now opt into `analyzeInitial` alongside reassessment. After the normal
+batch drains, it selects only the provider IDs of the newly completed batch, not
+old history or recovered work. The initial callback receives no messages later
+than its target, including when several messages arrived in one batch. The real
+adapter independently projects `phase=initial` with an empty `after` array.
+
+Uncertain readings create pending entries automatically; clear or obsolete
+readings close their entries. Later context can then invoke the existing
+reassessment/participation path. Initial failure, cancellation, changed project,
+explicit closure or fabricated future evidence cannot create response work.
+Duplicate inputs do not repeat the initial analysis. Capacity is explicit and
+bounded for this experimental run; exhaustion is reported, not silently treated
+as a clear interpretation. No production capacity/budget default was installed.
+
+`ObservedShadowInteraction.InitialInterpretations` exposes the initial decision
+separately from `ParticipationReviews`. One automatic end-to-end test performs:
+
+1. Original initial read: ambiguous/low -> tracked.
+2. Clarification initial read: literal/high -> clear.
+3. Original reassessment: provocation/high/still relevant -> current participation
+   says Respond, but no generation/send is invoked.
+
+The test uses the actual adapter, controller, handoff and runtime with controlled
+completion responses. There are three interpretation calls, two ordinary inbound
+executions, one diagnostic participation review, no second inbound admission and
+no outbound. Six additional controller checks and one adapter check cover initial
+temporal isolation, duplicate selection, future evidence, backend failure, revision
+change, closure and capacity. Final regressions: **1,491 passed, 55 skipped, zero
+failed** (Core 625; Llm/App 691; OpenClaw 175).
+
+Important remaining distinction: this is a post-batch observational mode. It does
+not yet feed the initial hypothesis into the normal response generator, suppress
+an already-running normal reply, or generate a late response. Those behaviors
+must not be claimed from these tests. No live group was subscribed/restarted,
+and all inference for this slice was controlled locally.

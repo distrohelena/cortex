@@ -11,6 +11,7 @@ public sealed record ObservedShadowInteraction(string RunId, double DurationMill
     IReadOnlyList<SessionTraceEvent> Trace)
 {
     public IReadOnlyList<PendingParticipationReview> ParticipationReviews { get; init; } = [];
+    public IReadOnlyList<PendingParticipationReview> InitialInterpretations { get; init; } = [];
 }
 
 public sealed class ObservedShadowRun : IAsyncDisposable
@@ -33,6 +34,7 @@ public sealed class ObservedShadowRun : IAsyncDisposable
     private int disposed;
     private PendingParticipationReviews? participationObserver;
     private Func<ParticipationReassessmentContext, CancellationToken, Task<ParticipationReassessment>>? reassess;
+    private Func<ParticipationReassessmentContext, CancellationToken, Task<ParticipationReassessment>>? initialInterpretation;
     private readonly CancellationTokenSource participationLifetime = new();
 
     public ObservedShadowRun(PinnedShadowProject project, ShadowSessionBinding binding, string journalDirectory,
@@ -105,7 +107,8 @@ public sealed class ObservedShadowRun : IAsyncDisposable
 
     public void ConfigureParticipationObservation(ParticipationReviewDefinition definition,
         Func<ParticipationReassessmentContext, CancellationToken, Task<ParticipationReassessment>> analyze,
-        int messageHorizon, int attemptBudget, int capacity)
+        int messageHorizon, int attemptBudget, int capacity,
+        Func<ParticipationReassessmentContext, CancellationToken, Task<ParticipationReassessment>>? analyzeInitial = null)
     {
         ArgumentNullException.ThrowIfNull(analyze);
         if (!serial.Wait(0)) throw new InvalidOperationException("Configure observation only while idle.");
@@ -116,6 +119,7 @@ public sealed class ObservedShadowRun : IAsyncDisposable
                 throw new InvalidOperationException("Participation observation requires an unconfigured shadow run.");
             participationObserver = handoff.CreateParticipationObserver(definition, messageHorizon, attemptBudget, capacity);
             reassess = analyze;
+            initialInterpretation = analyzeInitial;
         }
         finally { serial.Release(); }
     }
@@ -217,10 +221,13 @@ public sealed class ObservedShadowRun : IAsyncDisposable
                 if (ceiling == OutboundMode.Enabled && !continuous && liveInteractions >= liveInteractionLimit) Stop();
             }
             using var reviewCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, participationLifetime.Token);
+            var initial = participationObserver is not null && initialInterpretation is not null && Volatile.Read(ref stopped) == 0
+                ? await participationObserver.ObserveNewAsync(outcomes.SelectMany(o => o.ProviderMessageIds).ToArray(), initialInterpretation, reviewCancellation.Token)
+                : [];
             var reviews = participationObserver is not null && Volatile.Read(ref stopped) == 0
                 ? await participationObserver.ReviewPendingAsync(reassess!, reviewCancellation.Token)
                 : [];
-            return Interaction(watch, decisionsForBatch, outcomes, trace) with { ParticipationReviews = reviews };
+            return Interaction(watch, decisionsForBatch, outcomes, trace) with { ParticipationReviews = reviews, InitialInterpretations = initial };
         }
         finally { serial.Release(); }
     }

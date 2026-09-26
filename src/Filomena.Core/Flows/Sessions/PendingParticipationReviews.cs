@@ -63,6 +63,76 @@ public sealed class PendingParticipationReviews
             if (entries.TryGetValue(originalMessageId, out var entry)) entry.Closed = true;
     }
 
+    // Only IDs newly admitted by the host, not a scan of old history or recovered work.
+    public async Task<IReadOnlyList<PendingParticipationReview>> ObserveNewAsync(IReadOnlyList<string> originalMessageIds,
+        Func<ParticipationReassessmentContext, CancellationToken, Task<ParticipationReassessment>> analyzeInitial,
+        CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(originalMessageIds);
+        ArgumentNullException.ThrowIfNull(analyzeInitial);
+        token.ThrowIfCancellationRequested();
+        if (Interlocked.Exchange(ref running, 1) != 0) return [];
+        try
+        {
+            var results = new List<PendingParticipationReview>();
+            foreach (var id in originalMessageIds.Distinct(StringComparer.Ordinal))
+            {
+                token.ThrowIfCancellationRequested();
+                ParticipationReassessmentContext? current;
+                Entry entry;
+                lock (gate)
+                {
+                    if (string.IsNullOrWhiteSpace(id) || entries.ContainsKey(id)) continue;
+                    current = runtime.ReadReassessmentContext(session, id);
+                    var rejection = current is null ? "context_unavailable" : current.HasConfirmedSpeech ? "already_answered"
+                        : current.Snapshot.ProjectRevision != definition.ProjectRevision ? "stale"
+                        : current.Snapshot.OpenBufferCount != 0 || current.Snapshot.PendingExecutionCount != 0 ? "busy"
+                        : entries.Count >= capacity ? "capacity_exhausted" : null;
+                    if (rejection is not null) { results.Add(new(id, rejection)); continue; }
+                    // A later message in this same batch may justify reassessment, but must not leak into the initial reading.
+                    entry = new(current!.Original.AdmissionWatermark);
+                    entries.Add(id, entry);
+                }
+                var visible = current!.History.Where(m => m.AdmissionWatermark <= current.Original.AdmissionWatermark).ToArray();
+                var initial = current with { History = visible, Snapshot = current.Snapshot with { HistoryCount = visible.Length } };
+                ParticipationReassessment analysis;
+                try
+                {
+                    analysis = await analyzeInitial(initial, token).ConfigureAwait(false);
+                    token.ThrowIfCancellationRequested();
+                    ValidateAnalysis(analysis, initial);
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested)
+                {
+                    lock (gate) entry.Closed = true;
+                    throw;
+                }
+                catch (Exception)
+                {
+                    lock (gate) entry.Closed = true;
+                    results.Add(new(id, "analysis_failed"));
+                    continue;
+                }
+                lock (gate)
+                {
+                    var invalid = Invalidated(id, entry, current.Snapshot);
+                    if (invalid is not null)
+                    {
+                        entry.Closed = true;
+                        results.Add(new(id, invalid));
+                        continue;
+                    }
+                    entry.Closed = analysis.Opportunity == ReassessmentOpportunity.Obsolete || analysis.Confident;
+                    var status = analysis.Opportunity == ReassessmentOpportunity.Obsolete ? "obsolete"
+                        : analysis.Confident ? "clear" : "tracked";
+                    results.Add(new(id, status) { Assessment = analysis });
+                }
+            }
+            return results;
+        }
+        finally { Volatile.Write(ref running, 0); }
+    }
+
     // No timer, listener or background task. The host invokes this after its normal batch drain.
     public async Task<IReadOnlyList<PendingParticipationReview>> ReviewPendingAsync(
         Func<ParticipationReassessmentContext, CancellationToken, Task<ParticipationReassessment>> analyze,
@@ -105,10 +175,7 @@ public sealed class PendingParticipationReviews
                 {
                     analysis = await analyze(context!, token).ConfigureAwait(false);
                     token.ThrowIfCancellationRequested();
-                    var evidence = context!.History.Select(m => m.ProviderMessageId).ToHashSet(StringComparer.Ordinal);
-                    if (analysis is null || !Enum.IsDefined(analysis.Opportunity) || analysis.EvidenceMessageIds is null
-                        || analysis.EvidenceMessageIds.Any(id => !evidence.Contains(id)))
-                        throw new InvalidDataException("Invalid reassessment evidence.");
+                    ValidateAnalysis(analysis, context!);
                 }
                 catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
                 catch (Exception)
@@ -162,6 +229,15 @@ public sealed class PendingParticipationReviews
         if (current?.HasConfirmedSpeech == true) { entry.Closed = true; return "already_answered"; }
         if (current is null || current.Snapshot != expected) return "stale";
         return null;
+    }
+
+    private static void ValidateAnalysis(ParticipationReassessment analysis, ParticipationReassessmentContext context)
+    {
+        var evidence = context.History.Select(m => m.ProviderMessageId).ToHashSet(StringComparer.Ordinal);
+        if (analysis is null || !Enum.IsDefined(analysis.Opportunity) || analysis.EvidenceMessageIds is null
+            || analysis.EvidenceMessageIds.Distinct(StringComparer.Ordinal).Count() != analysis.EvidenceMessageIds.Count
+            || analysis.EvidenceMessageIds.Any(id => !evidence.Contains(id)))
+            throw new InvalidDataException("Invalid reassessment evidence.");
     }
 
     // Closed entries remain tombstones within the bounded run; repeated registration cannot reopen them.

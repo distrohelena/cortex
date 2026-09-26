@@ -156,4 +156,68 @@ public sealed class PendingParticipationReviewsTests
         Assert.Empty(h.Model.Reviews);
         Assert.Empty(await controller.ReviewPendingAsync(Relevant, TestContext.Current.CancellationToken));
     }
+
+    [Fact]
+    public async Task Automatic_selection_hides_later_batch_messages_until_reassessment_and_deduplicates_initial_reads()
+    {
+        await using var h = await Harness.Start();
+        var controller = Controller(h);
+        var initial = await controller.ObserveNewAsync(["original", "clarification", "original"], (context, token) =>
+        {
+            if (context.Original.ProviderMessageId == "original")
+            {
+                Assert.Single(context.History);
+                Assert.DoesNotContain(context.History, m => m.ProviderMessageId == "clarification");
+            }
+            return Task.FromResult(new ParticipationReassessment(context.Original.ProviderMessageId == "clarification",
+                ReassessmentOpportunity.Relevant, [context.Original.ProviderMessageId]));
+        }, TestContext.Current.CancellationToken);
+        Assert.Equal(new[] { "tracked", "clear" }, initial.Select(i => i.Status));
+        Assert.Empty(await controller.ObserveNewAsync(["original", "clarification"], (_, _) => throw new Exception("No repeated initial read"),
+            TestContext.Current.CancellationToken));
+        var review = Assert.Single(await controller.ReviewPendingAsync((context, token) =>
+        {
+            Assert.Contains(context.History, m => m.ProviderMessageId == "clarification");
+            return Relevant(context, token);
+        }, TestContext.Current.CancellationToken));
+        Assert.Equal("original", review.OriginalMessageId);
+        Assert.Equal("reviewed", review.Status);
+        Assert.Equal(2, h.Runtime.ReadOutcomes(h.Session).Count);
+    }
+
+    [Theory]
+    [InlineData("future-evidence", "analysis_failed")]
+    [InlineData("backend-failure", "analysis_failed")]
+    [InlineData("changed-project", "stale")]
+    [InlineData("closed", "closed")]
+    public async Task Initial_failure_or_staleness_cannot_register_response_work(string scenario, string expected)
+    {
+        await using var h = await Harness.Start();
+        var controller = Controller(h);
+        var result = Assert.Single(await controller.ObserveNewAsync(["original"], (_, _) =>
+        {
+            if (scenario == "backend-failure") throw new HttpRequestException("fixture");
+            if (scenario == "changed-project") h.Runtime.UpdateProject(new("review-project", 2, "new-revision", h.Project));
+            if (scenario == "closed") controller.Close("original");
+            return Task.FromResult(new ParticipationReassessment(false, ReassessmentOpportunity.Uncertain,
+                [scenario == "future-evidence" ? "clarification" : "original"]));
+        }, TestContext.Current.CancellationToken));
+        Assert.Equal(expected, result.Status);
+        Assert.Null(result.Assessment);
+        Assert.Empty(await controller.ReviewPendingAsync(Relevant, TestContext.Current.CancellationToken));
+        Assert.Empty(h.Model.Reviews);
+    }
+
+    [Fact]
+    public async Task Initial_selection_respects_capacity_before_invoking_analyzer()
+    {
+        await using var h = await Harness.Start();
+        var controller = Controller(h, capacity: 1);
+        var results = await controller.ObserveNewAsync(["original", "clarification"], (context, _) =>
+        {
+            Assert.Equal("original", context.Original.ProviderMessageId);
+            return Task.FromResult(new ParticipationReassessment(false, ReassessmentOpportunity.Uncertain, []));
+        }, TestContext.Current.CancellationToken);
+        Assert.Equal(new[] { "tracked", "capacity_exhausted" }, results.Select(r => r.Status));
+    }
 }
