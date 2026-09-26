@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using Filomena.App;
 using Filomena.Core.Flows.Sessions;
 using Filomena.Core.Identity;
@@ -9,6 +10,40 @@ namespace Filomena.Llm.Tests;
 
 public sealed class ContextInterpretationHostTests
 {
+    internal static ContextInterpretationHostConfig ReadOperationalConfig(bool preview) =>
+        JsonSerializer.Deserialize<NativeShadowConfig>("""
+        {
+          "manualConfigFile":"fixture.json", "observationEndpoint":"http://127.0.0.1:1",
+          "observationTokenEnvironmentVariable":"FIXTURE_UNUSED", "observationSessionRef":"fixture",
+          "nativeConversationId":"fixture-group@g.us", "approvedRevision":"gateway-fixture",
+          "journalDirectory":"fixture-unused",
+          "contextInterpretation": {
+            "version":"contextual-interpretation:v1",
+            "participation": {
+              "projectRevision":"review-v3",
+              "promptNodeIds":["group-situation","group-presence"],
+              "boundaries":[
+                {"nodeId":"group-direct-involvement","exit":"direct_involvement_rule","decision":0},
+                {"nodeId":"group-action","exit":"case-responder","decision":0},
+                {"nodeId":"group-action","exit":"case-esperar","decision":1},
+                {"nodeId":"group-action","exit":"case-calar","decision":2}
+              ]
+            },
+            "model": {
+              "model":"gpt-6-luna","provider":"openai","reasoningEffort":"medium",
+              "maxOutputTokens":2048,"beforeMessages":8,"afterMessages":8,"maxTextCharacters":2000
+            },
+            "messageHorizon":150,"attemptBudget":2,"capacity":10,"previewResponses":true
+          }
+        }
+        """, new JsonSerializerOptions(JsonSerializerDefaults.Web)
+        {
+            UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
+            RespectRequiredConstructorParameters = true,
+            RespectNullableAnnotations = true
+        })!.ContextInterpretation! with
+        { PreviewResponses = preview };
+
     [Theory]
     [InlineData("valid")]
     [InlineData("live")]
@@ -24,8 +59,7 @@ public sealed class ContextInterpretationHostTests
         var session = new SessionKey("fixture", "filomena", "whatsapp", "fixture-account", mutation == "dm" ? "5511000000000@s.whatsapp.net" : "fixture-group@g.us");
         var binding = new ShadowSessionBinding(session, FilomenaIdentity.WhatsAppConversationNamespace(session.NativeConversationId),
             ["self"], ["peer"], mutation == "dm" ? SessionEntryKind.Dm : SessionEntryKind.Group);
-        var config = new ContextInterpretationHostConfig("contextual-interpretation:v1", SessionParticipationReviewTests.Definition(),
-            ContextInterpretationAnalyzerTests.Settings, 150, 2, 10, true);
+        var config = ReadOperationalConfig(true);
         config = mutation switch
         {
             "version" => config with { Version = "future" },

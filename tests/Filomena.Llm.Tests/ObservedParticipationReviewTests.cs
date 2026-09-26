@@ -78,8 +78,8 @@ public sealed class ObservedParticipationReviewTests
             };
             CancellationToken analysisToken = default;
             await using var run = new ObservedShadowRun(pin, binding, directory.FullName, roles, model, memory, "replay-epoch", 0);
-            if (automatic) ContextInterpretationHost.Configure(new("contextual-interpretation:v1", SessionParticipationReviewTests.Definition(),
-                ContextInterpretationAnalyzerTests.Settings, 150, 2, 10, previewEnabled), pin, binding, run, interpretationModel);
+            if (automatic) ContextInterpretationHost.Configure(ContextInterpretationHostTests.ReadOperationalConfig(previewEnabled),
+                pin, binding, run, interpretationModel);
             else run.ConfigureParticipationObservation(SessionParticipationReviewTests.Definition(), async (context, token) =>
             {
                 Assert.Equal("original", context.Original.ProviderMessageId);

@@ -1,5 +1,26 @@
 # Irony/context replay V1: experimental, not deployed
 
+## Current status (2026-09-26)
+
+The implementation now supports initial interpretation before the normal flow,
+bounded pending entries, later-context reassessment, the existing participation
+decision, and a full response preview through the existing memory/generation/
+enforcement pipeline. It is available through explicit host-owned configuration
+on `--native-shadow`; it is not enabled on live runs or deployed to the group.
+
+The local operational replay reads a literal host JSON document with the same
+strict serializer settings as the command, then exercises the real host
+configuration and runtime. This covers initial interpretation reaching generation
+and later reassessment reaching WOULD_SEND, with controlled model/memory inputs.
+The JSON-to-host and observation matrix passed 25 cases. No endpoint from the
+fixture is contacted, and no credential is loaded.
+
+Remaining evidence: fresh model-quality evaluation of the integrated flow and
+active deployment. The eight historical analyzer calls below only measured
+interpretation, not the new integrated response behavior. Local passing tests
+do not prove conversational quality or that Filomena is online. The following
+sections are chronological; later sections supersede earlier implementation gaps.
+
 ## Question and approved scope
 
 Does later, actually observed conversation change the interpretation of the four
