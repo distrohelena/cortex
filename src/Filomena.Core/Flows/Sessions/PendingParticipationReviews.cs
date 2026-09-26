@@ -14,6 +14,7 @@ public sealed record PendingParticipationReview(string OriginalMessageId, string
 {
     // Experimental/private report data. Not a permanent participant profile or an instruction.
     public ParticipationReassessment? Assessment { get; init; }
+    public SessionResponsePreviewResult? Preview { get; init; }
 }
 
 /// <summary>Host-owned, process-local observation controller. No admission or sending authority.</summary>

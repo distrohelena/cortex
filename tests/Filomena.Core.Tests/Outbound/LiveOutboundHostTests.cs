@@ -69,6 +69,23 @@ public sealed class LiveOutboundHostTests : IDisposable
     private string[] JournalStatuses() => JournalLines().Select(line => JsonDocument.Parse(line).RootElement.GetProperty("Status").GetString()!).ToArray();
     private static CancellationToken Token => TestContext.Current.CancellationToken;
 
+    [Theory]
+    [InlineData(OutboundMode.Enabled, "disabled")]
+    [InlineData(OutboundMode.Disabled, "disabled")]
+    [InlineData(OutboundMode.Shadow, "shadowed")]
+    public async Task Shadow_only_preview_cannot_escalate_when_host_is_rearmed(OutboundMode changedMode, string expected)
+    {
+        var transport = new FakeTransport();
+        using var host = Armed(Host(), transport);
+        host.Rearm(OutboundMode.Shadow);
+        var execution = host.Begin(Project, "preview", Session, SessionEntryKind.Dm, ["original"], shadowOnly: true);
+        var candidate = Approve(execution);
+        host.Rearm(changedMode);
+        Assert.Equal(expected, (await execution.SendAsync(candidate, Token)).Status);
+        Assert.Empty(transport.Sends);
+        Assert.Equal(0, transport.Describes);
+    }
+
     [Fact]
     public async Task ConfirmedReceiptIsSentOnceAndStaysUnresolvedUntilLocalCommit()
     {

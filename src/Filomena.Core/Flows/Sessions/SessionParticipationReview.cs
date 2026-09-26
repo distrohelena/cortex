@@ -128,7 +128,7 @@ public sealed partial class SessionFlowRuntime
             snapshot, null, [], new Dictionary<string, IReadOnlyDictionary<string, JsonElement>>());
 
     private sealed class ParticipationReviewCompletion(IFlowCompletion inner, Action checkCurrent,
-        DateTimeOffset originalAt, DateTimeOffset contextAt) : IFlowCompletion
+        DateTimeOffset originalAt, DateTimeOffset contextAt, ParticipationInterpretation? interpretation = null) : IFlowCompletion
     {
         public async Task<string> CompleteAsync(FlowCompletionRequest request, CancellationToken token)
         {
@@ -141,6 +141,7 @@ public sealed partial class SessionFlowRuntime
                 contexto_pode_ser_posterior = true,
                 mensagem_original_em = originalAt,
                 contexto_capturado_em = contextAt,
+                interpretacao_contextual = interpretation,
                 autoriza_envio = false
             }));
             var output = await inner.CompleteAsync(request with { Inputs = JsonSerializer.SerializeToElement(inputs) }, token).ConfigureAwait(false);

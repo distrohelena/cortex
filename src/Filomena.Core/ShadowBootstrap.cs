@@ -78,6 +78,12 @@ internal abstract class RuntimeHandoffCore : IAsyncDisposable
         int messageHorizon, int attemptBudget, int capacity) =>
         new(runtime, binding.Session, definition, messageHorizon, attemptBudget, capacity);
     internal SessionRuntimeContext? CaptureContext() => runtime.CaptureContext(binding.Session);
+    internal Task<SessionResponsePreviewResult> PreviewResponseAsync(SessionParticipationReviewResult review,
+        ParticipationInterpretation? interpretation, CancellationToken token)
+    {
+        if (ceiling != OutboundMode.Shadow) throw new InvalidOperationException("Response preview requires a shadow run.");
+        return runtime.PreviewResponseAsync(binding.Session, review, interpretation, token);
+    }
     internal void RestoreContext(SessionRuntimeContext context) => runtime.RestoreContext(binding.Session, context, binding.Kind);
     private bool Armed => host.EffectiveMode == ceiling;
 

@@ -9,7 +9,7 @@ namespace Filomena.Core.Flows.Sessions;
 public sealed partial class SessionFlowRuntime
 {
     private async Task<JsonElement> QueryMemoryAsync(FlowBatch batch, TypedNode node, JsonElement? suppliedPersons,
-        string? text, BoundaryExecutionRegistry boundaryRegistry, CancellationToken token)
+        string? text, BoundaryExecutionRegistry boundaryRegistry, CancellationToken token, Action<SessionTraceEvent>? trace = null)
     {
         var settings = MemoryNodeSettings.Read(node.Source.Config);
         var ns = ConversationNamespace(batch.Session);
@@ -35,7 +35,8 @@ public sealed partial class SessionFlowRuntime
             ["participantCount"] = persons.Count.ToString(CultureInfo.InvariantCulture),
             ["requestedLimit"] = settings.MaxItems.ToString(CultureInfo.InvariantCulture)
         };
-        AddTrace(batch.Session, Trace(batch, "MemoryQueryStarted", node.Source.Id) with { MemoryMetadata = new Dictionary<string, string>(metadata) });
+        void Record(SessionTraceEvent item) { if (trace is null) AddTrace(batch.Session, item); else trace(item); }
+        Record(Trace(batch, "MemoryQueryStarted", node.Source.Id) with { MemoryMetadata = new Dictionary<string, string>(metadata) });
         var start = timeProvider.GetTimestamp();
         IReadOnlyList<MemoryItem> candidates;
         try { candidates = await memoryReader.QueryAsync(query, token).ConfigureAwait(false); }
@@ -48,7 +49,7 @@ public sealed partial class SessionFlowRuntime
         var result = MemoryResultPolicy.Apply(query, candidates, timeProvider.GetUtcNow());
         metadata["returnedItemCount"] = result.Count.ToString(CultureInfo.InvariantCulture);
         metadata["categories"] = string.Join(',', result.Select(i => MemoryCategories.Name(i.Category)).Distinct());
-        AddTrace(batch.Session, Trace(batch, "MemoryQueryCompleted", node.Source.Id,
+        Record(Trace(batch, "MemoryQueryCompleted", node.Source.Id,
             duration: timeProvider.GetElapsedTime(start).TotalMilliseconds) with
         { MemoryMetadata = metadata });
         return boundaryRegistry.RegisterMemories(result);

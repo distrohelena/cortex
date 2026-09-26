@@ -156,8 +156,8 @@ public sealed class ShadowOutboundHost : IDisposable
     }
 
     internal OutboundExecution Begin(JsonElement project, string executionId, SessionKey session, SessionEntryKind kind,
-        IEnumerable<string> inboundIds, IEnumerable<string>? replyTargetIds = null) =>
-        new(this, bindings, Fingerprint(project) == projectHash, executionId, session, kind, inboundIds.ToArray(), replyTargetIds?.ToHashSet(StringComparer.Ordinal) ?? []);
+        IEnumerable<string> inboundIds, IEnumerable<string>? replyTargetIds = null, bool shadowOnly = false) =>
+        new(this, bindings, Fingerprint(project) == projectHash, executionId, session, kind, inboundIds.ToArray(), replyTargetIds?.ToHashSet(StringComparer.Ordinal) ?? [], shadowOnly);
 
     internal async Task<ShadowSendResult> GuardAsync(OutboundExecution execution, bool provenance, string? enforcementRevision, string text, CancellationToken cancellationToken)
     {
@@ -169,6 +169,7 @@ public sealed class ShadowOutboundHost : IDisposable
         {
             execution.RecordGuardAudit(mode, sessions.Contains(execution.Session), provenance);
             if (disposed || mode == OutboundMode.Disabled) return new("disabled", "outbound_disabled");
+            if (execution.ShadowOnly && mode != OutboundMode.Shadow) return new("disabled", "shadow_preview_requires_shadow");
             if (!execution.ProjectAuthorized) return new("blocked", "project_not_authorized");
             var groupSession = execution.Session.NativeConversationId.EndsWith("@g.us", StringComparison.Ordinal);
             if (execution.Kind is not (SessionEntryKind.Dm or SessionEntryKind.Group)
@@ -232,7 +233,7 @@ public sealed class ShadowOutboundHost : IDisposable
         {
             receipt = await sender.SendBoundTextAsync(new(attempt, binding.TransportRoute, binding.Channel,
                 binding.AccountId, binding.Recipient, text, binding.MaxSinglePartCharacters)
-                { ReplyToMessageId = execution.ReplyToMessageId }, cancellationToken).ConfigureAwait(false);
+            { ReplyToMessageId = execution.ReplyToMessageId }, cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) { return Indeterminate(attempt, "cancelled_after_dispatch"); }
         catch (Exception) { return Indeterminate(attempt, "transport_failure"); }
@@ -359,6 +360,7 @@ internal sealed class OutboundExecution
     private string? boundarySetRef;
     private string receiptAccount = "none";
     internal bool ProjectAuthorized { get; }
+    internal bool ShadowOnly { get; }
     internal string ExecutionId { get; }
     internal SessionKey Session { get; }
     internal string SessionRef { get; }
@@ -371,9 +373,10 @@ internal sealed class OutboundExecution
     internal bool ReplySelectionValid { get; private set; } = true;
     internal string? ReplyToMessageId { get; private set; }
     internal OutboundExecution(ShadowOutboundHost host, OutboundBindings bindings, bool projectAuthorized,
-        string executionId, SessionKey session, SessionEntryKind kind, string[] inboundIds, HashSet<string> replyTargetIds)
+        string executionId, SessionKey session, SessionEntryKind kind, string[] inboundIds, HashSet<string> replyTargetIds, bool shadowOnly)
     {
         this.host = host; this.bindings = bindings; ProjectAuthorized = projectAuthorized;
+        ShadowOnly = shadowOnly;
         ExecutionId = executionId; Session = session; Kind = kind; InboundIds = inboundIds;
         this.replyTargetIds = replyTargetIds;
         SessionRef = ShadowOutboundHost.Hash(JsonSerializer.Serialize(session));
@@ -435,13 +438,19 @@ internal sealed class OutboundExecution
     { decisionMode = mode; allowlisted = allowed; provenanceDecision = provenance; }
     internal IReadOnlyDictionary<string, string> Trace(ShadowSendResult result) => new Dictionary<string, string>
     {
-        ["execution"] = ExecutionId, ["sessionRef"] = SessionRef, ["channel"] = Session.ChannelId,
-        ["deploymentMode"] = decisionMode.ToString().ToLowerInvariant(), ["attemptOrdinal"] = attempts.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        ["execution"] = ExecutionId,
+        ["sessionRef"] = SessionRef,
+        ["channel"] = Session.ChannelId,
+        ["deploymentMode"] = decisionMode.ToString().ToLowerInvariant(),
+        ["attemptOrdinal"] = attempts.ToString(System.Globalization.CultureInfo.InvariantCulture),
         ["allowlistDecision"] = allowlisted ? "allowed" : "denied",
         ["provenanceDecision"] = provenanceDecision ? "approved" : "denied",
-        ["generationRef"] = generationRef ?? "none", ["boundarySetRef"] = boundarySetRef ?? "none",
-        ["enforcementRevision"] = revision ?? "none", ["journalRef"] = result.JournalRef ?? "none",
-        ["result"] = result.Status, ["diagnosticCode"] = result.DiagnosticCode,
+        ["generationRef"] = generationRef ?? "none",
+        ["boundarySetRef"] = boundarySetRef ?? "none",
+        ["enforcementRevision"] = revision ?? "none",
+        ["journalRef"] = result.JournalRef ?? "none",
+        ["result"] = result.Status,
+        ["diagnosticCode"] = result.DiagnosticCode,
         ["wouldTransitionTo"] = result.WouldTransitionTo ?? "none",
         ["providerRef"] = result.ProviderMessageId is null ? "none" : ShadowOutboundHost.Hash(SessionRef + "\n" + result.ProviderMessageId),
         ["receiptAccount"] = receiptAccount,

@@ -438,3 +438,53 @@ not yet feed the initial hypothesis into the normal response generator, suppress
 an already-running normal reply, or generate a late response. Those behaviors
 must not be claimed from these tests. No live group was subscribed/restarted,
 and all inference for this slice was controlled locally.
+
+## Late response preview through the existing pipeline (2026-09-26)
+
+The host's existing `ConfigureParticipationObservation` now accepts the explicit
+opt-in `previewResponses: true` (default false). This option is available only on
+the shadow composition. Initial uncertain selection, subsequent interpretation,
+and a completed Respond participation review can now reach a response preview.
+Wait, Silence, Obsolete, invalid/stale context and analysis failure do not start
+generation. No active host configuration or group subscription was changed.
+
+The preview uses the retained original inbound and the current retained history,
+not a fabricated transport event or a second admission. The interpretation is
+passed as diagnostic context in `reavaliacao.interpretacao_contextual`; it is not
+a permanent participant fact, memory write, or sending authority. The existing
+full pinned flow is rerun and remains free to decline participation. The existing
+memory reader, compiler, generation/regeneration and multi-detector enforcement
+are reused without changing their prompts or semantics.
+
+The result is returned in `ParticipationReviews[].Preview`, with its own steps,
+outputs and traces. It does not append a normal execution outcome, complete the
+inbox a second time, add speech to history, or commit a state transition. A
+Completed preview means that the flow completed, not that it reached WOULD_SEND:
+inspect its outbound trace for `shadowed`, a block, or no send. A previous shadow
+receipt still blocks a repeated input through the existing durable replay index.
+
+Safety is checked again around model/memory awaits, at each node and before
+publishing the result. Changed context/revision, cancellation and shutdown discard
+the preview. Each original gets at most one preview attempt in that bounded run.
+An immutable shadow-only restriction travels with the outbound execution and is
+checked at the SendGuard sink. Even rearming the same host to Enabled cannot turn
+the preview into a transport call. Failed memory recall is failure, not `[]`.
+
+Local coverage now includes automatic initial selection through WOULD_SEND;
+retained original identity; ordinary history/outcomes unchanged; empty Boundary;
+real compiler/enforcement with a controlled MemoryItem Boundary; regeneration;
+final Block; Wait/Silence/Obsolete; memory outage; shutdown during generation;
+wrong session; changed revision/context; duplicate attempts; and Enabled rearm.
+The group fixture uses the existing group operational artifact with send wiring,
+not the older DM-only manual-shadow artifact. Test model outputs are controlled;
+these tests do not establish live inference quality.
+
+Fresh regressions: **1,510 passed, 55 skipped, zero failed** (Core 634; Llm/App 701;
+OpenClaw 175). External opt-in environment variables were removed from the test
+processes. The current slice made zero real model, Graphiti or transport calls;
+it did not restart the conversation host or modify the separate memory worker.
+
+Remaining operational distinction: this is still a post-batch shadow observation
+mode, not an active-group deployment or a live delayed sender. It does not alter
+an already-running initial response. The public participation-only method remains
+participation-only; generation requires the separate host preview opt-in above.

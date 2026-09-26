@@ -122,6 +122,67 @@ public sealed class LiveRuntimeTests : IDisposable
         Assert.False(pending.Track("in-1"));
     }
 
+    [Theory]
+    [InlineData("none", ParticipationReviewStatus.Completed)]
+    [InlineData("revision-before", ParticipationReviewStatus.Rejected)]
+    [InlineData("revision-during", ParticipationReviewStatus.Stale)]
+    [InlineData("inbound-during", ParticipationReviewStatus.Stale)]
+    [InlineData("wrong-session", ParticipationReviewStatus.Rejected)]
+    [InlineData("rearm-enabled", ParticipationReviewStatus.Failed)]
+    public async Task Response_preview_is_bound_to_original_current_context_and_shadow_ceiling(string change, ParticipationReviewStatus expected)
+    {
+        var project = ShadowRuntimeTests.Project(false, sendExit: "shadowed");
+        var transport = new SequencedTransport();
+        using var host = Host(project, transport, OutboundMode.Shadow);
+        var completion = new GatedCompletion { Gated = true };
+        completion.Release(1);
+        await using var runtime = Runtime(project, completion, host);
+        await Inbound(runtime, "original", "Uma brincadeira.");
+        await runtime.WaitForIdleAsync(Session, Token);
+        var before = runtime.ReadSession(Session)!;
+        var traceCount = runtime.ReadTrace(Session).Count;
+        var review = new SessionParticipationReviewResult(ParticipationReviewStatus.Completed, "controlled-participation",
+            "original", before, ParticipationReviewDecision.Respond, [], new Dictionary<string, IReadOnlyDictionary<string, JsonElement>>());
+        void ChangeRevision() => runtime.UpdateProject(project with { ProjectVersion = project.ProjectVersion + 1, ProjectRevision = "new-revision" });
+        if (change == "revision-before") ChangeRevision();
+        var preview = runtime.PreviewResponseAsync(change == "wrong-session" ? Session with { AccountId = "other" } : Session, review, null, Token);
+        if (expected != ParticipationReviewStatus.Rejected)
+        {
+            await completion.Started(2).WaitAsync(Token);
+            if (change == "revision-during") ChangeRevision();
+            if (change == "inbound-during")
+            {
+                await Inbound(runtime, "new-context", "Mudou o assunto.");
+                completion.Release(3);
+            }
+            if (change == "rearm-enabled") host.Rearm(OutboundMode.Enabled);
+            completion.Release(2);
+        }
+        var result = await preview;
+        Assert.Equal(expected, result.Status);
+        Assert.Empty(transport.Sends);
+        Assert.Equal(0, transport.Describes);
+        if (change == "inbound-during") await runtime.WaitForIdleAsync(Session, Token);
+        else
+        {
+            Assert.Single(runtime.ReadOutcomes(Session));
+            Assert.Single(runtime.ReadHistory(Session));
+            Assert.Equal(traceCount, runtime.ReadTrace(Session).Count);
+            Assert.Equal(before.CurrentStateId, runtime.ReadSession(Session)!.CurrentStateId);
+        }
+        if (expected == ParticipationReviewStatus.Completed)
+        {
+            // The original already produced a shadow receipt in this fixture. A preview cannot
+            // bypass the existing durable input replay index even though it is not real speech.
+            var sink = Assert.Single(result.Trace, t => t.EventName == "node-outbound");
+            Assert.Equal("blocked", sink.MemoryMetadata!["result"]);
+            Assert.Equal("replayed_input", sink.MemoryMetadata["diagnosticCode"]);
+            var duplicate = await runtime.PreviewResponseAsync(Session, review, null, Token);
+            Assert.Equal("preview-already-attempted", duplicate.Diagnostic);
+        }
+        else Assert.Empty(result.Outputs);
+    }
+
     [Fact]
     public async Task Pending_original_closes_when_its_existing_execution_commits_speech()
     {

@@ -36,6 +36,7 @@ public sealed class ObservedShadowRun : IAsyncDisposable
     private Func<ParticipationReassessmentContext, CancellationToken, Task<ParticipationReassessment>>? reassess;
     private Func<ParticipationReassessmentContext, CancellationToken, Task<ParticipationReassessment>>? initialInterpretation;
     private readonly CancellationTokenSource participationLifetime = new();
+    private bool previewResponses;
 
     public ObservedShadowRun(PinnedShadowProject project, ShadowSessionBinding binding, string journalDirectory,
         OutboundBindings roles, IFlowCompletion completion, IMemoryReader memory, string nativeEpoch, long initialTail)
@@ -108,7 +109,8 @@ public sealed class ObservedShadowRun : IAsyncDisposable
     public void ConfigureParticipationObservation(ParticipationReviewDefinition definition,
         Func<ParticipationReassessmentContext, CancellationToken, Task<ParticipationReassessment>> analyze,
         int messageHorizon, int attemptBudget, int capacity,
-        Func<ParticipationReassessmentContext, CancellationToken, Task<ParticipationReassessment>>? analyzeInitial = null)
+        Func<ParticipationReassessmentContext, CancellationToken, Task<ParticipationReassessment>>? analyzeInitial = null,
+        bool previewResponses = false)
     {
         ArgumentNullException.ThrowIfNull(analyze);
         if (!serial.Wait(0)) throw new InvalidOperationException("Configure observation only while idle.");
@@ -120,6 +122,7 @@ public sealed class ObservedShadowRun : IAsyncDisposable
             participationObserver = handoff.CreateParticipationObserver(definition, messageHorizon, attemptBudget, capacity);
             reassess = analyze;
             initialInterpretation = analyzeInitial;
+            this.previewResponses = previewResponses;
         }
         finally { serial.Release(); }
     }
@@ -227,6 +230,15 @@ public sealed class ObservedShadowRun : IAsyncDisposable
             var reviews = participationObserver is not null && Volatile.Read(ref stopped) == 0
                 ? await participationObserver.ReviewPendingAsync(reassess!, reviewCancellation.Token)
                 : [];
+            if (previewResponses)
+            {
+                var previews = new List<PendingParticipationReview>();
+                foreach (var review in reviews)
+                    previews.Add(review.Review is { Status: ParticipationReviewStatus.Completed, Decision: ParticipationReviewDecision.Respond } decision
+                        ? review with { Preview = await handoff.PreviewResponseAsync(decision, review.Assessment?.Interpretation, reviewCancellation.Token) }
+                        : review);
+                reviews = previews;
+            }
             return Interaction(watch, decisionsForBatch, outcomes, trace) with { ParticipationReviews = reviews, InitialInterpretations = initial };
         }
         finally { serial.Release(); }

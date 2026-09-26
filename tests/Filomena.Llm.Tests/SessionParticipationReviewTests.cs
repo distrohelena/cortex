@@ -238,6 +238,10 @@ public sealed class SessionParticipationReviewTests
         internal string Involvement = "indireto";
         internal string Action = "responder";
         internal bool Invalid;
+        internal bool AllowGeneration;
+        internal bool BlockFirst;
+        internal bool BlockAll;
+        internal Func<CancellationToken, Task>? BeforeGeneration;
         internal string SeedState = Inactive;
         internal Func<CancellationToken, Task>? BeforeReview;
         public async Task<string> CompleteAsync(FlowCompletionRequest request, CancellationToken token)
@@ -251,6 +255,20 @@ public sealed class SessionParticipationReviewTests
             }
             if (!review && request.NodeId.EndsWith("-presence"))
                 return JsonSerializer.Serialize(new { acao = "calar", continuar_acompanhando = SeedState != Inactive, motivo = "sem_contribuicao" });
+            if (review && AllowGeneration && request.NodeId.EndsWith("-generation"))
+            {
+                if (BeforeGeneration is not null) await BeforeGeneration(token);
+                return "Agora entendi a brincadeira da lista.";
+            }
+            if (review && AllowGeneration && request.NodeId.EndsWith("-regeneration")) return "Agora ficou claro.";
+            if (review && AllowGeneration && request.NodeId.Contains("validator"))
+            {
+                var fields = request.ResponseSchema!.Value.GetProperty("properties").EnumerateObject().ToDictionary(p => p.Name, _ => "nao");
+                if (fields.ContainsKey("relevante_ao_topico")) fields["relevante_ao_topico"] = "sim";
+                if ((BlockAll || BlockFirst && request.NodeId.Contains("validator-1")) && fields.ContainsKey("deprecia_experiencia_protegida"))
+                    fields["deprecia_experiencia_protegida"] = "sim";
+                return JsonSerializer.Serialize(fields);
+            }
             return await new DirectParticipationRuleTests.Signals(review ? Involvement : "indireto", review ? Action : "calar")
                 .CompleteAsync(request, token);
         }
@@ -259,8 +277,18 @@ public sealed class SessionParticipationReviewTests
     internal sealed class Memory : IMemoryReader
     {
         internal int Calls;
+        internal bool AllowEmpty;
+        internal bool WithBoundary;
         public Task<IReadOnlyList<MemoryItem>> QueryAsync(MemoryQuery query, CancellationToken token)
-        { Interlocked.Increment(ref Calls); throw new InvalidOperationException("Review cannot call memory."); }
+        {
+            Interlocked.Increment(ref Calls);
+            if (WithBoundary && query.Categories.Contains(MemoryCategory.Boundary))
+                return Task.FromResult<IReadOnlyList<MemoryItem>>([new("fixture-boundary", query.ConversationNamespace,
+                    "Helena pediu para Filomena não brincar nem provocar sobre trabalho.", MemoryCategory.Boundary,
+                    query.Persons, "controlled_fixture")]);
+            if (AllowEmpty) return Task.FromResult<IReadOnlyList<MemoryItem>>([]);
+            throw new InvalidOperationException("Review cannot call memory.");
+        }
     }
 
     internal sealed class Harness : IAsyncDisposable

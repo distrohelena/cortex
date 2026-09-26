@@ -689,6 +689,7 @@ public sealed partial class SessionFlowRuntime
         public Task Tail { get; set; } = Task.CompletedTask;
         public int PendingExecutions { get; set; }
         public bool ParticipationReviewInProgress { get; set; }
+        public HashSet<string> ResponsePreviews { get; } = new(StringComparer.Ordinal);
     }
 
     // ConfirmedSendOf marks provider-accepted speech committed by this runtime for the named execution.
