@@ -8,7 +8,10 @@ namespace Filomena.Core.Shadow;
 
 public sealed record ObservedShadowInteraction(string RunId, double DurationMilliseconds,
     IReadOnlyList<ShadowInboundDecision> Decisions, IReadOnlyList<SessionFlowOutcome> Outcomes,
-    IReadOnlyList<SessionTraceEvent> Trace);
+    IReadOnlyList<SessionTraceEvent> Trace)
+{
+    public IReadOnlyList<PendingParticipationReview> ParticipationReviews { get; init; } = [];
+}
 
 public sealed class ObservedShadowRun : IAsyncDisposable
 {
@@ -28,6 +31,9 @@ public sealed class ObservedShadowRun : IAsyncDisposable
     private readonly Dictionary<long, string> observedSequences = new();
     private int stopped;
     private int disposed;
+    private PendingParticipationReviews? participationObserver;
+    private Func<ParticipationReassessmentContext, CancellationToken, Task<ParticipationReassessment>>? reassess;
+    private readonly CancellationTokenSource participationLifetime = new();
 
     public ObservedShadowRun(PinnedShadowProject project, ShadowSessionBinding binding, string journalDirectory,
         OutboundBindings roles, IFlowCompletion completion, IMemoryReader memory, string nativeEpoch, long initialTail)
@@ -96,6 +102,30 @@ public sealed class ObservedShadowRun : IAsyncDisposable
     public IReadOnlyList<SessionHistoryEntry> History => handoff.History;
     public IReadOnlyList<SessionTraceEvent> Trace => handoff.Trace;
     public OutboundMode OutboundMode => host.EffectiveMode;
+
+    public void ConfigureParticipationObservation(ParticipationReviewDefinition definition,
+        Func<ParticipationReassessmentContext, CancellationToken, Task<ParticipationReassessment>> analyze,
+        int messageHorizon, int attemptBudget, int capacity)
+    {
+        ArgumentNullException.ThrowIfNull(analyze);
+        if (!serial.Wait(0)) throw new InvalidOperationException("Configure observation only while idle.");
+        try
+        {
+            EnsureRunning();
+            if (ceiling != OutboundMode.Shadow || participationObserver is not null)
+                throw new InvalidOperationException("Participation observation requires an unconfigured shadow run.");
+            participationObserver = handoff.CreateParticipationObserver(definition, messageHorizon, attemptBudget, capacity);
+            reassess = analyze;
+        }
+        finally { serial.Release(); }
+    }
+
+    public bool TrackParticipationReview(string originalMessageId)
+    {
+        if (!serial.Wait(0)) return false;
+        try { EnsureRunning(); return participationObserver?.Track(originalMessageId) == true; }
+        finally { serial.Release(); }
+    }
 
     public async Task<ObservedShadowInteraction> AcceptAsync(IReadOnlyList<CanonicalShadowInbound> inputs,
         CancellationToken cancellationToken)
@@ -186,7 +216,11 @@ public sealed class ObservedShadowRun : IAsyncDisposable
                 catch { Stop(); throw; }
                 if (ceiling == OutboundMode.Enabled && !continuous && liveInteractions >= liveInteractionLimit) Stop();
             }
-            return Interaction(watch, decisionsForBatch, outcomes, trace);
+            using var reviewCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, participationLifetime.Token);
+            var reviews = participationObserver is not null && Volatile.Read(ref stopped) == 0
+                ? await participationObserver.ReviewPendingAsync(reassess!, reviewCancellation.Token)
+                : [];
+            return Interaction(watch, decisionsForBatch, outcomes, trace) with { ParticipationReviews = reviews };
         }
         finally { serial.Release(); }
     }
@@ -195,12 +229,20 @@ public sealed class ObservedShadowRun : IAsyncDisposable
     {
         if (Interlocked.Exchange(ref disposed, 1) != 0) return;
         Stop();
-        try { await handoff.DisposeAsync(); }
+        try { await participationLifetime.CancelAsync(); }
         finally
         {
-            inbox.Dispose();
-            host.Dispose();
-            serial.Dispose();
+            try { await handoff.DisposeAsync(); }
+            finally
+            {
+                // The observer belongs to AcceptAsync, not to the runtime's execution tail.
+                // Drain it before disposing the run's serialization and journal resources.
+                await serial.WaitAsync();
+                inbox.Dispose();
+                host.Dispose();
+                participationLifetime.Dispose();
+                serial.Dispose();
+            }
         }
     }
 

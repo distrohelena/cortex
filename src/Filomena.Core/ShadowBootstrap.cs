@@ -74,6 +74,9 @@ internal abstract class RuntimeHandoffCore : IAsyncDisposable
     internal IReadOnlyList<SessionHistoryEntry> History => runtime.ReadHistory(binding.Session);
     internal IReadOnlyList<SessionTraceEvent> Trace => runtime.ReadTrace(binding.Session);
     internal SessionSnapshot? Snapshot => runtime.ReadSession(binding.Session);
+    internal PendingParticipationReviews CreateParticipationObserver(ParticipationReviewDefinition definition,
+        int messageHorizon, int attemptBudget, int capacity) =>
+        new(runtime, binding.Session, definition, messageHorizon, attemptBudget, capacity);
     internal SessionRuntimeContext? CaptureContext() => runtime.CaptureContext(binding.Session);
     internal void RestoreContext(SessionRuntimeContext context) => runtime.RestoreContext(binding.Session, context, binding.Kind);
     private bool Armed => host.EffectiveMode == ceiling;

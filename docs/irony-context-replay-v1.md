@@ -289,3 +289,74 @@ The available narrow integration point is after the existing normal batch drain,
 under the run's serialization boundary. This does not grant send authority or
 remove the need to invalidate results when context changes. Implementation of
 that controller and operational activation remain separate from this audit.
+
+## Pending controller and shadow-host wiring (2026-09-26)
+
+The approved local integration is implemented as `PendingParticipationReviews`
+and opt-in methods on `ObservedShadowRun`. This supersedes the earlier statement
+that no production pending controller exists; it does **not** activate a listener,
+live analyzer, automatic pending selection or late outbound.
+
+Host sequence:
+
+1. Configure participation observation once on a shadow run, supplying the pinned
+   participation cut, an analysis function, message horizon, attempt budget and
+   capacity. Enabled/live runs cannot configure this observer.
+2. Admit inputs through the existing trusted handoff and ordinary runtime.
+3. Explicitly track a retained original after an uncertain interpretation.
+4. On the next normal batch drain, the host processes pending originals with new
+   context, then invokes the existing participation review only for a confident,
+   still-relevant interpretation. `ObservedShadowInteraction.ParticipationReviews`
+   reports the result; it is never fed into generation or outbound.
+
+The analysis function receives an atomic current snapshot, original retained
+message and retained history. Evidence IDs must occur in that input. Unknown
+opportunity values, provider failure and cancellation cannot authorize review.
+Inputs include private message content: choosing an external analyzer would need
+the appropriate explicit operational configuration; these tests use no network.
+
+State is bounded and process-local. Closed entries remain tombstones within the
+configured run capacity; repeated registration cannot reopen them. A fresh
+controller restores no pending work. Horizon/budget/capacity are explicit host
+settings, not new character rules. Tests use 150/2/10 where not testing limits;
+these are not silently installed production values. No polling timer was added.
+
+The controller distinguishes ordinary successful execution from confirmed
+speech. A committed reply closes the corresponding original opportunity even
+if another lifecycle step failed. An uncertain outbound attempt requiring
+reconciliation blocks registration, rather than treating absent speech as proof
+of non-delivery. These cases were exercised with a local fake transport only.
+
+### Controlled end-to-end data
+
+All cases use the existing host, canonical inbound handoff, session runtime and
+v3 participation graph. Model outputs are controlled fixtures; this measures
+wiring and invariants, not sarcasm accuracy. The observation-host fixture changes
+only accumulator quiet time to keep local runs short, not prompts or routing.
+
+| Later assessment/current participation | Host result | Extra inbound executions | Observation sends |
+| --- | --- | --- | --- |
+| Relevant, confident / respond | reviewed: Respond | 0 | 0 |
+| Relevant, confident / wait | reviewed: Wait | 0 | 0 |
+| Relevant, confident / silence | reviewed: Silence | 0 | 0 |
+| Obsolete | closed without participation calls | 0 | 0 |
+| Shutdown while analyzer runs | cancelled and drained | 0 | 0 |
+
+Additional tests cover duplicate context/registration, capacity, message horizon,
+attempt budget, closed topic, project/context races, malformed evidence, backend
+failure, cancellation ignored by an analyzer, confirmed speech, and uncertain send.
+Two gaps were reproduced and fixed: cancellation returning as an ordinary result,
+and accepting uncertain-send work as an unanswered opportunity. The host also now
+cancels/drains its observer before disposing run resources.
+
+Fresh regression results: Core **625 passed / 10 skipped**, Llm/App **671 passed /
+45 skipped**, OpenClaw adapter **175 passed**; **1,471 passed, 55 skipped, zero
+failed**. Project builds used `NativeMemory`, with warnings-as-errors enabled.
+Whitespace verification passed for changed C# files; the formatter reports its
+existing workspace-loading warning. No active build was overwritten.
+
+Remaining operational work: bind the real interpretation adapter and initial
+uncertainty selection, gather model/replay quality data, then explicitly activate
+the reviewed group configuration. Automatic late generation/send is still absent.
+No new calls to real models, Graphiti or WhatsApp occurred in this slice, and no
+conversational service or memory worker was restarted or modified.

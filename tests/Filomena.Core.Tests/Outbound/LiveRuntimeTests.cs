@@ -88,6 +88,62 @@ public sealed class LiveRuntimeTests : IDisposable
     }
 
     [Theory]
+    [InlineData(OutboundMode.Enabled, false)]
+    [InlineData(OutboundMode.Shadow, true)]
+    public async Task Pending_review_uses_confirmed_speech_not_execution_success(OutboundMode mode, bool expected)
+    {
+        var project = ShadowRuntimeTests.Project(false, sendExit: mode == OutboundMode.Enabled ? "sent" : "shadowed");
+        var transport = new SequencedTransport();
+        using var host = Host(project, transport, mode);
+        await using var runtime = Runtime(project, new GatedCompletion(), host);
+        await Inbound(runtime, "in-1", "Oi.");
+        await runtime.WaitForIdleAsync(Session, Token);
+        Assert.True(Assert.Single(runtime.ReadOutcomes(Session)).Success);
+        var pending = new PendingParticipationReviews(runtime, Session,
+            new(project.ProjectRevision, [], []), 150, 2, 10);
+        Assert.Equal(expected, pending.Track("in-1"));
+        if (expected) Assert.Empty(transport.Sends);
+        else Assert.Single(transport.Sends); // Local fake transport, never a real send.
+    }
+
+    [Fact]
+    public async Task Uncertain_send_is_not_a_new_response_opportunity()
+    {
+        var project = ShadowRuntimeTests.Project(false, sendExit: "indeterminate");
+        var transport = new SequencedTransport { SendError = new IOException("Synthetic receipt lost") };
+        using var host = Host(project, transport);
+        await using var runtime = Runtime(project, new GatedCompletion(), host);
+        await Inbound(runtime, "in-1", "Oi.");
+        await runtime.WaitForIdleAsync(Session, Token);
+        Assert.True(host.RequiresReconciliation(Session));
+        Assert.DoesNotContain(runtime.ReadTrace(Session), t => t.EventName == "speech-committed");
+        var pending = new PendingParticipationReviews(runtime, Session,
+            new(project.ProjectRevision, [], []), 150, 2, 10);
+        Assert.False(pending.Track("in-1"));
+    }
+
+    [Fact]
+    public async Task Pending_original_closes_when_its_existing_execution_commits_speech()
+    {
+        var project = ShadowRuntimeTests.Project(false, sendExit: "sent");
+        var transport = new SequencedTransport();
+        var completion = new GatedCompletion { Gated = true };
+        using var host = Host(project, transport);
+        await using var runtime = Runtime(project, completion, host);
+        await Inbound(runtime, "in-1", "Oi.");
+        await completion.Started(1).WaitAsync(Token);
+        var pending = new PendingParticipationReviews(runtime, Session,
+            new(project.ProjectRevision, [], []), 150, 2, 10);
+        Assert.True(pending.Track("in-1"));
+        completion.Release(1);
+        await runtime.WaitForIdleAsync(Session, Token);
+        var result = Assert.Single(await pending.ReviewPendingAsync((_, _) => throw new Exception("Already answered"), Token));
+        Assert.Equal("already_answered", result.Status);
+        Assert.Null(result.Review);
+        Assert.Single(transport.Sends);
+    }
+
+    [Theory]
     [InlineData("indeterminate")]
     [InlineData("failed")]
     public async Task UnconfirmedOutcomeCommitsNeitherSpeechNorTransitionEvenWhenWiredToExit(string scenario)
