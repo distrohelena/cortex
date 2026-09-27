@@ -145,3 +145,13 @@ be overwritten, and fixtures cannot masquerade as runtime replay. This does not 
 areas or validate supplemental port value types. **241 offline tests pass**, CLI build is clean, and
 the compiled command smoke returned `persisted=false` and `executionAuthorized=false`. No models,
 database connections, Docker commands or chat activation were used.
+
+An adapter composition regression was reproduced: LM Studio receives a base URL and posts to
+`chat/completions`, while the accounting handler previously required the base URL itself. The handler
+now resolves only that provider's exact completion URI; other providers retain their exact destination.
+Two tests use the real local adapter over a controlled HTTP handler (base URL with/without trailing
+slash), prove reservation-before-dispatch and observed completion, and passed after failing on the
+original destination check. No LM Studio server or model was used. Offline suite: **243 tests**.
+Remaining composition review item: `LmStudioClient` changes the supplied `HttpClient.Timeout` to
+infinite and owns a profile timeout; the explicit host request ceiling must be preserved before live
+local-provider acceptance. This has not yet been corrected or tested by the destination regression.

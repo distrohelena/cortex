@@ -2,12 +2,32 @@ using System.Net;
 using System.Text;
 using Filomena.Evaluation.Execution;
 using Xunit;
+using Filomena.Llm.LmStudio;
 
 namespace Filomena.Evaluation.Tests;
 
 public sealed class EvaluationHttpHandlerTests
 {
     private static readonly Uri Endpoint = new("https://api.openai.com/v1/responses");
+
+    [Theory]
+    [InlineData("http://127.0.0.1:1234/v1")]
+    [InlineData("http://127.0.0.1:1234/v1/")]
+    public async Task Actual_local_adapter_request_is_accounted_at_its_resolved_completion_endpoint(string baseUrl)
+    {
+        var journal = new Journal();
+        using var transport = new Transport(() => Assert.Single(journal.Intents))
+        {
+            ResponseBody = """{"model":"controlled-local","choices":[{"message":{"content":"controlled output"}}],"usage":{"prompt_tokens":12,"completion_tokens":3}}"""
+        };
+        using var http = new HttpClient(new EvaluationHttpHandler("lmstudio", new(baseUrl), journal) { InnerHandler = transport });
+        var adapter = new LmStudioClient(http, new LmStudioOptions { Endpoint = new(baseUrl), Model = "controlled-local" });
+        var output = await adapter.CompleteResponseAsync("Instruction", "Input", TestContext.Current.CancellationToken);
+        Assert.Equal("controlled output", output);
+        Assert.Equal(1, transport.Calls);
+        Assert.Equal("lmstudio", Assert.Single(journal.Intents).Provider);
+        Assert.Equal("response_received", Assert.Single(journal.Outcomes).Status);
+    }
 
     [Fact]
     public async Task Reservation_failure_prevents_physical_dispatch()

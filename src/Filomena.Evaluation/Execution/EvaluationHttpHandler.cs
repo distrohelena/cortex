@@ -17,10 +17,14 @@ public interface IEvaluationCallJournal
 public sealed class EvaluationHttpHandler(string provider, Uri endpoint, IEvaluationCallJournal journal) : DelegatingHandler
 {
     private const int MaximumBodyBytes = 1_048_576;
+    // LM Studio's adapter accepts a base URI; other adapters accept the full request URI.
+    private readonly Uri requestEndpoint = provider == "lmstudio"
+        ? new Uri(new Uri(endpoint.AbsoluteUri.TrimEnd('/') + "/"), "chat/completions")
+        : endpoint;
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        if (request.Method != HttpMethod.Post || request.RequestUri != endpoint || request.Content is null ||
+        if (request.Method != HttpMethod.Post || request.RequestUri != requestEndpoint || request.Content is null ||
             provider is not ("openai" or "jev" or "lmstudio" or "laya"))
             throw new InvalidDataException("Evaluation request destination or provider is not authorized.");
         var payload = await ReadBoundedAsync(request.Content, cancellationToken);
