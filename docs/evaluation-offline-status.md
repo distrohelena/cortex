@@ -152,6 +152,10 @@ now resolves only that provider's exact completion URI; other providers retain t
 Two tests use the real local adapter over a controlled HTTP handler (base URL with/without trailing
 slash), prove reservation-before-dispatch and observed completion, and passed after failing on the
 original destination check. No LM Studio server or model was used. Offline suite: **243 tests**.
-Remaining composition review item: `LmStudioClient` changes the supplied `HttpClient.Timeout` to
-infinite and owns a profile timeout; the explicit host request ceiling must be preserved before live
-local-provider acceptance. This has not yet been corrected or tested by the destination regression.
+The second composition issue is now corrected separately: `LmStudioClient` changes the supplied
+`HttpClient.Timeout` to infinite and owns a profile timeout. Evaluation restores the original host
+deadline after constructing that adapter, including constructor failure, without editing the shared
+LM Studio client. Its regression failed with expected seven seconds versus actual infinite before
+the fix and passed afterward. The profile's cancellation deadline remains independent; whichever
+deadline expires first applies. **244 offline tests pass**, and the evaluation CLI builds without
+warnings/errors. This is not an online Gemma/Luna/Jev benchmark or database acceptance result.

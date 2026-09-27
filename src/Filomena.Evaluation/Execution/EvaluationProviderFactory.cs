@@ -70,16 +70,7 @@ public sealed class EvaluationProviderFactory
             {
                 "openai" => new OpenAiFlowCompletion(endpoint.Http, endpoint.Credential,
                     parameters.GetProperty("reasoningEffort").GetString()!, parameters.GetProperty("maxOutputTokens").GetInt32()),
-                "lmstudio" => new FlowModelCompletion(new LmStudioClient(endpoint.Http, new LmStudioOptions
-                {
-                    Endpoint = endpoint.Endpoint,
-                    Model = model,
-                    ArbitrationTemperature = parameters.GetProperty("arbitrationTemperature").GetDouble(),
-                    ArbitrationMaxTokens = parameters.GetProperty("arbitrationMaxTokens").GetInt32(),
-                    GenerationTemperature = parameters.GetProperty("generationTemperature").GetDouble(),
-                    GenerationMaxTokens = parameters.GetProperty("generationMaxTokens").GetInt32(),
-                    RequestTimeoutSeconds = parameters.GetProperty("requestTimeoutSeconds").GetInt32()
-                }), model),
+                "lmstudio" => CreateLocalAdapter(endpoint, model, parameters),
                 "jev" or "laya" => new SystemOneFlowCompletion(new SystemOneClient(endpoint.Http,
                     endpoint.Endpoint, endpoint.Credential, provider == "jev", provider == "jev"
                         ? SystemOneProbabilityPolicy.Jev113TwoDecimals : SystemOneProbabilityPolicy.LayaFourDecimals),
@@ -91,6 +82,30 @@ public sealed class EvaluationProviderFactory
         catch (Exception error) when (error is KeyNotFoundException or InvalidOperationException)
         {
             throw new InvalidDataException("Incomplete evaluation provider settings.");
+        }
+    }
+
+    private static IFlowCompletion CreateLocalAdapter(EvaluationEndpoint endpoint, string model, JsonElement parameters)
+    {
+        var hostTimeout = endpoint.Http.Timeout;
+        try
+        {
+            return new FlowModelCompletion(new LmStudioClient(endpoint.Http, new LmStudioOptions
+            {
+                Endpoint = endpoint.Endpoint,
+                Model = model,
+                ArbitrationTemperature = parameters.GetProperty("arbitrationTemperature").GetDouble(),
+                ArbitrationMaxTokens = parameters.GetProperty("arbitrationMaxTokens").GetInt32(),
+                GenerationTemperature = parameters.GetProperty("generationTemperature").GetDouble(),
+                GenerationMaxTokens = parameters.GetProperty("generationMaxTokens").GetInt32(),
+                RequestTimeoutSeconds = parameters.GetProperty("requestTimeoutSeconds").GetInt32()
+            }), model);
+        }
+        finally
+        {
+            // The shared adapter disables HttpClient.Timeout in favor of its own policy.
+            // Evaluation must also retain the host's ceiling; the earlier deadline wins.
+            endpoint.Http.Timeout = hostTimeout;
         }
     }
 

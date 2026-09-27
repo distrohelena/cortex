@@ -9,6 +9,23 @@ namespace Filomena.Evaluation.Tests;
 public sealed class CompletionEvaluationTargetTests
 {
     [Fact]
+    public void Local_adapter_cannot_remove_host_http_deadline()
+    {
+        using var transport = new Transport();
+        using var http = new HttpClient(transport) { Timeout = TimeSpan.FromSeconds(7) };
+        var settings = Profile();
+        var local = new ConfigurationProfile(1, "completion", "lmstudio", "controlled-local", "local-host",
+            "controlled-local", DateTimeOffset.UnixEpoch, Json("""
+            {"arbitrationTemperature":0.1,"arbitrationMaxTokens":256,"generationTemperature":0.7,"generationMaxTokens":256,"requestTimeoutSeconds":60}
+            """), null, [], settings.Schema, settings.Prompt, null);
+        var factory = new EvaluationProviderFactory([
+            new("local-host", "lmstudio", new("http://127.0.0.1:1234/v1/"), http, () => null)]);
+        Assert.NotNull(factory.Create(local, Access()));
+        Assert.Equal(TimeSpan.FromSeconds(7), http.Timeout);
+        Assert.Equal(0, transport.Calls);
+    }
+
+    [Fact]
     public async Task Pinned_typed_input_executes_once_through_real_Jev_adapter()
     {
         const string response = """
