@@ -1,0 +1,9 @@
+CONTEXTO DA TROCA ATUAL
+
+mensagens contém o lote que está sendo analisado agora. historico explica o que veio antes, não é uma lista de pedidos novos. Não transforme uma pergunta antiga já respondida em pergunta atual nem resuma somente a sua última resposta.
+
+Quando houver uma resposta vinculada, use a mensagem citada para entender o assunto do pedido atual, mesmo que outras mensagens tenham aparecido depois. Mantenha separados o autor atual, o autor citado e a pessoa de quem falam. Se a citação estiver incompleta, preserve essa falta; não preencha com a mensagem mais recente por conveniência.
+
+Observe o que mudou no lote atual: uma correção, uma resposta, um novo assunto ou o encerramento do anterior. Uma correção explícita recente prevalece sobre uma interpretação anterior. Não atribua concordância, convite ou pergunta a uma reação que só encerra o assunto. Ausência de contexto não é evidência de que algo nunca aconteceu.
+
+O resumo deve preservar o assunto e os referentes necessários para compreender essa troca, dentro do limite já definido. Não acrescente campos nem decida se Filomena vai responder.

@@ -10,9 +10,9 @@ public sealed class ManifestTests
     public void Validate_rejects_missing_refs_and_cross_project_refs()
     {
         var scope = new EvaluationScope(Guid.NewGuid(), Guid.NewGuid());
-        var crossProject = Manifest(scope) with { Target = Ref(new(scope.WorkspaceId, Guid.NewGuid()), Guid.NewGuid()) };
+        var crossProject = Manifest(scope, target: Ref(new(scope.WorkspaceId, Guid.NewGuid()), Guid.NewGuid()));
         Assert.Contains(ManifestValidator.Validate(crossProject), x => x.Code == "revision.scope_mismatch" && x.Path == "target");
-        Assert.Contains(ManifestValidator.Validate(Manifest(scope) with { Dataset = null! }),
+        Assert.Contains(ManifestValidator.Validate(Manifest(scope, missingDataset: true)),
             x => x.Code == "revision.missing" && x.Path == "dataset");
     }
 
@@ -32,7 +32,8 @@ public sealed class ManifestTests
     public void Validate_rejects_invalid_scope_and_hash()
     {
         var scope = new EvaluationScope(Guid.Empty, Guid.NewGuid());
-        var manifest = Manifest(scope) with { Baseline = Ref(scope, Guid.NewGuid(), "not-a-sha256") };
+        var manifest = Manifest(scope, baseline: Ref(scope, Guid.NewGuid(), "not-a-sha256"), repetitions: 0,
+            budgets: new(0, 0, 0, 0), stopRules: new(3, 2, null));
         Assert.Contains(ManifestValidator.Validate(manifest), x => x.Code == "scope.invalid" && x.Path == "scope");
         Assert.Contains(ManifestValidator.Validate(manifest), x => x.Code == "revision.hash_invalid" && x.Path == "baseline");
     }
@@ -40,7 +41,7 @@ public sealed class ManifestTests
     [Fact]
     public void Profile_validation_rejects_unsupported_parameter_and_invalid_schema()
     {
-        var profile = Profile("luna", "completion", """{"temperature":0.2,"unsupported_magic":true}""", null, [],
+        var profile = Profile("openai", "completion", """{"temperature":0.2,"unsupported_magic":true}""", null, [],
             """{"contractVersion":0}""", null);
         var issues = ProfileValidator.Validate(profile);
         Assert.Contains(issues, x => x.Code == "profile.parameter_unsupported" && x.Path == "parameters.unsupported_magic");
@@ -52,11 +53,10 @@ public sealed class ManifestTests
     public void Validation_rejects_invalid_threshold_repetitions_budgets_and_stop_rules()
     {
         Assert.Contains(ProfileValidator.Validate(Profile("jev", "typed-with-summary", "{}", 1, [],
-            """{"contractVersion":1}""", Doc("summary-profile", """{"prompt":"summary"}"""))),
+            """{"contractVersion":1}""", Summary())),
             x => x.Code == "profile.threshold_invalid");
         var scope = new EvaluationScope(Guid.NewGuid(), Guid.NewGuid());
-        var manifest = Manifest(scope) with { Repetitions = 0, Budgets = new(0, 0, 0, 0), StopRules = new(3, 2, null) };
-        Assert.Contains(ManifestValidator.Validate(manifest), x => x.Code == "manifest.repetitions_invalid");
+        var manifest = Manifest(scope, repetitions: 0, budgets: new(0, 0, 0, 0), stopRules: new(3, 2, null));
         Assert.Contains(ManifestValidator.Validate(manifest), x => x.Code == "budget.invalid");
         Assert.Contains(ManifestValidator.Validate(manifest), x => x.Code == "stop_rules.invalid");
     }
@@ -69,7 +69,7 @@ public sealed class ManifestTests
         var question = new ChoiceQuestionProfile("intent", "Select intent.",
             new Dictionary<string, string> { ["support"] = "Support", ["social"] = "Social" });
         var issues = ProfileValidator.Validate(Profile("jev", "typed-with-summary", "{}", threshold, [question],
-            """{"contractVersion":1}""", Doc("summary-profile", """{"prompt":"summary"}""")));
+            """{"contractVersion":1}""", Summary()));
 
         Assert.Contains(issues, x => x.Code == "profile.threshold_invalid");
     }
@@ -77,12 +77,36 @@ public sealed class ManifestTests
     [Fact]
     public void Completion_allows_absent_threshold_and_typed_recipe_requires_pinned_summary_profile()
     {
-        var completion = Profile("luna", "completion", "{}", null, [], """{"contractVersion":1}""", null);
+        var completion = Profile("openai", "completion", "{}", null, [], """{"contractVersion":1}""", null);
         Assert.Empty(ProfileValidator.Validate(completion));
 
-        var typed = Profile("luna", "typed-with-summary", """{"reasoningEffort":"high","maxOutputTokens":4096}""",
+        var typed = Profile("jev", "typed-with-summary", "{}",
             null, [], """{"contractVersion":1}""", null);
         Assert.Contains(ProfileValidator.Validate(typed), x => x.Code == "profile.summary_profile_required");
+    }
+
+    [Theory]
+    [InlineData("jev", "jev-1.13.0")]
+    [InlineData("laya", "typed-decisions")]
+    public void System_one_completion_profiles_can_be_typed_only_without_summary(string provider, string model)
+    {
+        var question = new ChoiceQuestionProfile("intent", "Choose intent.",
+            new Dictionary<string, string> { ["yes"] = "Yes", ["no"] = "No" });
+        var profile = Profile(provider, "completion", "{}", 0.5, [question],
+            """{"contractVersion":1}""", null, model);
+
+        Assert.Empty(ProfileValidator.Validate(profile));
+    }
+
+    [Fact]
+    public void Summary_profile_rejects_missing_identity_and_invalid_summary_content()
+    {
+        var summary = new SummaryModelProfile(1, "openai", "gpt-summary", "", "endpoint-alias",
+            DateTimeOffset.Parse("2026-09-26T00:00:00Z"), Json("{}"),
+            Doc("schema", """{"contractVersion":1}"""), Doc("prompt", """{"text":"summary"}"""));
+        var issues = ProfileValidator.Validate(Profile("jev", "typed-with-summary", "{}", 0.5, [],
+            """{"contractVersion":1}""", summary));
+        Assert.Contains(issues, x => x.Code == "profile.field_invalid" && x.Path == "summaryProfile.resolvedModelId");
     }
 
     [Fact]
@@ -91,7 +115,7 @@ public sealed class ManifestTests
         var question = new ChoiceQuestionProfile("intent", "Choose the best intent.",
             new Dictionary<string, string> { ["support"] = "Needs help", ["social"] = "Casual conversation" });
         var profile = Profile("jev", "typed-with-summary", "{}", 0.5, [question], """{"contractVersion":1}""",
-            Doc("summary-profile", """{"model":"summary-v2","prompt":"summarize"}"""));
+            Summary());
 
         Assert.Empty(ProfileValidator.Validate(profile));
         Assert.Equal("Choose the best intent.", profile.ChoiceQuestions[0].Instructions);
@@ -102,26 +126,37 @@ public sealed class ManifestTests
     [Fact]
     public void Provider_descriptors_accept_only_their_frozen_parameter_sets()
     {
-        Assert.Empty(ProfileValidator.Validate(Profile("luna", "completion",
+        Assert.Empty(ProfileValidator.Validate(Profile("openai", "completion",
             """{"reasoningEffort":"high","maxOutputTokens":4096}""", null, [],
             """{"contractVersion":1}""", null)));
-        Assert.Empty(ProfileValidator.Validate(Profile("lm-studio", "completion",
+        Assert.Empty(ProfileValidator.Validate(Profile("lmstudio", "completion",
             """{"generationTemperature":0.7,"generationMaxTokens":8192,"requestTimeoutSeconds":180}""", null, [],
             """{"contractVersion":1}""", null)));
+        Assert.Empty(ProfileValidator.Validate(Profile("laya", "typed-with-summary", "{}", 0.5,
+            [new ChoiceQuestionProfile("field", "instructions", new Dictionary<string, string> { ["yes"] = "Yes", ["no"] = "No" })],
+            """{"contractVersion":1}""", Summary(), "typed-decisions")));
+        Assert.Contains(ProfileValidator.Validate(Profile("laya", "typed-with-summary", "{}", 0.5, [],
+            """{"contractVersion":1}""", Summary(), "auto")), x => x.Code == "profile.model_unsupported");
         Assert.Contains(ProfileValidator.Validate(Profile("unknown", "completion", "{}", null, [],
             """{"contractVersion":1}""", null)), x => x.Code == "profile.provider_unsupported");
     }
 
-    private static ExperimentManifest Manifest(EvaluationScope scope, IReadOnlyList<ScopedRevisionRef>? candidates = null) => new(scope,
-        Ref(scope, Guid.NewGuid()), Ref(scope, Guid.NewGuid()), Ref(scope, Guid.NewGuid()),
-        Ref(scope, Guid.NewGuid()), Ref(scope, Guid.NewGuid()), candidates ?? [Ref(scope, Guid.NewGuid())],
-        2, 42, CandidateOrder.Interleaved, new(20, 10000, 10000, 5m), new(1, 5, null));
+    private static ExperimentManifest Manifest(EvaluationScope scope, IReadOnlyList<ScopedRevisionRef>? candidates = null,
+        ScopedRevisionRef? target = null, ScopedRevisionRef? baseline = null, bool missingDataset = false,
+        int repetitions = 2, ExperimentBudgets? budgets = null, ExperimentStopRules? stopRules = null) => new(scope,
+        target ?? Ref(scope), baseline ?? Ref(scope), missingDataset ? null! : Ref(scope), Ref(scope), Ref(scope),
+        candidates ?? [Ref(scope, Guid.NewGuid())], repetitions, 42, CandidateOrder.Interleaved,
+        budgets ?? new(20, 10000, 10000, 5m), stopRules ?? new(1, 5, null));
     private static ConfigurationProfile Profile(string provider, string recipe, string parameters, double? threshold,
-        IReadOnlyList<ChoiceQuestionProfile> questions, string schema, RevisionDocument? summary) => new(
-        1, recipe, provider, "model-alias", "endpoint-alias", "provider-model-id",
+        IReadOnlyList<ChoiceQuestionProfile> questions, string schema, SummaryModelProfile? summary, string model = "jev-1.13.0") => new(
+        1, recipe, provider, model, "endpoint-alias", "provider-model-id",
         DateTimeOffset.Parse("2026-09-26T00:00:00Z"), Json(parameters), threshold, questions,
         new RevisionDocument(1, "schema", Json(schema)), new RevisionDocument(1, "prompt", Json("""{"text":"hello"}""")), summary);
+    private static SummaryModelProfile Summary() => new(1, "openai", "gpt-summary", "gpt-summary-pinned", "endpoint-summary",
+        DateTimeOffset.Parse("2026-09-26T00:00:00Z"), Json("{}"), Doc("schema", """{"contractVersion":1}"""),
+        Doc("prompt", """{"text":"summary"}"""));
     private static RevisionDocument Doc(string kind, string payload) => new(1, kind, Json(payload));
+    private static ScopedRevisionRef Ref(EvaluationScope scope) => Ref(scope, Guid.NewGuid());
     private static ScopedRevisionRef Ref(EvaluationScope scope, Guid id, string? hash = null) =>
         new(scope, new RevisionRef(id, hash ?? new string('a', 64)));
     private static JsonElement Json(string value) => JsonDocument.Parse(value).RootElement.Clone();

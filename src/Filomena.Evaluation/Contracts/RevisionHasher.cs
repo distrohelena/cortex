@@ -6,6 +6,18 @@ namespace Filomena.Evaluation.Contracts;
 
 public static class RevisionHasher
 {
+    public static string Hash(ConfigurationProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        return Hash(profile.ToRevisionDocument());
+    }
+
+    public static string Hash(SummaryModelProfile profile)
+    {
+        ArgumentNullException.ThrowIfNull(profile);
+        return Hash(profile.ToRevisionDocument());
+    }
+
     public static string Hash(RevisionDocument document)
     {
         ArgumentNullException.ThrowIfNull(document);

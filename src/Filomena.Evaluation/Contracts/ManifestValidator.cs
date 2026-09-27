@@ -26,13 +26,13 @@ public static partial class ManifestValidator
         AddReferenceIssue(manifest.Evaluator, manifest.Scope, "evaluator", issues);
         AddReferenceIssue(manifest.Policy, manifest.Scope, "policy", issues);
 
-        if (manifest.Candidates.IsDefaultOrEmpty || manifest.Candidates.Length > MaximumCandidates)
+        if (manifest.Candidates is null || manifest.Candidates.Count is 0 or > MaximumCandidates)
         {
             issues.Add(new("manifest.candidates_invalid", "candidates"));
         }
         else
         {
-            for (var index = 0; index < manifest.Candidates.Length; index++)
+            for (var index = 0; index < manifest.Candidates.Count; index++)
             {
                 AddReferenceIssue(manifest.Candidates[index], manifest.Scope, $"candidates[{index}]", issues);
             }
@@ -104,21 +104,34 @@ public static partial class ManifestValidator
 
 public static class ProfileValidator
 {
-    private sealed record ProviderDescriptor(FrozenSet<string> Parameters, bool HasThreshold, bool HasChoiceQuestions);
+    private sealed record ProviderDescriptor(
+        FrozenSet<string> Parameters,
+        bool SupportsCompletion,
+        bool SupportsTyped,
+        bool HasThreshold,
+        bool HasChoiceQuestions,
+        FrozenSet<string> Models);
+
+    private static readonly FrozenSet<string> EmptySet = Array.Empty<string>().ToFrozenSet(StringComparer.Ordinal);
 
     private static readonly FrozenDictionary<string, ProviderDescriptor> SupportedProviders =
         new Dictionary<string, ProviderDescriptor>(StringComparer.Ordinal)
         {
-            ["luna"] = new(new[] { "reasoningEffort", "maxOutputTokens" }.ToFrozenSet(StringComparer.Ordinal), false, false),
-            ["lm-studio"] = new(new[] {
+            ["openai"] = new(new[] { "reasoningEffort", "maxOutputTokens" }.ToFrozenSet(StringComparer.Ordinal), true, false, false, false, EmptySet),
+            ["lmstudio"] = new(new[] {
                 "arbitrationTemperature", "arbitrationMaxTokens", "generationTemperature",
                 "generationMaxTokens", "requestTimeoutSeconds"
-            }.ToFrozenSet(StringComparer.Ordinal), false, false),
-            ["jev"] = new(Array.Empty<string>().ToFrozenSet(StringComparer.Ordinal), true, true)
+            }.ToFrozenSet(StringComparer.Ordinal), true, false, false, false, EmptySet),
+            ["jev"] = new(EmptySet, false, true, true, true, EmptySet),
+            ["laya"] = new(EmptySet, false, true, true, true, new[]
+            {
+                "english", "multilingual", "typed-decisions", "convaiinnovations/laya",
+                "convaiinnovations/laya-multilingual", "convaiinnovations/laya-typed-decisions"
+            }.ToFrozenSet(StringComparer.Ordinal))
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
     private static readonly FrozenSet<string> SupportedEfforts =
-        new[] { "low", "medium", "high", "xhigh", "max" }.ToFrozenSet(StringComparer.Ordinal);
+        new[] { "minimal", "low", "medium", "high", "xhigh" }.ToFrozenSet(StringComparer.Ordinal);
 
     public static IReadOnlyList<ValidationIssue> Validate(ConfigurationProfile profile)
     {
@@ -134,16 +147,26 @@ public static class ProfileValidator
             issues.Add(new("profile.contract_version", "contractVersion"));
         }
 
-        if (profile.Recipe is not ("completion" or "typed-with-summary"))
-        {
-            issues.Add(new("profile.recipe_unsupported", "recipe"));
-        }
-
         if (!SupportedProviders.TryGetValue(profile.Provider ?? string.Empty, out var descriptor))
         {
             issues.Add(new("profile.provider_unsupported", "provider"));
             descriptor = null;
         }
+
+        var isCompletion = profile.Recipe == "completion";
+        var isTyped = profile.Recipe == "typed-with-summary";
+        if (!isCompletion && !isTyped)
+        {
+            issues.Add(new("profile.recipe_unsupported", "recipe"));
+        }
+        else if (descriptor is not null &&
+            (isCompletion && !descriptor.SupportsCompletion && !descriptor.SupportsTyped ||
+             isTyped && !descriptor.SupportsTyped))
+        {
+            issues.Add(new("profile.recipe_unsupported", "recipe"));
+        }
+
+        var supportsTypedDecisions = descriptor?.SupportsTyped == true;
 
         AddRequired(profile.Provider, "provider", issues);
         AddRequired(profile.Model, "model", issues);
@@ -154,7 +177,12 @@ public static class ProfileValidator
             issues.Add(new("profile.snapshot_missing", "capturedAt"));
         }
 
-        if (profile.Recipe == "typed-with-summary" && descriptor?.HasThreshold == true)
+        if (descriptor is { Models.Count: > 0 } && !descriptor.Models.Contains(profile.Model ?? string.Empty))
+        {
+            issues.Add(new("profile.model_unsupported", "model"));
+        }
+
+        if (supportsTypedDecisions && descriptor?.HasThreshold == true)
         {
             if (profile.Threshold is not double threshold || !double.IsFinite(threshold) || threshold is <= 0 or >= 1)
             {
@@ -166,10 +194,10 @@ public static class ProfileValidator
             issues.Add(new("profile.threshold_unsupported", "threshold"));
         }
 
-        ValidateParameters(profile.Parameters, profile.Provider ?? string.Empty, descriptor, issues);
-        ValidateChoiceQuestions(profile.ChoiceQuestions, descriptor, profile.Recipe == "typed-with-summary", issues);
+        ValidateParameters(profile.Parameters, profile.Provider ?? string.Empty, descriptor, "parameters", issues);
+        ValidateChoiceQuestions(profile.ChoiceQuestions, descriptor, supportsTypedDecisions, issues);
 
-        if (profile.Recipe == "typed-with-summary")
+        if (isTyped)
         {
             if (profile.SummaryProfile is null)
             {
@@ -177,31 +205,48 @@ public static class ProfileValidator
             }
             else
             {
-                ValidateDocument(profile.SummaryProfile, "summaryProfile", issues);
-                if (!string.Equals(profile.SummaryProfile.Kind, "summary-profile", StringComparison.Ordinal))
-                {
-                    issues.Add(new("profile.summary_profile_invalid", "summaryProfile"));
-                }
+                ValidateSummaryProfile(profile.SummaryProfile, issues);
             }
         }
-
-        ValidateDocument(profile.Schema, "schema", issues);
-        if (profile.Schema is not null)
+        else if (profile.SummaryProfile is not null)
         {
-            if (!string.Equals(profile.Schema.Kind, "schema", StringComparison.Ordinal) ||
-                profile.Schema.Payload.ValueKind != JsonValueKind.Object ||
-                !profile.Schema.Payload.TryGetProperty("contractVersion", out var version) ||
-                version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var schemaVersion) || schemaVersion != 1)
-            {
-                issues.Add(new("schema.contract_version", "schema.contractVersion"));
-            }
+            issues.Add(new("profile.summary_profile_unsupported", "summaryProfile"));
         }
 
-        ValidateDocument(profile.Prompt, "prompt", issues);
+        ValidateSchema(profile.Schema, "schema", issues);
+        ValidatePrompt(profile.Prompt, "prompt", issues);
         return issues.AsReadOnly();
     }
 
-    private static void ValidateParameters(JsonElement parameters, string provider, ProviderDescriptor? descriptor, List<ValidationIssue> issues)
+    private static void ValidateSummaryProfile(SummaryModelProfile summary, List<ValidationIssue> issues)
+    {
+        if (summary.ContractVersion != 1)
+        {
+            issues.Add(new("summary.contract_version", "summaryProfile.contractVersion"));
+        }
+
+        if (!SupportedProviders.TryGetValue(summary.Provider ?? string.Empty, out var descriptor) || !descriptor.SupportsCompletion)
+        {
+            issues.Add(new("summary.provider_unsupported", "summaryProfile.provider"));
+            descriptor = null;
+        }
+
+        AddRequired(summary.Provider, "summaryProfile.provider", issues);
+        AddRequired(summary.Model, "summaryProfile.model", issues);
+        AddRequired(summary.ResolvedModelId, "summaryProfile.resolvedModelId", issues);
+        AddRequired(summary.EndpointAlias, "summaryProfile.endpointAlias", issues);
+        if (summary.CapturedAt == default)
+        {
+            issues.Add(new("summary.snapshot_missing", "summaryProfile.capturedAt"));
+        }
+
+        ValidateParameters(summary.Parameters, summary.Provider ?? string.Empty, descriptor, "summaryProfile.parameters", issues);
+        ValidateSchema(summary.Schema, "summaryProfile.schema", issues);
+        ValidatePrompt(summary.Prompt, "summaryProfile.prompt", issues);
+    }
+
+    private static void ValidateParameters(JsonElement parameters, string provider, ProviderDescriptor? descriptor,
+        string prefix, List<ValidationIssue> issues)
     {
         if (parameters.ValueKind != JsonValueKind.Object)
         {
@@ -221,7 +266,7 @@ public static class ProfileValidator
 
         foreach (var parameter in parameters.EnumerateObject())
         {
-            var path = $"parameters.{parameter.Name}";
+            var path = $"{prefix}.{parameter.Name}";
             if (descriptor is null || !descriptor.Parameters.Contains(parameter.Name))
             {
                 issues.Add(new("profile.parameter_unsupported", path));
@@ -230,12 +275,12 @@ public static class ProfileValidator
 
             var valid = provider switch
             {
-                "luna" when parameter.Name == "reasoningEffort" => parameter.Value.ValueKind == JsonValueKind.String &&
+                "openai" when parameter.Name == "reasoningEffort" => parameter.Value.ValueKind == JsonValueKind.String &&
                     parameter.Value.GetString() is string effort && SupportedEfforts.Contains(effort),
-                "luna" when parameter.Name == "maxOutputTokens" => IsPositiveInt(parameter.Value, 1_000_000),
-                "lm-studio" when parameter.Name is "arbitrationTemperature" or "generationTemperature" => IsNumberInRange(parameter.Value, 0, 2),
-                "lm-studio" when parameter.Name is "arbitrationMaxTokens" or "generationMaxTokens" => IsPositiveInt(parameter.Value, 1_000_000),
-                "lm-studio" when parameter.Name == "requestTimeoutSeconds" => IsTimeout(parameter.Value),
+                "openai" when parameter.Name == "maxOutputTokens" => IsPositiveInt(parameter.Value, 1_000_000),
+                "lmstudio" when parameter.Name is "arbitrationTemperature" or "generationTemperature" => IsNumberInRange(parameter.Value, 0, 2),
+                "lmstudio" when parameter.Name is "arbitrationMaxTokens" or "generationMaxTokens" => IsPositiveInt(parameter.Value, 1_000_000),
+                "lmstudio" when parameter.Name == "requestTimeoutSeconds" => IsTimeout(parameter.Value),
                 _ => false
             };
 
@@ -259,7 +304,7 @@ public static class ProfileValidator
     private static void ValidateChoiceQuestions(
         IReadOnlyList<ChoiceQuestionProfile>? questions,
         ProviderDescriptor? descriptor,
-        bool isTypedRecipe,
+        bool supportsTypedDecisions,
         List<ValidationIssue> issues)
     {
         if (questions is null || questions.Count > 128)
@@ -268,7 +313,7 @@ public static class ProfileValidator
             return;
         }
 
-        if (!isTypedRecipe || descriptor?.HasChoiceQuestions != true)
+        if (!supportsTypedDecisions || descriptor?.HasChoiceQuestions != true)
         {
             if (questions.Count != 0)
             {
@@ -276,11 +321,6 @@ public static class ProfileValidator
             }
 
             return;
-        }
-
-        if (questions.Count == 0)
-        {
-            issues.Add(new("profile.choice_questions_required", "choiceQuestions"));
         }
 
         var fields = new HashSet<string>(StringComparer.Ordinal);
@@ -299,7 +339,26 @@ public static class ProfileValidator
         }
     }
 
-    private static void ValidateDocument(RevisionDocument? document, string path, List<ValidationIssue> issues)
+    private static void ValidateSchema(RevisionDocument? document, string path, List<ValidationIssue> issues)
+    {
+        ValidateDocument(document, path, "schema", issues);
+        if (document is null)
+        {
+            return;
+        }
+
+        if (document.Payload.ValueKind != JsonValueKind.Object ||
+            !document.Payload.TryGetProperty("contractVersion", out var version) ||
+            version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var schemaVersion) || schemaVersion != 1)
+        {
+            issues.Add(new("schema.contract_version", $"{path}.contractVersion"));
+        }
+    }
+
+    private static void ValidatePrompt(RevisionDocument? document, string path, List<ValidationIssue> issues) =>
+        ValidateDocument(document, path, "prompt", issues);
+
+    private static void ValidateDocument(RevisionDocument? document, string path, string expectedKind, List<ValidationIssue> issues)
     {
         if (document is null)
         {
@@ -310,6 +369,10 @@ public static class ProfileValidator
         try
         {
             _ = RevisionHasher.Hash(document);
+            if (!string.Equals(document.Kind, expectedKind, StringComparison.Ordinal))
+            {
+                issues.Add(new("revision.document_kind_invalid", path));
+            }
         }
         catch (ArgumentException)
         {

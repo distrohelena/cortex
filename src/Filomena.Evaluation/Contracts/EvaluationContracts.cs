@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Collections.ObjectModel;
-using System.Collections.Immutable;
 using System.Collections.Frozen;
+using System.Text.Json.Serialization;
 
 namespace Filomena.Evaluation.Contracts;
 
@@ -39,8 +39,9 @@ public sealed record ExperimentBudgets(int MaxCalls, int MaxInputTokens, int Max
 
 public sealed record ExperimentStopRules(int MinRepetitions, int MaxRepetitions, double? MaxFailureRate);
 
-public sealed record ExperimentManifest
+public sealed class ExperimentManifest
 {
+    [JsonConstructor]
     public ExperimentManifest(
         EvaluationScope scope,
         ScopedRevisionRef target,
@@ -61,7 +62,7 @@ public sealed record ExperimentManifest
         Dataset = dataset;
         Evaluator = evaluator;
         Policy = policy;
-        Candidates = candidates?.ToImmutableArray() ?? default;
+        Candidates = Array.AsReadOnly((candidates ?? Array.Empty<ScopedRevisionRef>()).ToArray());
         Repetitions = repetitions;
         Seed = seed;
         Order = order;
@@ -69,21 +70,21 @@ public sealed record ExperimentManifest
         StopRules = stopRules;
     }
 
-    public EvaluationScope Scope { get; init; }
-    public ScopedRevisionRef Target { get; init; }
-    public ScopedRevisionRef Baseline { get; init; }
-    public ScopedRevisionRef Dataset { get; init; }
-    public ScopedRevisionRef Evaluator { get; init; }
-    public ScopedRevisionRef Policy { get; init; }
-    public ImmutableArray<ScopedRevisionRef> Candidates { get; init; }
-    public int Repetitions { get; init; }
-    public long Seed { get; init; }
-    public CandidateOrder Order { get; init; }
-    public ExperimentBudgets Budgets { get; init; }
-    public ExperimentStopRules StopRules { get; init; }
+    public EvaluationScope Scope { get; }
+    public ScopedRevisionRef Target { get; }
+    public ScopedRevisionRef Baseline { get; }
+    public ScopedRevisionRef Dataset { get; }
+    public ScopedRevisionRef Evaluator { get; }
+    public ScopedRevisionRef Policy { get; }
+    public IReadOnlyList<ScopedRevisionRef> Candidates { get; }
+    public int Repetitions { get; }
+    public long Seed { get; }
+    public CandidateOrder Order { get; }
+    public ExperimentBudgets Budgets { get; }
+    public ExperimentStopRules StopRules { get; }
 }
 
-public sealed record ConfigurationProfile
+public sealed class ConfigurationProfile
 {
     public ConfigurationProfile(
         int contractVersion,
@@ -98,7 +99,7 @@ public sealed record ConfigurationProfile
         IReadOnlyList<ChoiceQuestionProfile> choiceQuestions,
         RevisionDocument schema,
         RevisionDocument prompt,
-        RevisionDocument? summaryProfile)
+        SummaryModelProfile? summaryProfile)
     {
         ContractVersion = contractVersion;
         Recipe = recipe;
@@ -128,7 +129,12 @@ public sealed record ConfigurationProfile
     public IReadOnlyList<ChoiceQuestionProfile> ChoiceQuestions { get; }
     public RevisionDocument Schema { get; }
     public RevisionDocument Prompt { get; }
-    public RevisionDocument? SummaryProfile { get; }
+    public SummaryModelProfile? SummaryProfile { get; }
+
+    public RevisionDocument ToRevisionDocument() => new(
+        ContractVersion,
+        "configuration-profile",
+        JsonSerializer.SerializeToElement(this, ProfileJson.Options));
 
     private static ChoiceQuestionProfile CloneQuestion(ChoiceQuestionProfile? question)
     {
@@ -142,4 +148,50 @@ public sealed record ConfigurationProfile
             : new ReadOnlyDictionary<string, string>(question.Criteria.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal));
         return new ChoiceQuestionProfile(question.Field, question.Instructions, criteria);
     }
+}
+
+public sealed class SummaryModelProfile
+{
+    [JsonConstructor]
+    public SummaryModelProfile(
+        int contractVersion,
+        string provider,
+        string model,
+        string resolvedModelId,
+        string endpointAlias,
+        DateTimeOffset capturedAt,
+        JsonElement parameters,
+        RevisionDocument schema,
+        RevisionDocument prompt)
+    {
+        ContractVersion = contractVersion;
+        Provider = provider;
+        Model = model;
+        ResolvedModelId = resolvedModelId;
+        EndpointAlias = endpointAlias;
+        CapturedAt = capturedAt;
+        Parameters = parameters.ValueKind == JsonValueKind.Undefined ? parameters : parameters.Clone();
+        Schema = schema;
+        Prompt = prompt;
+    }
+
+    public int ContractVersion { get; }
+    public string Provider { get; }
+    public string Model { get; }
+    public string ResolvedModelId { get; }
+    public string EndpointAlias { get; }
+    public DateTimeOffset CapturedAt { get; }
+    public JsonElement Parameters { get; }
+    public RevisionDocument Schema { get; }
+    public RevisionDocument Prompt { get; }
+
+    public RevisionDocument ToRevisionDocument() => new(
+        ContractVersion,
+        "summary-model-profile",
+        JsonSerializer.SerializeToElement(this, ProfileJson.Options));
+}
+
+internal static class ProfileJson
+{
+    internal static readonly JsonSerializerOptions Options = new(JsonSerializerDefaults.Web);
 }
