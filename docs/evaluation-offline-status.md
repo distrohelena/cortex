@@ -137,3 +137,11 @@ process crash or an unavailable database automatically.
 Seven pre-database rejection tests pass (offline suite: **234 tests**); a PostgreSQL executor failure
 test is compiled but **not executed**. CLI build has zero warnings/errors. Real cancellation races,
 transaction behavior and durable restart semantics still require the database acceptance suite.
+
+`case.prepare.synthetic` now prepares pinned step inputs and separate synthetic provenance. All 25
+development cases map to the actual project's situation input names without exposing rubric fields.
+Downstream inputs require explicit fixtures; missing values are not guessed, conversation fields cannot
+be overwritten, and fixtures cannot masquerade as runtime replay. This does not yet execute the five
+areas or validate supplemental port value types. **241 offline tests pass**, CLI build is clean, and
+the compiled command smoke returned `persisted=false` and `executionAuthorized=false`. No models,
+database connections, Docker commands or chat activation were used.

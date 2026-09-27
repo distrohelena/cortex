@@ -76,3 +76,16 @@ are rejected. Errors do not echo inputs. A role supplied in JSON grants no autho
 `experiment.run`, `deploy`, `promote`, arbitrary SQL and shell execution are not exposed.
 Durable experiment/application commands remain pending the store/ledger implementation and
 integration checks after the host migration. Do not use these previews as a substitute for that gate.
+# Synthetic step input preparation
+
+Offline operation `case.prepare.synthetic` accepts `caseId`, `context`, `selfActorRef`,
+`instruction` (from `instruction.describe`) and an explicit `supplementalFixtures` object.
+It returns `prepared.input` (`completion-input` revision), `prepared.provenance` and
+`executionAuthorized=false`; nothing is persisted or dispatched.
+
+Conversation fields use the existing corpus mapper and runtime model serialization. Only declared
+input names are included. Missing downstream inputs require explicit synthetic fixtures; the tool
+never derives them from rubric answers. Fixtures cannot overwrite conversation fields, contain
+duplicates or add undeclared fields. Provenance records their names and marks `runtimeReplay=false`.
+This is preparation, not validation of port value types or a substitute for real upstream execution.
+The public development corpus must not be presented as a private holdout.

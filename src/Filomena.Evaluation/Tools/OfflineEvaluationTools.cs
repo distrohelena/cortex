@@ -41,6 +41,7 @@ public static class OfflineEvaluationTools
                 "comparison.preview" => Compare(input.Payload),
                 "assessment.preview" => Assess(input.Payload),
                 "instruction.describe" => DescribeInstruction(input.Payload),
+                "case.prepare.synthetic" => PrepareSyntheticCase(input.Payload),
                 "experiment.preview" => PreviewSchedule(input.Payload),
                 "cost.project" => ProjectCost(input.Payload),
                 _ => Error("unsupported_operation")
@@ -51,6 +52,15 @@ public static class OfflineEvaluationTools
             // Fixed codes only: malformed data, filesystem paths or private payloads never enter errors.
             return Error("invalid_request");
         }
+    }
+
+    private static OfflineToolResponse PrepareSyntheticCase(JsonElement payload)
+    {
+        var input = Read<SyntheticCaseInput>(payload);
+        if (input.Instruction is null) throw new InvalidDataException();
+        var prepared = SyntheticStepCasePreparation.Prepare(input.CaseId, input.Context, input.SelfActorRef,
+            input.Instruction, input.SupplementalFixtures);
+        return Result(new { prepared, executionAuthorized = false });
     }
 
     private static OfflineToolResponse ValidateProfile(JsonElement payload)
@@ -126,4 +136,6 @@ public static class OfflineEvaluationTools
     private sealed record AssessmentInput(string Output, IReadOnlyList<FieldCriterion> Criteria, IReadOnlyList<string> ManualCriteria);
     private sealed record InstructionInput(SessionFlowProject Project, string StateId, string EntryKind, string NodeId);
     private sealed record ProfilePreparationInput(FlowInstructionSnapshot Instruction, ConfigurationProfile Settings);
+    private sealed record SyntheticCaseInput(string CaseId, JsonElement Context, string SelfActorRef,
+        FlowInstructionSnapshot Instruction, JsonElement SupplementalFixtures);
 }
