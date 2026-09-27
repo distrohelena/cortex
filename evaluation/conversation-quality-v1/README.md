@@ -12,4 +12,8 @@ All cases are known to the corpus proposer. This is a development corpus, not a 
 
 The cases express evaluation expectations only. They do not add runtime behavior, a personality rule, or FSM rule. In particular, they do not assert that the system changes batching or memory automatically. Direct questions remain response-worthy; indirect group participation may be silent when it adds no value. Context can resolve a referent, while missing context must preserve ambiguity. Semantic repetition is evaluated across distinct messages, not just exact text duplicates.
 
-No model was called and no tests or services were run while preparing this corpus. JSON syntax inspection is documented in the workbench report.
+No model was called while preparing this corpus. `ConversationCaseInput` now maps its context
+to situation-step inputs through the real `FlowDomain.ForModel` serialization. The mapper
+does not consume `expected`, `typedSystem1Expectations`, notes or provenance as model input.
+Missing quote text stays null; quoted message IDs are synthetic, never inferred from text.
+All 25 cases have offline mapping coverage. This is not a model-quality or full runtime result.

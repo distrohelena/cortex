@@ -17,5 +17,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Filomena.Evaluation/Filomena.Evaluation.csproj" />
+    <None Include="../../evaluation/conversation-quality-v1/cases.json" Link="conversation-cases.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

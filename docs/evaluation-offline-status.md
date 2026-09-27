@@ -22,12 +22,16 @@ configuration is used by the evaluation project.
   physical attempts cannot count as independent repetitions. Unknown cost or different currencies
   cannot establish financial dominance. Reports include correctness, descriptive Wilson intervals,
   median/p95 latency and an observed Pareto set; this is not a statistical superiority claim.
+- Synthetic conversation mapper uses the runtime's `FlowDomain.ForModel` serializer for
+  current messages, history and quotes. All 25 development cases map. Grading metadata is
+  excluded, current self-events are rejected, missing quote content is not reconstructed.
+  These are situation-step inputs, not a fabricated complete generation/runtime execution.
 
 ## Verification
 
 `dotnet test tests/Filomena.Evaluation.Tests -c NativeMemory --no-restore --filter 'FullyQualifiedName!~DatabaseLifecycleTests'`
 
-Result at this checkpoint: **95 passed**, zero failures. These tests use controlled HTTP,
+Result at this checkpoint: **101 passed**, zero failures. These tests use controlled HTTP,
 not paid inference. Database lifecycle tests were explicitly excluded, not certified.
 
 `dotnet build src/Filomena.Evaluation.Cli -c NativeMemory --no-restore`
