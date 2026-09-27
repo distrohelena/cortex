@@ -36,6 +36,7 @@ public static class OfflineEvaluationTools
                 "revision.hash" => Result(new { sha256 = RevisionHasher.Hash(Read<RevisionDocument>(input.Payload)) }),
                 "profile.validate" => ValidateProfile(input.Payload),
                 "comparison.preview" => Compare(input.Payload),
+                "assessment.preview" => Assess(input.Payload),
                 "experiment.preview" => PreviewSchedule(input.Payload),
                 "cost.project" => ProjectCost(input.Payload),
                 _ => Error("unsupported_operation")
@@ -71,6 +72,12 @@ public static class OfflineEvaluationTools
         return Result(CostProjection.Calculate(input.Usage, input.Price));
     }
 
+    private static OfflineToolResponse Assess(JsonElement payload)
+    {
+        var input = Read<AssessmentInput>(payload);
+        return Result(AssessmentEvaluator.Evaluate(input.Output, input.Criteria, input.ManualCriteria));
+    }
+
     private static OfflineToolResponse PreviewSchedule(JsonElement payload)
     {
         var input = Read<ScheduleInput>(payload);
@@ -90,4 +97,5 @@ public static class OfflineEvaluationTools
     private sealed record ComparisonInput(IReadOnlyList<string> Candidates, IReadOnlyList<EvaluationCell> Cells, IReadOnlyList<ComparisonTrial> Trials);
     private sealed record CostInput(ProviderTokenUsage? Usage, PriceSnapshot Price);
     private sealed record ScheduleInput(ExperimentManifest Manifest, IReadOnlyList<ScopedRevisionRef> Cases);
+    private sealed record AssessmentInput(string Output, IReadOnlyList<FieldCriterion> Criteria, IReadOnlyList<string> ManualCriteria);
 }
