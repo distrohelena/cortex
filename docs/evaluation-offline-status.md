@@ -43,7 +43,7 @@ configuration is used by the evaluation project.
 
 `dotnet test tests/Filomena.Evaluation.Tests -c NativeMemory --no-restore --filter 'Category!=Postgres&FullyQualifiedName!~DatabaseLifecycleTests'`
 
-Result at this checkpoint: **191 passed**, zero failures (including offline authority/intent validation
+Result at this checkpoint: **198 passed**, zero failures (including offline authority/intent validation
 for the attempt ledger). These tests use controlled HTTP,
 not paid inference. Database lifecycle tests were explicitly excluded, not certified.
 
@@ -89,3 +89,7 @@ these snapshots. An offline test prepares 15 combinations across the existing th
 situation/presence/generation steps: Luna for all, Jev+summary for situation, Jev alone for presence.
 Jev/Laya free generation is rejected. This validates profile construction, not live model fitness.
 Persisted experiment bundles and real upstream outputs for downstream cases are still pending.
+
+Typed corpus expectations now map to explicit per-step criteria with a separate list of dimensions
+not evaluated by that step. All 25 cases are covered by this plumbing test; five voice-only cases remain
+unscored. This does not claim that any model has answered the cases correctly.

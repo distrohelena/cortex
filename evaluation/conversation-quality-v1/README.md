@@ -17,3 +17,11 @@ to situation-step inputs through the real `FlowDomain.ForModel` serialization. T
 does not consume `expected`, `typedSystem1Expectations`, notes or provenance as model input.
 Missing quote text stays null; quoted message IDs are synthetic, never inferred from text.
 All 25 cases have offline mapping coverage. This is not a model-quality or full runtime result.
+
+`TypedRubricProjection` maps `evaluationSchema.typedSystem1.eligibleDimensions` and each case's
+`typedSystem1Expectations` to deterministic criteria for the selected output fields. It reports
+excluded dimensions explicitly: a situation-only run does not grade `acao` or certify participation.
+Expected enum/boolean types are validated even for dimensions outside the selected step; unknown
+dimensions/values fail instead of being ignored. Critical dimensions must be selected by the evaluator
+policy, not inferred from prose or provided by the candidate. All 20 typed cases map; the five voice-only
+cases have no typed score. This is rubric plumbing, not a provider benchmark or semantic voice review.
