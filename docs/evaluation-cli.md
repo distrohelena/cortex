@@ -28,6 +28,7 @@ the request failed. A successful calculation is not model-quality approval or pr
 | `cost.project` | `{ usage: ProviderTokenUsage, price: PriceSnapshot }` | Nullable list-price estimate |
 | `comparison.preview` | `{ candidates: string[], cells: EvaluationCell[], trials: ComparisonTrial[] }` | Descriptive summary and observed Pareto set |
 | `assessment.preview` | `{ output: string, criteria: FieldCriterion[], manualCriteria: string[] }` | Enum/boolean grading and explicit unscored manual criteria |
+| `instruction.describe` | `{ project: SessionFlowProject, stateId: string, entryKind: "dm" or "group", nodeId: string }` | Effective system text, schema, inputs and node configuration, using the runtime compiler/composer without execution |
 | `experiment.preview` | `{ manifest: ExperimentManifest, cases: ScopedRevisionRef[] }` | Deterministic schedule, minimum call count; no dispatch authority |
 
 Contracts live in `Filomena.Evaluation.Contracts`, `.Execution` and `.Comparison`. Profile
@@ -44,6 +45,14 @@ An empty rubric cannot certify a response. Put voice, summary fidelity and other
 in `manualCriteria`; they remain `unscored` until separately reviewed. This does not validate the
 entire provider schema or prove all five conversation-quality dimensions. Criteria are caller-supplied
 preview data, not trusted persisted assessments or authority to promote a model.
+
+Instruction inspection requires the complete project document in the request. It never opens a
+file path supplied by the caller, constructs a session runtime or dispatches a message. Context flags
+are honored by the same `InstructionContext.Compose` used in session execution: enabled personality,
+state guidance and interests are included; disabled sections are not added. The selected node must be
+a prompt reachable from the requested DM/group entry. This surface exposes local project text, so its
+output belongs in experimental artifacts, not ordinary production logs. It does not generate the
+upstream model outputs required as inputs to later steps, or prove provider capability/quality.
 
 Schedule preview uses the pinned seed and revision references, pairs baseline/candidates,
 rejects foreign-scope or duplicate cases, and checks the minimum one-call-per-trial budget.

@@ -4,6 +4,8 @@ using System.Text;
 using Filomena.Evaluation.Contracts;
 using Filomena.Evaluation.Comparison;
 using Filomena.Evaluation.Execution;
+using Filomena.Core.Flows;
+using Filomena.Core.Flows.Sessions;
 
 namespace Filomena.Evaluation.Tools;
 
@@ -37,12 +39,13 @@ public static class OfflineEvaluationTools
                 "profile.validate" => ValidateProfile(input.Payload),
                 "comparison.preview" => Compare(input.Payload),
                 "assessment.preview" => Assess(input.Payload),
+                "instruction.describe" => DescribeInstruction(input.Payload),
                 "experiment.preview" => PreviewSchedule(input.Payload),
                 "cost.project" => ProjectCost(input.Payload),
                 _ => Error("unsupported_operation")
             };
         }
-        catch (Exception error) when (error is JsonException or ArgumentException or InvalidDataException or InvalidOperationException or KeyNotFoundException)
+        catch (Exception error) when (error is JsonException or ArgumentException or InvalidDataException or InvalidOperationException or KeyNotFoundException or SessionFlowProjectException or TypedFlowException)
         {
             // Fixed codes only: malformed data, filesystem paths or private payloads never enter errors.
             return Error("invalid_request");
@@ -78,6 +81,20 @@ public static class OfflineEvaluationTools
         return Result(AssessmentEvaluator.Evaluate(input.Output, input.Criteria, input.ManualCriteria));
     }
 
+    private static OfflineToolResponse DescribeInstruction(JsonElement payload)
+    {
+        var input = Read<InstructionInput>(payload);
+        if (input.Project is null || string.IsNullOrWhiteSpace(input.StateId) || string.IsNullOrWhiteSpace(input.NodeId))
+            throw new InvalidDataException();
+        var kind = input.EntryKind switch
+        {
+            "dm" => SessionEntryKind.Dm,
+            "group" => SessionEntryKind.Group,
+            _ => throw new InvalidDataException()
+        };
+        return Result(FlowInstructionInspection.Describe(input.Project, input.StateId, kind, input.NodeId));
+    }
+
     private static OfflineToolResponse PreviewSchedule(JsonElement payload)
     {
         var input = Read<ScheduleInput>(payload);
@@ -98,4 +115,5 @@ public static class OfflineEvaluationTools
     private sealed record CostInput(ProviderTokenUsage? Usage, PriceSnapshot Price);
     private sealed record ScheduleInput(ExperimentManifest Manifest, IReadOnlyList<ScopedRevisionRef> Cases);
     private sealed record AssessmentInput(string Output, IReadOnlyList<FieldCriterion> Criteria, IReadOnlyList<string> ManualCriteria);
+    private sealed record InstructionInput(SessionFlowProject Project, string StateId, string EntryKind, string NodeId);
 }
