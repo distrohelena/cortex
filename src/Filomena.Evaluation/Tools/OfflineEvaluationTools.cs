@@ -37,6 +37,7 @@ public static class OfflineEvaluationTools
             {
                 "revision.hash" => Result(new { sha256 = RevisionHasher.Hash(Read<RevisionDocument>(input.Payload)) }),
                 "profile.validate" => ValidateProfile(input.Payload),
+                "profile.prepare" => PrepareProfile(input.Payload),
                 "comparison.preview" => Compare(input.Payload),
                 "assessment.preview" => Assess(input.Payload),
                 "instruction.describe" => DescribeInstruction(input.Payload),
@@ -57,6 +58,14 @@ public static class OfflineEvaluationTools
         var profile = Read<ConfigurationProfile>(payload);
         var issues = ProfileValidator.Validate(profile);
         return Result(new { valid = issues.Count == 0, issues, sha256 = issues.Count == 0 ? RevisionHasher.Hash(profile) : null });
+    }
+
+    private static OfflineToolResponse PrepareProfile(JsonElement payload)
+    {
+        var input = Read<ProfilePreparationInput>(payload);
+        if (input.Instruction is null || input.Settings is null) throw new InvalidDataException();
+        var profile = InstructionProfilePreparation.Bind(input.Instruction, input.Settings);
+        return Result(new { profile, sha256 = RevisionHasher.Hash(profile.ToRevisionDocument()), executionAuthorized = false });
     }
 
     private static OfflineToolResponse Compare(JsonElement payload)
@@ -116,4 +125,5 @@ public static class OfflineEvaluationTools
     private sealed record ScheduleInput(ExperimentManifest Manifest, IReadOnlyList<ScopedRevisionRef> Cases);
     private sealed record AssessmentInput(string Output, IReadOnlyList<FieldCriterion> Criteria, IReadOnlyList<string> ManualCriteria);
     private sealed record InstructionInput(SessionFlowProject Project, string StateId, string EntryKind, string NodeId);
+    private sealed record ProfilePreparationInput(FlowInstructionSnapshot Instruction, ConfigurationProfile Settings);
 }

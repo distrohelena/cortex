@@ -25,6 +25,7 @@ the request failed. A successful calculation is not model-quality approval or pr
 |---|---|---|
 | `revision.hash` | `RevisionDocument` | Canonical SHA-256 |
 | `profile.validate` | `ConfigurationProfile` | Structural issues and hash when valid |
+| `profile.prepare` | `{ instruction: FlowInstructionSnapshot, settings: ConfigurationProfile }` | Profile bound to inspected prompt/schema, hash, `executionAuthorized=false` |
 | `cost.project` | `{ usage: ProviderTokenUsage, price: PriceSnapshot }` | Nullable list-price estimate |
 | `comparison.preview` | `{ candidates: string[], cells: EvaluationCell[], trials: ComparisonTrial[] }` | Descriptive summary and observed Pareto set |
 | `assessment.preview` | `{ output: string, criteria: FieldCriterion[], manualCriteria: string[] }` | Enum/boolean grading and explicit unscored manual criteria |
@@ -53,6 +54,16 @@ state guidance and interests are included; disabled sections are not added. The 
 a prompt reachable from the requested DM/group entry. This surface exposes local project text, so its
 output belongs in experimental artifacts, not ordinary production logs. It does not generate the
 upstream model outputs required as inputs to later steps, or prove provider capability/quality.
+
+Profile preparation replaces the template's primary prompt/schema with the inspected instruction
+and records project revision/state/node provenance. Model, endpoint alias, prices (external), explicit
+parameters and choice overrides are not silently selected or changed. For Jev/Laya, only a closed
+required enum/boolean schema is eligible. Free `resumo` needs an explicit `typed-with-summary` recipe
+and summary model/prompt; its schema is derived from the original summary field. Other free generation
+is rejected, not imitated. Voice therefore requires a generative candidate. Choice-question overrides
+remain explicit and can replace per-field instructions; do not call such a comparison prompt-equivalent.
+Preparation uses caller-supplied snapshots; persistence must still verify scope/references before any
+execution. It is not deployment, endpoint readiness, token-fit verification or benchmark evidence.
 
 Schedule preview uses the pinned seed and revision references, pairs baseline/candidates,
 rejects foreign-scope or duplicate cases, and checks the minimum one-call-per-trial budget.
