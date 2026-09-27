@@ -189,3 +189,11 @@ untracked `FrontendBuildTests.cs` and `SettingsStoreTests.cs`, referring to abse
 `Filomena.App.Settings`, `FrontendAssets`, `FrontendBuildService`, `IFrontendBuildProcessRunner`,
 `FrontendBuildProcessRequest` and `FrontendBuildProcessResult`. Those files were not changed here.
 Therefore only the evaluation project/CLI builds are green, **not the complete solution**.
+
+`PersistedEvaluationTools` now connects host-authorized revision import/read and experiment plan/cancel
+to existing persistence. Strict envelopes cannot grant a role, and unsupported run/promote/deploy/exec
+requests are rejected before storage. Responses distinguish no attempt from uncertain persistence;
+database errors never return exception text. Eight new pre-database tests passed after failing before
+implementation. An import/idempotence/read/plan/cancel PostgreSQL test is compiled but **not run**.
+Offline suite: **256 tests passing**; CLI build clean. No persistent/live CLI mode has been enabled,
+no database connection was made, and no model or chat was started.

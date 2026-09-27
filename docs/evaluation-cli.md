@@ -78,6 +78,19 @@ Durable experiment/application commands remain pending the store/ledger implemen
 integration checks after the host migration. Do not use these previews as a substitute for that gate.
 # Synthetic step input preparation
 
+## Host application persistence boundary (not yet exposed by CLI)
+
+`PersistedEvaluationTools.InvokeAsync` receives host-created `EvaluationAccess` and a host datasource;
+neither can be supplied in JSON. It supports `revision.import`, `revision.show`, `experiment.plan`
+and `experiment.cancel`. Requests use the existing version-1 envelope. Plan payload is
+`{experimentId, manifest, cases}`; cancel payload is `{experimentId}`. Revision operations take the
+revision document/reference directly. Roles, unknown fields and duplicate JSON keys are rejected.
+`persistenceStatus` distinguishes `not_attempted`, `confirmed`, `read_only` and `unconfirmed`.
+An unconfirmed result does not authorize retry or claim no write happened. Errors contain fixed codes,
+not connection strings or backend exception text. This surface has no model execution or deployment
+operation. Its database integration test remains pending during migration; CLI still accepts only
+the offline mode described below.
+
 `comparison.preview` also returns `cases`: one entry per scheduled case revision, containing each
 candidate's observed/expected counts, gates, correctness, descriptive interval, latency and known cost.
 Cases with no observations remain visible as incomplete, with unknown metrics. This breakdown does
