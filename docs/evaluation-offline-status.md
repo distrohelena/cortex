@@ -105,3 +105,13 @@ completion can only reference the same artifact. The PostgreSQL test includes mi
 attempt rejection and same/different-result re-entry, but remains **unexecuted**. Migration 004 stores
 the output reference; retention redaction remains operator-controlled. Reconciliation and live CLI
 remain incomplete. No durable correctness claim is made from the 205 offline tests.
+
+Host-side provider composition now binds dedicated HTTP clients to `AttemptLedger` for the
+claimed experiment/trial/owner/generation. Redirects and cookies are disabled; application retries
+are not added. Construction validates evaluation authority, both revision scopes, authorized endpoint,
+finite request timeout and positive paid-call cost reservation without reading credentials or opening
+connections. All clients are disposed on construction failure or owner disposal.
+The six new tests were observed failing before implementation, then passing. The offline suite now
+passes **211 tests**, and the evaluation CLI builds with zero warnings/errors. PostgreSQL and Docker
+lifecycle tests remain explicitly excluded; these construction tests do not prove database durability
+or native HTTP transport retry behavior. No paid execution or chat activation was performed.
