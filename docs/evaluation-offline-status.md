@@ -159,3 +159,12 @@ LM Studio client. Its regression failed with expected seven seconds versus actua
 the fix and passed afterward. The profile's cancellation deadline remains independent; whichever
 deadline expires first applies. **244 offline tests pass**, and the evaluation CLI builds without
 warnings/errors. This is not an online Gemma/Luna/Jev benchmark or database acceptance result.
+
+The complete trial acceptance test is now prepared as an opt-in PostgreSQL test. It persists a plan,
+runs the actual local adapter against a one-response loopback fixture, checks the committed reservation
+from a separate database connection before returning a response, verifies stored output hashes and
+completion, and rejects a second execution of the completed experiment. **It has not run** while
+PostgreSQL operations are suspended. The HTTP fixture alone was exercised through the evaluation
+handler and real adapter, with an explicitly test-only journal and no model. The fixture initially
+rejected chunked input when tested without the evaluation handler; using the actual buffered transport
+composition resolved that test mismatch. **245 offline tests pass**; no database acceptance is claimed.
