@@ -6,6 +6,48 @@ namespace Filomena.Evaluation.Tests;
 public sealed class ComparisonTests
 {
     [Fact]
+    public void Case_breakdown_exposes_regression_hidden_by_overall_accuracy()
+    {
+        EvaluationCell[] cells = [new("direct", 0), new("indirect", 0)];
+        var report = ExperimentComparer.Compare(["a", "b"], cells,
+            [Trial("a", 0) with { Cell = cells[0] }, Trial("a", 0, "fail") with { Cell = cells[1] },
+             Trial("b", 0, "fail") with { Cell = cells[0] }, Trial("b", 0) with { Cell = cells[1] }]);
+        Assert.All(report.Candidates, candidate => Assert.Equal(0.5, candidate.Correctness));
+        var direct = Assert.Single(report.Cases, item => item.CaseRevision == "direct");
+        Assert.Equal(1, Assert.Single(direct.Candidates, item => item.Id == "a").Correctness);
+        Assert.Equal(0, Assert.Single(direct.Candidates, item => item.Id == "b").Correctness);
+        var indirect = Assert.Single(report.Cases, item => item.CaseRevision == "indirect");
+        Assert.Equal(0, Assert.Single(indirect.Candidates, item => item.Id == "a").Correctness);
+        Assert.Equal(1, Assert.Single(indirect.Candidates, item => item.Id == "b").Correctness);
+    }
+
+    [Fact]
+    public void Case_breakdown_keeps_missing_case_instead_of_omitting_it()
+    {
+        var report = ExperimentComparer.Compare(["a"], [new("present", 0), new("missing", 0)],
+            [Trial("a", 0) with { Cell = new("present", 0) }]);
+        var missing = Assert.Single(Assert.Single(report.Cases, item => item.CaseRevision == "missing").Candidates);
+        Assert.Equal(0, missing.Observed);
+        Assert.Equal(1, missing.Expected);
+        Assert.Contains("incomplete", missing.GateFailures);
+        Assert.Null(missing.Correctness);
+        Assert.Null(missing.MeanCost);
+        Assert.False(missing.Eligible);
+    }
+
+    [Fact]
+    public void Case_breakdown_retains_critical_failure_unscored_and_unknown_cost()
+    {
+        var report = ExperimentComparer.Compare(["a"], Cells(2),
+            [Trial("a", 0, "fail") with { CriticalFailure = true }, Trial("a", 1, "unscored") with { Cost = null }]);
+        var summary = Assert.Single(Assert.Single(report.Cases).Candidates);
+        Assert.Contains("critical_failure", summary.GateFailures);
+        Assert.Contains("unscored", summary.GateFailures);
+        Assert.Null(summary.MeanCost);
+        Assert.False(summary.Eligible);
+    }
+
+    [Fact]
     public void Two_correct_repetitions_out_of_three_are_not_perfect_consistency()
     {
         var report = ExperimentComparer.Compare(["a"], Cells(3), [Trial("a", 0), Trial("a", 1), Trial("a", 2, "fail")]);

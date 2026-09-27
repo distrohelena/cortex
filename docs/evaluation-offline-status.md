@@ -168,3 +168,9 @@ PostgreSQL operations are suspended. The HTTP fixture alone was exercised throug
 handler and real adapter, with an explicitly test-only journal and no model. The fixture initially
 rejected chunked input when tested without the evaluation handler; using the actual buffered transport
 composition resolved that test mismatch. **245 offline tests pass**; no database acceptance is claimed.
+
+Comparison now includes a per-case breakdown for every scheduled case and candidate, including missing
+observations. Tests demonstrate equal overall accuracy hiding opposite case-level regressions and
+preserve critical/unscored gates and unknown cost. The same breakdown is available via the existing
+`comparison.preview` tool. **248 offline tests pass**, CLI build is clean. This is descriptive comparison
+of supplied evidence, not a live model ranking, automatic promotion or statistical superiority claim.

@@ -6,7 +6,11 @@ public sealed record ComparisonTrial(string CandidateRevision, EvaluationCell Ce
 public sealed record CandidateSummary(string Id, int Observed, int Expected, bool Eligible,
     IReadOnlyList<string> GateFailures, double? Correctness, double? ConfidenceLow, double? ConfidenceHigh,
     double? MedianMilliseconds, double? P95Milliseconds, decimal? MeanCost, string? Currency);
-public sealed record ComparisonReport(IReadOnlyList<CandidateSummary> Candidates, IReadOnlyList<string> ParetoCandidates);
+public sealed record CaseComparisonSummary(string CaseRevision, IReadOnlyList<CandidateSummary> Candidates);
+public sealed record ComparisonReport(IReadOnlyList<CandidateSummary> Candidates, IReadOnlyList<string> ParetoCandidates)
+{
+    public IReadOnlyList<CaseComparisonSummary> Cases { get; init; } = Array.Empty<CaseComparisonSummary>();
+}
 
 public static class ExperimentComparer
 {
@@ -37,7 +41,11 @@ public static class ExperimentComparer
             trials.Where(t => t.CandidateRevision == id).ToArray())).ToArray();
         var pareto = summaries.Where(c => c.Eligible && !summaries.Any(other => Dominates(other, c)))
             .Select(c => c.Id).ToArray();
-        return new(Array.AsReadOnly(summaries), Array.AsReadOnly(pareto));
+        var cases = cells.GroupBy(cell => cell.CaseRevision, StringComparer.Ordinal)
+            .Select(group => new CaseComparisonSummary(group.Key, Array.AsReadOnly(candidates.Select(id =>
+                Summarize(id, group.Count(), trials.Where(trial => trial.CandidateRevision == id &&
+                    trial.Cell.CaseRevision == group.Key).ToArray())).ToArray()))).ToArray();
+        return new(Array.AsReadOnly(summaries), Array.AsReadOnly(pareto)) { Cases = Array.AsReadOnly(cases) };
     }
 
     private static CandidateSummary Summarize(string id, int expected, ComparisonTrial[] trials)

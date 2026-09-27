@@ -78,6 +78,11 @@ Durable experiment/application commands remain pending the store/ledger implemen
 integration checks after the host migration. Do not use these previews as a substitute for that gate.
 # Synthetic step input preparation
 
+`comparison.preview` also returns `cases`: one entry per scheduled case revision, containing each
+candidate's observed/expected counts, gates, correctness, descriptive interval, latency and known cost.
+Cases with no observations remain visible as incomplete, with unknown metrics. This breakdown does
+not change the overall gates or authorize promotion; it helps locate regressions hidden by averages.
+
 Offline operation `case.prepare.synthetic` accepts `caseId`, `context`, `selfActorRef`,
 `instruction` (from `instruction.describe`) and an explicit `supplementalFixtures` object.
 It returns `prepared.input` (`completion-input` revision), `prepared.provenance` and
