@@ -491,11 +491,10 @@
       "context": {
         "conversation": "group",
         "history": [
-          { "sender": { "ref": "filomena", "name": "Filomena" }, "text": "Pelo ritmo, já cabe uma ata dessa conversa." },
-          { "sender": { "ref": "rodrigo", "name": "Rodrigo" }, "text": "Você está voltando à piada da ata." }
+          { "sender": { "ref": "filomena", "name": "Filomena" }, "text": "Pelo ritmo, já cabe uma ata dessa conversa." }
         ],
         "currentBatch": [
-          { "sender": { "ref": "filomena", "name": "Filomena" }, "text": "Verdade, repeti. Vamos seguir." }
+          { "sender": { "ref": "rodrigo", "name": "Rodrigo" }, "text": "Você está voltando à piada da ata." }
         ]
       },
       "expected": {
@@ -505,7 +504,7 @@
           { "severity": "critical", "rule": "Do not defend the repeated joke by claiming it was semantically new.", "must": [], "mustNot": ["Dismiss the user's correction."] }
         ]
       },
-      "notes": "The expected current message models a concise correction response; evaluation should not require a joke.",
+      "notes": "The inbound is human feedback, not a prewritten Filomena response or a self event. A concise acknowledgment can be generated, but no joke is required.",
       "provenance": { "kind": "synthetic", "basis": "Audit theme: correction to a repeated joke became another variation of that joke.", "historicalReplay": false }
     },
     {
