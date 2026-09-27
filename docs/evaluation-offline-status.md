@@ -127,3 +127,13 @@ explicit reconciliation; no automatic replay/reset occurs. A null result means n
 experiment success. Revision-backed inputs are development corpus; private holdout execution is not
 supported by this path. Migration acceptance, failure/reconciliation workflow and end-to-end database
 tests remain required before real paid execution.
+
+The executor now attempts a fenced `StopFailedTrialAsync` after any post-claim failure or cancellation.
+It locks experiment then trial, preserves all attempts/reservations, records only a fixed diagnostic
+code plus opaque trial ID, marks reconciliation required and blocks subsequent claims. Completed or
+foreign/stale claims cannot be overwritten. A failure to persist that stop is explicitly reported as
+`stopRecorded=false`; the executor neither fabricates success nor retries. This does not recover a
+process crash or an unavailable database automatically.
+Seven pre-database rejection tests pass (offline suite: **234 tests**); a PostgreSQL executor failure
+test is compiled but **not executed**. CLI build has zero warnings/errors. Real cancellation races,
+transaction behavior and durable restart semantics still require the database acceptance suite.

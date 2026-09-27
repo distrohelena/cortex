@@ -12,6 +12,56 @@ public sealed record TrialClaim(Guid TrialId, Guid Owner, long Generation, Scope
 
 public sealed class ExperimentCoordinator(NpgsqlDataSource source)
 {
+    public async Task StopFailedTrialAsync(EvaluationAccess access, Guid experimentId, TrialClaim claim,
+        string reason, CancellationToken token)
+    {
+        access.Demand(EvaluationOperation.Evaluate);
+        access.DemandScope(claim.Candidate.Scope);
+        access.DemandScope(claim.Case.Scope);
+        if (experimentId == Guid.Empty || claim.TrialId == Guid.Empty || claim.Owner == Guid.Empty ||
+            claim.Generation < 1 || reason is not ("execution_failed" or "execution_cancelled"))
+            throw new InvalidDataException("Invalid failed trial reference or diagnostic code.");
+        await using var connection = await source.OpenConnectionAsync(token);
+        await using var transaction = await connection.BeginTransactionAsync(token);
+        await using (var parent = Command("""
+            SELECT id FROM evaluation.experiments
+            WHERE workspace_id=@workspace AND project_id=@project AND id=@experiment FOR UPDATE
+            """, connection, transaction, access, experimentId))
+            if (await parent.ExecuteScalarAsync(token) is not Guid) throw new KeyNotFoundException("Scoped experiment is unavailable.");
+        await using (var lookup = Command("""
+            SELECT state,lease_owner,lease_generation,candidate_revision_id,candidate_revision_sha256,
+              case_revision_id,case_revision_sha256
+            FROM evaluation.trials WHERE workspace_id=@workspace AND project_id=@project
+              AND id=@trial AND experiment_id=@experiment FOR UPDATE
+            """, connection, transaction, access, experimentId))
+        {
+            lookup.Parameters.AddWithValue("trial", claim.TrialId);
+            await using var reader = await lookup.ExecuteReaderAsync(token);
+            if (!await reader.ReadAsync(token) || reader.IsDBNull(1) || reader.IsDBNull(3) || reader.IsDBNull(5) ||
+                reader.GetGuid(1) != claim.Owner || reader.GetInt64(2) != claim.Generation ||
+                reader.GetGuid(3) != claim.Candidate.Revision.Id || reader.GetString(4).Trim() != claim.Candidate.Revision.Sha256 ||
+                reader.GetGuid(5) != claim.Case.Revision.Id || reader.GetString(6).Trim() != claim.Case.Revision.Sha256 ||
+                reader.GetString(0) is not ("running" or "indeterminate"))
+                throw new InvalidOperationException("Failure belongs to an obsolete, completed or mismatched claim.");
+            if (reader.GetString(0) == "indeterminate") return;
+        }
+        await using var update = Command("""
+            UPDATE evaluation.trials SET state='indeterminate'
+            WHERE workspace_id=@workspace AND project_id=@project AND id=@trial AND experiment_id=@experiment;
+            UPDATE evaluation.experiments SET execution_state='indeterminate',cancel_requested=true
+            WHERE workspace_id=@workspace AND project_id=@project AND id=@experiment;
+            INSERT INTO evaluation.audit_log (workspace_id,project_id,id,actor,action,reason)
+            VALUES (@workspace,@project,@audit,@actor,'trial_execution_stopped',@reason)
+            """, connection, transaction, access, experimentId);
+        update.Parameters.AddWithValue("trial", claim.TrialId);
+        update.Parameters.AddWithValue("audit", Guid.NewGuid());
+        update.Parameters.AddWithValue("actor", access.Principal);
+        update.Parameters.AddWithValue("reason", $"{claim.TrialId:D}:{reason}");
+        await update.ExecuteNonQueryAsync(token);
+        // Neither attempts nor reservations are changed. Failure cannot establish that a call was free.
+        await transaction.CommitAsync(token);
+    }
+
     public async Task CompleteAsync(EvaluationAccess access, Guid experimentId, TrialClaim claim,
         CompletionEvaluationResult result, EvidenceArtifactRef artifact, CancellationToken token)
     {
