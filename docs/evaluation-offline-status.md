@@ -27,13 +27,15 @@ configuration is used by the evaluation project.
 
 `dotnet test tests/Filomena.Evaluation.Tests -c NativeMemory --no-restore --filter 'FullyQualifiedName!~DatabaseLifecycleTests'`
 
-Result at this checkpoint: **83 passed**, zero failures. These tests use controlled HTTP,
+Result at this checkpoint: **95 passed**, zero failures. These tests use controlled HTTP,
 not paid inference. Database lifecycle tests were explicitly excluded, not certified.
 
 `dotnet build src/Filomena.Evaluation.Cli -c NativeMemory --no-restore`
 
-Build passed with zero warnings/errors. The CLI remains incomplete; build success is not
-an end-to-end experiment acceptance result.
+Build passed with zero warnings/errors. The offline CLI supports revision hashing, structural
+profile validation, cost projection and comparison previews. A built-process smoke check proved
+hashing succeeds and `experiment.run` is rejected with exit code 2. Durable/live CLI commands
+remain incomplete; this is not an end-to-end experiment acceptance result.
 
 ## Still pending
 
