@@ -10,6 +10,10 @@ configuration is used by the evaluation project.
 - Host-resolved evaluation roles (manifest data cannot grant evaluation authority).
 - Provider factory using the existing OpenAI, LM Studio and SystemOne adapters.
 - Pinned prompt/schema/model/settings; mismatched requests are rejected.
+- Single-completion evaluation target verifies input/configuration revision hashes and project
+  scope before invoking the existing adapters. Controlled HTTP tests cover Luna and Jev, cancellation,
+  unauthorized execution and outage without retry. Its raw output is not a quality verdict; durable
+  attempts/artifact persistence and full multi-step execution remain coordinator work.
 - Host-bound endpoint aliases, with no candidate-provided arbitrary endpoint.
 - Typed decision plus separately pinned generative summary; summary failure cannot become partial success.
 - Per-physical-call HTTP accounting boundary: reserve before send, finish after response,
@@ -29,12 +33,18 @@ configuration is used by the evaluation project.
 - Deterministic experiment schedule preparation from pinned manifest/case revisions and seed,
   including paired interleaving and a minimum physical-call budget check. This prepares work;
   it does not reserve money or authorize execution.
+- Pure admission policy checks running state, cancellation, current owner/generation and unresolved
+  attempts before calculating a bounded reservation. It is not a database lock or durability proof.
+- Migration catalog verifies the complete applied checksum chain, rejects unknown versions/gaps,
+  and selects only pending migrations. Migration 002 adds execution accounting fields, refusing
+  to infer historical accounting for databases that already contain attempts. No migration ran here.
 
 ## Verification
 
 `dotnet test tests/Filomena.Evaluation.Tests -c NativeMemory --no-restore --filter 'Category!=Postgres&FullyQualifiedName!~DatabaseLifecycleTests'`
 
-Result at this checkpoint: **112 passed**, zero failures. These tests use controlled HTTP,
+Result at this checkpoint: **191 passed**, zero failures (including offline authority/intent validation
+for the attempt ledger). These tests use controlled HTTP,
 not paid inference. Database lifecycle tests were explicitly excluded, not certified.
 
 `dotnet build src/Filomena.Evaluation.Cli -c NativeMemory --no-restore`
@@ -50,7 +60,13 @@ remain incomplete; this is not an end-to-end experiment acceptance result.
    original revision bytes, checksum validation, assessment provenance/supersession and audited
    artifact redaction. **All PostgreSQL integration tests remain unexecuted** during migration;
    compilation and static definition checks do not prove SQL correctness or transaction behavior.
-   Durable attempt journal and concurrency/crash acceptance are still pending.
+   `AttemptLedger.Begin/Finish` are now implemented with experiment/trial lock ordering, fenced owner,
+   atomic reservation plus started-attempt insertion, retained reservations and no retry/refund.
+   Indeterminate outcomes or observed token overruns stop new experiment calls. Cancellation does
+   not suppress accounting for an already-sent call. Four opt-in PostgreSQL tests cover last-call
+   contention, unresolved attempt re-entry, cancelled/duplicate completion and obsolete generation.
+   **Those tests are compiled but unexecuted**, and are not a process-kill crash test. This journal
+   is not wired into the live CLI; concurrency/durability acceptance remains pending.
 2. Connect the accounting interface to that durable ledger. The test in-memory journal is
    **not** suitable for paid execution. The live HTTP transport must disable redirects and retries.
 3. Experiment scheduling, persisted comparisons/assessments, paired bootstrap uncertainty
@@ -59,3 +75,17 @@ remain incomplete; this is not an end-to-end experiment acceptance result.
 5. Database integration, backup/restore verification after migration.
 
 No model quality ranking, database durability, complete workbench or production readiness is claimed.
+
+The deterministic assessment kernel and `assessment.preview` now grade enum/boolean acceptance,
+preserve critical failures and leave manual semantic/voice criteria unscored. A compiled CLI smoke
+returned a critical participation failure plus unscored voice without persistence or model execution.
+These are grading-tool tests, not Luna/Jev quality results.
+
+`instruction.describe` exports effective instruction text and schema through the existing runtime
+compiler/composer without instantiating a runtime. This prevents benchmarks accidentally omitting
+enabled personality/state/interest context. It is a read-only helper; prompts, FSM, model assignments
+and live configurations were not edited. `profile.prepare` now binds explicit candidate settings to
+these snapshots. An offline test prepares 15 combinations across the existing three-state project's
+situation/presence/generation steps: Luna for all, Jev+summary for situation, Jev alone for presence.
+Jev/Laya free generation is rejected. This validates profile construction, not live model fitness.
+Persisted experiment bundles and real upstream outputs for downstream cases are still pending.

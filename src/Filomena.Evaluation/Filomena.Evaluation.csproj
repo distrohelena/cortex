@@ -13,5 +13,7 @@
     <PackageReference Include="Npgsql" Version="10.0.3" />
     <EmbeddedResource Include="Storage/Migrations/001_evaluation.sql"
                       LogicalName="Filomena.Evaluation.Storage.Migrations.001_evaluation.sql" />
+    <EmbeddedResource Include="Storage/Migrations/002_execution.sql"
+                      LogicalName="Filomena.Evaluation.Storage.Migrations.002_execution.sql" />
   </ItemGroup>
 </Project>
