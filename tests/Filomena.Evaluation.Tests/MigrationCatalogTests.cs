@@ -6,19 +6,19 @@ namespace Filomena.Evaluation.Tests;
 public sealed class MigrationCatalogTests
 {
     [Fact]
-    public void Fresh_database_requires_both_migrations_in_order()
+    public void Fresh_database_requires_all_migrations_in_order()
     {
         var pending = MigrationCatalog.Pending(new Dictionary<int, string>());
-        Assert.Equal(new[] { 1, 2 }, pending.Select(m => m.Version));
+        Assert.Equal(new[] { 1, 2, 3 }, pending.Select(m => m.Version));
         Assert.All(pending, m => Assert.False(string.IsNullOrWhiteSpace(m.Sql)));
     }
 
     [Fact]
-    public void Baseline_database_requires_only_execution_upgrade()
+    public void Baseline_database_requires_execution_and_schedule_upgrades()
     {
         var all = MigrationCatalog.Pending(new Dictionary<int, string>());
         var pending = MigrationCatalog.Pending(new Dictionary<int, string> { [1] = all[0].Checksum });
-        Assert.Equal(2, Assert.Single(pending).Version);
+        Assert.Equal(new[] { 2, 3 }, pending.Select(m => m.Version));
     }
 
     [Fact]
@@ -38,7 +38,7 @@ public sealed class MigrationCatalogTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(3)]
+    [InlineData(4)]
     public void Unknown_version_is_rejected(int version) => Assert.Throws<InvalidOperationException>(() =>
         MigrationCatalog.Pending(new Dictionary<int, string> { [version] = new string('0', 64) }));
 

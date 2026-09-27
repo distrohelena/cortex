@@ -7,7 +7,7 @@ public static class MigrationCatalog
     public static IReadOnlyList<EvaluationMigration> Pending(IReadOnlyDictionary<int, string> applied)
     {
         ArgumentNullException.ThrowIfNull(applied);
-        var migrations = new[] { Read(1, "001_evaluation.sql"), Read(2, "002_execution.sql") };
+        var migrations = new[] { Read(1, "001_evaluation.sql"), Read(2, "002_execution.sql"), Read(3, "003_schedule.sql") };
         if (applied.Keys.Any(version => version < 1 || version > migrations.Length) ||
             !applied.Keys.Order().SequenceEqual(Enumerable.Range(1, applied.Count)))
             throw new InvalidOperationException("Evaluation migration history has an unknown version or a missing predecessor.");

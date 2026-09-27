@@ -43,7 +43,7 @@ configuration is used by the evaluation project.
 
 `dotnet test tests/Filomena.Evaluation.Tests -c NativeMemory --no-restore --filter 'Category!=Postgres&FullyQualifiedName!~DatabaseLifecycleTests'`
 
-Result at this checkpoint: **198 passed**, zero failures (including offline authority/intent validation
+Result at this checkpoint: **201 passed**, zero failures (including offline authority/intent validation
 for the attempt ledger). These tests use controlled HTTP,
 not paid inference. Database lifecycle tests were explicitly excluded, not certified.
 
@@ -93,3 +93,10 @@ Persisted experiment bundles and real upstream outputs for downstream cases are 
 Typed corpus expectations now map to explicit per-step criteria with a separate list of dimensions
 not evaluated by that step. All 25 cases are covered by this plumbing test; five voice-only cases remain
 unscored. This does not claim that any model has answered the cases correctly.
+
+The PostgreSQL experiment coordinator now implements explicit-ID plan persistence, idempotent
+re-submission of the same plan, pinned candidate/case schedule rows, pending-only fenced claims,
+and cancellation. Migration 003 leaves old unplanned rows unclaimable instead of inventing a schedule.
+The coordinator integration test (idempotence, concurrent distinct claims, no automatic reclaim,
+cancellation) is compiled but excluded with all PostgreSQL tests. Only its pre-DB authority/scope
+rejections were executed here. Trial result persistence, reconciliation and live CLI remain incomplete.
