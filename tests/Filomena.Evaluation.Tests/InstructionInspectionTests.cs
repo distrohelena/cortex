@@ -14,7 +14,8 @@ public sealed class InstructionInspectionTests
         var project = Project();
         var request = JsonSerializer.Serialize(new
         {
-            contractVersion = 1, operation = "instruction.describe",
+            contractVersion = 1,
+            operation = "instruction.describe",
             payload = new { project, stateId = "participation-inactive-v1", entryKind = "group", nodeId = "group-generation" }
         }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
         var response = OfflineEvaluationTools.Invoke(request);

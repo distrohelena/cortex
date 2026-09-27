@@ -15,7 +15,8 @@ public sealed class InstructionProfilePreparationTests
     {
         var request = JsonSerializer.Serialize(new
         {
-            contractVersion = 1, operation = "profile.prepare",
+            contractVersion = 1,
+            operation = "profile.prepare",
             payload = new { instruction = Instruction(), settings = Settings("openai") }
         }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
         var response = OfflineEvaluationTools.Invoke(request);

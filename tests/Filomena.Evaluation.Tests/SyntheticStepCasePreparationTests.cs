@@ -15,9 +15,16 @@ public sealed class SyntheticStepCasePreparationTests
     {
         var request = JsonSerializer.Serialize(new
         {
-            contractVersion = 1, operation = "case.prepare.synthetic",
-            payload = new { caseId = "case", context = Context(), selfActorRef = "filomena",
-                instruction = Instruction(["mensagens"]), supplementalFixtures = Json("{}") }
+            contractVersion = 1,
+            operation = "case.prepare.synthetic",
+            payload = new
+            {
+                caseId = "case",
+                context = Context(),
+                selfActorRef = "filomena",
+                instruction = Instruction(["mensagens"]),
+                supplementalFixtures = Json("{}")
+            }
         }, new JsonSerializerOptions(JsonSerializerDefaults.Web));
         var response = OfflineEvaluationTools.Invoke(request);
         Assert.True(response.Success, response.ErrorCode);

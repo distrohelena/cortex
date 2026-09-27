@@ -117,8 +117,12 @@ public sealed class CompletionEvaluationTargetTests
             default:
                 var document = new RevisionDocument(mutation == "input-version" ? 2 : 1,
                     mutation == "input-kind" ? "rubric" : "completion-input", input.Input.Payload);
-                input = input with { Input = document, InputRevision = new(Guid.NewGuid(),
-                    mutation == "input-version" ? input.InputRevision.Sha256 : RevisionHasher.Hash(document)) };
+                input = input with
+                {
+                    Input = document,
+                    InputRevision = new(Guid.NewGuid(),
+                    mutation == "input-version" ? input.InputRevision.Sha256 : RevisionHasher.Hash(document))
+                };
                 break;
         }
         var error = await Record.ExceptionAsync(() => Target(http).ExecuteAsync(access, pin, profile, input,

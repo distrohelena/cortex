@@ -70,20 +70,20 @@ public static class RevisionHasher
         switch (element.ValueKind)
         {
             case JsonValueKind.Object:
-            {
-                var names = new HashSet<string>(StringComparer.Ordinal);
-                foreach (var property in element.EnumerateObject())
                 {
-                    if (!names.Add(property.Name))
+                    var names = new HashSet<string>(StringComparer.Ordinal);
+                    foreach (var property in element.EnumerateObject())
                     {
-                        throw new ArgumentException("Revision document contains a duplicate property.");
+                        if (!names.Add(property.Name))
+                        {
+                            throw new ArgumentException("Revision document contains a duplicate property.");
+                        }
+
+                        ValidateJson(property.Value, depth + 1);
                     }
 
-                    ValidateJson(property.Value, depth + 1);
+                    break;
                 }
-
-                break;
-            }
             case JsonValueKind.Array:
                 foreach (var item in element.EnumerateArray())
                 {

@@ -28,7 +28,9 @@ public sealed class CompletionTrialAcceptanceTests
             { InnerHandler = new SocketsHttpHandler { AllowAutoRedirect = false } });
             var adapter = new LmStudioClient(http, new LmStudioOptions
             {
-                Endpoint = endpoint, Model = "controlled-local", RequestTimeoutSeconds = 10
+                Endpoint = endpoint,
+                Model = "controlled-local",
+                RequestTimeoutSeconds = 10
             });
             Assert.Equal("controlled output", await adapter.CompleteResponseAsync("Instruction", "Input", stop.Token));
             Assert.Equal("controlled-local", (await serving).GetProperty("model").GetString());
@@ -59,8 +61,14 @@ public sealed class CompletionTrialAcceptanceTests
         var input = await Save(new(1, "completion-input", Json(new { message = "controlled input" })));
         var profile = new ConfigurationProfile(1, "completion", "lmstudio", "controlled-local", "controlled-host",
             "controlled-local", DateTimeOffset.UnixEpoch,
-            Json(new { arbitrationTemperature = 0.1, arbitrationMaxTokens = 256, generationTemperature = 0.7,
-                generationMaxTokens = 256, requestTimeoutSeconds = 10 }), null, [],
+            Json(new
+            {
+                arbitrationTemperature = 0.1,
+                arbitrationMaxTokens = 256,
+                generationTemperature = 0.7,
+                generationMaxTokens = 256,
+                requestTimeoutSeconds = 10
+            }), null, [],
             new(1, "schema", Json(new { contractVersion = 1, responseSchema = (object?)null })),
             new(1, "prompt", Json(new { system = "Controlled instruction." })), null);
         var candidate = await Save(profile.ToRevisionDocument());

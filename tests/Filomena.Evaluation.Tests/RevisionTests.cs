@@ -79,7 +79,7 @@ public sealed class RevisionTests
         RevisionDocument revision;
         ConfigurationProfile profile;
         using (var revisionSource = JsonDocument.Parse("""{"answer":"stable"}"""))
-            using (var parametersSource = JsonDocument.Parse("""{"reasoningEffort":"high"}"""))
+        using (var parametersSource = JsonDocument.Parse("""{"reasoningEffort":"high"}"""))
         using (var schemaSource = JsonDocument.Parse("""{"contractVersion":1}"""))
         using (var promptSource = JsonDocument.Parse("""{"text":"hello"}"""))
         {

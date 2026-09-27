@@ -35,9 +35,14 @@ public static class SyntheticStepCasePreparation
         var input = new RevisionDocument(1, "completion-input", JsonSerializer.SerializeToElement(values));
         var provenance = new RevisionDocument(1, "completion-input-provenance", JsonSerializer.SerializeToElement(new
         {
-            caseId, projectRevision = instruction.ProjectRevision, stateId = instruction.StateId,
-            nodeId = instruction.NodeId, sourceKind = "synthetic_fixture", runtimeReplay = false,
-            inputSha256 = RevisionHasher.Hash(input), supplementalFixtureFields = supplements.Order(StringComparer.Ordinal).ToArray()
+            caseId,
+            projectRevision = instruction.ProjectRevision,
+            stateId = instruction.StateId,
+            nodeId = instruction.NodeId,
+            sourceKind = "synthetic_fixture",
+            runtimeReplay = false,
+            inputSha256 = RevisionHasher.Hash(input),
+            supplementalFixtureFields = supplements.Order(StringComparer.Ordinal).ToArray()
         }));
         return new(input, provenance);
     }

@@ -174,3 +174,18 @@ observations. Tests demonstrate equal overall accuracy hiding opposite case-leve
 preserve critical/unscored gates and unknown cost. The same breakdown is available via the existing
 `comparison.preview` tool. **248 offline tests pass**, CLI build is clean. This is descriptive comparison
 of supplied evidence, not a live model ranking, automatic promotion or statistical superiority claim.
+
+## Consolidated build/format check
+
+The evaluation library, CLI and tests pass `dotnet format --verify-no-changes --no-restore`
+(the pre-existing untracked `DatabaseLifecycleTests.cs` was explicitly excluded from formatting).
+Mechanical whitespace corrections were confined to evaluation-owned files. The offline suite remains
+**248/248**, excluding PostgreSQL and Docker lifecycle tests.
+
+The plan's `dotnet build Filomena.slnx -c NativeMemory --no-restore` fails with MSB4126: the solution
+does not declare that configuration, although individual projects accept it. Retrying the declared
+`Debug` configuration reaches compilation but fails with eight CS0234/CS0246 errors in the pre-existing
+untracked `FrontendBuildTests.cs` and `SettingsStoreTests.cs`, referring to absent `Filomena.App.Frontend`,
+`Filomena.App.Settings`, `FrontendAssets`, `FrontendBuildService`, `IFrontendBuildProcessRunner`,
+`FrontendBuildProcessRequest` and `FrontendBuildProcessResult`. Those files were not changed here.
+Therefore only the evaluation project/CLI builds are green, **not the complete solution**.

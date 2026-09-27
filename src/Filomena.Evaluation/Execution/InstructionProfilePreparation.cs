@@ -21,7 +21,8 @@ public static class InstructionProfilePreparation
             {
                 var summarySchema = JsonSerializer.SerializeToElement(new
                 {
-                    type = "object", additionalProperties = false,
+                    type = "object",
+                    additionalProperties = false,
                     properties = new Dictionary<string, JsonElement> { ["resumo"] = definition },
                     required = new[] { "resumo" }
                 });
