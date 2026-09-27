@@ -115,3 +115,15 @@ The six new tests were observed failing before implementation, then passing. The
 passes **211 tests**, and the evaluation CLI builds with zero warnings/errors. PostgreSQL and Docker
 lifecycle tests remain explicitly excluded; these construction tests do not prove database durability
 or native HTTP transport retry behavior. No paid execution or chat activation was performed.
+
+`CompletionTrialExecutor.ExecuteNextAsync` now connects pending-only claim acquisition, stored target/
+profile/input loading, bound providers, output artifact registration and fenced completion. The target
+is a pinned `completion-target` revision containing `nodeId`, not an unrecorded runtime argument.
+`CompletionTrialMaterial` verifies scope, kind/version, all three hashes and profile round-trip identity.
+Thirteen material reconstruction/rejection tests and three executor pre-database rejection tests were
+observed RED then GREEN; **227 offline tests pass**. The executor's successful PostgreSQL path is
+implemented but **not yet integration-tested or enabled in the CLI**. Errors retain running claims for
+explicit reconciliation; no automatic replay/reset occurs. A null result means no pending trial, not
+experiment success. Revision-backed inputs are development corpus; private holdout execution is not
+supported by this path. Migration acceptance, failure/reconciliation workflow and end-to-end database
+tests remain required before real paid execution.
