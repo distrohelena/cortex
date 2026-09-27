@@ -66,6 +66,10 @@ public static partial class ManifestValidator
         {
             issues.Add(new("stop_rules.repetitions_exceed_max", "repetitions"));
         }
+        if (manifest.StopRules is not null && manifest.Repetitions < manifest.StopRules.MinRepetitions)
+        {
+            issues.Add(new("stop_rules.repetitions_below_min", "repetitions"));
+        }
 
         return issues.AsReadOnly();
     }

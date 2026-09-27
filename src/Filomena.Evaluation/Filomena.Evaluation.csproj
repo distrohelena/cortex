@@ -9,4 +9,9 @@
     <ProjectReference Include="../Filomena.Core/Filomena.Core.csproj" />
     <ProjectReference Include="../Filomena.Llm/Filomena.Llm.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Npgsql" Version="10.0.3" />
+    <EmbeddedResource Include="Storage/Migrations/001_evaluation.sql"
+                      LogicalName="Filomena.Evaluation.Storage.Migrations.001_evaluation.sql" />
+  </ItemGroup>
 </Project>

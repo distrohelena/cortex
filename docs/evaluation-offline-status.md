@@ -26,12 +26,15 @@ configuration is used by the evaluation project.
   current messages, history and quotes. All 25 development cases map. Grading metadata is
   excluded, current self-events are rejected, missing quote content is not reconstructed.
   These are situation-step inputs, not a fabricated complete generation/runtime execution.
+- Deterministic experiment schedule preparation from pinned manifest/case revisions and seed,
+  including paired interleaving and a minimum physical-call budget check. This prepares work;
+  it does not reserve money or authorize execution.
 
 ## Verification
 
-`dotnet test tests/Filomena.Evaluation.Tests -c NativeMemory --no-restore --filter 'FullyQualifiedName!~DatabaseLifecycleTests'`
+`dotnet test tests/Filomena.Evaluation.Tests -c NativeMemory --no-restore --filter 'Category!=Postgres&FullyQualifiedName!~DatabaseLifecycleTests'`
 
-Result at this checkpoint: **101 passed**, zero failures. These tests use controlled HTTP,
+Result at this checkpoint: **112 passed**, zero failures. These tests use controlled HTTP,
 not paid inference. Database lifecycle tests were explicitly excluded, not certified.
 
 `dotnet build src/Filomena.Evaluation.Cli -c NativeMemory --no-restore`
@@ -43,7 +46,11 @@ remain incomplete; this is not an end-to-end experiment acceptance result.
 
 ## Still pending
 
-1. Durable PostgreSQL store/attempt journal and concurrency/crash acceptance.
+1. PostgreSQL store and migration code now compile, with scoped references, immutable revisions,
+   original revision bytes, checksum validation, assessment provenance/supersession and audited
+   artifact redaction. **All PostgreSQL integration tests remain unexecuted** during migration;
+   compilation and static definition checks do not prove SQL correctness or transaction behavior.
+   Durable attempt journal and concurrency/crash acceptance are still pending.
 2. Connect the accounting interface to that durable ledger. The test in-memory journal is
    **not** suitable for paid execution. The live HTTP transport must disable redirects and retries.
 3. Experiment scheduling, persisted comparisons/assessments, paired bootstrap uncertainty

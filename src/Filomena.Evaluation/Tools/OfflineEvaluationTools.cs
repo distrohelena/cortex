@@ -36,6 +36,7 @@ public static class OfflineEvaluationTools
                 "revision.hash" => Result(new { sha256 = RevisionHasher.Hash(Read<RevisionDocument>(input.Payload)) }),
                 "profile.validate" => ValidateProfile(input.Payload),
                 "comparison.preview" => Compare(input.Payload),
+                "experiment.preview" => PreviewSchedule(input.Payload),
                 "cost.project" => ProjectCost(input.Payload),
                 _ => Error("unsupported_operation")
             };
@@ -70,6 +71,14 @@ public static class OfflineEvaluationTools
         return Result(CostProjection.Calculate(input.Usage, input.Price));
     }
 
+    private static OfflineToolResponse PreviewSchedule(JsonElement payload)
+    {
+        var input = Read<ScheduleInput>(payload);
+        if (input.Manifest is null || input.Cases is null) throw new InvalidDataException();
+        var trials = ExperimentSchedule.Create(input.Manifest, input.Cases);
+        return Result(new { trialCount = trials.Count, minimumPhysicalCalls = trials.Count, executionAuthorized = false, trials });
+    }
+
     private static T Read<T>(JsonElement payload) where T : class => payload.Deserialize<T>(Options) ?? throw new InvalidDataException();
     private static OfflineToolResponse Result(object result) => new(1, true, false, JsonSerializer.SerializeToElement(result, Options), null);
     public static OfflineToolResponse Error(string code) => new(1, false, false, null, code);
@@ -80,4 +89,5 @@ public static class OfflineEvaluationTools
         [property: JsonRequired] JsonElement Payload);
     private sealed record ComparisonInput(IReadOnlyList<string> Candidates, IReadOnlyList<EvaluationCell> Cells, IReadOnlyList<ComparisonTrial> Trials);
     private sealed record CostInput(ProviderTokenUsage? Usage, PriceSnapshot Price);
+    private sealed record ScheduleInput(ExperimentManifest Manifest, IReadOnlyList<ScopedRevisionRef> Cases);
 }
