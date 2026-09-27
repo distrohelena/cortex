@@ -9,7 +9,11 @@ public sealed record CompletionEvaluationCase(EvaluationScope Scope, string Node
     RevisionRef InputRevision, RevisionDocument Input);
 
 public sealed record CompletionEvaluationResult(string ProfileSha256, string InputSha256,
-    string Output, TimeSpan Elapsed);
+    string Output, TimeSpan Elapsed)
+{
+    public EvidenceArtifactDocument ToArtifact(bool isHoldout) => new("completion-result", isHoldout,
+        JsonSerializer.SerializeToUtf8Bytes(this, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+}
 
 /// <summary>Executes a single pinned completion, not a conversational runtime or a quality judge.
 /// Paid execution requires host clients wired to the durable per-physical-call journal.

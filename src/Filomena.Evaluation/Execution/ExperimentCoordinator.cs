@@ -2,6 +2,7 @@ using Filomena.Evaluation.Contracts;
 using Npgsql;
 using NpgsqlTypes;
 using System.Text.Json;
+using System.Security.Cryptography;
 
 namespace Filomena.Evaluation.Execution;
 
@@ -11,6 +12,87 @@ public sealed record TrialClaim(Guid TrialId, Guid Owner, long Generation, Scope
 
 public sealed class ExperimentCoordinator(NpgsqlDataSource source)
 {
+    public async Task CompleteAsync(EvaluationAccess access, Guid experimentId, TrialClaim claim,
+        CompletionEvaluationResult result, EvidenceArtifactRef artifact, CancellationToken token)
+    {
+        access.Demand(EvaluationOperation.Evaluate);
+        access.DemandScope(claim.Candidate.Scope);
+        access.DemandScope(claim.Case.Scope);
+        if (experimentId == Guid.Empty || claim.TrialId == Guid.Empty || claim.Owner == Guid.Empty || claim.Generation < 1 ||
+            result.ProfileSha256 != claim.Candidate.Revision.Sha256 || result.InputSha256 != claim.Case.Revision.Sha256 ||
+            result.Elapsed < TimeSpan.Zero || result.Output is null || artifact.Id == Guid.Empty ||
+            Convert.ToHexStringLower(SHA256.HashData(result.ToArtifact(false).Content.Span)) != artifact.Sha256)
+            throw new InvalidDataException("Invalid completed trial evidence binding.");
+        await using var connection = await source.OpenConnectionAsync(token);
+        await using var transaction = await connection.BeginTransactionAsync(token);
+        await using (var parent = Command("""
+            SELECT id FROM evaluation.experiments
+            WHERE workspace_id=@workspace AND project_id=@project AND id=@experiment FOR UPDATE
+            """, connection, transaction, access, experimentId))
+            if (await parent.ExecuteScalarAsync(token) is not Guid) throw new KeyNotFoundException("Scoped experiment is unavailable.");
+        bool alreadyCompleted;
+        await using (var lookup = Command("""
+            SELECT state,lease_owner,lease_generation,candidate_revision_id,candidate_revision_sha256,
+              case_revision_id,case_revision_sha256,result_artifact_id,result_artifact_sha256
+            FROM evaluation.trials WHERE workspace_id=@workspace AND project_id=@project AND id=@trial AND experiment_id=@experiment FOR UPDATE
+            """, connection, transaction, access, experimentId))
+        {
+            lookup.Parameters.AddWithValue("trial", claim.TrialId);
+            await using var reader = await lookup.ExecuteReaderAsync(token);
+            if (!await reader.ReadAsync(token) || reader.IsDBNull(1) || reader.IsDBNull(3) || reader.IsDBNull(5) ||
+                reader.GetGuid(1) != claim.Owner || reader.GetInt64(2) != claim.Generation ||
+                reader.GetGuid(3) != claim.Candidate.Revision.Id || reader.GetString(4).Trim() != result.ProfileSha256 ||
+                reader.GetGuid(5) != claim.Case.Revision.Id || reader.GetString(6).Trim() != result.InputSha256 ||
+                reader.GetString(0) is not ("running" or "completed"))
+                throw new InvalidOperationException("Trial result belongs to an obsolete or mismatched claim.");
+            alreadyCompleted = reader.GetString(0) == "completed";
+            if (alreadyCompleted && (reader.IsDBNull(7) || reader.GetGuid(7) != artifact.Id || reader.GetString(8).Trim() != artifact.Sha256))
+                throw new InvalidOperationException("Completed trial already has different evidence.");
+        }
+        await using (var evidence = Command("""
+            SELECT payload,is_holdout FROM evaluation.artifacts WHERE workspace_id=@workspace AND project_id=@project
+              AND id=@artifact AND sha256=@sha AND kind='completion-result' AND redacted_at IS NULL
+            """, connection, transaction, access, experimentId))
+        {
+            evidence.Parameters.AddWithValue("artifact", artifact.Id);
+            evidence.Parameters.AddWithValue("sha", artifact.Sha256);
+            await using var reader = await evidence.ExecuteReaderAsync(token);
+            if (!await reader.ReadAsync(token)) throw new InvalidDataException("Result artifact is unavailable.");
+            access.DemandArtifactRead(reader.GetBoolean(1));
+            if (Convert.ToHexStringLower(SHA256.HashData(reader.GetFieldValue<byte[]>(0))) != artifact.Sha256)
+                throw new InvalidDataException("Result artifact integrity failure.");
+            // Completion records past evidence, not a retention promise. Operator redaction may
+            // subsequently remove bytes; do not grant the evaluator artifact UPDATE to lock them.
+        }
+        await using (var attempts = Command("""
+            SELECT count(*),count(*) FILTER (WHERE state <> 'observed') FROM evaluation.attempts
+            WHERE workspace_id=@workspace AND project_id=@project AND trial_id=@trial
+            """, connection, transaction, access, experimentId))
+        {
+            attempts.Parameters.AddWithValue("trial", claim.TrialId);
+            await using var reader = await attempts.ExecuteReaderAsync(token);
+            await reader.ReadAsync(token);
+            if (reader.GetInt64(0) == 0 || reader.GetInt64(1) != 0)
+                throw new InvalidOperationException("Unresolved physical attempts cannot produce a completed trial.");
+        }
+        if (!alreadyCompleted)
+        {
+            await using var update = Command("""
+                UPDATE evaluation.trials SET state='completed',result_artifact_id=@artifact,result_artifact_sha256=@sha
+                WHERE workspace_id=@workspace AND project_id=@project AND id=@trial AND experiment_id=@experiment;
+                UPDATE evaluation.experiments SET execution_state='completed'
+                WHERE workspace_id=@workspace AND project_id=@project AND id=@experiment AND execution_state='running'
+                  AND NOT EXISTS (SELECT 1 FROM evaluation.trials WHERE workspace_id=@workspace AND project_id=@project
+                    AND experiment_id=@experiment AND state <> 'completed')
+                """, connection, transaction, access, experimentId);
+            update.Parameters.AddWithValue("trial", claim.TrialId);
+            update.Parameters.AddWithValue("artifact", artifact.Id);
+            update.Parameters.AddWithValue("sha", artifact.Sha256);
+            await update.ExecuteNonQueryAsync(token);
+        }
+        await transaction.CommitAsync(token);
+    }
+
     public async Task<ExperimentPlanReceipt> PlanAsync(EvaluationAccess access, Guid experimentId, ExperimentManifest manifest,
         IReadOnlyList<ScopedRevisionRef> cases, CancellationToken token)
     {

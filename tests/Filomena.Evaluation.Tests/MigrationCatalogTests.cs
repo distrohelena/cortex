@@ -9,7 +9,7 @@ public sealed class MigrationCatalogTests
     public void Fresh_database_requires_all_migrations_in_order()
     {
         var pending = MigrationCatalog.Pending(new Dictionary<int, string>());
-        Assert.Equal(new[] { 1, 2, 3 }, pending.Select(m => m.Version));
+        Assert.Equal(new[] { 1, 2, 3, 4 }, pending.Select(m => m.Version));
         Assert.All(pending, m => Assert.False(string.IsNullOrWhiteSpace(m.Sql)));
     }
 
@@ -18,7 +18,7 @@ public sealed class MigrationCatalogTests
     {
         var all = MigrationCatalog.Pending(new Dictionary<int, string>());
         var pending = MigrationCatalog.Pending(new Dictionary<int, string> { [1] = all[0].Checksum });
-        Assert.Equal(new[] { 2, 3 }, pending.Select(m => m.Version));
+        Assert.Equal(new[] { 2, 3, 4 }, pending.Select(m => m.Version));
     }
 
     [Fact]
@@ -38,7 +38,7 @@ public sealed class MigrationCatalogTests
 
     [Theory]
     [InlineData(0)]
-    [InlineData(4)]
+    [InlineData(5)]
     public void Unknown_version_is_rejected(int version) => Assert.Throws<InvalidOperationException>(() =>
         MigrationCatalog.Pending(new Dictionary<int, string> { [version] = new string('0', 64) }));
 

@@ -17,5 +17,7 @@
                       LogicalName="Filomena.Evaluation.Storage.Migrations.002_execution.sql" />
     <EmbeddedResource Include="Storage/Migrations/003_schedule.sql"
                       LogicalName="Filomena.Evaluation.Storage.Migrations.003_schedule.sql" />
+    <EmbeddedResource Include="Storage/Migrations/004_trial_result.sql"
+                      LogicalName="Filomena.Evaluation.Storage.Migrations.004_trial_result.sql" />
   </ItemGroup>
 </Project>

@@ -9,6 +9,28 @@ namespace Filomena.Evaluation.Tests;
 
 public sealed class ExperimentCoordinatorTests
 {
+    [Theory]
+    [InlineData("profile")]
+    [InlineData("input")]
+    [InlineData("artifact")]
+    [InlineData("owner")]
+    public async Task Invalid_result_binding_is_rejected_before_database(string mutation)
+    {
+        using var source = Source();
+        var scope = new EvaluationScope(Guid.NewGuid(), Guid.NewGuid());
+        var access = EvaluationAccess.FromHost("evaluator", scope, EvaluationRole.Evaluator);
+        var reference = new ScopedRevisionRef(scope, new(Guid.NewGuid(), new string('a', 64)));
+        var claim = new TrialClaim(Guid.NewGuid(), Guid.NewGuid(), 1, reference, reference, 0);
+        var result = new CompletionEvaluationResult(reference.Revision.Sha256, reference.Revision.Sha256, "output", TimeSpan.Zero);
+        if (mutation == "profile") result = result with { ProfileSha256 = new string('b', 64) };
+        if (mutation == "input") result = result with { InputSha256 = new string('b', 64) };
+        if (mutation == "owner") claim = claim with { Owner = Guid.Empty };
+        var hash = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(result.ToArtifact(false).Content.Span));
+        var artifact = new EvidenceArtifactRef(Guid.NewGuid(), mutation == "artifact" ? new string('0', 64) : hash);
+        await Assert.ThrowsAsync<InvalidDataException>(() => new ExperimentCoordinator(source).CompleteAsync(access,
+            Guid.NewGuid(), claim, result, artifact, TestContext.Current.CancellationToken));
+    }
+
     [Fact]
     [Trait("Category", "Postgres")]
     public async Task Plan_is_idempotent_claims_are_exclusive_and_cancellation_blocks_further_claims()
@@ -36,12 +58,28 @@ public sealed class ExperimentCoordinatorTests
         Assert.All(claims, claim => Assert.NotNull(claim));
         Assert.NotEqual(claims[0]!.TrialId, claims[1]!.TrialId);
         Assert.Null(await coordinator.ClaimNextAsync(evaluator, id, Guid.NewGuid(), token));
+        var claimed = claims[0]!;
+        var result = new CompletionEvaluationResult(claimed.Candidate.Revision.Sha256,
+            claimed.Case.Revision.Sha256, "controlled output", TimeSpan.FromMilliseconds(5));
+        var artifact = await store.RegisterArtifactAsync(evaluator, result.ToArtifact(false), token);
+        // Saving an output alone cannot certify execution without an observed physical attempt.
+        await Assert.ThrowsAsync<InvalidOperationException>(() => coordinator.CompleteAsync(evaluator, id, claimed, result, artifact, token));
+        var ledger = new AttemptLedger(source, evaluator, id, claimed.TrialId, claimed.Owner, claimed.Generation, new(100, 100, 0.01m));
+        var attempt = await ledger.BeginAsync(new("openai", new string('a', 64), 20), token);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => coordinator.CompleteAsync(evaluator, id, claimed, result, artifact, token));
+        await ledger.FinishAsync(attempt, new("response_received", TimeSpan.FromMilliseconds(5),
+            new(200, "controlled-model", null, "completed", "available", new(10, 10, 0, 0), null), null), token);
+        await coordinator.CompleteAsync(evaluator, id, claimed, result, artifact, token);
+        await coordinator.CompleteAsync(evaluator, id, claimed, result, artifact, token);
+        var changed = result with { Output = "different output" };
+        var changedArtifact = await store.RegisterArtifactAsync(evaluator, changed.ToArtifact(false), token);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => coordinator.CompleteAsync(evaluator, id, claimed, changed, changedArtifact, token));
         await coordinator.CancelAsync(evaluator, id, token);
         await Assert.ThrowsAsync<InvalidOperationException>(() => coordinator.ClaimNextAsync(evaluator, id, Guid.NewGuid(), token));
         // Running work is retained, not reset to pending by another caller or cancellation.
         await using var query = source.CreateCommand("SELECT count(*) FROM evaluation.trials WHERE workspace_id=@workspace AND state='running'");
         query.Parameters.AddWithValue("workspace", scope.WorkspaceId);
-        Assert.Equal(2L, (long)(await query.ExecuteScalarAsync(token))!);
+        Assert.Equal(1L, (long)(await query.ExecuteScalarAsync(token))!);
     }
 
     [Fact]

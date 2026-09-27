@@ -43,7 +43,7 @@ configuration is used by the evaluation project.
 
 `dotnet test tests/Filomena.Evaluation.Tests -c NativeMemory --no-restore --filter 'Category!=Postgres&FullyQualifiedName!~DatabaseLifecycleTests'`
 
-Result at this checkpoint: **201 passed**, zero failures (including offline authority/intent validation
+Result at this checkpoint: **205 passed**, zero failures (including offline authority/intent validation
 for the attempt ledger). These tests use controlled HTTP,
 not paid inference. Database lifecycle tests were explicitly excluded, not certified.
 
@@ -99,4 +99,9 @@ re-submission of the same plan, pinned candidate/case schedule rows, pending-onl
 and cancellation. Migration 003 leaves old unplanned rows unclaimable instead of inventing a schedule.
 The coordinator integration test (idempotence, concurrent distinct claims, no automatic reclaim,
 cancellation) is compiled but excluded with all PostgreSQL tests. Only its pre-DB authority/scope
-rejections were executed here. Trial result persistence, reconciliation and live CLI remain incomplete.
+rejections were executed here. Trial result association is now implemented: matching profile/input
+revision, current fenced claim, intact stored output and observed attempts are required; a repeated
+completion can only reference the same artifact. The PostgreSQL test includes missing/unresolved
+attempt rejection and same/different-result re-entry, but remains **unexecuted**. Migration 004 stores
+the output reference; retention redaction remains operator-controlled. Reconciliation and live CLI
+remain incomplete. No durable correctness claim is made from the 205 offline tests.
