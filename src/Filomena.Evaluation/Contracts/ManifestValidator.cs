@@ -131,7 +131,7 @@ public static class ProfileValidator
         }.ToFrozenDictionary(StringComparer.Ordinal);
 
     private static readonly FrozenSet<string> SupportedEfforts =
-        new[] { "minimal", "low", "medium", "high", "xhigh" }.ToFrozenSet(StringComparer.Ordinal);
+        new[] { "none", "low", "medium", "high", "xhigh", "max" }.ToFrozenSet(StringComparer.Ordinal);
 
     public static IReadOnlyList<ValidationIssue> Validate(ConfigurationProfile profile)
     {

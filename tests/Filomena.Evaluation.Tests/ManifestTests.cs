@@ -141,6 +141,19 @@ public sealed class ManifestTests
             """{"contractVersion":1}""", null)), x => x.Code == "profile.provider_unsupported");
     }
 
+    [Fact]
+    public void Openai_profile_accepts_advertised_none_and_max_efforts_but_rejects_minimal()
+    {
+        ConfigurationProfile OpenAiProfile(string effort) => Profile("openai", "completion",
+            JsonSerializer.Serialize(new { reasoningEffort = effort }), null, [],
+            """{"contractVersion":1}""", null, "gpt-6-luna");
+
+        Assert.Empty(ProfileValidator.Validate(OpenAiProfile("none")));
+        Assert.Empty(ProfileValidator.Validate(OpenAiProfile("max")));
+        Assert.Contains(ProfileValidator.Validate(OpenAiProfile("minimal")),
+            x => x.Code == "profile.parameter_invalid" && x.Path == "parameters.reasoningEffort");
+    }
+
     private static ExperimentManifest Manifest(EvaluationScope scope, IReadOnlyList<ScopedRevisionRef>? candidates = null,
         ScopedRevisionRef? target = null, ScopedRevisionRef? baseline = null, bool missingDataset = false,
         int repetitions = 2, ExperimentBudgets? budgets = null, ExperimentStopRules? stopRules = null) => new(scope,
