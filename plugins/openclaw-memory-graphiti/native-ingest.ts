@@ -2,7 +2,17 @@ import { getChannelAdapter } from "./channel-adapters/registry.js";
 import { isAbsolute } from "node:path";
 import type { ConversationRef, NormalizedInboundMessage } from "./channel-adapters/types.js";
 import { buildInboundCapture, NativeIngestAuthorizationError, type MessageCapture } from "./message-lifecycle.js";
-import { ingestDigest, NativeIngestStore, type NativeIngestStatusV1 } from "./native-ingest-store.js";
+import { ingestDigest, NativeIngestStore, type NativeIngestStatusV1, type NativeIngestFailure } from "./native-ingest-store.js";
+import { GraphitiRequestError } from "./graphiti.js";
+
+function failureEvidence(error: unknown): NativeIngestFailure {
+  if (error instanceof NativeIngestAuthorizationError) return { category: "authorization_unavailable_or_denied" };
+  if (error instanceof GraphitiRequestError) {
+    return { category: error.category, ...(Number.isInteger(error.httpStatus) && error.httpStatus! >= 100
+      && error.httpStatus! <= 599 ? { httpStatus: error.httpStatus } : {}) };
+  }
+  return { category: "unclassified" };
+}
 
 export type NativeMemoryBinding = {
   bindingRef: string; conversation: ConversationRef; notBefore: string; selfActorIds: string[];
@@ -74,6 +84,7 @@ export class NativeIngestService {
       receipt = { ...entry.receipt, state: "queued", diagnostic: undefined, retryDisposition: "reconcile" };
     } catch (e) {
       receipt = { ...entry.receipt, state: "failed",
+        submissionFailure: failureEvidence(e),
         diagnostic: e instanceof NativeIngestAuthorizationError ? "authorization_unavailable_or_denied" : "submission_unconfirmed",
         retryDisposition: e instanceof NativeIngestAuthorizationError ? "safe" : "reconcile" };
     }
@@ -96,8 +107,9 @@ export class NativeIngestService {
         this.store.save(confirmed); return confirmed;
       }
       return receipt;
-    } catch {
-      const failed = { ...receipt, state: "failed" as const, diagnostic: "confirmation_failed", retryDisposition: "reconcile" as const };
+    } catch (e) {
+      const failed = { ...receipt, state: "failed" as const, diagnostic: "confirmation_failed",
+        confirmationFailure: failureEvidence(e), retryDisposition: "reconcile" as const };
       this.store.save(failed); return failed;
     }
   }

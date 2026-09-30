@@ -197,3 +197,50 @@ database errors never return exception text. Eight new pre-database tests passed
 implementation. An import/idempotence/read/plan/cancel PostgreSQL test is compiled but **not run**.
 Offline suite: **256 tests passing**; CLI build clean. No persistent/live CLI mode has been enabled,
 no database connection was made, and no model or chat was started.
+
+## Platform continuation: 2026-09-28
+
+The host application now supports read-only `experiment.status` and evaluator-only
+`assessment.add`. Status is a single scoped snapshot of stored state, counts and retained
+reservations, not a lease recovery or permission to dispatch. Unknown/inconsistent terminal
+accounting requires reconciliation; quality remains unassessed and observed cost unknown.
+Assessment reference validation now occurs completely before connection, including empty IDs,
+null/malformed hashes and null evidence entries; caller-owned evidence is copied before awaits.
+
+Current offline command (PostgreSQL and Docker lifecycle explicitly excluded): **293 passed**.
+Evaluation CLI `NativeMemory --no-restore` build passed with zero warnings/errors.
+New PostgreSQL tests cover scoped status, cancellation, late accounting, no mutation on read,
+assessment tool success and cross-scope rejection, but remain **unexecuted**.
+No migrations, database service, model, Graphiti operation or live conversation was started.
+Existing compiled schema and SQL are not database acceptance evidence.
+
+The planned paired uncertainty calculation is now available through `comparison.preview` with
+an explicit versioned policy. It resamples distinct cases, keeps paired repetitions together,
+uses macro-average correctness differences and retains all eligibility/unknown-cost gates.
+Case ordering does not affect a fixed-seed result. Method identity pins the current .NET 10
+Random-based implementation; outputs and runtime version must be retained for later reproduction.
+Thirteen behavioral tests failed before implementation, then passed; the preview wiring test
+also failed before integration. The fifteen added cases include bounded work and insufficient
+case count. **308 offline tests passed**, CLI build passed with zero warnings/errors and scoped
+whitespace verification passed. No real benchmark, database or model was used.
+
+`case.list` now exposes scoped keyset pagination over existing case/artifact metadata.
+Read authority, bounded page size and cursor are checked before connection. Host-owned
+holdout policy and redaction filtering precede the SQL limit; no artifact contents or hidden
+total counts are returned. Nine offline cases passed (four tool cases observed failing first).
+The database acceptance test additionally distinguishes wrong project from wrong workspace,
+checks multi-page coverage and filters holdout/redacted data, but remains unexecuted.
+**317 offline tests passed**; CLI build and scoped whitespace checks passed. No schema or
+migration changed; no services, production reads/writes or model calls were made.
+
+The recovery quarantine stage now requires operator authority, explicit current owner/generation,
+an idempotent decision identity and a scoped `recovery-evidence` artifact reference. It fences the
+trial and stops the experiment while preserving every attempt/outcome/reservation and pending item.
+It does not reconcile an unknown cost to zero or return a trial to the queue. A receipt records the
+decision, not proof that a remote request stopped. No schema changes were needed for this stage.
+Seventeen offline tests cover authority, references, lifecycle/owner fencing and tool admission;
+the tool's unauthorized result was observed RED before wiring. **334 offline tests passed** and
+CLI build passed with zero warnings/errors. The real PostgreSQL test for concurrent idempotent
+quarantine, reopened datasource, stale-owner rejection and retained accounting is compiled but
+**unexecuted**. Reopening a datasource is not a process-kill crash test. Full reconciliation and
+transactional acceptance remain pending.

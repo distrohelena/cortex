@@ -111,9 +111,10 @@ public sealed class StoreTests
             var artifact = await store.RegisterArtifactAsync(evaluator, Artifact("holdout", true, "secret case bytes"), token);
 
             await Assert.ThrowsAsync<UnauthorizedAccessException>(() => store.GetArtifactAsync(proposer, artifact, token));
+            await Assert.ThrowsAsync<UnauthorizedAccessException>(() => store.RegisterCaseAsync(proposer, new("forbidden", artifact), token));
             var readable = await store.GetArtifactAsync(evaluator, artifact, token);
             Assert.Equal("secret case bytes", Encoding.UTF8.GetString(readable.Document.Content.Span));
-        }, cancellationToken: cancellationToken);
+        }, EvaluationRole.Proposer, cancellationToken);
     }
 
     [Fact]

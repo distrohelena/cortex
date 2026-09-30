@@ -7,6 +7,18 @@ namespace Filomena.Evaluation.Tests;
 
 public sealed class BoundEvaluationProvidersTests
 {
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("usd")]
+    public void Host_endpoint_requires_explicit_reservation_currency(string? currency)
+    {
+        using var source = Source();
+        var access = Access();
+        Assert.Throws<InvalidDataException>(() => BoundEvaluationProviders.Create(source, access,
+            Guid.NewGuid(), Claim(access.Scope), [Endpoint() with { ReservationCurrency = currency }]));
+    }
+
     [Fact]
     public void Constructing_bound_clients_does_not_read_credentials_or_contact_services()
     {
@@ -65,5 +77,6 @@ public sealed class BoundEvaluationProvidersTests
         return new(Guid.NewGuid(), Guid.NewGuid(), 1, revision, revision, 0);
     }
     private static EvaluationEndpointSettings Endpoint() => new("luna-host", "openai",
-        new("https://api.openai.com/v1/responses"), () => "not-real", new(100, 100, 0.01m), TimeSpan.FromSeconds(30));
+        new("https://api.openai.com/v1/responses"), () => "not-real", new(100, 100, 0.01m), TimeSpan.FromSeconds(30))
+    { ReservationCurrency = "BRL" };
 }

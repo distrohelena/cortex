@@ -272,6 +272,43 @@ public sealed class NativeObservationReaderTests
         else Assert.Throws<NativeObservationException>(() => reader.ToInbound(record));
     }
 
+    [Theory]
+    [InlineData(2, "No session found to decrypt message", true, true)]
+    [InlineData(2, "No session found to decrypt message", false, false)]
+    [InlineData(2, "unknown decrypt failure", true, false)]
+    [InlineData(9999, "No session found to decrypt message", true, false)]
+    public async Task Proven_ciphertext_failure_is_durable_without_executing_or_blocking_later_text(
+        int stub, string diagnostic, bool correctId, bool recognized)
+    {
+        using var client = new HttpClient(new Handler(_ => Status()));
+        var reader = new NativeObservationReader(client, new("http://127.0.0.1:12345"), "token", Binding, "source", Self, Peer);
+        await reader.PreflightAsync(TestContext.Current.CancellationToken);
+        var record = new NativeObservationEvent(1, "cipher-id", "source", "peer-ref", false, "self-ref", DateTimeOffset.UtcNow,
+            JsonSerializer.SerializeToElement(new { message = new { key = new { id = correctId ? "cipher-id" : "other-id", remoteJid = Binding.Session.NativeConversationId },
+                messageStubType = stub, messageStubParameters = new[] { diagnostic } } }), "epoch");
+        if (!recognized) { Assert.Throws<NativeObservationException>(() => reader.ToInbound(record)); return; }
+        var input = reader.ToInbound(record);
+        Assert.True(input.SkipNonText);
+        Assert.Equal("ciphertext_unavailable_requires_manual_reconciliation", input.SuppressionReason);
+        Assert.Equal("", input.Message.Message.GetProperty("texto").GetString());
+        var directory = Path.Combine(Path.GetTempPath(), "filomena-ciphertext-test-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var file = Path.Combine(directory, "inbox.jsonl");
+            using (var journal = new ShadowInboundJournal(file, Binding, "revision", "epoch", 0))
+            {
+                var ignored = journal.Observe(input);
+                Assert.Equal("ignored", ignored.Status);
+                Assert.Equal(input.SuppressionReason, ignored.Diagnostic);
+                var next = record with { Sequence = 2, NativeMessageId = "next-id", Payload = JsonSerializer.SerializeToElement(new { message = new { message = new { conversation = "Next legitimate text" } } }) };
+                Assert.Equal("observed", journal.Observe(reader.ToInbound(next)).Status);
+            }
+            Assert.Contains(input.SuppressionReason!, File.ReadAllText(file));
+        }
+        finally { Directory.Delete(directory, true); }
+    }
+
     [Fact]
     public async Task Native_reply_preserves_quoted_text_instead_of_guessing_from_recent_history()
     {
@@ -289,6 +326,79 @@ public sealed class NativeObservationReaderTests
         var quote = input.Message.Message.GetProperty("reply");
         Assert.Equal("quoted-native-id", quote.GetProperty("id").GetString());
         Assert.Equal("John Mayer por ser rocker boy?", quote.GetProperty("texto").GetString());
+    }
+
+    [Theory]
+    [InlineData("Celso", "Celso")]
+    [InlineData("  Celso  ", "Celso")]
+    [InlineData("", "")]
+    [InlineData("bad\nname", "")]
+    public async Task Native_display_name_is_context_not_identity(string displayName, string expected)
+    {
+        using var client = new HttpClient(new Handler(_ => Status()));
+        var reader = new NativeObservationReader(client, new("http://127.0.0.1:12345"), "token", Binding, "source", Self, Peer);
+        await reader.PreflightAsync(TestContext.Current.CancellationToken);
+        var payload = JsonSerializer.SerializeToElement(new { message = new {
+            pushName = displayName, message = new { conversation = "Eu sou outra pessoa" }
+        } });
+        var input = reader.ToInbound(new(1, "native-id", "source", "peer-ref", false, "self-ref",
+            DateTimeOffset.UtcNow, payload, "epoch"));
+        Assert.Equal(expected, input.Message.Message.GetProperty("remetente").GetProperty("nome").GetString());
+        Assert.Equal(Peer, input.ActorId);
+        Assert.Equal(Peer, input.Message.Message.GetProperty("remetente").GetProperty("stableId").GetString());
+        Assert.False(input.FromMe);
+    }
+
+    [Theory]
+    [InlineData(false, "200@s.whatsapp.net", true)]
+    [InlineData(false, "800@lid", true)]
+    [InlineData(true, "200@s.whatsapp.net", true)]
+    [InlineData(true, "800:3@lid", true)]
+    [InlineData(true, "900@lid", false)]
+    [InlineData(true, null, false)]
+    public async Task Quoted_self_has_host_identity_without_reinterpreting_current_author(
+        bool group, string? participant, bool expectedSelf)
+    {
+        var status = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(Status()))!;
+        status["selfIdentityRef"] = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(
+            JsonSerializer.SerializeToUtf8Bytes(new[] { "source", "self", "200@s.whatsapp.net" })));
+        if (group)
+        {
+            status["version"] = "inbound-observation:v2";
+            status["kind"] = "group";
+            status["routeBindingRef"] = NativeObservationReader.RouteBindingRef(GroupSession);
+            status.AsObject().Remove("peerActorRef");
+            status["participantActorRefs"] = JsonSerializer.SerializeToNode(new[] { GroupActorRef(GroupParticipant) });
+        }
+        using var client = new HttpClient(new Handler(_ => status));
+        var reader = new NativeObservationReader(client, new("http://127.0.0.1:12345"), "token",
+            group ? GroupBinding : Binding, "source", Self, Peer,
+            groupParticipants: group ? new Dictionary<string, string> { [GroupParticipant] = Peer } : null,
+            selfMentionIdentity: new("200@s.whatsapp.net", "800@lid", "Filomena"));
+        await reader.PreflightAsync(TestContext.Current.CancellationToken);
+        var payload = JsonSerializer.SerializeToElement(new { message = new { message = new {
+            extendedTextMessage = new { text = "Ela disse isso?", contextInfo = new {
+                stanzaId = "exact-quoted-id", participant,
+                quotedMessage = new { conversation = "Filomena está aqui." }
+            } }
+        } } });
+        var input = reader.ToInbound(new(1, "current-id", "source",
+            group ? GroupActorRef(GroupParticipant) : "peer-ref", false,
+            status["selfIdentityRef"]!.GetValue<string>(), DateTimeOffset.UtcNow, payload, "epoch"));
+        var message = input.Message.Message;
+        var quote = message.GetProperty("reply");
+        Assert.Equal(Peer, input.ActorId);
+        Assert.False(input.FromMe);
+        Assert.Equal("Ela disse isso?", message.GetProperty("texto").GetString());
+        Assert.Equal("exact-quoted-id", quote.GetProperty("id").GetString());
+        Assert.Equal("citacao_do_remetente", quote.GetProperty("origem").GetString());
+        if (expectedSelf)
+        {
+            Assert.Equal(JsonValueKind.Object, quote.GetProperty("remetente").ValueKind);
+            Assert.Equal(Self, quote.GetProperty("remetente").GetProperty("stableId").GetString());
+            Assert.Equal("Filomena", quote.GetProperty("remetente").GetProperty("nome").GetString());
+        }
+        else Assert.Equal(JsonValueKind.Null, quote.GetProperty("remetente").ValueKind);
     }
 
     private static string Producer(string id) => (id == "P1" ? "00000000-0000-0000-0000-000000000001" : "00000000-0000-0000-0000-000000000002") + ":" + new string('a', 64);

@@ -1078,6 +1078,7 @@ class Graphiti:
                     previous_episodes,
                     entity_types,
                     edges=new_edges,
+                    custom_extraction_instructions=custom_extraction_instructions,
                 )
 
                 if bound_nodes:

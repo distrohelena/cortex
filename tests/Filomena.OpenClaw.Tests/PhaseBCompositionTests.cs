@@ -77,13 +77,21 @@ public sealed class PhaseBCompositionTests
     }
 
     [Fact]
-    public void PhaseCIsSupportedAndOutboundAllowlistIsExplicit()
+    public void PhaseCOnlyAllowsHelenasPrivateConversationAndVerifiedTestGroup()
     {
         Assert.True(ProbeOptions.IsSupportedMode("phase-c"));
         var builder = FilomenaHostConfiguration.CreateBuilder([]);
-        Assert.Equal("whatsapp-group-5511981042361-1589823314-g-us", builder.Configuration["PhaseC:AllowedConversationNamespaces:0"]);
-        Assert.Equal("whatsapp-group-120363318973251043-g-us", builder.Configuration["PhaseC:AllowedConversationNamespaces:1"]);
-        Assert.Equal("whatsapp-dm-5511944558218-s-whatsapp-net", builder.Configuration["PhaseC:AllowedConversationNamespaces:2"]);
+        Assert.Equal("whatsapp-dm-5511944558218-s-whatsapp-net", builder.Configuration["PhaseC:AllowedConversationNamespaces:0"]);
+        var allowed = builder.Configuration.GetSection("PhaseC:AllowedConversationNamespaces")
+            .GetChildren().Select(item => item.Value).ToArray();
+        Assert.Equal(new[] { "whatsapp-dm-5511944558218-s-whatsapp-net", "whatsapp-group-120363413037344295-g-us" }, allowed);
+        Assert.DoesNotContain("whatsapp-group-5511981042361-1589823314-g-us", allowed);
+        Assert.DoesNotContain("whatsapp-group-120363318973251043-g-us", allowed);
+        Assert.Equal("8192", builder.Configuration["LmStudio:ArbitrationMaxTokens"]);
+        Assert.Equal("8192", builder.Configuration["LmStudio:GenerationMaxTokens"]);
+        Assert.Equal("00:00:03", builder.Configuration["PhaseB:Turns:AllowlistedDirectMessageQuietWindow"]);
+        Assert.Equal("00:01:00", builder.Configuration["PhaseB:Turns:AllowlistedDirectMessageMaxBurst"]);
+        Assert.Equal("50", builder.Configuration["PhaseB:Turns:MaxBurstMessages"]);
     }
 
     [Fact]

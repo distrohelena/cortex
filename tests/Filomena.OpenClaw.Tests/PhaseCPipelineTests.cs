@@ -14,15 +14,17 @@ namespace Filomena.OpenClaw.Tests;
 public sealed class PhaseCPipelineTests
 {
     [Theory]
-    [InlineData(true, 2, 1)]
-    [InlineData(false, 1, 0)]
+    [InlineData(true, 2, 1, false)]
+    [InlineData(false, 1, 0, false)]
+    [InlineData(true, 2, 1, true)]
+    [InlineData(false, 1, 0, true)]
     public async Task BridgeThroughArbiterAndGenerationToMcpUsesOnlyOneSend(
-        bool respond, int expectedModelCalls, int expectedSends)
+        bool respond, int expectedModelCalls, int expectedSends, bool dm)
     {
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
         cancellation.CancelAfter(TimeSpan.FromSeconds(5));
         var receiver = new OpenClawInboundBridgeReceiver();
-        using var payload = JsonDocument.Parse("""
+        var json = """
             {
               "schemaVersion":1,
               "sessionKey":"opaque-session-route",
@@ -40,12 +42,18 @@ public sealed class PhaseCPipelineTests
                 "stableId":"whatsapp:5511944558218@s.whatsapp.net","displayName":"Helena"
               }
             }
-            """);
+            """;
+        if (dm)
+            json = json.Replace("5511981042361-1589823314@g.us", "5511944558218@s.whatsapp.net", StringComparison.Ordinal)
+                .Replace("whatsapp-group-5511981042361-1589823314-g-us", "whatsapp-dm-5511944558218-s-whatsapp-net", StringComparison.Ordinal)
+                .Replace("\"kind\":\"group\"", "\"kind\":\"dm\"", StringComparison.Ordinal)
+                .Replace("Filomena como vai?", respond ? "Hey Filooo" : "não precisa responder", StringComparison.Ordinal);
+        using var payload = JsonDocument.Parse(json);
         Assert.Equal(InboundBridgeAcceptance.Accepted, await receiver.AcceptAsync(payload.RootElement, cancellation.Token));
         Assert.Equal(InboundBridgeAcceptance.Duplicate, await receiver.AcceptAsync(payload.RootElement, cancellation.Token));
         var inbound = await receiver.Events.ReadAsync(cancellation.Token);
         Assert.False(receiver.Events.TryRead(out _));
-        var httpHandler = new ModelHandler(respond);
+        var httpHandler = new ModelHandler(respond, dm);
         using var http = new HttpClient(httpHandler);
         var model = new LmStudioClient(http, new LmStudioOptions());
         await using var mcp = new ToolClient();
@@ -54,7 +62,7 @@ public sealed class PhaseCPipelineTests
             AllowedConversationNamespaces = [inbound.Conversation!.Id.Namespace],
         });
         await using var manager = new ConversationTurnManager(new GemmaTurnArbiter(model),
-            new ConversationTurnOptions(), new ImmediateClock(), agent);
+            new ConversationTurnOptions { AllowlistedDirectMessageNativeIds = ["5511944558218@s.whatsapp.net"] }, new ImmediateClock(), agent);
         await manager.EnqueueAsync(inbound, cancellation.Token);
         var result = await manager.Results.ReadAsync(cancellation.Token);
         Assert.Null(result.ExecutionError);
@@ -64,7 +72,7 @@ public sealed class PhaseCPipelineTests
         {
             Assert.Equal("provider-outbound-1", result.SentTurn?.ProviderMessageId);
             Assert.Equal("opaque-session-route", mcp.Arguments!["session_key"]);
-            Assert.Equal("Filomena: Estou bem!", mcp.Arguments["text"]);
+            Assert.Equal("Estou bem!", mcp.Arguments["text"]);
         }
         else Assert.Null(result.SentTurn);
     }
@@ -75,7 +83,7 @@ public sealed class PhaseCPipelineTests
         public Task DelayAsync(TimeSpan delay, CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
-    private sealed class ModelHandler(bool respond) : HttpMessageHandler
+    private sealed class ModelHandler(bool respond, bool dm) : HttpMessageHandler
     {
         public int Calls { get; private set; }
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
@@ -83,13 +91,17 @@ public sealed class PhaseCPipelineTests
             Calls++;
             using var payload = JsonDocument.Parse(await request.Content!.ReadAsStringAsync(cancellationToken));
             Assert.Equal("google/gemma-4-e4b", payload.RootElement.GetProperty("model").GetString());
+            if (Calls == 1 && dm)
+                Assert.Contains("pensamento está completo", payload.RootElement.GetProperty("messages")[0].GetProperty("content").GetString());
             var content = Calls == 1
                 ? JsonSerializer.Serialize(new
                 {
                     decision = respond ? "respond" : "ignore",
                     anchorRef = (string?)null,
                     targetRef = (string?)null,
-                    reason = respond ? "useful_contribution" : "no_useful_contribution"
+                    reason = dm ? (respond ? "thought_complete" : "conversation_closed") : (respond ? "useful_contribution" : "no_useful_contribution"),
+                    recheckAfterSeconds = (int?)null,
+                    responseKind = "reply",
                 })
                 : "Estou bem!";
             return new(HttpStatusCode.OK)

@@ -75,7 +75,7 @@ class OpenAIClient(BaseOpenAIClient):
         """Create a structured completion using OpenAI's beta parse API."""
         # Reasoning models (gpt-5 family) don't support temperature
         is_reasoning_model = (
-            model.startswith('gpt-5') or model.startswith('o1') or model.startswith('o3')
+            model.startswith(('gpt-5', 'gpt-6', 'o1', 'o3'))
         )
 
         request_kwargs = {
@@ -83,6 +83,7 @@ class OpenAIClient(BaseOpenAIClient):
             'input': messages,  # type: ignore
             'max_output_tokens': max_tokens,
             'text_format': response_model,  # type: ignore
+            'store': False,
         }
 
         temperature_value = temperature if not is_reasoning_model else None
@@ -113,7 +114,7 @@ class OpenAIClient(BaseOpenAIClient):
         """Create a regular completion with JSON format."""
         # Reasoning models (gpt-5 family) don't support temperature
         is_reasoning_model = (
-            model.startswith('gpt-5') or model.startswith('o1') or model.startswith('o3')
+            model.startswith(('gpt-5', 'gpt-6', 'o1', 'o3'))
         )
 
         return await self.client.chat.completions.create(

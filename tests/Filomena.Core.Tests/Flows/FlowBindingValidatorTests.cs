@@ -114,6 +114,68 @@ public sealed class FlowBindingValidatorTests
     }
 
     [Fact]
+    public void RequiresCharacterGraphReferenceToBeACharacterGraphOwnedByThatCharacter()
+    {
+        var (workspace, bindings) = FlowTestFixtures.CharacterGraphRoleAndOwnerMismatch();
+
+        var issues = FlowBindingValidator.Validate(workspace, bindings);
+
+        Assert.Contains(issues, issue => issue.Code == "binding.character_graph_invalid");
+    }
+
+    [Fact]
+    public void RejectsIngressGraphsCarryingCharacterIds()
+    {
+        var (workspace, bindings) = FlowTestFixtures.IngressGraphCarriesCharacterId();
+
+        var issues = FlowBindingValidator.Validate(workspace, bindings);
+
+        Assert.Contains(issues, issue => issue.Code == "binding.ingress_character_forbidden");
+    }
+
+    [Fact]
+    public void RequiresPrivateSpaceOwnerCharacterToExist()
+    {
+        var (workspace, bindings) = FlowTestFixtures.PrivateSpaceWithMissingOwner();
+
+        var issues = FlowBindingValidator.Validate(workspace, bindings);
+
+        Assert.Contains(issues, issue => issue.Code == "binding.space_owner_missing");
+    }
+
+    [Fact]
+    public void ValidatesUnusedGrantCharacterSpaceAndMediatedProtectorReferences()
+    {
+        var (workspace, bindings) = FlowTestFixtures.UnusedInvalidGrants();
+
+        var issues = FlowBindingValidator.Validate(workspace, bindings);
+
+        Assert.Contains(issues, issue => issue.Code == "binding.grant_character_missing");
+        Assert.Contains(issues, issue => issue.Code == "binding.grant_space_missing");
+        Assert.Contains(issues, issue => issue.Code == "binding.grant_protector_required");
+    }
+
+    [Fact]
+    public void RejectsDuplicateDestinationIdsWithinAnEnvironment()
+    {
+        var (workspace, bindings) = FlowTestFixtures.DuplicateDestinationsWithinEnvironment();
+
+        var issues = FlowBindingValidator.Validate(workspace, bindings);
+
+        Assert.Contains(issues, issue => issue.Code == "binding.destination_duplicate");
+    }
+
+    [Fact]
+    public void AllowsDestinationIdRebindingAcrossEnvironmentsWhenStructuralRoutesDiffer()
+    {
+        var (workspace, bindings) = FlowTestFixtures.DuplicateDestinationsAcrossEnvironments();
+
+        var issues = FlowBindingValidator.Validate(workspace, bindings);
+
+        Assert.DoesNotContain(issues, issue => issue.Code == "binding.destination_duplicate");
+    }
+
+    [Fact]
     public void RejectsCrossEnvironmentPhysicalAliasesUsingTheCompleteRegistry()
     {
         var (workspace, bindings) = FlowTestFixtures.CrossEnvironmentPhysicalAlias();
@@ -369,6 +431,86 @@ public sealed class FlowBindingValidatorTests
             return (changed, bindings);
         }
 
+        public static (FlowWorkspaceDefinition Workspace, IReadOnlyList<EnvironmentBindings> Bindings) CharacterGraphRoleAndOwnerMismatch()
+        {
+            var (workspace, bindings) = ValidWorkspace();
+            var mismatched = new FlowWorkspaceDefinition(
+                workspace.Characters,
+                [
+                    CharacterGraph("graph-a", "char-b"),
+                    CharacterGraph("graph-b", "char-b"),
+                ],
+                workspace.ModelProfiles,
+                workspace.CharacterModelProfileReferences);
+            return (mismatched, bindings);
+        }
+
+        public static (FlowWorkspaceDefinition Workspace, IReadOnlyList<EnvironmentBindings> Bindings) IngressGraphCarriesCharacterId()
+        {
+            var (workspace, bindings) = ValidWorkspace();
+            var ingress = new GraphDocument("graph-a", 1, GraphRole.Ingress, "char-a", [], [], []);
+            return (WithNodeGraphs(workspace, [ingress, CharacterGraph("graph-b", "char-b")]), bindings);
+        }
+
+        public static (FlowWorkspaceDefinition Workspace, IReadOnlyList<EnvironmentBindings> Bindings) PrivateSpaceWithMissingOwner()
+        {
+            var (workspace, bindings) = ValidWorkspace();
+            var environment = new EnvironmentBindings(
+                bindings[0].Environment,
+                bindings[0].RouteOwners,
+                [new SpaceBinding("space-a", FlowEnvironment.Testnet, FlowSpaceScope.Private, "missing-character", ["conversation-1"], "physical-a")],
+                bindings[0].Grants,
+                bindings[0].Capabilities,
+                bindings[0].Destinations);
+            return (workspace, [environment]);
+        }
+
+        public static (FlowWorkspaceDefinition Workspace, IReadOnlyList<EnvironmentBindings> Bindings) UnusedInvalidGrants()
+        {
+            var (workspace, bindings) = ValidWorkspace();
+            var environment = new EnvironmentBindings(
+                bindings[0].Environment,
+                bindings[0].RouteOwners,
+                bindings[0].SpaceBindings,
+                [
+                    new FlowGrant("missing-character", "space-a", FlowAccessOperation.Read, FlowAccessMode.Direct),
+                    new FlowGrant("char-a", "missing-space", FlowAccessOperation.Write, FlowAccessMode.Direct),
+                    new FlowGrant("char-a", "space-a", FlowAccessOperation.Read, FlowAccessMode.Mediated),
+                ],
+                bindings[0].Capabilities,
+                bindings[0].Destinations);
+            return (workspace, [environment]);
+        }
+
+        public static (FlowWorkspaceDefinition Workspace, IReadOnlyList<EnvironmentBindings> Bindings) DuplicateDestinationsWithinEnvironment()
+        {
+            var (workspace, bindings) = ValidWorkspace();
+            var environment = new EnvironmentBindings(
+                bindings[0].Environment,
+                bindings[0].RouteOwners,
+                bindings[0].SpaceBindings,
+                bindings[0].Grants,
+                bindings[0].Capabilities,
+                [
+                    new DestinationBinding("destination-a", FlowEnvironment.Testnet, "account-1", "conversation-1", "first"),
+                    new DestinationBinding("destination-a", FlowEnvironment.Testnet, "account-2", "conversation-2", "second"),
+                ]);
+            return (workspace, [environment]);
+        }
+
+        public static (FlowWorkspaceDefinition Workspace, IReadOnlyList<EnvironmentBindings> Bindings) DuplicateDestinationsAcrossEnvironments()
+        {
+            var (workspace, bindings) = ValidWorkspace();
+            var mainnet = new EnvironmentBindings(
+                FlowEnvironment.Mainnet,
+                [new RouteOwnerBinding("route-mainnet", "account-2", "conversation-2", "char-b")],
+                [],
+                [],
+                [],
+                [new DestinationBinding("destination-a", FlowEnvironment.Mainnet, "account-2", "conversation-2", "mainnet")]);
+            return (workspace, [bindings[0], mainnet]);
+        }
+
         public static (FlowWorkspaceDefinition Workspace, IReadOnlyList<EnvironmentBindings> Bindings) CrossEnvironmentPhysicalAlias()
         {
             var (workspace, bindings) = ValidWorkspace();
@@ -511,6 +653,9 @@ public sealed class FlowBindingValidatorTests
             WithGraphs(workspace, workspace.Graphs.Select(graph => graph.Id == replacement.Id ? replacement : graph));
 
         private static FlowWorkspaceDefinition WithGraphs(FlowWorkspaceDefinition workspace, IEnumerable<GraphDocument> graphs) =>
+            new(workspace.Characters, graphs, workspace.ModelProfiles, workspace.CharacterModelProfileReferences);
+
+        private static FlowWorkspaceDefinition WithNodeGraphs(FlowWorkspaceDefinition workspace, IEnumerable<GraphDocument> graphs) =>
             new(workspace.Characters, graphs, workspace.ModelProfiles, workspace.CharacterModelProfileReferences);
 
         private static EnvironmentBindings WithSpace(EnvironmentBindings environment, params SpaceBinding[] additions) =>

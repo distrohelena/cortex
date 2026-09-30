@@ -6,6 +6,116 @@ namespace Filomena.Core.Tests.Flows;
 
 public sealed class FlowCompilerTests
 {
+    [Theory]
+    [InlineData("graph", "/graphs/0")]
+    [InlineData("node", "/graphs/0/nodes/0")]
+    [InlineData("character", "/characters/0")]
+    [InlineData("profile", "/modelProfiles/0")]
+    [InlineData("environment", "/environments/0")]
+    [InlineData("space", "/environments/0/spaceBindings/0")]
+    [InlineData("destination", "/environments/0/destinations/0")]
+    [InlineData("dataEdge", "/graphs/0/dataEdges/0")]
+    [InlineData("controlEdge", "/graphs/0/controlEdges/0")]
+    [InlineData("source", "/graphs/0/dataEdges/0/source")]
+    [InlineData("fieldPath", "/graphs/0/dataEdges/0/fieldPath")]
+    [InlineData("field", "/graphs/0/dataEdges/0/fieldPath/0")]
+    [InlineData("conversation", "/environments/0/spaceBindings/0/explicitConversationIds/0")]
+    public void MalformedDirectObjectsReturnSafeIssues(string malformed, string expectedPath)
+    {
+        var workspace = CompilerFixtures.ValidWorkspace();
+        var registry = CompilerFixtures.CompleteRegistry().ToArray();
+        var graph = workspace.Graphs[0];
+        var edge = graph.DataEdges[0];
+        switch (malformed)
+        {
+            case "graph": ((GraphDocument[])workspace.Graphs)[0] = null!; break;
+            case "node": ((FlowNode[])graph.Nodes)[0] = null!; break;
+            case "character": ((CharacterDefinition[])workspace.Characters)[0] = null!; break;
+            case "profile": ((ModelProfileDefinition[])workspace.ModelProfiles)[0] = null!; break;
+            case "environment": registry[0] = null!; break;
+            case "space": ((SpaceBinding[])registry[0].SpaceBindings)[0] = null!; break;
+            case "destination": ((DestinationBinding[])registry[0].Destinations)[0] = null!; break;
+            case "dataEdge": ((DataEdge[])graph.DataEdges)[0] = null!; break;
+            case "controlEdge": ((ControlEdge[])graph.ControlEdges)[0] = null!; break;
+            case "source": ((DataEdge[])graph.DataEdges)[0] = edge with { Source = null! }; break;
+            case "fieldPath": ((DataEdge[])graph.DataEdges)[0] = edge with { FieldPath = null! }; break;
+            case "field": ((DataEdge[])graph.DataEdges)[0] = edge with { FieldPath = new string[] { null! } }; break;
+            case "conversation": ((string[])registry[0].SpaceBindings[0].ExplicitConversationIds)[0] = null!; break;
+        }
+
+        var result = FlowCompiler.Compile(workspace, registry, FlowEnvironment.Testnet, "release-malformed");
+
+        Assert.Null(result.Release);
+        Assert.Contains(result.Issues, issue => issue.Code == "compiler.shape_invalid" && issue.Path == expectedPath);
+    }
+
+    [Fact]
+    public void OversizedImportIsRejectedBeforeAllocatingItsUtf8Payload()
+    {
+        var registry = CompilerFixtures.CompleteRegistry();
+        _ = FlowCompiler.Import("{}", registry, FlowEnvironment.Testnet);
+        var oversized = new string('x', FlowLimits.MaxInputUtf8Bytes * 8);
+        var before = GC.GetAllocatedBytesForCurrentThread();
+
+        var result = FlowCompiler.Import(oversized, registry, FlowEnvironment.Testnet);
+
+        var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        Assert.Null(result.Release);
+        Assert.Contains(result.Issues, issue => issue.Code == "artifact.input_too_large");
+        Assert.True(allocated < FlowLimits.MaxInputUtf8Bytes, $"Rejection allocated {allocated} bytes.");
+    }
+
+    [Fact]
+    public void ImportRejectsInvalidUtf16WithSafeEncodingIssue()
+    {
+        var result = FlowCompiler.Import("\ud800", CompilerFixtures.CompleteRegistry(), FlowEnvironment.Testnet);
+
+        Assert.Null(result.Release);
+        Assert.Contains(result.Issues, issue => issue.Code == "artifact.encoding_invalid");
+    }
+
+    [Fact]
+    public void CompiledNestedSchemaRemainsImmutableThroughEveryCollectionBoundary()
+    {
+        var workspace = CompilerFixtures.ValidWorkspace();
+        var graph = workspace.Graphs[0];
+        var config = Json("""
+            {"outputSchema":{"kind":"object","fields":{
+              "text":{"type":{"kind":"string"},"required":true},
+              "nested":{"type":{"kind":"array","elementType":{"kind":"nullable","innerType":{
+                "kind":"object","fields":{"mood":{"type":{"kind":"enum","values":["calm","happy"]},"required":true}}
+              }}},"required":true}
+            }}}
+            """);
+        ((FlowNode[])graph.Nodes)[1] = new FlowNode("ai", "ai", 1, config);
+        ((DataEdge[])graph.DataEdges)[1] = new DataEdge(new PortRef("ai", "output"), new string[] { "text" }, new PortRef("send", "body"));
+        var result = FlowCompiler.Compile(workspace, CompilerFixtures.CompleteRegistry(), FlowEnvironment.Testnet, "nested-release");
+        var release = Assert.IsType<CompiledFlowRelease>(result.Release);
+        var plan = release.Graphs.Single().OrderedNodes.Single(node => node.Id == "ai");
+        var root = plan.DataOutputs.Single().Type;
+        var nested = root.Fields["nested"].Type;
+        var nullable = Assert.IsType<CompiledFlowType>(nested.ElementType);
+        var inner = Assert.IsType<CompiledFlowType>(nullable.InnerType);
+        var mood = inner.Fields["mood"].Type;
+
+        Assert.Throws<NotSupportedException>(() => ((IList<string>)mood.Values)[0] = "changed");
+        Assert.Throws<NotSupportedException>(() => ((IDictionary<string, CompiledFlowField>)inner.Fields).Clear());
+        Assert.Throws<NotSupportedException>(() => ((IDictionary<string, CompiledFlowField>)root.Fields).Clear());
+        Assert.Throws<NotSupportedException>(() => ((IList<CompiledDataPort>)plan.DataOutputs).Clear());
+        ((FlowNode[])graph.Nodes)[1] = new FlowNode("ai", "ai", 1, Json("{}"));
+        ((string[])graph.DataEdges[1].FieldPath)[0] = "changed";
+
+        Assert.Equal("object", root.Kind);
+        Assert.Equal("array", nested.Kind);
+        Assert.Equal("nullable", nullable.Kind);
+        Assert.Equal("object", inner.Kind);
+        Assert.Equal("enum", mood.Kind);
+        Assert.Equal(["calm", "happy"], mood.Values);
+        Assert.True(inner.Fields["mood"].Required);
+        Assert.Equal(config.GetRawText(), plan.Config.GetRawText());
+        Assert.Equal("text", release.Graphs.Single().DataEdges.Single(edge => edge.Source.NodeId == "ai").FieldPath.Single());
+    }
+
     [Fact]
     public void InvalidWorkspaceReturnsNoRelease()
     {

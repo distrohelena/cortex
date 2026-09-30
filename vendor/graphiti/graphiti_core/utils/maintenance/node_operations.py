@@ -471,6 +471,7 @@ async def extract_attributes_from_nodes(
     entity_types: dict[str, type[BaseModel]] | None = None,
     should_summarize_node: NodeSummaryFilter | None = None,
     edges: list[EntityEdge] | None = None,
+    custom_extraction_instructions: str | None = None,
 ) -> list[EntityNode]:
     llm_client = clients.llm_client
     embedder = clients.embedder
@@ -508,6 +509,7 @@ async def extract_attributes_from_nodes(
         previous_episodes,
         should_summarize_node,
         edges_by_node,
+        custom_extraction_instructions,
     )
 
     await create_entity_node_embeddings(embedder, nodes)
@@ -557,6 +559,7 @@ async def _extract_entity_summaries_batch(
     previous_episodes: list[EpisodicNode] | None,
     should_summarize_node: NodeSummaryFilter | None,
     edges_by_node: dict[str, list[EntityEdge]],
+    custom_extraction_instructions: str | None = None,
 ) -> None:
     """Extract summaries for multiple entities in batched LLM calls.
 
@@ -604,7 +607,9 @@ async def _extract_entity_summaries_batch(
     # Process flights in parallel
     await semaphore_gather(
         *[
-            _process_summary_flight(llm_client, flight, episode, previous_episodes)
+            _process_summary_flight(
+                llm_client, flight, episode, previous_episodes, custom_extraction_instructions
+            )
             for flight in node_flights
         ]
     )
@@ -615,6 +620,7 @@ async def _process_summary_flight(
     nodes: list[EntityNode],
     episode: EpisodicNode | None,
     previous_episodes: list[EpisodicNode] | None,
+    custom_extraction_instructions: str | None = None,
 ) -> None:
     """Process a single flight of nodes for batch summarization."""
     # Build context for batch summarization
@@ -629,6 +635,7 @@ async def _process_summary_flight(
     ]
 
     batch_context = {
+        'custom_extraction_instructions': custom_extraction_instructions or '',
         'entities': entities_context,
         'episode_content': episode.content if episode is not None else '',
         'previous_episodes': (

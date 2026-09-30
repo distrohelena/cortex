@@ -12,9 +12,10 @@ public sealed class AttemptLedger : IEvaluationCallJournal
     private readonly Guid experiment, trial, owner;
     private readonly long generation;
     private readonly CallReservation reservation;
+    private readonly string? reservationCurrency;
     private static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web);
     public AttemptLedger(NpgsqlDataSource source, EvaluationAccess access, Guid experiment, Guid trial, Guid owner,
-        long generation, CallReservation reservation)
+        long generation, CallReservation reservation, string? reservationCurrency = null)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(access);
@@ -31,6 +32,7 @@ public sealed class AttemptLedger : IEvaluationCallJournal
         this.owner = owner;
         this.generation = generation;
         this.reservation = reservation;
+        this.reservationCurrency = reservationCurrency;
     }
 
     public async Task<Guid> BeginAsync(PhysicalCallIntent intent, CancellationToken cancellationToken)
@@ -43,6 +45,10 @@ public sealed class AttemptLedger : IEvaluationCallJournal
         await using var connection = await source.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         var state = await LockAsync(connection, transaction, cancellationToken);
+        var monetaryApproval = await MonetaryBudgetStore.ReadInTransactionAsync(access.Scope, experiment,
+            connection, transaction, cancellationToken);
+        MonetaryBudgetContract.DemandForAttempt(monetaryApproval, access.Scope, experiment,
+            state.PlanSha256 ?? "", reservationCurrency, state.Budgets.MaxCost);
         await using var pending = Command("""
             SELECT COALESCE(MAX(attempt_number), 0), COALESCE(bool_or(state IN ('started', 'indeterminate')), false)
             FROM evaluation.attempts WHERE workspace_id=@workspace AND project_id=@project AND trial_id=@trial
@@ -61,9 +67,10 @@ public sealed class AttemptLedger : IEvaluationCallJournal
         await using (var insert = Command("""
             INSERT INTO evaluation.attempts
               (workspace_id, project_id, id, trial_id, attempt_number, state, lease_owner, lease_generation,
-               provider, request_sha256, request_bytes, reserved_input_tokens, reserved_output_tokens, reserved_cost)
+               provider, request_sha256, request_bytes, reserved_input_tokens, reserved_output_tokens, reserved_cost,
+               monetary_approval_id, reservation_currency)
             VALUES (@workspace,@project,@attempt,@trial,@number,'started',@owner,@generation,
-                    @provider,@hash,@bytes,@input,@output,@cost)
+                    @provider,@hash,@bytes,@input,@output,@cost,@approval,@currency)
             """, connection, transaction))
         {
             insert.Parameters.AddWithValue("attempt", attempt);
@@ -74,6 +81,8 @@ public sealed class AttemptLedger : IEvaluationCallJournal
             insert.Parameters.AddWithValue("input", reservation.InputTokens);
             insert.Parameters.AddWithValue("output", reservation.OutputTokens);
             insert.Parameters.AddWithValue("cost", reservation.Cost!.Value);
+            insert.Parameters.AddWithValue("approval", monetaryApproval!.ApprovalId);
+            insert.Parameters.AddWithValue("currency", reservationCurrency!);
             await insert.ExecuteNonQueryAsync(cancellationToken);
         }
         await using (var update = Command("""
@@ -153,9 +162,10 @@ public sealed class AttemptLedger : IEvaluationCallJournal
         BudgetConsumption consumed;
         string experimentState;
         bool cancelled;
+        string? planSha256;
         await using (var lookup = Command("""
             SELECT manifest::text, execution_state, cancel_requested, reserved_calls,
-              reserved_input_tokens, reserved_output_tokens, reserved_cost
+              reserved_input_tokens, reserved_output_tokens, reserved_cost, plan_sha256
             FROM evaluation.experiments WHERE workspace_id=@workspace AND project_id=@project AND id=@experiment FOR UPDATE
             """, connection, transaction))
         {
@@ -168,6 +178,7 @@ public sealed class AttemptLedger : IEvaluationCallJournal
             experimentState = reader.GetString(1);
             cancelled = reader.GetBoolean(2);
             consumed = new(reader.GetInt64(3), reader.GetInt64(4), reader.GetInt64(5), reader.GetDecimal(6));
+            planSha256 = reader.IsDBNull(7) ? null : reader.GetString(7);
         }
         await using var trialLookup = Command("""
             SELECT state, lease_owner, lease_generation FROM evaluation.trials
@@ -176,7 +187,7 @@ public sealed class AttemptLedger : IEvaluationCallJournal
         await using var trialReader = await trialLookup.ExecuteReaderAsync(token);
         if (!await trialReader.ReadAsync(token)) throw new KeyNotFoundException("Scoped trial is unavailable.");
         return new(manifest.Budgets, consumed, new(experimentState, cancelled, trialReader.GetString(0),
-            trialReader.IsDBNull(1) ? null : trialReader.GetGuid(1), trialReader.GetInt64(2), false));
+            trialReader.IsDBNull(1) ? null : trialReader.GetGuid(1), trialReader.GetInt64(2), false), planSha256);
     }
 
     private NpgsqlCommand Command(string sql, NpgsqlConnection connection, NpgsqlTransaction transaction)
@@ -191,5 +202,6 @@ public sealed class AttemptLedger : IEvaluationCallJournal
         return command;
     }
 
-    private sealed record LockedState(ExperimentBudgets Budgets, BudgetConsumption Consumption, AttemptAdmissionState Admission);
+    private sealed record LockedState(ExperimentBudgets Budgets, BudgetConsumption Consumption,
+        AttemptAdmissionState Admission, string? PlanSha256);
 }

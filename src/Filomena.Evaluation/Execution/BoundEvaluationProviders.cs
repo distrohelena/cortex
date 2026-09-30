@@ -4,7 +4,11 @@ using Npgsql;
 namespace Filomena.Evaluation.Execution;
 
 public sealed record EvaluationEndpointSettings(string Alias, string Provider, Uri Endpoint,
-    Func<string?> Credential, CallReservation Reservation, TimeSpan RequestTimeout);
+    Func<string?> Credential, CallReservation Reservation, TimeSpan RequestTimeout)
+{
+    // Host configuration only; no currency default or implicit FX conversion.
+    public string? ReservationCurrency { get; init; }
+}
 
 public sealed class BoundEvaluationProviders : IDisposable
 {
@@ -35,12 +39,15 @@ public sealed class BoundEvaluationProviders : IDisposable
             {
                 ArgumentNullException.ThrowIfNull(endpoint);
                 ArgumentNullException.ThrowIfNull(endpoint.Reservation);
+                if (endpoint.ReservationCurrency is not { Length: 3 } ||
+                    endpoint.ReservationCurrency.Any(c => c is < 'A' or > 'Z'))
+                    throw new InvalidDataException("An explicit host reservation currency is required.");
                 if (endpoint.RequestTimeout <= TimeSpan.Zero ||
                     endpoint.RequestTimeout.TotalMilliseconds > int.MaxValue ||
                     endpoint.Provider is "openai" or "jev" && endpoint.Reservation.Cost is null or <= 0)
                     throw new InvalidDataException("A finite timeout and positive paid-call reservation are required.");
                 var journal = new AttemptLedger(source, access, experiment, claim.TrialId, claim.Owner,
-                    claim.Generation, endpoint.Reservation);
+                    claim.Generation, endpoint.Reservation, endpoint.ReservationCurrency);
                 var handler = new EvaluationHttpHandler(endpoint.Provider, endpoint.Endpoint, journal)
                 {
                     InnerHandler = new SocketsHttpHandler { AllowAutoRedirect = false, UseCookies = false }

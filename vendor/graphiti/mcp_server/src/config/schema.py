@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import yaml
 from pydantic import BaseModel, Field
@@ -152,6 +152,7 @@ class LLMConfig(BaseModel):
         default=None, description='Temperature (optional, defaults to None for reasoning models)'
     )
     max_tokens: int = Field(default=4096, description='Max tokens')
+    reasoning_effort: Literal['minimal', 'low', 'medium', 'high'] | None = None
     providers: LLMProvidersConfig = Field(default_factory=LLMProvidersConfig)
 
 

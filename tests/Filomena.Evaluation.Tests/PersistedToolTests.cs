@@ -40,6 +40,31 @@ public sealed class PersistedToolTests
         var plan = await Call(evaluator, "experiment.plan", new { experimentId, manifest, cases = new[] { scoped } });
         Assert.True(plan.Success, plan.ErrorCode);
         Assert.Equal(1, plan.Result!.Value.GetProperty("trialCount").GetInt32());
+        var store = new Filomena.Evaluation.Storage.PostgresEvaluationStore(source);
+        var artifact = await store.RegisterArtifactAsync(evaluator,
+            new("test-evidence", false, System.Text.Encoding.UTF8.GetBytes("controlled evidence")), TestContext.Current.CancellationToken);
+        var caseId = await store.RegisterCaseAsync(evaluator, new("controlled-case", artifact), TestContext.Current.CancellationToken);
+        var assessment = new Assessment(caseId, null, "participation", reference, "human", AssessmentOutcome.Unscored,
+            null, [artifact], null);
+        var added = await Call(evaluator, "assessment.add", assessment);
+        Assert.True(added.Success, added.ErrorCode);
+        Assert.Equal("confirmed", added.PersistenceStatus);
+        var assessmentId = added.Result!.Value.GetProperty("assessmentId").GetGuid();
+        Assert.NotEqual(Guid.Empty, assessmentId);
+        await using (var query = source.CreateCommand("SELECT evaluator_principal,outcome FROM evaluation.assessments WHERE workspace_id=@workspace AND project_id=@project AND id=@id"))
+        {
+            query.Parameters.AddWithValue("workspace", evaluator.Scope.WorkspaceId);
+            query.Parameters.AddWithValue("project", evaluator.Scope.ProjectId);
+            query.Parameters.AddWithValue("id", assessmentId);
+            await using var reader = await query.ExecuteReaderAsync(TestContext.Current.CancellationToken);
+            Assert.True(await reader.ReadAsync(TestContext.Current.CancellationToken));
+            Assert.Equal(evaluator.Principal, reader.GetString(0));
+            Assert.Equal("unscored", reader.GetString(1));
+        }
+        var foreign = EvaluationAccess.FromHost("foreign", new(evaluator.Scope.WorkspaceId, Guid.NewGuid()), EvaluationRole.Evaluator);
+        var crossScope = await Call(foreign, "assessment.add", assessment);
+        Assert.False(crossScope.Success);
+        Assert.Null(crossScope.Result);
         var cancelled = await Call(evaluator, "experiment.cancel", new { experimentId });
         Assert.True(cancelled.Success, cancelled.ErrorCode);
         Assert.Equal("confirmed", cancelled.PersistenceStatus);

@@ -112,7 +112,7 @@ public sealed partial class SessionFlowRuntime
         {
             CheckCurrent();
             var promptResponses = new Dictionary<string, string>(StringComparer.Ordinal);
-            var completion = new ParticipationReviewCompletion(completionFactory(batch.Session), CheckCurrent,
+            var completion = new ParticipationReviewCompletion(CreateCompletion(batch), CheckCurrent,
                 batch.Messages[0].Envelope.Timestamp, batch.ClosedAt, interpretation, promptResponses);
             var result = await TypedFlowRunner.RunSessionAsync(cut.Flow, batch.Messages[0].Envelope.Message,
                 completion, RuntimeOutputs(batch, false, participationReview: true), timeProvider, _ => { },

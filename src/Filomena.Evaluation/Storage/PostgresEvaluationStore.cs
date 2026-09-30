@@ -86,13 +86,8 @@ public sealed class PostgresEvaluationStore(NpgsqlDataSource dataSource)
     public async Task<EvidenceArtifactRef> RegisterArtifactAsync(
         EvaluationAccess access, EvidenceArtifactDocument document, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(access);
-        ArgumentNullException.ThrowIfNull(document);
-        access.Demand(EvaluationOperation.RegisterCase);
-        ValidateKind(document.Kind);
+        ValidateArtifactImport(access, document);
         var content = document.Content.ToArray();
-        if (content.Length is <= 0 or > MaximumArtifactBytes)
-            throw new ArgumentException("Artifact payload must be between 1 byte and 1 MiB.", nameof(document));
         var hash = Convert.ToHexStringLower(SHA256.HashData(content));
         var id = Guid.NewGuid();
         var scope = access.Scope;
@@ -170,24 +165,21 @@ public sealed class PostgresEvaluationStore(NpgsqlDataSource dataSource)
     public async Task<Guid> RegisterCaseAsync(
         EvaluationAccess access, EvidenceCaseDocument document, CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(access);
-        ArgumentNullException.ThrowIfNull(document);
-        access.Demand(EvaluationOperation.RegisterCase);
-        if (string.IsNullOrWhiteSpace(document.CaseKey) || document.CaseKey.Length > 256 || document.CaseKey.Any(char.IsControl))
-            throw new ArgumentException("Case key is invalid.", nameof(document));
+        ValidateCaseImport(access, document);
         var scope = access.Scope;
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
         await using (var verify = new NpgsqlCommand(
-                         "SELECT 1 FROM evaluation.artifacts WHERE workspace_id = @workspace AND project_id = @project " +
+                         "SELECT is_holdout FROM evaluation.artifacts WHERE workspace_id = @workspace AND project_id = @project " +
                          "AND id = @artifact AND sha256 = @hash AND redacted_at IS NULL",
                          connection, transaction))
         {
             AddScope(verify, scope);
             verify.Parameters.AddWithValue("artifact", document.Artifact.Id);
             verify.Parameters.AddWithValue("hash", document.Artifact.Sha256);
-            if (await verify.ExecuteScalarAsync(cancellationToken) is null)
+            if (await verify.ExecuteScalarAsync(cancellationToken) is not bool isHoldout)
                 throw new KeyNotFoundException("Artifact is not available in this scope.");
+            access.DemandArtifactRead(isHoldout);
         }
 
         var id = Guid.NewGuid();
@@ -228,21 +220,54 @@ public sealed class PostgresEvaluationStore(NpgsqlDataSource dataSource)
         return new(caseId, new EvidenceCaseDocument(reader.GetString(0), reference));
     }
 
+    public async Task<EvidenceCasePage> ListCasesAsync(EvaluationAccess access, int limit, Guid? after,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(access);
+        access.Demand(EvaluationOperation.ReadArtifact);
+        ValidateCasePage(limit, after);
+        cancellationToken.ThrowIfCancellationRequested();
+        await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand("""
+            SELECT c.id,c.case_key,c.artifact_id,c.artifact_sha256
+            FROM evaluation.cases c JOIN evaluation.artifacts a
+              ON a.workspace_id=c.workspace_id AND a.project_id=c.project_id
+              AND a.id=c.artifact_id AND a.sha256=c.artifact_sha256
+            WHERE c.workspace_id=@workspace AND c.project_id=@project
+              AND a.redacted_at IS NULL AND (@holdout OR NOT a.is_holdout)
+              AND (@after IS NULL OR c.id > @after)
+            ORDER BY c.id LIMIT @limit
+            """, connection);
+        AddScope(command, access.Scope);
+        command.Parameters.AddWithValue("holdout", access.CanReadHoldout);
+        command.Parameters.Add("after", NpgsqlDbType.Uuid).Value = (object?)after ?? DBNull.Value;
+        command.Parameters.AddWithValue("limit", limit + 1);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        var items = new List<StoredEvidenceCase>();
+        while (await reader.ReadAsync(cancellationToken))
+            items.Add(new(reader.GetGuid(0), new(reader.GetString(1), new(reader.GetGuid(2), reader.GetString(3).Trim()))));
+        Guid? next = null;
+        if (items.Count > limit)
+        {
+            items.RemoveAt(limit);
+            next = items[^1].Id;
+        }
+        return new(items.AsReadOnly(), next);
+    }
+
+    internal static void ValidateCasePage(int limit, Guid? after)
+    {
+        if (limit is < 1 or > 100) throw new ArgumentOutOfRangeException(nameof(limit));
+        if (after == Guid.Empty) throw new ArgumentException("Invalid case cursor.", nameof(after));
+    }
+
     public async Task<Guid> AppendAssessmentAsync(
         EvaluationAccess access, Assessment assessment, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(access);
         ArgumentNullException.ThrowIfNull(assessment);
         access.Demand(EvaluationOperation.AppendAssessment);
-        ArgumentNullException.ThrowIfNull(assessment.EvaluatorRevision);
-        if (assessment.CaseId == Guid.Empty || (assessment.TrialId == Guid.Empty) ||
-            (assessment.SupersedesAssessmentId == Guid.Empty) || !Enum.IsDefined(assessment.Outcome) ||
-            assessment.Severity is < 0 or > 5 || assessment.Evidence is null ||
-            string.IsNullOrWhiteSpace(assessment.Criterion) || assessment.Criterion.Length > 256 ||
-            assessment.Criterion.Any(char.IsControl) || string.IsNullOrWhiteSpace(assessment.AuthorKind) ||
-            assessment.AuthorKind.Length > 64 || assessment.AuthorKind.Any(char.IsControl))
-            throw new ArgumentException("Assessment fields are invalid.", nameof(assessment));
-        ValidateHash(assessment.EvaluatorRevision.Sha256);
+        assessment = ValidateAssessment(assessment);
         var scope = access.Scope;
         var id = Guid.NewGuid();
         await using var connection = await dataSource.OpenConnectionAsync(cancellationToken);
@@ -267,9 +292,8 @@ public sealed class PostgresEvaluationStore(NpgsqlDataSource dataSource)
             await insert.ExecuteNonQueryAsync(cancellationToken);
         }
 
-        foreach (var evidence in assessment.Evidence.Distinct())
+        foreach (var evidence in assessment.Evidence)
         {
-            ValidateHash(evidence.Sha256);
             await using var link = new NpgsqlCommand(
                 "INSERT INTO evaluation.assessment_evidence (workspace_id, project_id, assessment_id, artifact_id, artifact_sha256) " +
                 "VALUES (@workspace, @project, @assessment, @artifact, @hash)", connection, transaction);
@@ -282,6 +306,29 @@ public sealed class PostgresEvaluationStore(NpgsqlDataSource dataSource)
 
         await transaction.CommitAsync(cancellationToken);
         return id;
+    }
+
+    internal static Assessment ValidateAssessment(Assessment assessment)
+    {
+        ArgumentNullException.ThrowIfNull(assessment);
+        ArgumentNullException.ThrowIfNull(assessment.EvaluatorRevision);
+        if (assessment.CaseId == Guid.Empty || assessment.EvaluatorRevision.Id == Guid.Empty ||
+            assessment.TrialId == Guid.Empty || assessment.SupersedesAssessmentId == Guid.Empty ||
+            !Enum.IsDefined(assessment.Outcome) || assessment.Severity is < 0 or > 5 || assessment.Evidence is null ||
+            string.IsNullOrWhiteSpace(assessment.Criterion) || assessment.Criterion.Length > 256 ||
+            assessment.Criterion.Any(char.IsControl) || string.IsNullOrWhiteSpace(assessment.AuthorKind) ||
+            assessment.AuthorKind.Length > 64 || assessment.AuthorKind.Any(char.IsControl))
+            throw new ArgumentException("Assessment fields are invalid.", nameof(assessment));
+        ValidateHash(assessment.EvaluatorRevision.Sha256);
+        var evidence = assessment.Evidence.Distinct().ToArray();
+        foreach (var item in evidence)
+        {
+            if (item is null || item.Id == Guid.Empty)
+                throw new ArgumentException("Assessment evidence reference is invalid.", nameof(assessment));
+            ValidateHash(item.Sha256);
+        }
+        // Freeze caller-owned collections before the first await/connection.
+        return assessment with { Evidence = evidence };
     }
 
     public async Task RedactArtifactAsync(
@@ -314,6 +361,30 @@ public sealed class PostgresEvaluationStore(NpgsqlDataSource dataSource)
         command.Parameters.AddWithValue("project", scope.ProjectId);
     }
 
+    internal static void ValidateArtifactImport(EvaluationAccess access, EvidenceArtifactDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(access);
+        ArgumentNullException.ThrowIfNull(document);
+        access.Demand(EvaluationOperation.RegisterCase);
+        access.DemandArtifactRead(document.IsHoldout);
+        ValidateKind(document.Kind);
+        if (document.Content.Length is <= 0 or > MaximumArtifactBytes)
+            throw new ArgumentException("Artifact payload must be between 1 byte and 1 MiB.", nameof(document));
+    }
+
+    internal static void ValidateCaseImport(EvaluationAccess access, EvidenceCaseDocument document)
+    {
+        ArgumentNullException.ThrowIfNull(access);
+        ArgumentNullException.ThrowIfNull(document);
+        access.Demand(EvaluationOperation.RegisterCase);
+        if (string.IsNullOrWhiteSpace(document.CaseKey) || document.CaseKey.Length > 256 || document.CaseKey.Any(char.IsControl))
+            throw new ArgumentException("Case key is invalid.", nameof(document));
+        ArgumentNullException.ThrowIfNull(document.Artifact);
+        if (document.Artifact.Id == Guid.Empty)
+            throw new ArgumentException("Artifact identity is required.", nameof(document));
+        ValidateHash(document.Artifact.Sha256);
+    }
+
     private static void ValidateKind(string kind)
     {
         if (string.IsNullOrWhiteSpace(kind) || kind.Length > 128 || kind.Any(char.IsControl))
@@ -322,7 +393,7 @@ public sealed class PostgresEvaluationStore(NpgsqlDataSource dataSource)
 
     private static void ValidateHash(string hash)
     {
-        if (hash.Length != 64 || hash.Any(character => !Uri.IsHexDigit(character)))
+        if (string.IsNullOrEmpty(hash) || hash.Length != 64 || hash.Any(character => !Uri.IsHexDigit(character)))
             throw new ArgumentException("Artifact hash is invalid.", nameof(hash));
     }
 }

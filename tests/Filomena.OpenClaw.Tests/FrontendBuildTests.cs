@@ -1,0 +1,260 @@
+using Filomena.App.Frontend;
+using Xunit;
+
+namespace Filomena.OpenClaw.Tests;
+
+public sealed class FrontendBuildTests
+{
+    [Fact]
+    public async Task UnchangedSourceUsesTheCompletedCacheWithoutRunningNodeAgain()
+    {
+        using var fixture = FrontendFixture.Create();
+        var firstRunner = new FakeRunner();
+        var firstAssets = new FrontendAssets();
+        var firstBuilder = fixture.CreateBuilder(firstAssets, firstRunner);
+
+        await firstBuilder.BuildIfChangedAsync(CancellationToken.None);
+
+        var secondRunner = new FakeRunner();
+        var secondAssets = new FrontendAssets();
+        var secondBuilder = fixture.CreateBuilder(secondAssets, secondRunner);
+        await secondBuilder.BuildIfChangedAsync(CancellationToken.None);
+
+        Assert.Equal(1, firstRunner.CallCount);
+        Assert.Equal(0, secondRunner.CallCount);
+        Assert.Equal(firstAssets.CurrentBuild, secondAssets.CurrentBuild);
+        Assert.Equal("cached", secondAssets.Status);
+    }
+
+    [Fact]
+    public async Task ChangedSourceBuildsAndPublishesANewCompletedDirectory()
+    {
+        using var fixture = FrontendFixture.Create();
+        var runner = new FakeRunner();
+        var assets = new FrontendAssets();
+        var builder = fixture.CreateBuilder(assets, runner);
+
+        await builder.BuildIfChangedAsync(CancellationToken.None);
+        var originalBuild = assets.CurrentBuild;
+        await File.AppendAllTextAsync(fixture.SourceFile, "changed");
+
+        await builder.BuildIfChangedAsync(CancellationToken.None);
+
+        Assert.Equal(2, runner.CallCount);
+        Assert.NotEqual(originalBuild, assets.CurrentBuild);
+        Assert.Equal("ready", assets.Status);
+        Assert.True(File.Exists(Path.Combine(assets.CurrentBuild!, "index.html")));
+    }
+
+    [Fact]
+    public async Task FailedBuildKeepsThePreviousCompletedPointer()
+    {
+        using var fixture = FrontendFixture.Create();
+        var runner = new FakeRunner();
+        var assets = new FrontendAssets();
+        var builder = fixture.CreateBuilder(assets, runner);
+
+        await builder.BuildIfChangedAsync(CancellationToken.None);
+        var goodBuild = assets.CurrentBuild;
+        runner.FailNext = true;
+        await File.AppendAllTextAsync(fixture.SourceFile, "changed");
+
+        await builder.BuildIfChangedAsync(CancellationToken.None);
+
+        Assert.Equal(goodBuild, assets.CurrentBuild);
+        Assert.Equal("failed", assets.Status);
+        Assert.Contains("exit code", assets.LastError!, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task MissingSourceAndPublishedAssetsExposeOnlyAStatusPage()
+    {
+        using var fixture = FrontendFixture.Create(includeSource: false, includePublished: false);
+        var runner = new FakeRunner();
+        var assets = new FrontendAssets();
+        var builder = fixture.CreateBuilder(assets, runner);
+
+        await builder.BuildIfChangedAsync(CancellationToken.None);
+
+        Assert.Equal(0, runner.CallCount);
+        Assert.Null(assets.CurrentBuild);
+        Assert.Equal("source_missing", assets.Status);
+        Assert.Contains("frontend", assets.GetStatusPageHtml(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task PublishedAssetsAreUsedWithoutInvokingNodeWhenSourceIsAbsent()
+    {
+        using var fixture = FrontendFixture.Create(includeSource: false, includePublished: true);
+        var runner = new FakeRunner();
+        var assets = new FrontendAssets();
+        var builder = fixture.CreateBuilder(assets, runner);
+
+        await builder.BuildIfChangedAsync(CancellationToken.None);
+
+        Assert.Equal(0, runner.CallCount);
+        Assert.Equal(Path.GetFullPath(fixture.PublishedDirectory), assets.CurrentBuild);
+        Assert.Equal("published", assets.Status);
+    }
+
+    [Fact]
+    public async Task BuildUsesTheCheckedInEntryAndOutDirectoryArgumentList()
+    {
+        using var fixture = FrontendFixture.Create();
+        var runner = new FakeRunner();
+        var assets = new FrontendAssets();
+        var builder = fixture.CreateBuilder(assets, runner);
+
+        await builder.BuildIfChangedAsync(CancellationToken.None);
+
+        Assert.NotNull(runner.LastRequest);
+        Assert.Equal("node", runner.LastRequest!.FileName);
+        Assert.Equal(fixture.SourceDirectory, runner.LastRequest.WorkingDirectory);
+        Assert.Equal("scripts/build.mjs", runner.LastRequest.Arguments[0]);
+        Assert.Equal("--outDir", runner.LastRequest.Arguments[1]);
+        Assert.Equal(Path.GetFullPath(runner.LastRequest.Arguments[2]), runner.LastRequest.Arguments[2]);
+        Assert.DoesNotContain("npm", runner.LastRequest.Arguments, StringComparer.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task CancellationIsForwardedToTheOwnedProcessBoundary()
+    {
+        using var fixture = FrontendFixture.Create();
+        var runner = new FakeRunner { BlockUntilCancelled = true };
+        var assets = new FrontendAssets();
+        var builder = fixture.CreateBuilder(assets, runner);
+        using var cancellation = new CancellationTokenSource();
+
+        var build = builder.BuildIfChangedAsync(cancellation.Token);
+        await runner.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => build);
+        Assert.True(runner.CancellationObserved);
+        Assert.Equal("cancelled", assets.Status);
+    }
+
+    [Fact]
+    public async Task ConcurrentBuildersPublishOnlyOneBuildForTheSameFingerprint()
+    {
+        using var fixture = FrontendFixture.Create();
+        var firstRunner = new FakeRunner { Delay = TimeSpan.FromMilliseconds(100) };
+        var secondRunner = new FakeRunner { Delay = TimeSpan.FromMilliseconds(100) };
+        var firstAssets = new FrontendAssets();
+        var secondAssets = new FrontendAssets();
+        var first = fixture.CreateBuilder(firstAssets, firstRunner);
+        var second = fixture.CreateBuilder(secondAssets, secondRunner);
+
+        await Task.WhenAll(
+            first.BuildIfChangedAsync(CancellationToken.None),
+            second.BuildIfChangedAsync(CancellationToken.None));
+
+        Assert.Equal(1, firstRunner.CallCount + secondRunner.CallCount);
+        Assert.Equal(firstAssets.CurrentBuild, secondAssets.CurrentBuild);
+    }
+
+    [Fact]
+    public void AssetResolutionCannotEscapeTheSelectedBuildDirectory()
+    {
+        using var fixture = FrontendFixture.Create();
+        var assets = new FrontendAssets();
+        assets.SelectCompletedBuild(fixture.PublishedDirectory, "published");
+        File.WriteAllText(Path.Combine(fixture.Root, "secret.txt"), "secret");
+
+        Assert.True(assets.TryResolveFile("index.html", out var indexPath));
+        Assert.Equal(Path.Combine(fixture.PublishedDirectory, "index.html"), indexPath);
+        Assert.False(assets.TryResolveFile("../secret.txt", out _));
+        Assert.False(assets.TryResolveFile("..\\secret.txt", out _));
+        Assert.False(assets.TryResolveFile("/../secret.txt", out _));
+    }
+
+    private sealed class FrontendFixture : IDisposable
+    {
+        private FrontendFixture(string root, bool includeSource, bool includePublished)
+        {
+            Root = root;
+            SourceDirectory = Path.Combine(root, "frontend");
+            CacheDirectory = Path.Combine(root, "cache");
+            PublishedDirectory = Path.Combine(root, "published");
+            if (includeSource)
+            {
+                Directory.CreateDirectory(Path.Combine(SourceDirectory, "scripts"));
+                SourceFile = Path.Combine(SourceDirectory, "main.ts");
+                File.WriteAllText(SourceFile, "console.log('test');");
+                File.WriteAllText(Path.Combine(SourceDirectory, "package-lock.json"), "{}");
+            }
+
+            if (includePublished)
+            {
+                Directory.CreateDirectory(PublishedDirectory);
+                File.WriteAllText(Path.Combine(PublishedDirectory, "index.html"), "published");
+            }
+        }
+
+        public string Root { get; }
+        public string SourceDirectory { get; }
+        public string CacheDirectory { get; }
+        public string PublishedDirectory { get; }
+        public string SourceFile { get; } = string.Empty;
+
+        public static FrontendFixture Create(bool includeSource = true, bool includePublished = true) =>
+            new(Path.Combine(Path.GetTempPath(), "filomena-frontend-tests", Guid.NewGuid().ToString("N")), includeSource, includePublished);
+
+        public FrontendBuildService CreateBuilder(FrontendAssets assets, FakeRunner runner) =>
+            new(new FrontendBuildOptions
+            {
+                SourceDirectory = SourceDirectory,
+                CacheDirectory = CacheDirectory,
+                PublishedAssetsDirectory = PublishedDirectory,
+                NodeExecutable = "node",
+                BuildTimeout = TimeSpan.FromSeconds(5),
+            }, assets, runner);
+
+        public void Dispose()
+        {
+            if (Directory.Exists(Root)) Directory.Delete(Root, recursive: true);
+        }
+    }
+
+    private sealed class FakeRunner : IFrontendBuildProcessRunner
+    {
+        public int CallCount { get; private set; }
+        public bool FailNext { get; set; }
+        public bool BlockUntilCancelled { get; set; }
+        public bool CancellationObserved { get; private set; }
+        public TimeSpan Delay { get; set; }
+        public TaskCompletionSource Started { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public FrontendBuildProcessRequest? LastRequest { get; private set; }
+
+        public async Task<FrontendBuildProcessResult> RunAsync(
+            FrontendBuildProcessRequest request,
+            CancellationToken cancellationToken)
+        {
+            CallCount++;
+            LastRequest = request;
+            Started.TrySetResult();
+            try
+            {
+                if (BlockUntilCancelled)
+                    await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                else if (Delay > TimeSpan.Zero)
+                    await Task.Delay(Delay, cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                CancellationObserved = true;
+                throw;
+            }
+
+            Directory.CreateDirectory(request.Arguments[2]);
+            File.WriteAllText(Path.Combine(request.Arguments[2], "index.html"), "built");
+            if (FailNext)
+            {
+                FailNext = false;
+                return new FrontendBuildProcessResult(1, "noise\u0001", "exit code 1");
+            }
+
+            return new FrontendBuildProcessResult(0, "built", string.Empty);
+        }
+    }
+}

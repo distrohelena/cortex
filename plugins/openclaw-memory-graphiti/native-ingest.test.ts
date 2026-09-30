@@ -8,6 +8,33 @@ import { getChannelAdapter } from "./channel-adapters/registry.js";
 import { NativeIngestStore, ingestDigest } from "./native-ingest-store.js";
 import { NativeIngestService, type NativeMemoryBinding } from "./native-ingest.js";
 import { NativeIngestAuthorizationError, buildInboundCapture } from "./message-lifecycle.js";
+import { GraphitiRequestError } from "./graphiti.js";
+
+test("durable failure evidence survives reconciliation without secrets or automatic retry", async () => {
+  const f = fixture(); let submissions = 0;
+  const service = new NativeIngestService(f.store, [f.binding], {
+    async submitInbound() {
+      submissions++;
+      throw new GraphitiRequestError("http_rejection", "private-token private-message", 400);
+    },
+    async confirmInbound() { throw new Error("private-confirmation-data"); },
+  });
+  const receipt = await service.submit(f.request);
+  expect(receipt).toMatchObject({ retryDisposition: "reconcile",
+    submissionFailure: { category: "http_rejection", httpStatus: 400 } });
+  await service.reconcile(f.binding.bindingRef, receipt.requestRef);
+  f.store.close(); const reopened = new NativeIngestStore(f.file); stores.push(reopened);
+  const saved = reopened.get(receipt.requestRef)!.receipt;
+  expect(saved).toMatchObject({ submissionFailure: { category: "http_rejection", httpStatus: 400 },
+    confirmationFailure: { category: "unclassified" }, retryDisposition: "reconcile" });
+  expect(JSON.stringify(saved)).not.toContain("private-");
+  const resumed = new NativeIngestService(reopened, [f.binding], {
+    async submitInbound() { submissions++; return { state: "queued" }; },
+    async confirmInbound() { return "pending"; },
+  });
+  await resumed.submit(f.request);
+  expect(submissions).toBe(1);
+});
 
 const dirs: string[] = [];
 const stores: NativeIngestStore[] = [];

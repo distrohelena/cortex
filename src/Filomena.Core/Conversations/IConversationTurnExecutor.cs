@@ -9,7 +9,11 @@ public sealed record ConversationGenerationRequest(
     IReadOnlyList<InboundConversationEvent> Messages,
     IReadOnlyList<SentConversationTurn> RecentOutbound,
     IReadOnlyList<string> PendingMessageIds,
-    TurnDecision Decision);
+    TurnDecision Decision)
+{
+    // Rechecked after generation, before any external send. No provider knowledge.
+    public Func<bool>? IsSuperseded { get; init; }
+}
 
 public interface IConversationTurnExecutor
 {

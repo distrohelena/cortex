@@ -1,0 +1,10 @@
+[
+  {"id":"negation","text":"Eu não me conformo que essa anta do Nikolas vai ser o mais votado em Minas certeza","entities":["Nikolas","Minas"],"criterion":"Preserve expectation/certainty of election outcome and disapproval; never turn it into disbelief that the outcome will happen."},
+  {"id":"addressee","text":"Manda sim, more. TSE proíbe que você indique ou sugira candidatos","entities":["TSE","candidatos","Filomena"],"criterion":"Never assert the TSE prohibits the speaker from recommending candidates. Addressee unresolved: omit, or record an attributed statement without identifying its target."},
+  {"id":"hypothetical","text":"Filomena, não seria melhor extinguirmos o Estado deixando que a sociedade passe a ser uma interação de livre mercado autorregulador entre as empresas?","entities":["Filomena","Estado","livre mercado"],"criterion":"Question or hypothetical only; not an established political belief or proposal endorsed by the speaker."},
+  {"id":"slang","text":"ANVISA. Tô acrílica","entities":["ANVISA","acrílica"],"criterion":"No literal personal identity, affiliation or trait. Empty is valid."},
+  {"id":"quote","text":"Você concorda?","quote":{"message_id":"earlier","text":"Eu prefiro chá.","sender_native_id":"synthetic-other"},"entities":["chá"],"criterion":"Do not attribute preference for tea to the current speaker or reextract quoted preference."},
+  {"id":"preference","text":"Eu prefiro café sem açúcar.","entities":["café","açúcar"],"criterion":"Retain explicitly stated preference; must not return empty."},
+  {"id":"boundary","text":"Filomena, eu não quero que você faça piadas sobre meu trabalho.","entities":["Filomena","trabalho"],"criterion":"Retain explicit no-teasing boundary; must not return empty or reverse prohibition."},
+  {"id":"emoji","text":"Meta 😍😍","entities":["Meta"],"criterion":"At most record contextual reaction; not durable preference, political affiliation or brand loyalty."}
+]

@@ -45,13 +45,7 @@ import { buildSocialMemoryContext } from "./social-recall.js";
 import { InboundEventBridge } from "./event-bridge.js";
 import { composeNativeMemoryIngest } from "./native-ingest-bootstrap.js";
 
-const SOCIAL_EXTRACTION_INSTRUCTIONS = [
-  "Extract only concrete, directly evidenced social observations.",
-  "Allowed: explicit preferences, events, corrections, actual teasing or reactions, requested boundaries, and explicitly shared information.",
-  "Do not infer trust, intimacy, submission, attraction, personality, psychological state, sexual preferences, sensitive attributes, or repeated-behavior generalizations.",
-  "A single observed reaction must remain a single observed reaction.",
-  "Explicit boundaries remain factual unless an explicit reversal is observed.",
-].join(" ");
+import { SOCIAL_EXTRACTION_INSTRUCTIONS } from "./message-lifecycle.js";
 
 // ============================================================================
 // Session helpers

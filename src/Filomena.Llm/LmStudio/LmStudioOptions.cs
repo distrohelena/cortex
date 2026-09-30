@@ -10,13 +10,13 @@ public sealed class LmStudioOptions
 
     public double ArbitrationTemperature { get; set; } = 0.1;
 
-    public int ArbitrationMaxTokens { get; set; } = 160;
+    public int ArbitrationMaxTokens { get; set; } = 8192;
 
     public double GenerationTemperature { get; set; } = 0.7;
 
-    public int GenerationMaxTokens { get; set; } = 512;
+    public int GenerationMaxTokens { get; set; } = 8192;
 
-    public int RequestTimeoutSeconds { get; set; } = 45;
+    public int RequestTimeoutSeconds { get; set; } = 180;
 
     public void Validate()
     {

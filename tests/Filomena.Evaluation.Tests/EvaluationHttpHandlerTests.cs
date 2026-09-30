@@ -115,6 +115,35 @@ public sealed class EvaluationHttpHandlerTests
         Assert.Equal("response_too_large", Assert.Single(journal.Outcomes).ErrorCode);
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Cancellation_distinguishes_before_admission_from_after_send_without_retry(bool afterSend)
+    {
+        using var cancelled = new CancellationTokenSource();
+        var journal = new Journal();
+        using var transport = new Transport(() =>
+        {
+            Assert.Single(journal.Intents);
+            cancelled.Cancel();
+        });
+        using var client = Client(journal, transport);
+        if (!afterSend) cancelled.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            client.PostAsync(Endpoint, new StringContent("{}", Encoding.UTF8, "application/json"), cancelled.Token));
+        Assert.Equal(afterSend ? 1 : 0, transport.Calls);
+        Assert.Equal(afterSend ? 1 : 0, journal.Intents.Count);
+        Assert.Equal(afterSend ? 1 : 0, journal.FinishCalls);
+        if (afterSend)
+        {
+            var outcome = Assert.Single(journal.Outcomes);
+            Assert.Equal("indeterminate", outcome.Status);
+            Assert.Equal("request_cancelled", outcome.ErrorCode);
+            Assert.Null(outcome.Observation);
+        }
+        else Assert.Empty(journal.Outcomes);
+    }
+
     private static HttpClient Client(Journal journal, Transport transport) =>
         new(new EvaluationHttpHandler("openai", Endpoint, journal) { InnerHandler = transport });
 
@@ -136,6 +165,7 @@ public sealed class EvaluationHttpHandlerTests
         }
         public Task FinishAsync(Guid attempt, PhysicalCallOutcome outcome, CancellationToken cancellationToken)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             FinishCalls++;
             if (FailFinish) throw new InvalidOperationException("store_unavailable");
             Outcomes.Add(outcome);

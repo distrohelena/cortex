@@ -9,7 +9,7 @@ internal sealed class ConversationTurnState(ConversationInfo conversation)
 
     public ConversationInfo Conversation { get; set; } = conversation;
 
-    public Channel<InboundConversationEvent> Inbox { get; } = Channel.CreateUnbounded<InboundConversationEvent>(
+    public Channel<QueuedInbound> Inbox { get; } = Channel.CreateUnbounded<QueuedInbound>(
         new UnboundedChannelOptions
         {
             SingleReader = true,
@@ -21,6 +21,7 @@ internal sealed class ConversationTurnState(ConversationInfo conversation)
     public List<SentConversationTurn> OutboundHistory { get; } = [];
 
     public DateTimeOffset? LastFilomenaTurnAt { get; set; }
+    public DateTimeOffset? LastInboundObservedAt { get; set; }
 
     public Task Start(Func<Task> processor)
     {
@@ -34,3 +35,5 @@ internal sealed class ConversationTurnState(ConversationInfo conversation)
 internal sealed record ObservedInbound(
     InboundConversationEvent Message,
     DateTimeOffset ObservedAt);
+
+internal sealed record QueuedInbound(InboundConversationEvent Message, DateTimeOffset ReceivedAt);

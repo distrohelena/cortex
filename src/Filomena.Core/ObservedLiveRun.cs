@@ -19,6 +19,18 @@ public sealed class ObservedLiveRun : IAsyncDisposable
 {
     private readonly ObservedShadowRun run;
 
+    // Preserve the ABI used by already deployed hosts predating participation review.
+    // Optional parameters are a source convenience, not binary compatibility.
+    public ObservedLiveRun(PinnedShadowProject project, ShadowSessionBinding binding, string journalDirectory,
+        OutboundBindings roles, IFlowCompletion completion, IMemoryReader memory, string nativeEpoch, long initialTail,
+        LiveRouteBinding route, IBoundOutboundTransport transport, TransportSafetyCapabilities capabilities,
+        Func<CancellationToken, Task> beforeSend, int maxInteractions, bool continuousGroup,
+        bool continuousDm, MemberDmBoundTextBinding? memberDmBinding)
+        : this(project, binding, journalDirectory, roles, completion, memory, nativeEpoch, initialTail,
+            route, transport, capabilities, beforeSend, maxInteractions, continuousGroup, continuousDm, memberDmBinding, null)
+    {
+    }
+
     public ObservedLiveRun(PinnedShadowProject project, ShadowSessionBinding binding, string journalDirectory,
         OutboundBindings roles, IFlowCompletion completion, IMemoryReader memory, string nativeEpoch, long initialTail,
         LiveRouteBinding route, IBoundOutboundTransport transport, TransportSafetyCapabilities capabilities,

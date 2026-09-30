@@ -1238,7 +1238,8 @@ describe("openclaw-memory-graphiti plugin", () => {
     // Transitional capture follows the persistent conversation namespace.
     expect(body.params.arguments.group_id).toBe(REAL_GROUP_ID);
 
-    expect(body.params.arguments.extraction_body).toBe("I prefer dark mode for all editors");
+    expect(JSON.parse(body.params.arguments.extraction_body).current_message.text)
+      .toBe("I prefer dark mode for all editors");
 
     // Should log the capture
     expect(logs.some((l) => l.includes("passively captured provider message"))).toBe(true);

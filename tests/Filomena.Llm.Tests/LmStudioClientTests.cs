@@ -19,6 +19,28 @@ public sealed class LmStudioClientTests
     }
 
     [Fact]
+    public async Task SendsEvaluationSpecificSchemaWithSeparateDecisionBranches()
+    {
+        var handler = new CapturingHandler("""{"choices":[{"message":{"content":"{}"}}]}""");
+        using var http = new HttpClient(handler);
+        var client = new LmStudioClient(http, new LmStudioOptions());
+        var schema = LmStudioClient.CreateArbitrationSchema(["m1", "m2"], ["p1"]);
+        await client.CompleteArbitrationJsonAsync("system", "context", schema, TestContext.Current.CancellationToken);
+        using var body = JsonDocument.Parse(handler.RequestBody!);
+        var branches = body.RootElement.GetProperty("response_format").GetProperty("json_schema")
+            .GetProperty("schema").GetProperty("anyOf");
+        var respond = branches[0].GetProperty("properties");
+        Assert.Equal("respond", respond.GetProperty("decision").GetProperty("enum")[0].GetString());
+        Assert.Equal(new string?[] { "m1", "m2", null }, respond.GetProperty("anchorRef").GetProperty("enum").EnumerateArray().Select(x => x.GetString()));
+        Assert.Equal(new string?[] { "p1", null }, respond.GetProperty("targetRef").GetProperty("enum").EnumerateArray().Select(x => x.GetString()));
+        Assert.Equal("null", respond.GetProperty("recheckAfterSeconds").GetProperty("type").GetString());
+        var wait = branches[1].GetProperty("properties");
+        Assert.Equal("integer", wait.GetProperty("recheckAfterSeconds").GetProperty("type").GetString());
+        Assert.Equal("null", wait.GetProperty("targetRef").GetProperty("type").GetString());
+        Assert.Equal("null", branches[2].GetProperty("properties").GetProperty("recheckAfterSeconds").GetProperty("type").GetString());
+    }
+
+    [Fact]
     public async Task GeneratesFreeTextWithSameModelWithoutArbitrationSchema()
     {
         var handler = new CapturingHandler("""{"choices":[{"message":{"content":"Oi, Helena!"}}]}""");
@@ -29,7 +51,21 @@ public sealed class LmStudioClientTests
         using var body = JsonDocument.Parse(handler.RequestBody!);
         Assert.Equal("google/gemma-4-e4b", body.RootElement.GetProperty("model").GetString());
         Assert.False(body.RootElement.TryGetProperty("response_format", out _));
-        Assert.Equal(512, body.RootElement.GetProperty("max_tokens").GetInt32());
+        Assert.Equal(8192, body.RootElement.GetProperty("max_tokens").GetInt32());
+    }
+
+    [Fact]
+    public async Task DefaultArbitrationBudgetAllowsReasoningAndUsesRequestOwnedTimeout()
+    {
+        var handler = new CapturingHandler("""{"choices":[{"message":{"content":"{}"}}]}""");
+        using var http = new HttpClient(handler);
+        var options = new LmStudioOptions();
+        var client = new LmStudioClient(http, options);
+        await client.CompleteArbitrationJsonAsync("system", "oi", TestContext.Current.CancellationToken);
+        using var body = JsonDocument.Parse(handler.RequestBody!);
+        Assert.Equal(8192, body.RootElement.GetProperty("max_tokens").GetInt32());
+        Assert.Equal(180, options.RequestTimeoutSeconds);
+        Assert.Equal(Timeout.InfiniteTimeSpan, http.Timeout);
     }
 
     [Fact]

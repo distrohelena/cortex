@@ -1,0 +1,52 @@
+# Opt-in memory extraction profile. Embeddings remain in the existing local space.
+server:
+  transport: http
+  host: 0.0.0.0
+  port: 8000
+llm:
+  provider: openai
+  model: gpt-6-luna
+  reasoning_effort: medium
+  max_tokens: 4096
+  providers:
+    openai:
+      api_key: ${OPENAI_API_KEY}
+      api_url: https://api.openai.com/v1
+embedder:
+  provider: openai
+  model: text-embedding-nomic-embed-text-v2-moe
+  dimensions: 768
+  providers:
+    openai:
+      api_key: lm-studio
+      api_url: http://host.docker.internal:1234/v1
+reranker:
+  provider: none
+database:
+  provider: falkordb
+  providers:
+    falkordb:
+      uri: redis://host.docker.internal:6380
+      password: ""
+      database: default_db
+graphiti:
+  group_id: unscoped-disabled
+  episode_id_prefix: wa-
+  user_id: openclaw-main
+  entity_types:
+    - name: Agent
+      description: A canonical assistant actor whose messages were actually sent
+    - name: Person
+      description: A WhatsApp participant or other person mentioned in the chat
+    - name: Group
+      description: A WhatsApp group or community
+    - name: Preference
+      description: A stated preference, choice, opinion, like, or dislike
+    - name: Requirement
+      description: A specific need, request, feature, or constraint
+    - name: Event
+      description: A time-bound activity, occurrence, or plan
+    - name: Organization
+      description: A company, institution, team, or formal organization
+    - name: Topic
+      description: A meaningful subject discussed in the chat

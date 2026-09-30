@@ -158,12 +158,16 @@ class LLMClientFactory:
                 )
 
                 # Check if this is a reasoning model (o1, o3, gpt-5 family)
-                reasoning_prefixes = ('o1', 'o3', 'gpt-5')
+                reasoning_prefixes = ('o1', 'o3', 'gpt-5', 'gpt-6')
                 is_reasoning_model = config.model.startswith(reasoning_prefixes)
 
                 # Only pass reasoning/verbosity parameters for reasoning models (gpt-5 family)
                 if is_reasoning_model:
-                    return OpenAIClient(config=llm_config, reasoning='minimal', verbosity='low')
+                    return OpenAIClient(
+                        config=llm_config,
+                        reasoning=config.reasoning_effort or 'minimal',
+                        verbosity='low',
+                    )
                 else:
                     # For non-reasoning models, explicitly pass None to disable these parameters
                     return OpenAIClient(config=llm_config, reasoning=None, verbosity=None)

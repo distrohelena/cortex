@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<title>Flow Graph — exemplo independente</title>
+<link rel="stylesheet" href="./dist/editor.css">
+<style>html,body{margin:0;height:100%}#viewport{height:100%}</style>
+<div id="viewport"><div id="canvas"><svg id="wires"></svg><div id="nodes"></div></div></div>
+<script type="module">
+import {createFlowGraphEditor} from './dist/index.js';
+const graph={nodes:[{id:'a',kind:'source',x:60,y:80},{id:'b',kind:'transform',x:420,y:80}],edges:[],controlEdges:[]};
+let selected='a';
+const element=id=>document.getElementById(id);
+const editor=createFlowGraphEditor({
+ viewport:element('viewport'),canvas:element('canvas'),wires:element('wires'),nodes:element('nodes'),
+ getGraph:()=>graph,getSelectedId:()=>selected,
+ describeNode:node=>({title:node.kind,ports:[{id:'value',label:'Valor',type:'number',direction:node.id==='a'?'out':'in'}],
+  executionPorts:[{id:node.id==='a'?'then':'exec',label:'Executar',direction:node.id==='a'?'out':'in'}]}),
+ onSelect:node=>{selected=node.id;},onMove:(node,position)=>Object.assign(node,position),
+ onConnect:({kind,...edge})=>{const key=kind==='execution'?'controlEdges':'edges';graph[key]=graph[key].filter(e=>e.target!==edge.target||e.targetPort!==edge.targetPort);graph[key].push(edge);},
+ onDisconnect:(edge,kind)=>{const key=kind==='execution'?'controlEdges':'edges';graph[key]=graph[key].filter(e=>e!==edge);}
+});
+editor.render();
+window.addEventListener('pagehide',()=>editor.destroy(),{once:true});
+</script>
+</html>

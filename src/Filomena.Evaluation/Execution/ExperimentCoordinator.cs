@@ -266,16 +266,41 @@ public sealed class ExperimentCoordinator(NpgsqlDataSource source)
 
     public async Task CancelAsync(EvaluationAccess access, Guid experimentId, CancellationToken token)
     {
-        access.Demand(EvaluationOperation.Evaluate);
+        access.Demand(EvaluationOperation.CancelExperiment);
         if (experimentId == Guid.Empty) throw new InvalidDataException("Explicit experiment is required.");
         await using var connection = await source.OpenConnectionAsync(token);
         await using var transaction = await connection.BeginTransactionAsync(token);
+        // Serializes with claim/admission. Existing physical attempts and all their
+        // reservations remain untouched; cancellation is not a refund or unsend.
+        await using (var lookup = Command("""
+            SELECT cancel_requested FROM evaluation.experiments
+            WHERE workspace_id=@workspace AND project_id=@project AND id=@experiment FOR UPDATE
+            """, connection, transaction, access, experimentId))
+        {
+            var cancelled = await lookup.ExecuteScalarAsync(token);
+            if (cancelled is null) throw new KeyNotFoundException("Scoped experiment is unavailable.");
+            if (cancelled is true)
+            {
+                await transaction.CommitAsync(token);
+                return;
+            }
+        }
         await using var command = Command("""
             UPDATE evaluation.experiments SET cancel_requested=true,
               execution_state=CASE WHEN execution_state IN ('planned','running') THEN 'cancelled' ELSE execution_state END
             WHERE workspace_id=@workspace AND project_id=@project AND id=@experiment
             """, connection, transaction, access, experimentId);
         if (await command.ExecuteNonQueryAsync(token) != 1) throw new KeyNotFoundException("Scoped experiment is unavailable.");
+        await using (var audit = Command("""
+            INSERT INTO evaluation.audit_log (workspace_id,project_id,id,actor,action,reason)
+            VALUES (@workspace,@project,@audit,@actor,'experiment.cancel',@reason)
+            """, connection, transaction, access, experimentId))
+        {
+            audit.Parameters.AddWithValue("audit", Guid.NewGuid());
+            audit.Parameters.AddWithValue("actor", access.Principal);
+            audit.Parameters.AddWithValue("reason", JsonSerializer.Serialize(new { experimentId, reason = "host_cancel_requested" }));
+            await audit.ExecuteNonQueryAsync(token);
+        }
         await transaction.CommitAsync(token);
     }
 

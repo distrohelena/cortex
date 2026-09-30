@@ -57,11 +57,14 @@ if (args.Contains("--shadow-preflight", StringComparer.Ordinal))
 
 if (args.Contains("--playground", StringComparer.Ordinal))
 {
-    await LocalPromptPlayground.RunAsync(args.Contains("--live-reload", StringComparer.Ordinal));
+    await LocalPromptPlayground.RunAsync(args.Contains("--live-reload", StringComparer.Ordinal), args.Contains("--flow-live", StringComparer.Ordinal));
     return;
 }
+if (args.Contains("--flow-live", StringComparer.Ordinal))
+    throw new ArgumentException("Use --flow-live junto com --playground.");
 
 var builder = FilomenaHostConfiguration.CreateBuilder(args);
+builder.Logging.AddSimpleConsole(options => options.TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff zzz ");
 builder.Services
     .AddOptions<ProbeOptions>()
     .Bind(builder.Configuration.GetSection(ProbeOptions.SectionName))
@@ -104,7 +107,10 @@ if (mode is "phase-b" or "phase-c")
         serviceProvider.GetRequiredService<IOptions<LmStudioOptions>>().Value);
     builder.Services.AddSingleton<HttpClient>();
     builder.Services.AddSingleton<LmStudioClient>();
-    builder.Services.AddSingleton<ILmStudioChatClient>(sp => sp.GetRequiredService<LmStudioClient>());
+    builder.Services.AddSingleton(sp => new TimedLmStudioClient(
+        sp.GetRequiredService<LmStudioClient>(), sp.GetRequiredService<LmStudioClient>(),
+        sp.GetRequiredService<ILogger<TimedLmStudioClient>>()));
+    builder.Services.AddSingleton<ILmStudioChatClient>(sp => sp.GetRequiredService<TimedLmStudioClient>());
     if (mode == "phase-c")
     {
         builder.Services.AddOptions<FilomenaAgentOptions>()
@@ -112,18 +118,23 @@ if (mode is "phase-b" or "phase-c")
             .Validate(options => IsValid(options.Validate), "Invalid PhaseC generation settings.")
             .ValidateOnStart();
         builder.Services.AddSingleton(sp => sp.GetRequiredService<IOptions<FilomenaAgentOptions>>().Value);
-        builder.Services.AddSingleton<IResponseChatClient>(sp => sp.GetRequiredService<LmStudioClient>());
-        builder.Services.AddSingleton<IConversationSender>(sp =>
+        builder.Services.AddSingleton<IResponseChatClient>(sp => sp.GetRequiredService<TimedLmStudioClient>());
+        builder.Services.AddSingleton<OpenClawMcpSender>(sp =>
         {
             var probe = sp.GetRequiredService<IOptions<ProbeOptions>>().Value;
             var loggerFactory = sp.GetRequiredService<ILoggerFactory>();
             return new OpenClawMcpSender(async token => await OpenClawMcpClient.ConnectAsync(
                 new OpenClawMcpClientOptions(probe.OpenClawCommand, probe.EffectiveOpenClawArguments),
-                loggerFactory, token));
+                loggerFactory, token), sp.GetRequiredService<ILogger<OpenClawMcpSender>>());
         });
+        builder.Services.AddSingleton<IConversationSender>(sp => sp.GetRequiredService<OpenClawMcpSender>());
+        builder.Services.AddHostedService<OpenClawMcpWarmupService>();
         builder.Services.AddSingleton<IConversationTurnExecutor, FilomenaAgent>();
     }
-    builder.Services.AddSingleton<ITurnArbiter, GemmaTurnArbiter>();
+    builder.Services.AddSingleton<ITurnArbiter>(sp => new GemmaTurnArbiter(
+        sp.GetRequiredService<ILmStudioChatClient>(),
+        (attempt, reason) => sp.GetRequiredService<ILogger<GemmaTurnArbiter>>()
+            .LogWarning("Arbiter output rejected: attempt={Attempt} validation={Validation}", attempt, reason)));
     builder.Services.AddSingleton<OpenClawInboundBridgeReceiver>();
     builder.Services.AddSingleton(serviceProvider => new ConversationTurnManager(
         serviceProvider.GetRequiredService<ITurnArbiter>(),

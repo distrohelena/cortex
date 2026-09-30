@@ -147,6 +147,21 @@ Não implementar tipos JSON permissivos que ignorem versão ou campos desconheci
 
 ### Tarefa 5: adapter dos completions reais e observação de chamadas
 
+#### Pendência de reconciliação identificada em 2026-09-28 (Tarefa 4)
+
+`experiment.accounting` já compara reservas/usage sem mutação. A inspeção de
+`ExperimentBudgets`, `CallReservation` e `AttemptLedger` mostrou que moeda não é
+persistida no teto/reserva. `AttemptPriceProjection` é estimativa analítica declarada,
+não receipt de cobrança. Isso impede settlement monetário correto por simples
+subtração de uma projeção.
+
+Antes de adicionar liberação/retomada: versionar moeda/semântica monetária e origem
+da evidência confirmada, manter manifests antigos imutáveis e sem moeda inferida,
+preservar raw attempts/reservas, anexar decisões vinculadas a scope/attempt/owner,
+e provar contabilização concorrente/idempotência em PostgreSQL real. Usage ausente
+e commit incerto não liberam capacidade; decisão de reexecução é distinta de
+settlement. Não declarar a Tarefa 4 concluída com a leitura diagnóstica atual.
+
 **Files:** criar `Execution/FlowCompletionEvaluationTarget.cs`, `Execution/EvaluationProviderFactory.cs`, `Execution/EvaluationHttpHandler.cs`, `Execution/ProviderObservationParser.cs`; testes `FlowTargetTests.cs`, `ProviderObservationTests.cs`. Ler, sem reescrever automaticamente: `SystemOneParticipationCompletion`, `SystemOneFlowCompletion`, `OpenAiFlowCompletion`, `FlowModelCompletion` e clientes associados.
 
 **Interfaces:**
@@ -181,6 +196,89 @@ Não implementar tipos JSON permissivos que ignorem versão ou campos desconheci
 - [ ] Rodar `dotnet test tests/Filomena.Evaluation.Tests -c NativeMemory --filter 'FullyQualifiedName~ComparisonTests|FullyQualifiedName~CostTests|FullyQualifiedName~InvestigationHistoryTests'`; PASS. Commit `feat(evaluation): compare evidence and prioritize investigations`.
 
 ### Tarefa 7: application service e CLI para agentes
+
+#### Dependência descoberta em 2026-09-28: comparação persistida
+
+Inspeção atual, não aceitação de banco:
+
+- `ExperimentSchedule` e migration `003_schedule.sql` pinam a revisão de entrada
+  do trial (`case_revision_id/sha256`), não o ID de `evaluation.cases`.
+- `Assessment.CaseId` referencia o caso do corpus. `TrialId` é opcional e sua FK
+  prova somente existência/escopo, não igualdade entre o caso e a entrada executada.
+- `SyntheticStepCasePreparation` produz input/proveniência locais, mas não registra
+  essa associação no store.
+- `ComparisonTrial` representa uma observação agregada por célula e contém um
+  `PhysicalAttempt`; receitas reais podem executar várias chamadas no mesmo trial.
+  Escolher uma delas como se fosse o custo/latência total seria incorreto.
+- `evaluation.comparisons` admite dois assessment IDs; não representa por si só o
+  relatório de um experimento inteiro e todos os seus critérios/tentativas.
+
+Antes de ligar `compare` persistido, completar estes subpassos, preservando preview:
+
+1. Registrar associação imutável e scoped entre caso+artifact, revisão de input e
+   proveniência de preparação. Sem inferência por nome, ordem ou texto. Dados
+   legados sem associação verificável permanecem incomparáveis; não backfillar por
+   heurística. Uma declaração importada deve continuar identificada como tal,
+   não como prova de que o preparador executou aquela transformação.
+2. Resolver agenda, candidatos, células, avaliação por critério e versões de
+   avaliador/policy a partir do experimento e da associação. Assessment sem trial,
+   caso divergente, supersessão ambígua ou revisões incompatíveis não certificam
+   qualidade. Não selecionar o julgamento mais favorável nem "o último" sem policy.
+3. Manter identidade do trial distinta da lista completa de attempts. Usar elapsed
+   do resultado para latência de pipeline e cada physical attempt para uso/custo.
+   Não somar tempos sobrepostos como latência. Custo sem preço/usage permanece
+   desconhecido; reserva não é custo observado. Trial incompleto não ganha por ter
+   menos chamadas. A comparação pura atual continua preview de dados fornecidos.
+4. Persistir relatório com policy/revisões/IDs de evidências e hash dos inputs
+   resolvidos. Usar armazenamento com vínculos apropriados, não preencher as duas
+   FKs de assessments com IDs sentinela para forçar um relatório multicandidato.
+   Qualquer migration será aditiva; não alterar os checksums das quatro existentes.
+5. Leitura/export devem revalidar escopo, holdout e redação das fontes. O relatório
+   derivado não pode continuar expondo conteúdo cuja fonte ficou indisponível.
+   Nenhum resultado autoriza ativação ou atualiza configuração do runtime.
+
+Aceitação: caso/entrada divergentes; mesmo ID em outro escopo; trial sem avaliação;
+duas avaliações não reconciliadas; receita Jev+resumo com dois attempts e custo
+parcial desconhecido; cancelamento; artifact redigido; replay idempotente do mesmo
+snapshot; policy diferente produz outro relatório, não reescreve o anterior.
+Testes puros não substituem a aceitação PostgreSQL desses vínculos/transações.
+**Reconciliação do checkout em 2026-09-28:** os subpassos acima já possuem
+implementação local; a frase anterior que os descrevia como não implementados
+ficou superada. A aceitação PostgreSQL continua pendente. Mapeamento atual:
+
+| Subpasso | Código/testes presentes | Limite da evidência |
+|---|---|---|
+| Caso → input/proveniência | `CaseInputBindingStore`, migration 005, `CaseInputBindingTests` e `CaseInputBindingPostgresTests` | Associação explícita; integração DB não executada |
+| Resolução de avaliações | `TrialAssessmentReader`, `TrialAssessmentSelection`, `TrialComparisonAssembler` e testes correspondentes | Conflitos não selecionam julgamento favorável; testes offline não comprovam constraints reais |
+| Todas as tentativas | `TrialMeasurementReader`, `TrialMeasurement`, `AttemptPriceProjection` e testes | Custo/uso ausentes permanecem desconhecidos; não equivalem a fatura |
+| Relatório persistido | `ComparisonReportStore`, migration 006, `ExperimentComparisonPostgresTests` | Código e testes preparados; persistência real não aceita |
+| Leitura/export scoped | `ComparisonReportStore.ReadInSnapshotAsync`, `ComparisonBundleExporter`, `IssueHistoryReader` | Referências e fontes revalidadas; não é export completo de todos os payloads nem política global de retenção |
+
+O checkpoint mais recente da oficina passou 630 testes estritamente offline.
+As tarefas permanecem parciais onde exigem banco real; esta atualização não
+autoriza serviços, modelos ou aplicação de migrations.
+
+### Pendência funcional precisa: reconciliação e retomada
+
+`ExperimentRecovery.QuarantineAsync` apenas cerca a geração antiga e preserva
+reservas. `AttemptChargeStore` registra declaração monetária; `ChargeAccounting`
+explicitamente não autoriza refund/retry. Não existe ainda comando que finalize
+a reconciliação e retome com segurança trials pendentes. Portanto, as superfícies
+existentes não satisfazem integralmente `experiment reconcile` desta tarefa.
+
+Antes de implementar esse fechamento, delimitar o contrato no plano: decisão
+autorizada e imutável com evidência; snapshots/fencing de todas as tentativas
+afetadas; distinção entre contabilização e resultado executável; nenhum replay de
+trial incerto; nova admissão somente para trabalho ainda não submetido e dentro
+do orçamento concedido. Declaração de custo zero não comprova ausência de efeito.
+O contrato não deve liberar reservas ou ampliar crédito implicitamente, nem
+transformar a constatação de quarentena em sucesso de execução.
+
+Aceitação necessária: observação tardia concorrente, decisão duplicada/conflitante,
+evidência indisponível, trial ainda pertencente a worker antigo, budget esgotado,
+crash entre decisão e retomada e acesso cross-scope. A parte transacional exige
+PostgreSQL autorizado. Não criar um scheduler ou billing novo para fechar esta
+pendência, nem chamá-la de concluída por projeções puras.
 
 **Files:** criar `Tools/EvaluationApplication.cs`, `Tools/ToolRequest.cs`, `src/Filomena.Evaluation.Cli/Program.cs`, `src/Filomena.Evaluation.Cli/CommandDispatcher.cs`, `docs/evaluation-cli.md`; testes `CliTests.cs`, `ToolAuthorizationTests.cs`.
 

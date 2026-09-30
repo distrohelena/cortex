@@ -1,0 +1,766 @@
+{
+  "experiment": "playful-continuation-baseline-v1",
+  "capturedAt": "2026-09-29T01:03:50.356Z",
+  "sourceSha256": "98bc28a12b163b5a3e35e641fa00640f12b5a47148e8ec1a7e4d395983ed559e",
+  "revision": "77ECDAABBF48A957516AD18371C32377495843D499F747425AC47A2C414F8FA8",
+  "configHash": "9D8A07DAA2A286BD443DC5FBE741FAEF7B1BD54890D453D907F492801CFAFAFE",
+  "scope": "Ler Situação stage only; controlled reconstruction, not native replay; no participation decision or runtime execution",
+  "modelBindings": {
+    "typed": "jev-1.13.0",
+    "summary": "google/gemma-4-e4b",
+    "summaryTemperature": 0.3
+  },
+  "providers": {
+    "jev": {
+      "calls": 18,
+      "inputTokens": 82485,
+      "outputTokens": 3832,
+      "elapsedMs": 5457.3747,
+      "monetaryCost": null,
+      "costStatus": "unknown"
+    },
+    "gemma-local": {
+      "calls": 18,
+      "inputTokens": 16446,
+      "outputTokens": 11230,
+      "elapsedMs": 98451.26800000003,
+      "monetaryCost": null,
+      "costStatus": "unknown"
+    }
+  },
+  "averageMs": 5774.733566666666,
+  "results": [
+    {
+      "id": "actual-typo",
+      "repeat": 1,
+      "text": "nada só vim enxer mesmo",
+      "result": {
+        "ambiente": "casual",
+        "envolvimento": "direto",
+        "ritmo": "encerrando",
+        "necessita_cuidado": false,
+        "oportunidade_social": "fraca",
+        "resumo": "Após Filomena confirmar presença, Helena informa ao grupo que não veio por nada e só estava passando para ver."
+      },
+      "elapsedMs": 8092.1257,
+      "calls": [
+        {
+          "provider": "jev",
+          "status": 200,
+          "elapsedMs": 402.895,
+          "usage": {
+            "input_tokens": 4581,
+            "output_tokens": 213
+          }
+        },
+        {
+          "provider": "gemma-local",
+          "status": 200,
+          "elapsedMs": 7666.3013,
+          "usage": {
+            "prompt_tokens": 911,
+            "completion_tokens": 626,
+            "total_tokens": 1537,
+            "completion_tokens_details": {
+              "reasoning_tokens": 584
+            }
+          }
+        }
+      ],
+      "review": "material_meaning_loss",
+      "reviewMethod": "manual agent review; no automated judge"
+    },
+    {
+      "id": "corrected-spelling",
+      "repeat": 1,
+      "text": "nada, só vim encher mesmo",
+      "result": {
+        "ambiente": "casual",
+        "envolvimento": "indireto",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": false,
+        "oportunidade_social": "fraca",
+        "resumo": "Helena comunica ao grupo que não há motivo específico e afirma que só veio para preencher o tempo."
+      },
+      "elapsedMs": 4730.8406,
+      "calls": [
+        {
+          "provider": "jev",
+          "status": 200,
+          "elapsedMs": 272.881,
+          "usage": {
+            "input_tokens": 4582,
+            "output_tokens": 214
+          }
+        },
+        {
+          "provider": "gemma-local",
+          "status": 200,
+          "elapsedMs": 4456.7622,
+          "usage": {
+            "prompt_tokens": 912,
+            "completion_tokens": 502,
+            "total_tokens": 1414,
+            "completion_tokens_details": {
+              "reasoning_tokens": 461
+            }
+          }
+        }
+      ],
+      "review": "material_meaning_loss",
+      "reviewMethod": "manual agent review; no automated judge"
+    },
+    {
+      "id": "other-recipient",
+      "repeat": 1,
+      "text": "Gabriel, só vim te encher mesmo",
+      "result": {
+        "ambiente": "casual",
+        "envolvimento": "nenhum",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": false,
+        "oportunidade_social": "nenhuma",
+        "resumo": "Helena diz a Gabriel que só veio para encher ele mesmo no grupo de avaliação."
+      },
+      "elapsedMs": 5141.5735,
+      "calls": [
+        {
+          "provider": "jev",
+          "status": 200,
+          "elapsedMs": 278.6679,
+          "usage": {
+            "input_tokens": 4583,
+            "output_tokens": 213
+          }
+        },
+        {
+          "provider": "gemma-local",
+          "status": 200,
+          "elapsedMs": 4861.9055,
+          "usage": {
+            "prompt_tokens": 913,
+            "completion_tokens": 546,
+            "total_tokens": 1459,
+            "completion_tokens_details": {
+              "reasoning_tokens": 508
+            }
+          }
+        }
+      ],
+      "review": "preserved",
+      "reviewMethod": "manual agent review; no automated judge"
+    },
+    {
+      "id": "neutral-presence",
+      "repeat": 1,
+      "text": "nada, só vim ver se você estava aqui",
+      "result": {
+        "ambiente": "casual",
+        "envolvimento": "direto",
+        "ritmo": "aberto",
+        "necessita_cuidado": false,
+        "oportunidade_social": "fraca",
+        "resumo": "Helena comunica que não é nada e apenas veio verificar se Filomena estava presente no grupo de avaliação."
+      },
+      "elapsedMs": 5829.6248,
+      "calls": [
+        {
+          "provider": "jev",
+          "status": 200,
+          "elapsedMs": 521.9463,
+          "usage": {
+            "input_tokens": 4584,
+            "output_tokens": 212
+          }
+        },
+        {
+          "provider": "gemma-local",
+          "status": 200,
+          "elapsedMs": 5306.6555,
+          "usage": {
+            "prompt_tokens": 919,
+            "completion_tokens": 626,
+            "total_tokens": 1545,
+            "completion_tokens_details": {
+              "reasoning_tokens": 585
+            }
+          }
+        }
+      ],
+      "review": "preserved",
+      "reviewMethod": "manual agent review; no automated judge"
+    },
+    {
+      "id": "closure",
+      "repeat": 1,
+      "text": "era só isso, boa noite",
+      "result": {
+        "ambiente": "casual",
+        "envolvimento": "indireto",
+        "ritmo": "encerrando",
+        "necessita_cuidado": false,
+        "oportunidade_social": "nenhuma",
+        "resumo": "Helena encerra a conversa com uma despedida, informando que era só isso e desejando boa noite."
+      },
+      "elapsedMs": 5875.4148,
+      "calls": [
+        {
+          "provider": "jev",
+          "status": 200,
+          "elapsedMs": 251.1253,
+          "usage": {
+            "input_tokens": 4580,
+            "output_tokens": 214
+          }
+        },
+        {
+          "provider": "gemma-local",
+          "status": 200,
+          "elapsedMs": 5623.5781,
+          "usage": {
+            "prompt_tokens": 911,
+            "completion_tokens": 658,
+            "total_tokens": 1569,
+            "completion_tokens_details": {
+              "reasoning_tokens": 615
+            }
+          }
+        }
+      ],
+      "review": "preserved",
+      "reviewMethod": "manual agent review; no automated judge"
+    },
+    {
+      "id": "explicit-play",
+      "repeat": 1,
+      "text": "Filomena, vim só te perturbar um pouco",
+      "result": {
+        "ambiente": "casual",
+        "envolvimento": "direto",
+        "ritmo": "aberto",
+        "necessita_cuidado": false,
+        "oportunidade_social": "forte",
+        "resumo": "Helena comunica a Filomena, no Grupo de avaliação, que veio apenas para perturbar um pouco."
+      },
+      "elapsedMs": 4864.4885,
+      "calls": [
+        {
+          "provider": "jev",
+          "status": 200,
+          "elapsedMs": 267.5871,
+          "usage": {
+            "input_tokens": 4585,
+            "output_tokens": 212
+          }
+        },
+        {
+          "provider": "gemma-local",
+          "status": 200,
+          "elapsedMs": 4596.0155,
+          "usage": {
+            "prompt_tokens": 916,
+            "completion_tokens": 537,
+            "total_tokens": 1453,
+            "completion_tokens_details": {
+              "reasoning_tokens": 495
+            }
+          }
+        }
+      ],
+      "review": "preserved",
+      "reviewMethod": "manual agent review; no automated judge"
+    },
+    {
+      "id": "actual-typo",
+      "repeat": 2,
+      "text": "nada só vim enxer mesmo",
+      "result": {
+        "ambiente": "casual",
+        "envolvimento": "direto",
+        "ritmo": "encerrando",
+        "necessita_cuidado": false,
+        "oportunidade_social": "fraca",
+        "resumo": "Helena comenta no grupo de avaliação que \"nada sô vim enxer mesmo\"."
+      },
+      "elapsedMs": 4763.684,
+      "calls": [
+        {
+          "provider": "jev",
+          "status": 200,
+          "elapsedMs": 260.0282,
+          "usage": {
+            "input_tokens": 4581,
+            "output_tokens": 213
+          }
+        },
+        {
+          "provider": "gemma-local",
+          "status": 200,
+          "elapsedMs": 4502.9756,
+          "usage": {
+            "prompt_tokens": 911,
+            "completion_tokens": 530,
+            "total_tokens": 1441,
+            "completion_tokens_details": {
+              "reasoning_tokens": 492
+            }
+          }
+        }
+      ],
+      "review": "quote_drift_minor",
+      "reviewMethod": "manual agent review; no automated judge"
+    },
+    {
+      "id": "corrected-spelling",
+      "repeat": 2,
+      "text": "nada, só vim encher mesmo",
+      "result": {
+        "ambiente": "casual",
+        "envolvimento": "indireto",
+        "ritmo": "aberto",
+        "necessita_cuidado": false,
+        "oportunidade_social": "fraca",
+        "resumo": "Helena comenta no grupo que só veio encher o chat, após questionar a presença de Filomena."
+      },
+      "elapsedMs": 6975.2645,
+      "calls": [
+        {
+          "provider": "jev",
+          "status": 200,
+          "elapsedMs": 310.3997,
+          "usage": {
+            "input_tokens": 4582,
+            "output_tokens": 213
+          }
+        },
+        {
+          "provider": "gemma-local",
+          "status": 200,
+          "elapsedMs": 6664.1512,
+          "usage": {
+            "prompt_tokens": 912,
+            "completion_tokens": 784,
+            "total_tokens": 1696,
+            "completion_tokens_details": {
+              "reasoning_tokens": 742
+            }
+          }
+        }
+      ],
+      "review": "unsupported_target_chat",
+      "reviewMethod": "manual agent review; no automated judge"
+    },
+    {
+      "id": "other-recipient",
+      "repeat": 2,
+      "text": "Gabriel, só vim te encher mesmo",
+      "result": {
+        "ambiente": "casual",
+        "envolvimento": "nenhum",
+        "ritmo": "aberto",
+        "necessita_cuidado": false,
+        "oportunidade_social": "nenhuma",
+        "resumo": "Helena envia mensagem para Gabriel, comunicando que seu objetivo era apenas incomodar."
+      },
+      "elapsedMs": 6082.767,
+      "calls": [
+        {
+          "provider": "jev",
+          "status": 200,
+          "elapsedMs": 331.2377,
+          "usage": {
+            "input_tokens": 4583,
+            "output_tokens": 212
+          }
+        },
+        {
+          "provider": "gemma-local",
+          "status": 200,
+          "elapsedMs": 5750.7284,
+          "usage": {
+            "prompt_tokens": 913,
+            "completion_tokens": 672,
+            "total_tokens": 1585,
+            "completion_tokens_details": {
+              "reasoning_tokens": 634
+            }
+          }
+        }
+      ],
+      "review": "preserved",
+      "reviewMethod": "manual agent review; no automated judge"
+    },
+    {
+      "id": "neutral-presence",
+      "repeat": 2,
+      "text": "nada, só vim ver se você estava aqui",
+      "result": {
+        "ambiente": "casual",
+        "envolvimento": "indireto",
+        "ritmo": "aberto",
+        "necessita_cuidado": false,
+        "oportunidade_social": "fraca",
+        "resumo": "Helena diz que não é nada e explica ter vindo ver se Filomena estava presente no grupo."
+      },
+      "elapsedMs": 6217.5288,
+      "calls": [
+        {
+          "provider": "jev",
+          "status": 200,
+          "elapsedMs": 244.2743,
+          "usage": {
+            "input_tokens": 4584,
+            "output_tokens": 213
+          }
+        },
+        {
+          "provider": "gemma-local",
+          "status": 200,
+          "elapsedMs": 5972.5906,
+          "usage": {
+            "prompt_tokens": 919,
+            "completion_tokens": 700,
+            "total_tokens": 1619,
+            "completion_tokens_details": {
+              "reasoning_tokens": 659
+            }
+          }
+        }
+      ],
+      "review": "preserved",
+      "reviewMethod": "manual agent review; no automated judge"
+    },
+    {
+      "id": "closure",
+      "repeat": 2,
+      "text": "era só isso, boa noite",
+      "result": {
+        "ambiente": "casual",
+        "envolvimento": "indireto",
+        "ritmo": "encerrando",
+        "necessita_cuidado": false,
+        "oportunidade_social": "nenhuma",
+        "resumo": "Após Filomena confirmar sua presença, Helena informa que era só isso e deseja boa noite."
+      },
+      "elapsedMs": 4633.5515,
+      "calls": [
+        {
+          "provider": "jev",
+          "status": 200,
+          "elapsedMs": 264.002,
+          "usage": {
+            "input_tokens": 4580,
+            "output_tokens": 214
+          }
+        },
+        {
+          "provider": "gemma-local",
+          "status": 200,
+          "elapsedMs": 4368.609,
+          "usage": {
+            "prompt_tokens": 911,
+            "completion_tokens": 509,
+            "total_tokens": 1420,
+            "completion_tokens_details": {
+              "reasoning_tokens": 471
+            }
+          }
+        }
+      ],
+      "review": "preserved",
+      "reviewMethod": "manual agent review; no automated judge"
+    },
+    {
+      "id": "explicit-play",
+      "repeat": 2,
+      "text": "Filomena, vim só te perturbar um pouco",
+      "result": {
+        "ambiente": "casual",
+        "envolvimento": "direto",
+        "ritmo": "aberto",
+        "necessita_cuidado": false,
+        "oportunidade_social": "forte",
+        "resumo": "Helena aborda Filomena no grupo, informando que veio apenas para perturbá-la um pouco."
+      },
+      "elapsedMs": 5582.3219,
+      "calls": [
+        {
+          "provider": "jev",
+          "status": 200,
+          "elapsedMs": 345.8827,
+          "usage": {
+            "input_tokens": 4585,
+            "output_tokens": 212
+          }
+        },
+        {
+          "provider": "gemma-local",
+          "status": 200,
+          "elapsedMs": 5235.7661,
+          "usage": {
+            "prompt_tokens": 916,
+            "completion_tokens": 601,
+            "total_tokens": 1517,
+            "completion_tokens_details": {
+              "reasoning_tokens": 559
+            }
+          }
+        }
+      ],
+      "review": "preserved",
+      "reviewMethod": "manual agent review; no automated judge"
+    },
+    {
+      "id": "actual-typo",
+      "repeat": 3,
+      "text": "nada só vim enxer mesmo",
+      "result": {
+        "ambiente": "casual",
+        "envolvimento": "direto",
+        "ritmo": "acontecendo",
+        "necessita_cuidado": false,
+        "oportunidade_social": "fraca",
+        "resumo": "Helena comunica ao grupo que não há novidades e que só veio checar o ambiente."
+      },
+      "elapsedMs": 6373.423,
+      "calls": [
+        {
+          "provider": "jev",
+          "status": 200,
+          "elapsedMs": 255.9696,
+          "usage": {
+            "input_tokens": 4581,
+            "output_tokens": 213
+          }
+        },
+        {
+          "provider": "gemma-local",
+          "status": 200,
+          "elapsedMs": 6116.748,
+          "usage": {
+            "prompt_tokens": 911,
+            "completion_tokens": 717,
+            "total_tokens": 1628,
+            "completion_tokens_details": {
+              "reasoning_tokens": 678
+            }
+          }
+        }
+      ],
+      "review": "material_meaning_loss",
+      "reviewMethod": "manual agent review; no automated judge"
+    },
+    {
+      "id": "corrected-spelling",
+      "repeat": 3,
+      "text": "nada, só vim encher mesmo",
+      "result": {
+        "ambiente": "casual",
+        "envolvimento": "indireto",
+        "ritmo": "aberto",
+        "necessita_cuidado": false,
+        "oportunidade_social": "fraca",
+        "resumo": "Helena comunica no grupo que não era nada e explica que só veio encher o chat."
+      },
+      "elapsedMs": 6918.0667,
+      "calls": [
+        {
+          "provider": "jev",
+          "status": 200,
+          "elapsedMs": 266.4522,
+          "usage": {
+            "input_tokens": 4582,
+            "output_tokens": 213
+          }
+        },
+        {
+          "provider": "gemma-local",
+          "status": 200,
+          "elapsedMs": 6650.9992,
+          "usage": {
+            "prompt_tokens": 912,
+            "completion_tokens": 781,
+            "total_tokens": 1693,
+            "completion_tokens_details": {
+              "reasoning_tokens": 742
+            }
+          }
+        }
+      ],
+      "review": "unsupported_target_chat",
+      "reviewMethod": "manual agent review; no automated judge"
+    },
+    {
+      "id": "other-recipient",
+      "repeat": 3,
+      "text": "Gabriel, só vim te encher mesmo",
+      "result": {
+        "ambiente": "casual",
+        "envolvimento": "nenhum",
+        "ritmo": "aberto",
+        "necessita_cuidado": false,
+        "oportunidade_social": "nenhuma",
+        "resumo": "Helena envia mensagem para Gabriel no grupo, afirmando que veio apenas para incomodá-lo."
+      },
+      "elapsedMs": 6615.9535,
+      "calls": [
+        {
+          "provider": "jev",
+          "status": 200,
+          "elapsedMs": 312.7568,
+          "usage": {
+            "input_tokens": 4583,
+            "output_tokens": 212
+          }
+        },
+        {
+          "provider": "gemma-local",
+          "status": 200,
+          "elapsedMs": 6302.4165,
+          "usage": {
+            "prompt_tokens": 913,
+            "completion_tokens": 744,
+            "total_tokens": 1657,
+            "completion_tokens_details": {
+              "reasoning_tokens": 702
+            }
+          }
+        }
+      ],
+      "review": "preserved",
+      "reviewMethod": "manual agent review; no automated judge"
+    },
+    {
+      "id": "neutral-presence",
+      "repeat": 3,
+      "text": "nada, só vim ver se você estava aqui",
+      "result": {
+        "ambiente": "casual",
+        "envolvimento": "indireto",
+        "ritmo": "aberto",
+        "necessita_cuidado": false,
+        "oportunidade_social": "fraca",
+        "resumo": "Helena comunica ao grupo que passou apenas para verificar a presença de Filomena."
+      },
+      "elapsedMs": 4982.3915,
+      "calls": [
+        {
+          "provider": "jev",
+          "status": 200,
+          "elapsedMs": 278.2694,
+          "usage": {
+            "input_tokens": 4584,
+            "output_tokens": 213
+          }
+        },
+        {
+          "provider": "gemma-local",
+          "status": 200,
+          "elapsedMs": 4703.391,
+          "usage": {
+            "prompt_tokens": 919,
+            "completion_tokens": 554,
+            "total_tokens": 1473,
+            "completion_tokens_details": {
+              "reasoning_tokens": 518
+            }
+          }
+        }
+      ],
+      "review": "preserved",
+      "reviewMethod": "manual agent review; no automated judge"
+    },
+    {
+      "id": "closure",
+      "repeat": 3,
+      "text": "era só isso, boa noite",
+      "result": {
+        "ambiente": "casual",
+        "envolvimento": "indireto",
+        "ritmo": "encerrando",
+        "necessita_cuidado": false,
+        "oportunidade_social": "nenhuma",
+        "resumo": "Helena encerra a conversa com Filomena comunicando que era só isso e desejando boa noite."
+      },
+      "elapsedMs": 5396.3761,
+      "calls": [
+        {
+          "provider": "jev",
+          "status": 200,
+          "elapsedMs": 318.8169,
+          "usage": {
+            "input_tokens": 4580,
+            "output_tokens": 214
+          }
+        },
+        {
+          "provider": "gemma-local",
+          "status": 200,
+          "elapsedMs": 5076.9737,
+          "usage": {
+            "prompt_tokens": 911,
+            "completion_tokens": 599,
+            "total_tokens": 1510,
+            "completion_tokens_details": {
+              "reasoning_tokens": 558
+            }
+          }
+        }
+      ],
+      "review": "preserved",
+      "reviewMethod": "manual agent review; no automated judge"
+    },
+    {
+      "id": "explicit-play",
+      "repeat": 3,
+      "text": "Filomena, vim só te perturbar um pouco",
+      "result": {
+        "ambiente": "casual",
+        "envolvimento": "direto",
+        "ritmo": "aberto",
+        "necessita_cuidado": false,
+        "oportunidade_social": "forte",
+        "resumo": "Helena aborda Filomena no grupo de avaliação, informando que veio apenas para perturbar-lhe um pouco."
+      },
+      "elapsedMs": 4869.8078,
+      "calls": [
+        {
+          "provider": "jev",
+          "status": 200,
+          "elapsedMs": 274.1826,
+          "usage": {
+            "input_tokens": 4585,
+            "output_tokens": 212
+          }
+        },
+        {
+          "provider": "gemma-local",
+          "status": 200,
+          "elapsedMs": 4594.7006,
+          "usage": {
+            "prompt_tokens": 916,
+            "completion_tokens": 544,
+            "total_tokens": 1460,
+            "completion_tokens_details": {
+              "reasoning_tokens": 499
+            }
+          }
+        }
+      ],
+      "review": "preserved",
+      "reviewMethod": "manual agent review; no automated judge"
+    }
+  ],
+  "generationCalls": 0,
+  "presenceCalls": 0,
+  "runtimeExecutions": 0,
+  "transportCalls": 0,
+  "graphitiCalls": 0,
+  "productionChanges": 0,
+  "limitations": [
+    "Small development corpus, not holdout or model ranking.",
+    "Raw stage adapter outputs; full runner retries, participation, generation and FSM not executed.",
+    "Typed Jev output is computed independently of Gemma summary; summary errors do not prove the cause of prior silence.",
+    "Online host may run concurrently; latency is not a controlled performance benchmark."
+  ]
+}

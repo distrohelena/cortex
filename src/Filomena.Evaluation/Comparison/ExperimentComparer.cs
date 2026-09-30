@@ -2,7 +2,11 @@ namespace Filomena.Evaluation.Comparison;
 
 public sealed record EvaluationCell(string CaseRevision, int Repetition);
 public sealed record ComparisonTrial(string CandidateRevision, EvaluationCell Cell, Guid PhysicalAttempt,
-    string Outcome, bool CriticalFailure, double Milliseconds, decimal? Cost, string Currency);
+    string Outcome, bool CriticalFailure, double Milliseconds, decimal? Cost, string? Currency)
+{
+    public Guid? TrialId { get; init; }
+    public IReadOnlyList<Guid>? PhysicalAttempts { get; init; }
+}
 public sealed record CandidateSummary(string Id, int Observed, int Expected, bool Eligible,
     IReadOnlyList<string> GateFailures, double? Correctness, double? ConfidenceLow, double? ConfidenceHigh,
     double? MedianMilliseconds, double? P95Milliseconds, decimal? MeanCost, string? Currency);
@@ -10,12 +14,13 @@ public sealed record CaseComparisonSummary(string CaseRevision, IReadOnlyList<Ca
 public sealed record ComparisonReport(IReadOnlyList<CandidateSummary> Candidates, IReadOnlyList<string> ParetoCandidates)
 {
     public IReadOnlyList<CaseComparisonSummary> Cases { get; init; } = Array.Empty<CaseComparisonSummary>();
+    public IReadOnlyList<PairedDifference> PairedDifferences { get; init; } = Array.Empty<PairedDifference>();
 }
 
 public static class ExperimentComparer
 {
     public static ComparisonReport Compare(IReadOnlyList<string> candidates, IReadOnlyList<EvaluationCell> cells,
-        IReadOnlyList<ComparisonTrial> trials)
+        IReadOnlyList<ComparisonTrial> trials, PairedBootstrapPolicy? pairedPolicy = null)
     {
         // Pure statistics over already authorized, revision-compatible input. The application must
         // resolve assessments and enforce scope/holdout access before invoking this function.
@@ -25,17 +30,23 @@ public static class ExperimentComparer
             cellSet.Count == 0 || cellSet.Count != cells.Count || cells.Any(c => string.IsNullOrWhiteSpace(c.CaseRevision) || c.Repetition < 0))
             throw new InvalidDataException("Invalid paired comparison schedule.");
         var attempts = new HashSet<Guid>();
+        var logicalTrials = new HashSet<Guid>();
         var observations = new HashSet<(string, EvaluationCell)>();
         foreach (var trial in trials)
         {
             if (!candidateSet.Contains(trial.CandidateRevision) || !cellSet.Contains(trial.Cell) ||
-                trial.PhysicalAttempt == Guid.Empty || !attempts.Add(trial.PhysicalAttempt) ||
+                trial.PhysicalAttempt == Guid.Empty || trial.TrialId == Guid.Empty ||
+                trial.TrialId is Guid logical && !logicalTrials.Add(logical) ||
                 !observations.Add((trial.CandidateRevision, trial.Cell)) ||
                 trial.Outcome is not ("pass" or "fail" or "unscored" or "error" or "indeterminate") ||
                 !double.IsFinite(trial.Milliseconds) || trial.Milliseconds < 0 || trial.Cost < 0 ||
-                trial.Currency.Length != 3 || trial.Currency.Any(c => c is < 'A' or > 'Z') ||
+                (trial.Currency is null ? trial.Cost is not null : trial.Currency.Length != 3 || trial.Currency.Any(c => c is < 'A' or > 'Z')) ||
                 trial.CriticalFailure && trial.Outcome == "pass")
                 throw new InvalidDataException("Invalid or duplicated comparison observation.");
+            var physical = trial.PhysicalAttempts?.ToArray() ?? [trial.PhysicalAttempt];
+            if (physical.Length == 0 || !physical.Contains(trial.PhysicalAttempt) ||
+                physical.Any(id => id == Guid.Empty || !attempts.Add(id)))
+                throw new InvalidDataException("Physical attempt evidence is incomplete or reused across trials.");
         }
         var summaries = candidates.Select(id => Summarize(id, cells.Count,
             trials.Where(t => t.CandidateRevision == id).ToArray())).ToArray();
@@ -45,7 +56,11 @@ public static class ExperimentComparer
             .Select(group => new CaseComparisonSummary(group.Key, Array.AsReadOnly(candidates.Select(id =>
                 Summarize(id, group.Count(), trials.Where(trial => trial.CandidateRevision == id &&
                     trial.Cell.CaseRevision == group.Key).ToArray())).ToArray()))).ToArray();
-        return new(Array.AsReadOnly(summaries), Array.AsReadOnly(pareto)) { Cases = Array.AsReadOnly(cases) };
+        return new(Array.AsReadOnly(summaries), Array.AsReadOnly(pareto))
+        {
+            Cases = Array.AsReadOnly(cases),
+            PairedDifferences = pairedPolicy is null ? Array.Empty<PairedDifference>() : PairedBootstrap.Calculate(pairedPolicy, summaries, cases)
+        };
     }
 
     private static CandidateSummary Summarize(string id, int expected, ComparisonTrial[] trials)

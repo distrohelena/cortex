@@ -1,0 +1,2930 @@
+{
+  "questions": {
+    "envolvimento": {
+      "type": "choice",
+      "instructions": "Classifique o envolvimento de Filomena na mensagem ATUAL. Use autor e destinatário da mensagem citada. Menção sobre ela não é convite. Interesse no assunto não é envolvimento.",
+      "criteria": {
+        "direto": "Fala dirigida a Filomena, convite ou reply à fala dela.",
+        "indireto": "Continuação de conversa com participação recente de Filomena, sem fala dirigida a ela.",
+        "nenhum": "Conversa entre terceiros, mera menção ou assunto sem participação de Filomena."
+      }
+    }
+  },
+  "cases": [
+    {
+      "id": "direct",
+      "expected": "direto",
+      "state": {
+        "personagem": "Filomena",
+        "historico": "",
+        "mensagem_atual": {
+          "autor": "Helena",
+          "texto": "Filomena, me ajuda com esse erro?",
+          "reply": null
+        }
+      }
+    },
+    {
+      "id": "direct-paraphrase",
+      "expected": "direto",
+      "state": {
+        "personagem": "Filomena",
+        "historico": "",
+        "mensagem_atual": {
+          "autor": "Helena",
+          "texto": "Filo, sabe como resolver isso?",
+          "reply": null
+        }
+      }
+    },
+    {
+      "id": "reply",
+      "expected": "direto",
+      "state": {
+        "personagem": "Filomena",
+        "historico": "",
+        "mensagem_atual": {
+          "autor": "Helena",
+          "texto": "E como eu faço isso?",
+          "reply": {
+            "autor": "Filomena",
+            "texto": "Você pode limitar a concorrência com SemaphoreSlim."
+          }
+        }
+      }
+    },
+    {
+      "id": "reply-paraphrase",
+      "expected": "direto",
+      "state": {
+        "personagem": "Filomena",
+        "historico": "",
+        "mensagem_atual": {
+          "autor": "Helena",
+          "texto": "Pode explicar esse passo?",
+          "reply": {
+            "autor": "Filomena",
+            "texto": "Primeiro limite as requisições simultâneas."
+          }
+        }
+      }
+    },
+    {
+      "id": "third-party-reply",
+      "expected": "nenhum",
+      "state": {
+        "personagem": "Filomena",
+        "historico": "",
+        "mensagem_atual": {
+          "autor": "Helena",
+          "texto": "Como você resolveu?",
+          "reply": {
+            "autor": "Celso",
+            "texto": "Consegui consertar a API."
+          }
+        }
+      }
+    },
+    {
+      "id": "mention",
+      "expected": "nenhum",
+      "state": {
+        "personagem": "Filomena",
+        "historico": "",
+        "mensagem_atual": {
+          "autor": "Helena",
+          "texto": "Celso, a Filomena respondeu você ontem?",
+          "reply": null
+        }
+      }
+    },
+    {
+      "id": "indirect",
+      "expected": "indireto",
+      "state": {
+        "personagem": "Filomena",
+        "historico": "Filomena: Esse jogo tem uma trilha ótima.\nCelso: Sim, principalmente a última fase.",
+        "mensagem_atual": {
+          "autor": "Helena",
+          "texto": "A música da primeira fase também é ótima.",
+          "reply": null
+        }
+      }
+    },
+    {
+      "id": "indirect-paraphrase",
+      "expected": "indireto",
+      "state": {
+        "personagem": "Filomena",
+        "historico": "Filomena: A trilha desse jogo é ótima.\nCelso: Concordo, adoro a última fase.",
+        "mensagem_atual": {
+          "autor": "Helena",
+          "texto": "Também gosto muito da música da primeira.",
+          "reply": null
+        }
+      }
+    },
+    {
+      "id": "migration",
+      "expected": "nenhum",
+      "state": {
+        "personagem": "Filomena",
+        "historico": "Filomena: Para limitar concorrência use SemaphoreSlim.\nCelso: Resolvido, obrigado.",
+        "mensagem_atual": {
+          "autor": "Helena",
+          "texto": "Andreas, mudando de assunto, você vai ao aniversário do Felipe?",
+          "reply": null
+        }
+      }
+    },
+    {
+      "id": "banal-tech",
+      "expected": "nenhum",
+      "state": {
+        "personagem": "Filomena",
+        "historico": "",
+        "mensagem_atual": {
+          "autor": "Helena",
+          "texto": "Celso, deixei a caixa da GPU na sua mesa.",
+          "reply": null
+        }
+      }
+    },
+    {
+      "id": "quoted-call",
+      "expected": "nenhum",
+      "state": {
+        "personagem": "Filomena",
+        "historico": "",
+        "mensagem_atual": {
+          "autor": "Helena",
+          "texto": "Celso, ontem o Felipe escreveu \"Filomena, me ajuda\" e depois foi dormir.",
+          "reply": null
+        }
+      }
+    },
+    {
+      "id": "social-direct",
+      "expected": "direto",
+      "state": {
+        "personagem": "Filomena",
+        "historico": "",
+        "mensagem_atual": {
+          "autor": "Helena",
+          "texto": "Filomena, você fala isso mas quero ver jogar comigo.",
+          "reply": null
+        }
+      }
+    },
+    {
+      "id": "long-direct",
+      "expected": "direto",
+      "state": {
+        "personagem": "Filomena",
+        "historico": "Celso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\nCelso: Estamos combinando o almoço.\nAndreas: Pode ser amanhã.\n",
+        "mensagem_atual": {
+          "autor": "Helena",
+          "texto": "Filomena, preciso da sua ajuda agora.",
+          "reply": null
+        }
+      }
+    },
+    {
+      "id": "long-third-party",
+      "expected": "nenhum",
+      "state": {
+        "personagem": "Filomena",
+        "historico": "Filomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\nFilomena: Posso ajudar com código.\nCelso: Obrigado, já terminei.\n",
+        "mensagem_atual": {
+          "autor": "Helena",
+          "texto": "Andreas, mudando de assunto, você trouxe o almoço?",
+          "reply": null
+        }
+      }
+    }
+  ],
+  "results": [
+    {
+      "profile": "laya-default",
+      "case": "direct",
+      "repeat": 0,
+      "expected": "direto",
+      "sequence_tokens": 145,
+      "untruncated_tokens": 145,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.067,
+              "indireto": 0.6289,
+              "nenhum": 0.3041
+            },
+            "confidence": 0.2402,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 145,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.20051389999571256
+    },
+    {
+      "profile": "laya-default",
+      "case": "direct",
+      "repeat": 1,
+      "expected": "direto",
+      "sequence_tokens": 145,
+      "untruncated_tokens": 145,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.067,
+              "indireto": 0.6289,
+              "nenhum": 0.3041
+            },
+            "confidence": 0.2402,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 145,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.19518239999888465
+    },
+    {
+      "profile": "laya-default",
+      "case": "direct-paraphrase",
+      "repeat": 0,
+      "expected": "direto",
+      "sequence_tokens": 144,
+      "untruncated_tokens": 144,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.2169,
+              "indireto": 0.5139,
+              "nenhum": 0.2693
+            },
+            "confidence": 0.0653,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 144,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.1952101000060793
+    },
+    {
+      "profile": "laya-default",
+      "case": "direct-paraphrase",
+      "repeat": 1,
+      "expected": "direto",
+      "sequence_tokens": 144,
+      "untruncated_tokens": 144,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.2169,
+              "indireto": 0.5139,
+              "nenhum": 0.2693
+            },
+            "confidence": 0.0653,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 144,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.20325770002091303
+    },
+    {
+      "profile": "laya-default",
+      "case": "reply",
+      "repeat": 0,
+      "expected": "direto",
+      "sequence_tokens": 163,
+      "untruncated_tokens": 163,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.2659,
+              "indireto": 0.483,
+              "nenhum": 0.2511
+            },
+            "confidence": 0.0436,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 163,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.21785419998923317
+    },
+    {
+      "profile": "laya-default",
+      "case": "reply",
+      "repeat": 1,
+      "expected": "direto",
+      "sequence_tokens": 163,
+      "untruncated_tokens": 163,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.2659,
+              "indireto": 0.483,
+              "nenhum": 0.2511
+            },
+            "confidence": 0.0436,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 163,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.20338650001212955
+    },
+    {
+      "profile": "laya-default",
+      "case": "reply-paraphrase",
+      "repeat": 0,
+      "expected": "direto",
+      "sequence_tokens": 161,
+      "untruncated_tokens": 161,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.2742,
+              "indireto": 0.5363,
+              "nenhum": 0.1896
+            },
+            "confidence": 0.0859,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 161,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.19231800001580268
+    },
+    {
+      "profile": "laya-default",
+      "case": "reply-paraphrase",
+      "repeat": 1,
+      "expected": "direto",
+      "sequence_tokens": 161,
+      "untruncated_tokens": 161,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.2742,
+              "indireto": 0.5363,
+              "nenhum": 0.1896
+            },
+            "confidence": 0.0859,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 161,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.18419969998649321
+    },
+    {
+      "profile": "laya-default",
+      "case": "third-party-reply",
+      "repeat": 0,
+      "expected": "nenhum",
+      "sequence_tokens": 159,
+      "untruncated_tokens": 159,
+      "state_truncated": false,
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "probabilities": {
+              "direto": 0.0643,
+              "indireto": 0.1196,
+              "nenhum": 0.8161
+            },
+            "confidence": 0.4573,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 159,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.1984604000172112
+    },
+    {
+      "profile": "laya-default",
+      "case": "third-party-reply",
+      "repeat": 1,
+      "expected": "nenhum",
+      "sequence_tokens": 159,
+      "untruncated_tokens": 159,
+      "state_truncated": false,
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "probabilities": {
+              "direto": 0.0643,
+              "indireto": 0.1196,
+              "nenhum": 0.8161
+            },
+            "confidence": 0.4573,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 159,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.1994148999801837
+    },
+    {
+      "profile": "laya-default",
+      "case": "mention",
+      "repeat": 0,
+      "expected": "nenhum",
+      "sequence_tokens": 146,
+      "untruncated_tokens": 146,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.3692,
+              "indireto": 0.4436,
+              "nenhum": 0.1872
+            },
+            "confidence": 0.0514,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 146,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.17847680000704713
+    },
+    {
+      "profile": "laya-default",
+      "case": "mention",
+      "repeat": 1,
+      "expected": "nenhum",
+      "sequence_tokens": 146,
+      "untruncated_tokens": 146,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.3692,
+              "indireto": 0.4436,
+              "nenhum": 0.1872
+            },
+            "confidence": 0.0514,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 146,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.17937189998338
+    },
+    {
+      "profile": "laya-default",
+      "case": "indirect",
+      "repeat": 0,
+      "expected": "indireto",
+      "sequence_tokens": 166,
+      "untruncated_tokens": 166,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.0304,
+              "indireto": 0.8723,
+              "nenhum": 0.0972
+            },
+            "confidence": 0.5886,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 166,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.1929316000023391
+    },
+    {
+      "profile": "laya-default",
+      "case": "indirect",
+      "repeat": 1,
+      "expected": "indireto",
+      "sequence_tokens": 166,
+      "untruncated_tokens": 166,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.0304,
+              "indireto": 0.8723,
+              "nenhum": 0.0972
+            },
+            "confidence": 0.5886,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 166,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.19297890001325868
+    },
+    {
+      "profile": "laya-default",
+      "case": "indirect-paraphrase",
+      "repeat": 0,
+      "expected": "indireto",
+      "sequence_tokens": 166,
+      "untruncated_tokens": 166,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.0112,
+              "indireto": 0.9534,
+              "nenhum": 0.0355
+            },
+            "confidence": 0.805,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 166,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.19748169998638332
+    },
+    {
+      "profile": "laya-default",
+      "case": "indirect-paraphrase",
+      "repeat": 1,
+      "expected": "indireto",
+      "sequence_tokens": 166,
+      "untruncated_tokens": 166,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.0112,
+              "indireto": 0.9534,
+              "nenhum": 0.0355
+            },
+            "confidence": 0.805,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 166,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.1988302000099793
+    },
+    {
+      "profile": "laya-default",
+      "case": "migration",
+      "repeat": 0,
+      "expected": "nenhum",
+      "sequence_tokens": 172,
+      "untruncated_tokens": 172,
+      "state_truncated": false,
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "probabilities": {
+              "direto": 0.1927,
+              "indireto": 0.2602,
+              "nenhum": 0.5471
+            },
+            "confidence": 0.092,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 172,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.20532510001794435
+    },
+    {
+      "profile": "laya-default",
+      "case": "migration",
+      "repeat": 1,
+      "expected": "nenhum",
+      "sequence_tokens": 172,
+      "untruncated_tokens": 172,
+      "state_truncated": false,
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "probabilities": {
+              "direto": 0.1927,
+              "indireto": 0.2602,
+              "nenhum": 0.5471
+            },
+            "confidence": 0.092,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 172,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.19886219999170862
+    },
+    {
+      "profile": "laya-default",
+      "case": "banal-tech",
+      "repeat": 0,
+      "expected": "nenhum",
+      "sequence_tokens": 149,
+      "untruncated_tokens": 149,
+      "state_truncated": false,
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "probabilities": {
+              "direto": 0.0912,
+              "indireto": 0.4023,
+              "nenhum": 0.5065
+            },
+            "confidence": 0.1541,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 149,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.19157070000073873
+    },
+    {
+      "profile": "laya-default",
+      "case": "banal-tech",
+      "repeat": 1,
+      "expected": "nenhum",
+      "sequence_tokens": 149,
+      "untruncated_tokens": 149,
+      "state_truncated": false,
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "probabilities": {
+              "direto": 0.0912,
+              "indireto": 0.4023,
+              "nenhum": 0.5065
+            },
+            "confidence": 0.1541,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 149,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.19714309999835677
+    },
+    {
+      "profile": "laya-default",
+      "case": "quoted-call",
+      "repeat": 0,
+      "expected": "nenhum",
+      "sequence_tokens": 155,
+      "untruncated_tokens": 155,
+      "state_truncated": false,
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "probabilities": {
+              "direto": 0.0472,
+              "indireto": 0.432,
+              "nenhum": 0.5208
+            },
+            "confidence": 0.2295,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 155,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.19481069999164902
+    },
+    {
+      "profile": "laya-default",
+      "case": "quoted-call",
+      "repeat": 1,
+      "expected": "nenhum",
+      "sequence_tokens": 155,
+      "untruncated_tokens": 155,
+      "state_truncated": false,
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "probabilities": {
+              "direto": 0.0472,
+              "indireto": 0.432,
+              "nenhum": 0.5208
+            },
+            "confidence": 0.2295,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 155,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.19761299999663606
+    },
+    {
+      "profile": "laya-default",
+      "case": "social-direct",
+      "repeat": 0,
+      "expected": "direto",
+      "sequence_tokens": 148,
+      "untruncated_tokens": 148,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.3464,
+              "indireto": 0.4477,
+              "nenhum": 0.2059
+            },
+            "confidence": 0.042,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 148,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.18952479999279603
+    },
+    {
+      "profile": "laya-default",
+      "case": "social-direct",
+      "repeat": 1,
+      "expected": "direto",
+      "sequence_tokens": 148,
+      "untruncated_tokens": 148,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.3464,
+              "indireto": 0.4477,
+              "nenhum": 0.2059
+            },
+            "confidence": 0.042,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 148,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.1915166999970097
+    },
+    {
+      "profile": "laya-default",
+      "case": "long-direct",
+      "repeat": 0,
+      "expected": "direto",
+      "sequence_tokens": 741,
+      "untruncated_tokens": 741,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.0447,
+              "indireto": 0.8668,
+              "nenhum": 0.0884
+            },
+            "confidence": 0.5655,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 741,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 1.0097393000032753
+    },
+    {
+      "profile": "laya-default",
+      "case": "long-direct",
+      "repeat": 1,
+      "expected": "direto",
+      "sequence_tokens": 741,
+      "untruncated_tokens": 741,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.0447,
+              "indireto": 0.8668,
+              "nenhum": 0.0884
+            },
+            "confidence": 0.5655,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 741,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.9589658999757376
+    },
+    {
+      "profile": "laya-default",
+      "case": "long-third-party",
+      "repeat": 0,
+      "expected": "nenhum",
+      "sequence_tokens": 849,
+      "untruncated_tokens": 849,
+      "state_truncated": false,
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "probabilities": {
+              "direto": 0.225,
+              "indireto": 0.3861,
+              "nenhum": 0.3889
+            },
+            "confidence": 0.0257,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 849,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 1.1545733000093605
+    },
+    {
+      "profile": "laya-default",
+      "case": "long-third-party",
+      "repeat": 1,
+      "expected": "nenhum",
+      "sequence_tokens": 849,
+      "untruncated_tokens": 849,
+      "state_truncated": false,
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "probabilities": {
+              "direto": 0.225,
+              "indireto": 0.3861,
+              "nenhum": 0.3889
+            },
+            "confidence": 0.0257,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 849,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 1.1283144000044558
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "direct",
+      "repeat": 0,
+      "expected": "direto",
+      "sequence_tokens": 145,
+      "untruncated_tokens": 145,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.067,
+              "indireto": 0.6289,
+              "nenhum": 0.3041
+            },
+            "confidence": 0.2402,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 145,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.18286959998658858
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "direct",
+      "repeat": 1,
+      "expected": "direto",
+      "sequence_tokens": 145,
+      "untruncated_tokens": 145,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.067,
+              "indireto": 0.6289,
+              "nenhum": 0.3041
+            },
+            "confidence": 0.2402,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 145,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.188514400011627
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "direct-paraphrase",
+      "repeat": 0,
+      "expected": "direto",
+      "sequence_tokens": 144,
+      "untruncated_tokens": 144,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.2169,
+              "indireto": 0.5139,
+              "nenhum": 0.2693
+            },
+            "confidence": 0.0653,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 144,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.1967690000019502
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "direct-paraphrase",
+      "repeat": 1,
+      "expected": "direto",
+      "sequence_tokens": 144,
+      "untruncated_tokens": 144,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.2169,
+              "indireto": 0.5139,
+              "nenhum": 0.2693
+            },
+            "confidence": 0.0653,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 144,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.17499739999766462
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "reply",
+      "repeat": 0,
+      "expected": "direto",
+      "sequence_tokens": 163,
+      "untruncated_tokens": 163,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.2659,
+              "indireto": 0.483,
+              "nenhum": 0.2511
+            },
+            "confidence": 0.0436,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 163,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.19701030000578612
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "reply",
+      "repeat": 1,
+      "expected": "direto",
+      "sequence_tokens": 163,
+      "untruncated_tokens": 163,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.2659,
+              "indireto": 0.483,
+              "nenhum": 0.2511
+            },
+            "confidence": 0.0436,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 163,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.19417589998920448
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "reply-paraphrase",
+      "repeat": 0,
+      "expected": "direto",
+      "sequence_tokens": 161,
+      "untruncated_tokens": 161,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.2742,
+              "indireto": 0.5363,
+              "nenhum": 0.1896
+            },
+            "confidence": 0.0859,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 161,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.20118119998369366
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "reply-paraphrase",
+      "repeat": 1,
+      "expected": "direto",
+      "sequence_tokens": 161,
+      "untruncated_tokens": 161,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.2742,
+              "indireto": 0.5363,
+              "nenhum": 0.1896
+            },
+            "confidence": 0.0859,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 161,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.1991379999963101
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "third-party-reply",
+      "repeat": 0,
+      "expected": "nenhum",
+      "sequence_tokens": 159,
+      "untruncated_tokens": 159,
+      "state_truncated": false,
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "probabilities": {
+              "direto": 0.0643,
+              "indireto": 0.1196,
+              "nenhum": 0.8161
+            },
+            "confidence": 0.4573,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 159,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.19883399998070672
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "third-party-reply",
+      "repeat": 1,
+      "expected": "nenhum",
+      "sequence_tokens": 159,
+      "untruncated_tokens": 159,
+      "state_truncated": false,
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "probabilities": {
+              "direto": 0.0643,
+              "indireto": 0.1196,
+              "nenhum": 0.8161
+            },
+            "confidence": 0.4573,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 159,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.22186469999724068
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "mention",
+      "repeat": 0,
+      "expected": "nenhum",
+      "sequence_tokens": 146,
+      "untruncated_tokens": 146,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.3692,
+              "indireto": 0.4436,
+              "nenhum": 0.1872
+            },
+            "confidence": 0.0514,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 146,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.17469429998891428
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "mention",
+      "repeat": 1,
+      "expected": "nenhum",
+      "sequence_tokens": 146,
+      "untruncated_tokens": 146,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.3692,
+              "indireto": 0.4436,
+              "nenhum": 0.1872
+            },
+            "confidence": 0.0514,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 146,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.1775004000228364
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "indirect",
+      "repeat": 0,
+      "expected": "indireto",
+      "sequence_tokens": 166,
+      "untruncated_tokens": 166,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.0304,
+              "indireto": 0.8723,
+              "nenhum": 0.0972
+            },
+            "confidence": 0.5886,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 166,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.18910580000374466
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "indirect",
+      "repeat": 1,
+      "expected": "indireto",
+      "sequence_tokens": 166,
+      "untruncated_tokens": 166,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.0304,
+              "indireto": 0.8723,
+              "nenhum": 0.0972
+            },
+            "confidence": 0.5886,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 166,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.19578639999963343
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "indirect-paraphrase",
+      "repeat": 0,
+      "expected": "indireto",
+      "sequence_tokens": 166,
+      "untruncated_tokens": 166,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.0112,
+              "indireto": 0.9534,
+              "nenhum": 0.0355
+            },
+            "confidence": 0.805,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 166,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.20094030001200736
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "indirect-paraphrase",
+      "repeat": 1,
+      "expected": "indireto",
+      "sequence_tokens": 166,
+      "untruncated_tokens": 166,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.0112,
+              "indireto": 0.9534,
+              "nenhum": 0.0355
+            },
+            "confidence": 0.805,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 166,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.1957713000010699
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "migration",
+      "repeat": 0,
+      "expected": "nenhum",
+      "sequence_tokens": 172,
+      "untruncated_tokens": 172,
+      "state_truncated": false,
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "probabilities": {
+              "direto": 0.1927,
+              "indireto": 0.2602,
+              "nenhum": 0.5471
+            },
+            "confidence": 0.092,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 172,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.207178999989992
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "migration",
+      "repeat": 1,
+      "expected": "nenhum",
+      "sequence_tokens": 172,
+      "untruncated_tokens": 172,
+      "state_truncated": false,
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "probabilities": {
+              "direto": 0.1927,
+              "indireto": 0.2602,
+              "nenhum": 0.5471
+            },
+            "confidence": 0.092,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 172,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.20360330000403337
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "banal-tech",
+      "repeat": 0,
+      "expected": "nenhum",
+      "sequence_tokens": 149,
+      "untruncated_tokens": 149,
+      "state_truncated": false,
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "probabilities": {
+              "direto": 0.0912,
+              "indireto": 0.4023,
+              "nenhum": 0.5065
+            },
+            "confidence": 0.1541,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 149,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.17834720000973903
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "banal-tech",
+      "repeat": 1,
+      "expected": "nenhum",
+      "sequence_tokens": 149,
+      "untruncated_tokens": 149,
+      "state_truncated": false,
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "probabilities": {
+              "direto": 0.0912,
+              "indireto": 0.4023,
+              "nenhum": 0.5065
+            },
+            "confidence": 0.1541,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 149,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.19127280000247993
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "quoted-call",
+      "repeat": 0,
+      "expected": "nenhum",
+      "sequence_tokens": 155,
+      "untruncated_tokens": 155,
+      "state_truncated": false,
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "probabilities": {
+              "direto": 0.0472,
+              "indireto": 0.432,
+              "nenhum": 0.5208
+            },
+            "confidence": 0.2295,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 155,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.18430500000249594
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "quoted-call",
+      "repeat": 1,
+      "expected": "nenhum",
+      "sequence_tokens": 155,
+      "untruncated_tokens": 155,
+      "state_truncated": false,
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "probabilities": {
+              "direto": 0.0472,
+              "indireto": 0.432,
+              "nenhum": 0.5208
+            },
+            "confidence": 0.2295,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 155,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.1879639000108
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "social-direct",
+      "repeat": 0,
+      "expected": "direto",
+      "sequence_tokens": 148,
+      "untruncated_tokens": 148,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.3464,
+              "indireto": 0.4477,
+              "nenhum": 0.2059
+            },
+            "confidence": 0.042,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 148,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.1884390000195708
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "social-direct",
+      "repeat": 1,
+      "expected": "direto",
+      "sequence_tokens": 148,
+      "untruncated_tokens": 148,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.3464,
+              "indireto": 0.4477,
+              "nenhum": 0.2059
+            },
+            "confidence": 0.042,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 148,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.19816810000338592
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "long-direct",
+      "repeat": 0,
+      "expected": "direto",
+      "sequence_tokens": 741,
+      "untruncated_tokens": 741,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.0447,
+              "indireto": 0.8668,
+              "nenhum": 0.0884
+            },
+            "confidence": 0.5655,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 741,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.9683961999835446
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "long-direct",
+      "repeat": 1,
+      "expected": "direto",
+      "sequence_tokens": 741,
+      "untruncated_tokens": 741,
+      "state_truncated": false,
+      "answer": "indireto",
+      "correct": false,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "probabilities": {
+              "direto": 0.0447,
+              "indireto": 0.8668,
+              "nenhum": 0.0884
+            },
+            "confidence": 0.5655,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 741,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 0.9774230000039097
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "long-third-party",
+      "repeat": 0,
+      "expected": "nenhum",
+      "sequence_tokens": 849,
+      "untruncated_tokens": 849,
+      "state_truncated": false,
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "probabilities": {
+              "direto": 0.225,
+              "indireto": 0.3861,
+              "nenhum": 0.3889
+            },
+            "confidence": 0.0257,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 849,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 1.1398044000088703
+    },
+    {
+      "profile": "laya-context4096",
+      "case": "long-third-party",
+      "repeat": 1,
+      "expected": "nenhum",
+      "sequence_tokens": 849,
+      "untruncated_tokens": 849,
+      "state_truncated": false,
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "laya-rl-agent",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "probabilities": {
+              "direto": 0.225,
+              "indireto": 0.3861,
+              "nenhum": 0.3889
+            },
+            "confidence": 0.0257,
+            "action": {
+              "act_probability": 1.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 849,
+          "output_tokens": 0
+        }
+      },
+      "seconds": 1.1495185999956448
+    },
+    {
+      "profile": "jev-compact",
+      "case": "direct",
+      "repeat": 0,
+      "expected": "direto",
+      "answer": "direto",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "direto",
+            "confidence": 0.87,
+            "probabilities": {
+              "indireto": 0.0,
+              "nenhum": 0.08,
+              "direto": 0.92
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 471,
+          "output_tokens": 46
+        }
+      },
+      "seconds": 0.42567399999825284
+    },
+    {
+      "profile": "jev-compact",
+      "case": "direct",
+      "repeat": 1,
+      "expected": "direto",
+      "answer": "direto",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "direto",
+            "confidence": 0.93,
+            "probabilities": {
+              "direto": 0.95,
+              "indireto": 0.0,
+              "nenhum": 0.05
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 471,
+          "output_tokens": 46
+        }
+      },
+      "seconds": 0.2904839000257198
+    },
+    {
+      "profile": "jev-compact",
+      "case": "direct-paraphrase",
+      "repeat": 0,
+      "expected": "direto",
+      "answer": "direto",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "direto",
+            "confidence": 0.92,
+            "probabilities": {
+              "direto": 0.95,
+              "indireto": 0.0,
+              "nenhum": 0.05
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 470,
+          "output_tokens": 46
+        }
+      },
+      "seconds": 0.28905169997597113
+    },
+    {
+      "profile": "jev-compact",
+      "case": "direct-paraphrase",
+      "repeat": 1,
+      "expected": "direto",
+      "answer": "direto",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "direto",
+            "confidence": 0.93,
+            "probabilities": {
+              "direto": 0.95,
+              "indireto": 0.0,
+              "nenhum": 0.05
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 470,
+          "output_tokens": 46
+        }
+      },
+      "seconds": 0.24812149998615496
+    },
+    {
+      "profile": "jev-compact",
+      "case": "reply",
+      "repeat": 0,
+      "expected": "direto",
+      "answer": "direto",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "direto",
+            "confidence": 0.25,
+            "probabilities": {
+              "direto": 0.5,
+              "indireto": 0.46,
+              "nenhum": 0.04
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 499,
+          "output_tokens": 46
+        }
+      },
+      "seconds": 0.2546632000012323
+    },
+    {
+      "profile": "jev-compact",
+      "case": "reply",
+      "repeat": 1,
+      "expected": "direto",
+      "answer": "direto",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "direto",
+            "confidence": 0.25,
+            "probabilities": {
+              "direto": 0.5,
+              "nenhum": 0.05,
+              "indireto": 0.45
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 499,
+          "output_tokens": 46
+        }
+      },
+      "seconds": 0.26360820000991225
+    },
+    {
+      "profile": "jev-compact",
+      "case": "reply-paraphrase",
+      "repeat": 0,
+      "expected": "direto",
+      "answer": "direto",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "direto",
+            "confidence": 0.38,
+            "probabilities": {
+              "nenhum": 0.04,
+              "indireto": 0.37,
+              "direto": 0.59
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 497,
+          "output_tokens": 46
+        }
+      },
+      "seconds": 0.31283810001332313
+    },
+    {
+      "profile": "jev-compact",
+      "case": "reply-paraphrase",
+      "repeat": 1,
+      "expected": "direto",
+      "answer": "direto",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "direto",
+            "confidence": 0.45,
+            "probabilities": {
+              "nenhum": 0.03,
+              "indireto": 0.33,
+              "direto": 0.64
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 497,
+          "output_tokens": 46
+        }
+      },
+      "seconds": 0.3237414000032004
+    },
+    {
+      "profile": "jev-compact",
+      "case": "third-party-reply",
+      "repeat": 0,
+      "expected": "nenhum",
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "confidence": 0.94,
+            "probabilities": {
+              "nenhum": 0.96,
+              "indireto": 0.0,
+              "direto": 0.04
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 492,
+          "output_tokens": 46
+        }
+      },
+      "seconds": 0.2975744000286795
+    },
+    {
+      "profile": "jev-compact",
+      "case": "third-party-reply",
+      "repeat": 1,
+      "expected": "nenhum",
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "confidence": 0.97,
+            "probabilities": {
+              "direto": 0.02,
+              "nenhum": 0.98,
+              "indireto": 0.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 492,
+          "output_tokens": 46
+        }
+      },
+      "seconds": 0.3457734000112396
+    },
+    {
+      "profile": "jev-compact",
+      "case": "mention",
+      "repeat": 0,
+      "expected": "nenhum",
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "confidence": 0.67,
+            "probabilities": {
+              "direto": 0.0,
+              "nenhum": 0.78,
+              "indireto": 0.22
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 472,
+          "output_tokens": 46
+        }
+      },
+      "seconds": 0.27490069999475963
+    },
+    {
+      "profile": "jev-compact",
+      "case": "mention",
+      "repeat": 1,
+      "expected": "nenhum",
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "confidence": 0.56,
+            "probabilities": {
+              "nenhum": 0.71,
+              "indireto": 0.29,
+              "direto": 0.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 472,
+          "output_tokens": 46
+        }
+      },
+      "seconds": 0.2685106999997515
+    },
+    {
+      "profile": "jev-compact",
+      "case": "indirect",
+      "repeat": 0,
+      "expected": "indireto",
+      "answer": "indireto",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "confidence": 0.8,
+            "probabilities": {
+              "nenhum": 0.13,
+              "direto": 0.0,
+              "indireto": 0.87
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 492,
+          "output_tokens": 47
+        }
+      },
+      "seconds": 0.28247099998407066
+    },
+    {
+      "profile": "jev-compact",
+      "case": "indirect",
+      "repeat": 1,
+      "expected": "indireto",
+      "answer": "indireto",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "confidence": 0.77,
+            "probabilities": {
+              "nenhum": 0.15,
+              "indireto": 0.85,
+              "direto": 0.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 492,
+          "output_tokens": 47
+        }
+      },
+      "seconds": 0.27459849999286234
+    },
+    {
+      "profile": "jev-compact",
+      "case": "indirect-paraphrase",
+      "repeat": 0,
+      "expected": "indireto",
+      "answer": "indireto",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "confidence": 0.72,
+            "probabilities": {
+              "nenhum": 0.19,
+              "indireto": 0.81,
+              "direto": 0.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 494,
+          "output_tokens": 47
+        }
+      },
+      "seconds": 0.2856927000102587
+    },
+    {
+      "profile": "jev-compact",
+      "case": "indirect-paraphrase",
+      "repeat": 1,
+      "expected": "indireto",
+      "answer": "indireto",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "indireto",
+            "confidence": 0.69,
+            "probabilities": {
+              "nenhum": 0.21,
+              "direto": 0.0,
+              "indireto": 0.79
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 494,
+          "output_tokens": 47
+        }
+      },
+      "seconds": 0.2923004000040237
+    },
+    {
+      "profile": "jev-compact",
+      "case": "migration",
+      "repeat": 0,
+      "expected": "nenhum",
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "confidence": 0.99,
+            "probabilities": {
+              "nenhum": 0.99,
+              "direto": 0.0,
+              "indireto": 0.01
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 502,
+          "output_tokens": 46
+        }
+      },
+      "seconds": 0.3931182000087574
+    },
+    {
+      "profile": "jev-compact",
+      "case": "migration",
+      "repeat": 1,
+      "expected": "nenhum",
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "confidence": 0.99,
+            "probabilities": {
+              "direto": 0.0,
+              "nenhum": 1.0,
+              "indireto": 0.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 502,
+          "output_tokens": 46
+        }
+      },
+      "seconds": 0.30719199997838587
+    },
+    {
+      "profile": "jev-compact",
+      "case": "banal-tech",
+      "repeat": 0,
+      "expected": "nenhum",
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "confidence": 1.0,
+            "probabilities": {
+              "direto": 0.0,
+              "nenhum": 1.0,
+              "indireto": 0.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 475,
+          "output_tokens": 46
+        }
+      },
+      "seconds": 0.30032770000980236
+    },
+    {
+      "profile": "jev-compact",
+      "case": "banal-tech",
+      "repeat": 1,
+      "expected": "nenhum",
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "confidence": 1.0,
+            "probabilities": {
+              "nenhum": 1.0,
+              "direto": 0.0,
+              "indireto": 0.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 475,
+          "output_tokens": 46
+        }
+      },
+      "seconds": 0.3057818000088446
+    },
+    {
+      "profile": "jev-compact",
+      "case": "quoted-call",
+      "repeat": 0,
+      "expected": "nenhum",
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "confidence": 0.79,
+            "probabilities": {
+              "direto": 0.09,
+              "indireto": 0.04,
+              "nenhum": 0.87
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 481,
+          "output_tokens": 46
+        }
+      },
+      "seconds": 0.2653308999724686
+    },
+    {
+      "profile": "jev-compact",
+      "case": "quoted-call",
+      "repeat": 1,
+      "expected": "nenhum",
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "confidence": 0.78,
+            "probabilities": {
+              "direto": 0.11,
+              "indireto": 0.04,
+              "nenhum": 0.85
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 481,
+          "output_tokens": 46
+        }
+      },
+      "seconds": 0.34270599999581464
+    },
+    {
+      "profile": "jev-compact",
+      "case": "social-direct",
+      "repeat": 0,
+      "expected": "direto",
+      "answer": "direto",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "direto",
+            "confidence": 0.91,
+            "probabilities": {
+              "nenhum": 0.05,
+              "indireto": 0.0,
+              "direto": 0.95
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 474,
+          "output_tokens": 46
+        }
+      },
+      "seconds": 0.29124030002276413
+    },
+    {
+      "profile": "jev-compact",
+      "case": "social-direct",
+      "repeat": 1,
+      "expected": "direto",
+      "answer": "direto",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "direto",
+            "confidence": 0.93,
+            "probabilities": {
+              "nenhum": 0.04,
+              "direto": 0.96,
+              "indireto": 0.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 474,
+          "output_tokens": 46
+        }
+      },
+      "seconds": 0.29608279999229126
+    },
+    {
+      "profile": "jev-compact",
+      "case": "long-direct",
+      "repeat": 0,
+      "expected": "direto",
+      "answer": "direto",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "direto",
+            "confidence": 0.93,
+            "probabilities": {
+              "nenhum": 0.05,
+              "direto": 0.95,
+              "indireto": 0.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 1066,
+          "output_tokens": 46
+        }
+      },
+      "seconds": 0.31179060001159087
+    },
+    {
+      "profile": "jev-compact",
+      "case": "long-direct",
+      "repeat": 1,
+      "expected": "direto",
+      "answer": "direto",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "direto",
+            "confidence": 0.92,
+            "probabilities": {
+              "indireto": 0.0,
+              "direto": 0.95,
+              "nenhum": 0.05
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 1066,
+          "output_tokens": 46
+        }
+      },
+      "seconds": 0.2792955000186339
+    },
+    {
+      "profile": "jev-compact",
+      "case": "long-third-party",
+      "repeat": 0,
+      "expected": "nenhum",
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "confidence": 0.99,
+            "probabilities": {
+              "indireto": 0.01,
+              "nenhum": 0.99,
+              "direto": 0.0
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 1175,
+          "output_tokens": 46
+        }
+      },
+      "seconds": 0.2653426000033505
+    },
+    {
+      "profile": "jev-compact",
+      "case": "long-third-party",
+      "repeat": 1,
+      "expected": "nenhum",
+      "answer": "nenhum",
+      "correct": true,
+      "response": {
+        "model": "jev-1.13.0",
+        "answers": {
+          "envolvimento": {
+            "type": "choice",
+            "choice": "nenhum",
+            "confidence": 0.99,
+            "probabilities": {
+              "indireto": 0.01,
+              "direto": 0.0,
+              "nenhum": 0.99
+            }
+          }
+        },
+        "usage": {
+          "input_tokens": 1175,
+          "output_tokens": 46
+        }
+      },
+      "seconds": 0.29719690000638366
+    }
+  ],
+  "scope": "synthetic involvement only; not production flow; no training; no activation",
+  "local": {
+    "checkpoint": "C:\\Users\\Helena\\.cache\\huggingface\\hub\\models--convaiinnovations--laya\\snapshots\\5e7b2b1b8ca2ecdd3f2322d94069c9b6ce7e844b\\multilingual",
+    "torch": "2.14.0+cpu",
+    "load_seconds": 6.884846300003119,
+    "threads": 4,
+    "device": "cpu",
+    "default_config": {
+      "encoder": "jhu-clsp/mmBERT-base",
+      "head_layers": 2,
+      "max_len": 1024,
+      "head_max_len": 256,
+      "max_prefixes": 6,
+      "act_costs": {
+        "escalate": 0.5
+      },
+      "cost_wrong_act": 3.0,
+      "amp_dtype": "bf16",
+      "model_name": "rl-agent",
+      "temperature": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "temperature_by_options": {},
+      "training": {
+        "updates": 15987,
+        "epochs_completed": 4,
+        "hours": 4.97,
+        "world_size": 1,
+        "fine_tuned_from_checkpoint": false
+      }
+    }
+  }
+}

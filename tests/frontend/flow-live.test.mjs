@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { nodePorts,executionPorts,isEntry } from '../../src/Filomena.App/Playground/flow-model.mjs';
+import { parseLiveStatus,nodePorts,executionPorts,isEntry } from '../../src/Filomena.App/Playground/flow-model.mjs';
 import {runInNewContext} from 'node:vm';
 
 const html=readFileSync(new URL('../../src/Filomena.App/Playground/flow.html',import.meta.url),'utf8');
@@ -17,6 +17,41 @@ test('instruction descriptor hides prompt text without removing editable content
  assert.equal(node.prompt,'Meu prompt permanece salvo.');
  assert.equal(view.ports.length,2);
  assert.equal(view.executionPorts.length,2);
+});
+
+test('live status preserves the exact available active target contract',()=>{
+ assert.deepEqual(parseLiveStatus({available:true,active:false,target:{channel:'whatsapp',accountId:'default',nativeId:'5511999999999'}}),{
+  available:true,active:false,target:{channel:'whatsapp',accountId:'default',nativeId:'5511999999999'}
+ });
+ assert.deepEqual(parseLiveStatus({available:false,active:false,target:null}),{available:false,active:false,target:null});
+});
+
+test('live status rejects malformed targets instead of enabling controls',()=>{
+ for(const status of [
+  null,
+  {available:'yes',active:false,target:null},
+  {available:true,active:false,target:{channel:'whatsapp',accountId:'default'}},
+  {available:true,active:true,target:null}
+ ])assert.throws(()=>parseLiveStatus(status));
+});
+
+test('editor exposes the minimal send node and conditional live controls contract',()=>{
+ assert.match(html,/id="add-send"[^>]*>Enviar mensagem</);
+ assert.match(html,/id="live-controls"[^>]*hidden/);
+ assert.match(html,/id="live-activate"[^>]*>Ativar na DM</);
+ assert.match(html,/id="live-deactivate"[^>]*>Desativar</);
+ assert.match(js,/let id='send'/);
+ assert.match(js,/liveBusy/);
+ assert.match(js,/live-deactivate'\)\.disabled=liveBusy;/);
+ assert.match(js,/async function reconcileLiveStatus/);
+ assert.match(js,/Estado não confirmado/);
+ assert.match(js,/snapshot não confirmado; reaplique/);
+ assert.match(js,/\/api\/flow\/typed\/run/);
+ assert.match(js,/\/api\/flow\/live/);
+ assert.match(js,/\/api\/flow\/live\/activate/);
+ assert.match(js,/\/api\/flow\/live\/deactivate/);
+ assert.match(js,/JSON\.parse\(saveProject\(project\)\)/);
+ assert.match(js,/X-Filomena-Playground':'1'/);
 });
 
 test('ambiguous legacy wires remain visible without inventing a typed port',()=>{

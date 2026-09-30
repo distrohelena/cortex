@@ -10,7 +10,7 @@ import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Annotated, Any, Optional
 
 from dotenv import load_dotenv
 from graphiti_core import Graphiti
@@ -21,7 +21,7 @@ from graphiti_core.search.search_filters import SearchFilters
 from graphiti_core.utils.maintenance.bound_entities import BoundEntity
 from graphiti_core.utils.maintenance.graph_data_operations import clear_data
 from mcp.server.fastmcp import FastMCP
-from pydantic import BaseModel
+from pydantic import BaseModel, PlainValidator
 from starlette.responses import JSONResponse
 
 from config.schema import GraphitiConfig, ServerConfig
@@ -195,28 +195,12 @@ class GraphitiService:
     async def initialize(self) -> None:
         """Initialize the Graphiti client with factory-created components."""
         try:
-            # Create clients using factories
-            llm_client = None
-            embedder_client = None
-
-            # Create LLM client based on configured provider
-            try:
-                llm_client = LLMClientFactory.create(self.config.llm)
-            except Exception as e:
-                logger.warning(f'Failed to create LLM client: {e}')
-
-            # Create embedder client based on configured provider
-            try:
-                embedder_client = EmbedderFactory.create(self.config.embedder)
-            except Exception as e:
-                logger.warning(f'Failed to create embedder client: {e}')
-
-            # Create reranker (cross-encoder) client based on configured provider
-            cross_encoder = None
-            try:
-                cross_encoder = CrossEncoderFactory.create(self.config.reranker)
-            except Exception as e:
-                logger.warning(f'Failed to create reranker client: {e}')
+            # None selects Graphiti defaults, which can change provider, data
+            # destination and embedding space. A configured failure must stop
+            # initialization, never silently authorize those defaults.
+            llm_client = LLMClientFactory.create(self.config.llm)
+            embedder_client = EmbedderFactory.create(self.config.embedder)
+            cross_encoder = CrossEncoderFactory.create(self.config.reranker)
 
             # Get database configuration
             db_config = DatabaseDriverFactory.create_config(self.config.database)
@@ -351,6 +335,20 @@ class GraphitiService:
         return self.client
 
 
+def _nullable_mcp_text(value: Any) -> str | None:
+    if value is None or isinstance(value, str):
+        return value
+    raise ValueError('expected text or null')
+
+
+# FastMCP pre-parses JSON-looking strings unless the underlying annotation is
+# exactly str. Preserve nullable wire compatibility using a strict validator,
+# rather than allowing that pre-parser to turn extraction text into dict/list.
+NullableMcpText = Annotated[
+    str, PlainValidator(_nullable_mcp_text, json_schema_input_type=str | None)
+]
+
+
 @mcp.tool()
 async def add_memory(
     name: str,
@@ -363,7 +361,7 @@ async def add_memory(
     reference_time: datetime | None = None,
     bound_entity: BoundEntity | None = None,
     bound_entities: list[BoundEntity] | None = None,
-    extraction_body: str | None = None,
+    extraction_body: NullableMcpText = None,  # type: ignore[assignment]  # Wire type is str | None.
     custom_extraction_instructions: str | None = None,
 ) -> SuccessResponse | ErrorResponse:
     """Add an episode to memory. This is the primary way to add information to the graph.

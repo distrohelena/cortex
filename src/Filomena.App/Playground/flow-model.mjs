@@ -95,6 +95,17 @@ function normalizeEdges(graph){
  }
  return edges;
 }
+export function parseLiveStatus(value){
+ if(!value||typeof value.available!=='boolean'||typeof value.active!=='boolean'||!('target' in value))throw new Error('Resposta de ativação inválida.');
+ let target=null;
+ if(value.target!==null){
+  if(!value.target||typeof value.target.channel!=='string'||!value.target.channel.trim()||typeof value.target.accountId!=='string'||!value.target.accountId.trim()||typeof value.target.nativeId!=='string'||!value.target.nativeId.trim())throw new Error('Alvo de ativação inválido.');
+  target={channel:value.target.channel,accountId:value.target.accountId,nativeId:value.target.nativeId};
+ }
+ if(!value.available&&target!==null)throw new Error('Alvo indisponível inválido.');
+ if(value.active&&target===null)throw new Error('Fluxo ativo sem alvo.');
+ return {available:value.available,active:value.active,target};
+}
 export const branchOperators=Object.freeze({eq:'Igual a',ne:'Diferente de',gt:'Maior que',gte:'Maior ou igual a',lt:'Menor que',lte:'Menor ou igual a'});
 function branchSettings(settings){
  if(!settings||!Object.hasOwn(branchOperators,settings.operator))throw new Error('Comparação inválida no Branch.');

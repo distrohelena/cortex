@@ -204,6 +204,42 @@ internal static class LiveContextMigration
             && pin.Project.ProjectRevision == "7789735AC766B4FA38A8C1749679E1352BBA8B8F9760D3FA9189F076F89BDB39") return;
         var oldDoc = JsonNode.Parse(oldPin.Project.Document.GetRawText())!;
         var newDoc = JsonNode.Parse(pin.Project.Document.GetRawText())!;
+        // Context-only group repair: exact artifacts plus structural equality after
+        // restoring three situation prompts. No model, FSM, DM or delivery changes.
+        if (oldPin.Project.ProjectRevision == "CE356E1335EAC1C149F1A2DAA7A756C94777F30439E05386E5A4BB0ABA03FE6C"
+            && pin.Project.ProjectRevision == "77ECDAABBF48A957516AD18371C32377495843D499F747425AC47A2C414F8FA8")
+        {
+            var changed = 0;
+            foreach (var state in newDoc["states"]!.AsArray())
+                foreach (var node in state!["graph"]!["nodes"]!.AsArray())
+                    if (node!["id"]!.GetValue<string>() == "group-situation")
+                    {
+                        var original = oldDoc["states"]!.AsArray().Single(s => s!["id"]!.GetValue<string>() == state["id"]!.GetValue<string>())!
+                            ["graph"]!["nodes"]!.AsArray().Single(n => n!["id"]!.GetValue<string>() == "group-situation")!;
+                        node["prompt"] = original["prompt"]!.DeepClone();
+                        changed++;
+                    }
+            Require(changed == 3 && JsonNode.DeepEquals(oldDoc, newDoc), "incompatible_group_situation_migration");
+        }
+        // Explicitly approved group conversation repair; no generic prompt migration.
+        // Retain every state, model, authority, delivery setting, DM prompt and edge.
+        if (oldPin.Project.ProjectRevision == "FE18A25EB48388EE65704A9D3FA9E234DB944D3A187DA6733AC703B2594DC0ED"
+            && pin.Project.ProjectRevision == "CE356E1335EAC1C149F1A2DAA7A756C94777F30439E05386E5A4BB0ABA03FE6C")
+        {
+            var changed = 0;
+            foreach (var state in newDoc["states"]!.AsArray())
+                foreach (var node in state!["graph"]!["nodes"]!.AsArray())
+                    if (node!["id"]!.GetValue<string>() is "group-situation" or "group-presence" or "group-generation" or "group-regeneration")
+                    {
+                        var original = oldDoc["states"]!.AsArray().Single(s => s!["id"]!.GetValue<string>() == state["id"]!.GetValue<string>())!
+                            ["graph"]!["nodes"]!.AsArray().Single(n => n!["id"]!.GetValue<string>() == node["id"]!.GetValue<string>())!;
+                        Require(node["prompt"]!.GetValue<string>().StartsWith(original["prompt"]!.GetValue<string>() + "\n\n", StringComparison.Ordinal),
+                            "group_repair_prompt_replaced");
+                        node["prompt"] = original["prompt"]!.DeepClone();
+                        changed++;
+                    }
+            Require(changed == 12 && JsonNode.DeepEquals(oldDoc, newDoc), "incompatible_group_repair_migration");
+        }
         // Approved voice-only revision. Preserve every graph edge, schema, model,
         // role and state; only six appended generation instructions may differ.
         if (oldPin.Project.ProjectRevision == "6F35BE1195D1CB9FC3B31FDBEA662D910BC922818FB209A9E029D69BAD40FC87"

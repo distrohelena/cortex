@@ -24,6 +24,8 @@ public sealed record EvidenceCaseDocument(string CaseKey, EvidenceArtifactRef Ar
 
 public sealed record StoredEvidenceCase(Guid Id, EvidenceCaseDocument Document);
 
+public sealed record EvidenceCasePage(IReadOnlyList<StoredEvidenceCase> Items, Guid? NextAfter);
+
 public enum AssessmentOutcome
 {
     Pass,

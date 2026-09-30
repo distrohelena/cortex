@@ -76,6 +76,18 @@ public sealed class NativeMemoryOutbox : IDisposable
                     stableId = "whatsapp:" + actor, actorKind = "person", bindAsPerson = true,
                     identitySource = "trusted_native_observation", unresolvedAlternate = false }
             }, NativeMemoryIngestClient.Json));
+            // Presentation metadata is not actor authority. Keep the old serialized
+            // shape when absent so existing unnamed requests retain their digest.
+            if (input.Message.Message.TryGetProperty("remetente", out var speaker)
+                && speaker.ValueKind == JsonValueKind.Object
+                && speaker.TryGetProperty("nome", out var name) && name.ValueKind == JsonValueKind.String
+                && name.GetString() is { } displayName && !string.IsNullOrWhiteSpace(displayName)
+                && displayName.Length <= 256 && !displayName.Any(char.IsControl))
+            {
+                var payload = JsonNode.Parse(request.Message.GetRawText())!;
+                payload["sender"]!["displayName"] = displayName;
+                request = request with { Message = JsonSerializer.SerializeToElement(payload, NativeMemoryIngestClient.Json) };
+            }
             if (input.Message.Message.TryGetProperty("reply", out var quote) && quote.ValueKind == JsonValueKind.Object)
             {
                 var id = quote.GetProperty("id").GetString();

@@ -1,0 +1,3934 @@
+{
+  "experiment": "summary-models-v1",
+  "status": "luna_preferred_for_summary_integration_test_not_activated",
+  "manualReview": {
+    "method": "coding-agent review; no independent or automated judge",
+    "materialErrors": { "gemma": 3, "luna": 0, "samplesPerModel": 30 },
+    "unsupportedCoreTargets": { "gemma": 2, "luna": 0 },
+    "freshWordLimitFailures": { "gemma": 1, "luna": 0 },
+    "lunaMinorQuoteDrift": ["actual-typo/1: enxer normalized to encher inside quotation", "corrected-spelling/2: words reordered/omitted inside quotation"],
+    "lunaInformationLoss": ["novel-quoted-negation/1: Gabriel omitted as quoted addressee; no false replacement"],
+    "detailedReview": "summary-models-v1-20260928.md"
+  },
+  "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11",
+  "sourceHashes": {
+    "results.jsonl": "98bc28a12b163b5a3e35e641fa00640f12b5a47148e8ec1a7e4d395983ed559e",
+    "summary-candidate-v1.jsonl": "73ef8c5b67a3c11599766f34813dab1088f4f244a81bed16c6ed0fc18585598f",
+    "summary-models-v1.jsonl": "76ff1d964e9804fd3d57c97cbf5fbcc3d653da76119d0414ebfbfc26e01d0e76"
+  },
+  "profiles": {
+    "gemma": {
+      "model": "google/gemma-4-e4b",
+      "temperature": 0.3,
+      "maxOutputTokens": 8192
+    },
+    "luna": {
+      "model": "gpt-6-luna",
+      "effort": "medium",
+      "maxOutputTokens": 4096,
+      "store": false
+    }
+  },
+  "comparison": {
+    "gemma": {
+      "calls": 30,
+      "inputTokens": 27642,
+      "outputTokens": 18884,
+      "cachedInputTokens": 0,
+      "elapsedMs": 161935.18940000006,
+      "meanMs": 5397.839646666669,
+      "monetaryCost": null,
+      "costStatus": "unknown"
+    },
+    "luna": {
+      "calls": 30,
+      "inputTokens": 27252,
+      "outputTokens": 4310,
+      "cachedInputTokens": 0,
+      "elapsedMs": 62736.2061,
+      "meanMs": 2091.20687,
+      "monetaryCost": null,
+      "costStatus": "unknown"
+    }
+  },
+  "newCalls": {
+    "gemma": {
+      "calls": 4,
+      "inputTokens": 3792,
+      "outputTokens": 2506,
+      "cachedInputTokens": 0,
+      "elapsedMs": 23552.748399999997,
+      "meanMs": 5888.187099999999,
+      "monetaryCost": null,
+      "costStatus": "unknown"
+    },
+    "luna": {
+      "calls": 30,
+      "inputTokens": 27252,
+      "outputTokens": 4310,
+      "cachedInputTokens": 0,
+      "elapsedMs": 62736.2061,
+      "meanMs": 2091.20687,
+      "monetaryCost": null,
+      "costStatus": "unknown"
+    }
+  },
+  "newContrastComparison": {
+    "gemma": {
+      "calls": 4,
+      "inputTokens": 3792,
+      "outputTokens": 2506,
+      "cachedInputTokens": 0,
+      "elapsedMs": 23552.748399999997,
+      "meanMs": 5888.187099999999,
+      "monetaryCost": null,
+      "costStatus": "unknown"
+    },
+    "luna": {
+      "calls": 4,
+      "inputTokens": 3716,
+      "outputTokens": 645,
+      "cachedInputTokens": 0,
+      "elapsedMs": 7859.3846,
+      "meanMs": 1964.84615,
+      "monetaryCost": null,
+      "costStatus": "unknown"
+    }
+  },
+  "results": [
+    {
+      "id": "actual-typo",
+      "repeat": 1,
+      "model": "gemma",
+      "origin": "historical-core",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "nada só vim enxer mesmo",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Após Filomena confirmar presença, Helena informa ao grupo que não veio por nada e só estava passando para ver."
+      },
+      "usage": {
+        "prompt_tokens": 911,
+        "completion_tokens": 626,
+        "total_tokens": 1537,
+        "completion_tokens_details": {
+          "reasoning_tokens": 584
+        }
+      },
+      "elapsedMs": 7666.3013
+    },
+    {
+      "id": "corrected-spelling",
+      "repeat": 1,
+      "model": "gemma",
+      "origin": "historical-core",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "nada, só vim encher mesmo",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena comunica ao grupo que não há motivo específico e afirma que só veio para preencher o tempo."
+      },
+      "usage": {
+        "prompt_tokens": 912,
+        "completion_tokens": 502,
+        "total_tokens": 1414,
+        "completion_tokens_details": {
+          "reasoning_tokens": 461
+        }
+      },
+      "elapsedMs": 4456.7622
+    },
+    {
+      "id": "other-recipient",
+      "repeat": 1,
+      "model": "gemma",
+      "origin": "historical-core",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Gabriel, só vim te encher mesmo",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena diz a Gabriel que só veio para encher ele mesmo no grupo de avaliação."
+      },
+      "usage": {
+        "prompt_tokens": 913,
+        "completion_tokens": 546,
+        "total_tokens": 1459,
+        "completion_tokens_details": {
+          "reasoning_tokens": 508
+        }
+      },
+      "elapsedMs": 4861.9055
+    },
+    {
+      "id": "neutral-presence",
+      "repeat": 1,
+      "model": "gemma",
+      "origin": "historical-core",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "nada, só vim ver se você estava aqui",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena comunica que não é nada e apenas veio verificar se Filomena estava presente no grupo de avaliação."
+      },
+      "usage": {
+        "prompt_tokens": 919,
+        "completion_tokens": 626,
+        "total_tokens": 1545,
+        "completion_tokens_details": {
+          "reasoning_tokens": 585
+        }
+      },
+      "elapsedMs": 5306.6555
+    },
+    {
+      "id": "closure",
+      "repeat": 1,
+      "model": "gemma",
+      "origin": "historical-core",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "era só isso, boa noite",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena encerra a conversa com uma despedida, informando que era só isso e desejando boa noite."
+      },
+      "usage": {
+        "prompt_tokens": 911,
+        "completion_tokens": 658,
+        "total_tokens": 1569,
+        "completion_tokens_details": {
+          "reasoning_tokens": 615
+        }
+      },
+      "elapsedMs": 5623.5781
+    },
+    {
+      "id": "explicit-play",
+      "repeat": 1,
+      "model": "gemma",
+      "origin": "historical-core",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Filomena, vim só te perturbar um pouco",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena comunica a Filomena, no Grupo de avaliação, que veio apenas para perturbar um pouco."
+      },
+      "usage": {
+        "prompt_tokens": 916,
+        "completion_tokens": 537,
+        "total_tokens": 1453,
+        "completion_tokens_details": {
+          "reasoning_tokens": 495
+        }
+      },
+      "elapsedMs": 4596.0155
+    },
+    {
+      "id": "actual-typo",
+      "repeat": 2,
+      "model": "gemma",
+      "origin": "historical-core",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "nada só vim enxer mesmo",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena comenta no grupo de avaliação que \"nada sô vim enxer mesmo\"."
+      },
+      "usage": {
+        "prompt_tokens": 911,
+        "completion_tokens": 530,
+        "total_tokens": 1441,
+        "completion_tokens_details": {
+          "reasoning_tokens": 492
+        }
+      },
+      "elapsedMs": 4502.9756
+    },
+    {
+      "id": "corrected-spelling",
+      "repeat": 2,
+      "model": "gemma",
+      "origin": "historical-core",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "nada, só vim encher mesmo",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena comenta no grupo que só veio encher o chat, após questionar a presença de Filomena."
+      },
+      "usage": {
+        "prompt_tokens": 912,
+        "completion_tokens": 784,
+        "total_tokens": 1696,
+        "completion_tokens_details": {
+          "reasoning_tokens": 742
+        }
+      },
+      "elapsedMs": 6664.1512
+    },
+    {
+      "id": "other-recipient",
+      "repeat": 2,
+      "model": "gemma",
+      "origin": "historical-core",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Gabriel, só vim te encher mesmo",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena envia mensagem para Gabriel, comunicando que seu objetivo era apenas incomodar."
+      },
+      "usage": {
+        "prompt_tokens": 913,
+        "completion_tokens": 672,
+        "total_tokens": 1585,
+        "completion_tokens_details": {
+          "reasoning_tokens": 634
+        }
+      },
+      "elapsedMs": 5750.7284
+    },
+    {
+      "id": "neutral-presence",
+      "repeat": 2,
+      "model": "gemma",
+      "origin": "historical-core",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "nada, só vim ver se você estava aqui",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena diz que não é nada e explica ter vindo ver se Filomena estava presente no grupo."
+      },
+      "usage": {
+        "prompt_tokens": 919,
+        "completion_tokens": 700,
+        "total_tokens": 1619,
+        "completion_tokens_details": {
+          "reasoning_tokens": 659
+        }
+      },
+      "elapsedMs": 5972.5906
+    },
+    {
+      "id": "closure",
+      "repeat": 2,
+      "model": "gemma",
+      "origin": "historical-core",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "era só isso, boa noite",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Após Filomena confirmar sua presença, Helena informa que era só isso e deseja boa noite."
+      },
+      "usage": {
+        "prompt_tokens": 911,
+        "completion_tokens": 509,
+        "total_tokens": 1420,
+        "completion_tokens_details": {
+          "reasoning_tokens": 471
+        }
+      },
+      "elapsedMs": 4368.609
+    },
+    {
+      "id": "explicit-play",
+      "repeat": 2,
+      "model": "gemma",
+      "origin": "historical-core",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Filomena, vim só te perturbar um pouco",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena aborda Filomena no grupo, informando que veio apenas para perturbá-la um pouco."
+      },
+      "usage": {
+        "prompt_tokens": 916,
+        "completion_tokens": 601,
+        "total_tokens": 1517,
+        "completion_tokens_details": {
+          "reasoning_tokens": 559
+        }
+      },
+      "elapsedMs": 5235.7661
+    },
+    {
+      "id": "actual-typo",
+      "repeat": 3,
+      "model": "gemma",
+      "origin": "historical-core",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "nada só vim enxer mesmo",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena comunica ao grupo que não há novidades e que só veio checar o ambiente."
+      },
+      "usage": {
+        "prompt_tokens": 911,
+        "completion_tokens": 717,
+        "total_tokens": 1628,
+        "completion_tokens_details": {
+          "reasoning_tokens": 678
+        }
+      },
+      "elapsedMs": 6116.748
+    },
+    {
+      "id": "corrected-spelling",
+      "repeat": 3,
+      "model": "gemma",
+      "origin": "historical-core",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "nada, só vim encher mesmo",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena comunica no grupo que não era nada e explica que só veio encher o chat."
+      },
+      "usage": {
+        "prompt_tokens": 912,
+        "completion_tokens": 781,
+        "total_tokens": 1693,
+        "completion_tokens_details": {
+          "reasoning_tokens": 742
+        }
+      },
+      "elapsedMs": 6650.9992
+    },
+    {
+      "id": "other-recipient",
+      "repeat": 3,
+      "model": "gemma",
+      "origin": "historical-core",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Gabriel, só vim te encher mesmo",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena envia mensagem para Gabriel no grupo, afirmando que veio apenas para incomodá-lo."
+      },
+      "usage": {
+        "prompt_tokens": 913,
+        "completion_tokens": 744,
+        "total_tokens": 1657,
+        "completion_tokens_details": {
+          "reasoning_tokens": 702
+        }
+      },
+      "elapsedMs": 6302.4165
+    },
+    {
+      "id": "neutral-presence",
+      "repeat": 3,
+      "model": "gemma",
+      "origin": "historical-core",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "nada, só vim ver se você estava aqui",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena comunica ao grupo que passou apenas para verificar a presença de Filomena."
+      },
+      "usage": {
+        "prompt_tokens": 919,
+        "completion_tokens": 554,
+        "total_tokens": 1473,
+        "completion_tokens_details": {
+          "reasoning_tokens": 518
+        }
+      },
+      "elapsedMs": 4703.391
+    },
+    {
+      "id": "closure",
+      "repeat": 3,
+      "model": "gemma",
+      "origin": "historical-core",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "era só isso, boa noite",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena encerra a conversa com Filomena comunicando que era só isso e desejando boa noite."
+      },
+      "usage": {
+        "prompt_tokens": 911,
+        "completion_tokens": 599,
+        "total_tokens": 1510,
+        "completion_tokens_details": {
+          "reasoning_tokens": 558
+        }
+      },
+      "elapsedMs": 5076.9737
+    },
+    {
+      "id": "explicit-play",
+      "repeat": 3,
+      "model": "gemma",
+      "origin": "historical-core",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Filomena, vim só te perturbar um pouco",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena aborda Filomena no grupo de avaliação, informando que veio apenas para perturbar-lhe um pouco."
+      },
+      "usage": {
+        "prompt_tokens": 916,
+        "completion_tokens": 544,
+        "total_tokens": 1460,
+        "completion_tokens_details": {
+          "reasoning_tokens": 499
+        }
+      },
+      "elapsedMs": 4594.7006
+    },
+    {
+      "id": "transfer-teasing",
+      "repeat": 1,
+      "model": "gemma",
+      "origin": "historical-transfer",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Filomena, passei só pra te atazanar um pouco",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena envia mensagem para Filomena, informando que passou apenas para atazaná-la um pouco no grupo de avaliação."
+      },
+      "usage": {
+        "prompt_tokens": 918,
+        "completion_tokens": 632,
+        "total_tokens": 1550,
+        "completion_tokens_details": {
+          "reasoning_tokens": 585
+        }
+      },
+      "elapsedMs": 4914.767
+    },
+    {
+      "id": "transfer-literal",
+      "repeat": 1,
+      "model": "gemma",
+      "origin": "historical-transfer",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Gabriel, vim encher minha garrafa de água",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena comunica a Gabriel que veio encher sua garrafa de água no grupo."
+      },
+      "usage": {
+        "prompt_tokens": 915,
+        "completion_tokens": 693,
+        "total_tokens": 1608,
+        "completion_tokens_details": {
+          "reasoning_tokens": 656
+        }
+      },
+      "elapsedMs": 5573.4786
+    },
+    {
+      "id": "transfer-negation",
+      "repeat": 1,
+      "model": "gemma",
+      "origin": "historical-transfer",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Filomena, não vim te encher; preciso mesmo de ajuda com o relatório",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena comunica a Filomena que precisa de ajuda com o relatório."
+      },
+      "usage": {
+        "prompt_tokens": 929,
+        "completion_tokens": 655,
+        "total_tokens": 1584,
+        "completion_tokens_details": {
+          "reasoning_tokens": 621
+        }
+      },
+      "elapsedMs": 5041.4293
+    },
+    {
+      "id": "transfer-quoted-target",
+      "repeat": 1,
+      "model": "gemma",
+      "origin": "historical-transfer",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Gabriel falou para a Bia: 'vim só te perturbar'. Filomena, estou contando o que ele disse.",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena conta a Filomena que Gabriel disse à Bia: 'vim só te perturbar'."
+      },
+      "usage": {
+        "prompt_tokens": 940,
+        "completion_tokens": 608,
+        "total_tokens": 1548,
+        "completion_tokens_details": {
+          "reasoning_tokens": 568
+        }
+      },
+      "elapsedMs": 4709.6452
+    },
+    {
+      "id": "transfer-teasing",
+      "repeat": 2,
+      "model": "gemma",
+      "origin": "historical-transfer",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Filomena, passei só pra te atazanar um pouco",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena enviou mensagem para Filomena dizendo que passou só para atazaná-la um pouco."
+      },
+      "usage": {
+        "prompt_tokens": 918,
+        "completion_tokens": 567,
+        "total_tokens": 1485,
+        "completion_tokens_details": {
+          "reasoning_tokens": 526
+        }
+      },
+      "elapsedMs": 4329.4215
+    },
+    {
+      "id": "transfer-literal",
+      "repeat": 2,
+      "model": "gemma",
+      "origin": "historical-transfer",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Gabriel, vim encher minha garrafa de água",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena informa o grupo que veio encher sua garrafa de água, direcionando a fala a Gabriel."
+      },
+      "usage": {
+        "prompt_tokens": 915,
+        "completion_tokens": 784,
+        "total_tokens": 1699,
+        "completion_tokens_details": {
+          "reasoning_tokens": 742
+        }
+      },
+      "elapsedMs": 6098.1468
+    },
+    {
+      "id": "transfer-negation",
+      "repeat": 2,
+      "model": "gemma",
+      "origin": "historical-transfer",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Filomena, não vim te encher; preciso mesmo de ajuda com o relatório",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena comunica a Filomena que precisa de ajuda com o relatório, sem querer incomodá-la."
+      },
+      "usage": {
+        "prompt_tokens": 929,
+        "completion_tokens": 651,
+        "total_tokens": 1580,
+        "completion_tokens_details": {
+          "reasoning_tokens": 609
+        }
+      },
+      "elapsedMs": 4964.8223
+    },
+    {
+      "id": "transfer-quoted-target",
+      "repeat": 2,
+      "model": "gemma",
+      "origin": "historical-transfer",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Gabriel falou para a Bia: 'vim só te perturbar'. Filomena, estou contando o que ele disse.",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena informa a Filomena sobre o que Gabriel disse para Bia no grupo de avaliação."
+      },
+      "usage": {
+        "prompt_tokens": 940,
+        "completion_tokens": 558,
+        "total_tokens": 1498,
+        "completion_tokens_details": {
+          "reasoning_tokens": 520
+        }
+      },
+      "elapsedMs": 4299.4623
+    },
+    {
+      "id": "actual-typo",
+      "repeat": 1,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "nada só vim enxer mesmo",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena diz que não é nada e comenta que só veio “encher mesmo”."
+      },
+      "usage": {
+        "input_tokens": 900,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 187,
+        "output_tokens_details": {
+          "reasoning_tokens": 155
+        },
+        "total_tokens": 1087
+      },
+      "elapsedMs": 3392.4431,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "corrected-spelling",
+      "repeat": 1,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "nada, só vim encher mesmo",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena responde a Filomena que não há nada e que só veio “encher”."
+      },
+      "usage": {
+        "input_tokens": 901,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 153,
+        "output_tokens_details": {
+          "reasoning_tokens": 120
+        },
+        "total_tokens": 1054
+      },
+      "elapsedMs": 2030.8079,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "other-recipient",
+      "repeat": 1,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Gabriel, só vim te encher mesmo",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena diz a Gabriel: “só vim te encher mesmo”."
+      },
+      "usage": {
+        "input_tokens": 902,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 155,
+        "output_tokens_details": {
+          "reasoning_tokens": 124
+        },
+        "total_tokens": 1057
+      },
+      "elapsedMs": 2456.1986,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "neutral-presence",
+      "repeat": 1,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "nada, só vim ver se você estava aqui",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena diz que só veio ver se Filomena estava aqui."
+      },
+      "usage": {
+        "input_tokens": 906,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 143,
+        "output_tokens_details": {
+          "reasoning_tokens": 115
+        },
+        "total_tokens": 1049
+      },
+      "elapsedMs": 2272.6945,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "closure",
+      "repeat": 1,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "era só isso, boa noite",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena diz a Filomena que era só isso e deseja boa noite."
+      },
+      "usage": {
+        "input_tokens": 899,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 196,
+        "output_tokens_details": {
+          "reasoning_tokens": 166
+        },
+        "total_tokens": 1095
+      },
+      "elapsedMs": 2648.3966,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "explicit-play",
+      "repeat": 1,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Filomena, vim só te perturbar um pouco",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena diz a Filomena: “vim só te perturbar um pouco”."
+      },
+      "usage": {
+        "input_tokens": 904,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 94,
+        "output_tokens_details": {
+          "reasoning_tokens": 61
+        },
+        "total_tokens": 998
+      },
+      "elapsedMs": 1554.8967,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "actual-typo",
+      "repeat": 2,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "nada só vim enxer mesmo",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena diz que não há nada e que só veio “enxer” mesmo."
+      },
+      "usage": {
+        "input_tokens": 900,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 169,
+        "output_tokens_details": {
+          "reasoning_tokens": 137
+        },
+        "total_tokens": 1069
+      },
+      "elapsedMs": 2329.6798,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "corrected-spelling",
+      "repeat": 2,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "nada, só vim encher mesmo",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena responde que veio “só encher mesmo”."
+      },
+      "usage": {
+        "input_tokens": 901,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 155,
+        "output_tokens_details": {
+          "reasoning_tokens": 127
+        },
+        "total_tokens": 1056
+      },
+      "elapsedMs": 2367.7819,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "other-recipient",
+      "repeat": 2,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Gabriel, só vim te encher mesmo",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena diz a Gabriel que só veio “te encher”."
+      },
+      "usage": {
+        "input_tokens": 902,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 130,
+        "output_tokens_details": {
+          "reasoning_tokens": 101
+        },
+        "total_tokens": 1032
+      },
+      "elapsedMs": 1718.6757,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "neutral-presence",
+      "repeat": 2,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "nada, só vim ver se você estava aqui",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena diz que só veio ver se Filomena estava ali."
+      },
+      "usage": {
+        "input_tokens": 906,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 138,
+        "output_tokens_details": {
+          "reasoning_tokens": 110
+        },
+        "total_tokens": 1044
+      },
+      "elapsedMs": 2222.4798,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "closure",
+      "repeat": 2,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "era só isso, boa noite",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena diz que era só isso e deseja boa noite."
+      },
+      "usage": {
+        "input_tokens": 899,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 102,
+        "output_tokens_details": {
+          "reasoning_tokens": 75
+        },
+        "total_tokens": 1001
+      },
+      "elapsedMs": 1542.331,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "explicit-play",
+      "repeat": 2,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Filomena, vim só te perturbar um pouco",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena diz a Filomena que veio “perturbar um pouco”."
+      },
+      "usage": {
+        "input_tokens": 904,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 123,
+        "output_tokens_details": {
+          "reasoning_tokens": 92
+        },
+        "total_tokens": 1027
+      },
+      "elapsedMs": 1867.626,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "actual-typo",
+      "repeat": 3,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "nada só vim enxer mesmo",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena responde a Filomena que não há nada e que só veio “enxer mesmo”."
+      },
+      "usage": {
+        "input_tokens": 900,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 218,
+        "output_tokens_details": {
+          "reasoning_tokens": 183
+        },
+        "total_tokens": 1118
+      },
+      "elapsedMs": 2684.419,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "corrected-spelling",
+      "repeat": 3,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "nada, só vim encher mesmo",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena responde a Filomena que não é nada e que só veio “encher”."
+      },
+      "usage": {
+        "input_tokens": 901,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 148,
+        "output_tokens_details": {
+          "reasoning_tokens": 115
+        },
+        "total_tokens": 1049
+      },
+      "elapsedMs": 1997.6623,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "other-recipient",
+      "repeat": 3,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Gabriel, só vim te encher mesmo",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena comenta a Gabriel: “só vim te encher”."
+      },
+      "usage": {
+        "input_tokens": 902,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 189,
+        "output_tokens_details": {
+          "reasoning_tokens": 159
+        },
+        "total_tokens": 1091
+      },
+      "elapsedMs": 2864.9455,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "neutral-presence",
+      "repeat": 3,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "nada, só vim ver se você estava aqui",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena diz que só veio ver se Filomena estava ali."
+      },
+      "usage": {
+        "input_tokens": 906,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 122,
+        "output_tokens_details": {
+          "reasoning_tokens": 94
+        },
+        "total_tokens": 1028
+      },
+      "elapsedMs": 1648.9146,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "closure",
+      "repeat": 3,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "era só isso, boa noite",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena diz que era só isso e deseja boa noite após Filomena responder que estava presente."
+      },
+      "usage": {
+        "input_tokens": 899,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 142,
+        "output_tokens_details": {
+          "reasoning_tokens": 108
+        },
+        "total_tokens": 1041
+      },
+      "elapsedMs": 1799.5068,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "explicit-play",
+      "repeat": 3,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Filomena, vim só te perturbar um pouco",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena diz a Filomena: “vim só te perturbar um pouco”."
+      },
+      "usage": {
+        "input_tokens": 904,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 152,
+        "output_tokens_details": {
+          "reasoning_tokens": 119
+        },
+        "total_tokens": 1056
+      },
+      "elapsedMs": 2344.6731,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "transfer-teasing",
+      "repeat": 1,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Filomena, passei só pra te atazanar um pouco",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena diz a Filomena que passou só para “te atazanar um pouco”."
+      },
+      "usage": {
+        "input_tokens": 906,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 107,
+        "output_tokens_details": {
+          "reasoning_tokens": 73
+        },
+        "total_tokens": 1013
+      },
+      "elapsedMs": 1777.4747,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "transfer-literal",
+      "repeat": 1,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Gabriel, vim encher minha garrafa de água",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena diz a Gabriel que veio encher sua garrafa de água."
+      },
+      "usage": {
+        "input_tokens": 905,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 96,
+        "output_tokens_details": {
+          "reasoning_tokens": 66
+        },
+        "total_tokens": 1001
+      },
+      "elapsedMs": 1766.0304,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "transfer-negation",
+      "repeat": 1,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Filomena, não vim te encher; preciso mesmo de ajuda com o relatório",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena diz a Filomena que não veio “encher” e precisa de ajuda com o relatório."
+      },
+      "usage": {
+        "input_tokens": 915,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 105,
+        "output_tokens_details": {
+          "reasoning_tokens": 70
+        },
+        "total_tokens": 1020
+      },
+      "elapsedMs": 1715.3073,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "transfer-quoted-target",
+      "repeat": 1,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Gabriel falou para a Bia: 'vim só te perturbar'. Filomena, estou contando o que ele disse.",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena conta a Filomena que Gabriel disse a Bia: “vim só te perturbar”."
+      },
+      "usage": {
+        "input_tokens": 924,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 149,
+        "output_tokens_details": {
+          "reasoning_tokens": 112
+        },
+        "total_tokens": 1073
+      },
+      "elapsedMs": 2169.0186,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "transfer-teasing",
+      "repeat": 2,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Filomena, passei só pra te atazanar um pouco",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena diz a Filomena que passou só para “te atazanar um pouco”."
+      },
+      "usage": {
+        "input_tokens": 906,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 119,
+        "output_tokens_details": {
+          "reasoning_tokens": 85
+        },
+        "total_tokens": 1025
+      },
+      "elapsedMs": 1855.1382,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "transfer-literal",
+      "repeat": 2,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Gabriel, vim encher minha garrafa de água",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena diz a Gabriel que veio encher a própria garrafa de água."
+      },
+      "usage": {
+        "input_tokens": 905,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 139,
+        "output_tokens_details": {
+          "reasoning_tokens": 108
+        },
+        "total_tokens": 1044
+      },
+      "elapsedMs": 2081.4261,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "transfer-negation",
+      "repeat": 2,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Filomena, não vim te encher; preciso mesmo de ajuda com o relatório",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena diz a Filomena que não veio incomodá-la e precisa de ajuda com o relatório."
+      },
+      "usage": {
+        "input_tokens": 915,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 100,
+        "output_tokens_details": {
+          "reasoning_tokens": 64
+        },
+        "total_tokens": 1015
+      },
+      "elapsedMs": 1765.5373,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "transfer-quoted-target",
+      "repeat": 2,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Gabriel falou para a Bia: 'vim só te perturbar'. Filomena, estou contando o que ele disse.",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena conta a Filomena que Gabriel disse à Bia: “vim só te perturbar”."
+      },
+      "usage": {
+        "input_tokens": 924,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 134,
+        "output_tokens_details": {
+          "reasoning_tokens": 97
+        },
+        "total_tokens": 1058
+      },
+      "elapsedMs": 2002.756,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "novel-colloquial",
+      "repeat": 1,
+      "model": "gemma",
+      "resolvedModel": "google/gemma-4-e4b",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Filomena, relaxa, tô só pegando no seu pé",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena pede a Filomena que relaxe, explicando que apenas estava \"pegando no seu pé\"."
+      },
+      "usage": {
+        "prompt_tokens": 929,
+        "completion_tokens": 717,
+        "total_tokens": 1646,
+        "completion_tokens_details": {
+          "reasoning_tokens": 675
+        }
+      },
+      "elapsedMs": 8418.804,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "novel-colloquial",
+      "repeat": 1,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Filomena, relaxa, tô só pegando no seu pé",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena diz a Filomena: “relaxa, tô só pegando no seu pé”."
+      },
+      "usage": {
+        "input_tokens": 914,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 142,
+        "output_tokens_details": {
+          "reasoning_tokens": 107
+        },
+        "total_tokens": 1056
+      },
+      "elapsedMs": 1737.5001,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "novel-quoted-negation",
+      "repeat": 1,
+      "model": "gemma",
+      "resolvedModel": "google/gemma-4-e4b",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Bia disse ao Gabriel: 'não tô tirando sarro de você'. Filomena, a frase é da Bia, não minha.",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena cita o que Bia disse a Gabriel e esclarece ao grupo que a frase é da Bia, não dela."
+      },
+      "usage": {
+        "prompt_tokens": 967,
+        "completion_tokens": 689,
+        "total_tokens": 1656,
+        "completion_tokens_details": {
+          "reasoning_tokens": 645
+        }
+      },
+      "elapsedMs": 5865.6427,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "novel-quoted-negation",
+      "repeat": 1,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Bia disse ao Gabriel: 'não tô tirando sarro de você'. Filomena, a frase é da Bia, não minha.",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena esclarece a Filomena que a frase “não tô tirando sarro de você” é de Bia, não dela."
+      },
+      "usage": {
+        "input_tokens": 944,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 163,
+        "output_tokens_details": {
+          "reasoning_tokens": 120
+        },
+        "total_tokens": 1107
+      },
+      "elapsedMs": 1943.6105,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "novel-colloquial",
+      "repeat": 2,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Filomena, relaxa, tô só pegando no seu pé",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena diz a Filomena para relaxar e afirma que está só “pegando no seu pé”."
+      },
+      "usage": {
+        "input_tokens": 914,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 129,
+        "output_tokens_details": {
+          "reasoning_tokens": 92
+        },
+        "total_tokens": 1043
+      },
+      "elapsedMs": 1733.9161,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "novel-colloquial",
+      "repeat": 2,
+      "model": "gemma",
+      "resolvedModel": "google/gemma-4-e4b",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Filomena, relaxa, tô só pegando no seu pé",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena diz para Filomena relaxar, afirmando que só está pegando no pé dela."
+      },
+      "usage": {
+        "prompt_tokens": 929,
+        "completion_tokens": 534,
+        "total_tokens": 1463,
+        "completion_tokens_details": {
+          "reasoning_tokens": 494
+        }
+      },
+      "elapsedMs": 4722.1795,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "novel-quoted-negation",
+      "repeat": 2,
+      "model": "luna",
+      "resolvedModel": "gpt-6-luna",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Bia disse ao Gabriel: 'não tô tirando sarro de você'. Filomena, a frase é da Bia, não minha.",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena esclarece a Filomena que Bia disse a Gabriel “não tô tirando sarro de você”, não Helena."
+      },
+      "usage": {
+        "input_tokens": 944,
+        "input_tokens_details": {
+          "cache_write_tokens": 0,
+          "cached_tokens": 0
+        },
+        "output_tokens": 211,
+        "output_tokens_details": {
+          "reasoning_tokens": 170
+        },
+        "total_tokens": 1155
+      },
+      "elapsedMs": 2444.3579,
+      "wordLimit": true,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    },
+    {
+      "id": "novel-quoted-negation",
+      "repeat": 2,
+      "model": "gemma",
+      "resolvedModel": "google/gemma-4-e4b",
+      "origin": "current",
+      "input": {
+        "mensagens": [
+          {
+            "texto": "Bia disse ao Gabriel: 'não tô tirando sarro de você'. Filomena, a frase é da Bia, não minha.",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ],
+        "historico": [
+          {
+            "texto": "Filomena tá aí?",
+            "remetente": {
+              "nome": "Helena",
+              "ref": "ref1"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          },
+          {
+            "texto": "Tô aqui, Helena. O que foi?",
+            "remetente": {
+              "nome": "Filomena",
+              "ref": "ref3"
+            },
+            "canal": {
+              "nome": "Grupo de avaliação",
+              "ref": "ref2"
+            },
+            "reply": null
+          }
+        ]
+      },
+      "result": {
+        "resumo": "Helena esclarece que a frase 'não tô tirando sarro de você' foi dita por Bia ao Gabriel e não por ela, falando diretamente com Filomena."
+      },
+      "usage": {
+        "prompt_tokens": 967,
+        "completion_tokens": 566,
+        "total_tokens": 1533,
+        "completion_tokens_details": {
+          "reasoning_tokens": 511
+        }
+      },
+      "elapsedMs": 4546.1222,
+      "wordLimit": false,
+      "promptHash": "4283474806C37BC068DA76B050D1B3D42BD0D65575B5CA08611CBB005B0B0B11"
+    }
+  ],
+  "productionChanges": 0,
+  "transportCalls": 0,
+  "graphitiCalls": 0,
+  "jevCalls": 0,
+  "runtimeExecutions": 0,
+  "limitations": [
+    "Gemma comparison uses 26 historical outputs and 4 fresh outputs.",
+    "Only new contrasts were interleaved and order-balanced.",
+    "Provider profiles and tokenizers differ; this is not a controlled model-weights-only experiment.",
+    "Small development corpus; no statistical or global model ranking.",
+    "No final participation or response-generation outcomes were executed."
+  ]
+}

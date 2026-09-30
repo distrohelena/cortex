@@ -288,6 +288,11 @@ Each summary must be under {MAX_SUMMARY_CHARS} characters.
 
 {summary_instructions}
 
+Preserve the evidence policy below when updating summaries. Do not strengthen
+questions, hypotheses, quotations or contextual reactions into personal facts.
+Keep attribution and uncertainty; do not treat existing summaries as independent verification.
+{context.get('custom_extraction_instructions', '')}
+
 <MESSAGES>
 {to_prompt_json(context['previous_episodes'])}
 {to_prompt_json(context['episode_content'])}

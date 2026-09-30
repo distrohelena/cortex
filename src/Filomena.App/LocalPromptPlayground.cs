@@ -1,9 +1,11 @@
+using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
 using Filomena.Llm.LmStudio;
 using Filomena.Core.Memory;
 using Filomena.Memory;
 using Filomena.App.Playground;
+using Filomena.App.FlowRuntime;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Hosting;
@@ -18,7 +20,7 @@ namespace Filomena.App;
 // Isolated by default; live transport is enabled only through explicit composition.
 public static class LocalPromptPlayground
 {
-    public static async Task RunAsync(bool liveReload = false)
+    public static async Task RunAsync(bool liveReload = false, bool flowLive = false)
     {
         var configuration = new ConfigurationBuilder()
             .SetBasePath(AppContext.BaseDirectory)
@@ -30,14 +32,16 @@ public static class LocalPromptPlayground
         var memoryEndpoint = Environment.GetEnvironmentVariable("FILOMENA_GRAPHITI_MCP_ENDPOINT");
         await using var memoryClient = string.IsNullOrWhiteSpace(memoryEndpoint) ? null : new GraphitiReadClient(new Uri(memoryEndpoint), TimeSpan.FromSeconds(15));
         await using var app = Build(options, http, sourceDirectory: sourceDirectory,
-            memoryReader: memoryClient is null ? null : new GraphitiMemoryReader(memoryClient));
+            memoryReader: memoryClient is null ? null : new GraphitiMemoryReader(memoryClient),
+            configureLiveServices: flowLive ? services => DmFlowLiveHosting.Configure(services, configuration, http) : null);
         if (sourceDirectory is not null) Console.WriteLine($"Playground live reload: {sourceDirectory}");
         await app.RunAsync();
     }
 
     public static WebApplication Build(LmStudioOptions options, HttpClient httpClient, int port = 18793, string? sourceDirectory = null,
-        string? projectDirectory = null, IMemoryReader? memoryReader = null)
+        Action<IServiceCollection>? configureLiveServices = null, string? projectDirectory = null, IMemoryReader? memoryReader = null)
     {
+        var client = new LmStudioClient(httpClient, options);
         var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions
         {
             ContentRootPath = AppContext.BaseDirectory,
@@ -50,6 +54,7 @@ public static class LocalPromptPlayground
         });
         builder.Logging.AddSimpleConsole(logging => logging.TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff zzz ");
         builder.Services.AddSingleton(new SessionFlowHarnessStore(memoryReader));
+        configureLiveServices?.Invoke(builder.Services);
         var app = builder.Build();
         app.Use(async (context, next) =>
         {
@@ -65,7 +70,7 @@ public static class LocalPromptPlayground
             context.Response.Headers.CacheControl = "no-store";
             context.Response.Headers.ContentSecurityPolicy = "default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
             context.Response.Headers.XContentTypeOptions = "nosniff";
-            if ((request.Path == "/api/flow/project" || request.Path.StartsWithSegments("/api/flow/typed")) && context.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } bodySize)
+            if ((request.Path == "/api/flow/live/activate" || request.Path == "/api/flow/project" || request.Path.StartsWithSegments("/api/flow/typed")) && context.Features.Get<IHttpMaxRequestBodySizeFeature>() is { IsReadOnly: false } bodySize)
                 bodySize.MaxRequestBodySize = 1048576;
             await next(context);
         });
@@ -83,6 +88,25 @@ public static class LocalPromptPlayground
             catch (InvalidDataException) { return Results.BadRequest(new { error = "Projeto inválido. Envie somente o desenho, até 1 MB." }); }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException)
             { return Results.Json(new { error = "Não foi possível salvar o projeto." }, statusCode: 503); }
+        });
+        object LiveStatus()
+        {
+            var live = app.Services.GetService<DmFlowLiveSession>();
+            return new { available = live is not null, active = live?.Active ?? false,
+                target = live is null ? null : new { channel = live.Channel, accountId = live.AccountId, nativeId = live.NativeId } };
+        }
+        app.MapGet("/api/flow/live", () => Results.Ok(LiveStatus()));
+        app.MapPost("/api/flow/live/activate", (JsonElement document) =>
+        {
+            var live = app.Services.GetService<DmFlowLiveSession>();
+            if (live is null) return Results.Json(new { error = "Modo real não habilitado neste servidor." }, statusCode: 409);
+            try { live.Activate(document);return Results.Ok(LiveStatus()); }
+            catch (Exception error) when (error is ArgumentException or JsonException or InvalidDataException)
+            { return Results.BadRequest(new { error = "Fluxo inválido para ativação: " + error.Message }); }
+        });
+        app.MapPost("/api/flow/live/deactivate", () =>
+        {
+            app.Services.GetService<DmFlowLiveSession>()?.Deactivate();return Results.Ok(LiveStatus());
         });
         TypedFlowEndpoints.Map(app);
         SessionFlowEndpoints.Map(app);
@@ -143,6 +167,38 @@ public static class LocalPromptPlayground
             });
             app.MapGet("/__playground/live-reload.js", () => Results.Content(assets.Read("live-reload.js"), "text/javascript; charset=utf-8"));
         }
+        app.MapPost("/api/flow/validate", (LocalFlowDraft graph) =>
+        {
+            try { return Results.Ok(new { order = LocalFlowRunner.Validate(graph).Select(n => n.Id) }); }
+            catch (ArgumentException error) { return Results.BadRequest(new { error = error.Message }); }
+        });
+        app.MapPost("/api/flow/run", async (LocalFlowRequest input, CancellationToken cancellationToken) =>
+        {
+            try { return Results.Ok(await LocalFlowRunner.RunAsync(input.Graph, input.Message, client, cancellationToken, input.EntryNodeId)); }
+            catch (ArgumentException error) { return Results.BadRequest(new { error = error.Message }); }
+        });
+        app.MapPost("/api/test", async (PromptRequest input, CancellationToken cancellationToken) =>
+        {
+            if (string.IsNullOrWhiteSpace(input.Prompt) || string.IsNullOrWhiteSpace(input.Message)
+                || input.Prompt.Length > 16000 || input.Message.Length > 16000)
+                return Results.BadRequest(new { error = "Preencha prompt e mensagem (até 16.000 caracteres cada)." });
+            var started = Stopwatch.StartNew();
+            try
+            {
+                var text = await client.CompleteResponseAsync(input.Prompt, input.Message, cancellationToken);
+                return Results.Ok(new { text, elapsedMs = started.ElapsedMilliseconds });
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                return Results.Json(new { error = "O LM Studio excedeu o tempo configurado." }, statusCode: 504);
+            }
+            catch (Exception error) when (error is HttpRequestException or InvalidDataException or JsonException)
+            {
+                return Results.Json(new { error = "Não foi possível obter uma resposta. Confira o servidor e o modelo no LM Studio." }, statusCode: 502);
+            }
+        });
         return app;
     }
+
+    public sealed record PromptRequest(string? Prompt, string? Message);
 }

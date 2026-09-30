@@ -28,7 +28,10 @@ public sealed class SystemOneFlowCompletionTests
         var output = Json(await adapter.CompleteAsync(Request(), TestContext.Current.CancellationToken));
         Assert.Equal("responder", output.GetProperty("acao").GetString());
         var question = handler.Body.GetProperty("questions").GetProperty("acao");
-        Assert.Equal("Choose participation only.", question.GetProperty("instructions").GetString());
+        var instructions = question.GetProperty("instructions");
+        Assert.Equal("Choose participation only.", instructions.GetProperty("choiceGuidance").GetString());
+        Assert.Equal("Classify only.", instructions.GetProperty("task").GetString());
+        Assert.Equal("acao", instructions.GetProperty("field").GetString());
         Assert.Equal("Address the speaker", question.GetProperty("criteria").GetProperty("responder").GetString());
     }
 

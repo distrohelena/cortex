@@ -22,6 +22,14 @@ public sealed record ConversationTurnOptions
 
     public int MaxWaitReevaluations { get; init; } = 1;
 
+    public int MaxBurstMessages { get; init; } = 50;
+
+    public int DmDefaultRecheckSeconds { get; init; } = 15;
+    public int DmMinRecheckSeconds { get; init; } = 5;
+    public int DmMaxRecheckSeconds { get; init; } = 120;
+    public int DmFollowUpAfterSilenceSeconds { get; init; } = 45;
+    public int DmMaxTimedReevaluations { get; init; } = 3;
+
     public int RecentMessageLimit { get; init; } = 16;
 
     public int RecentCharacterLimit { get; init; } = 3000;
@@ -43,6 +51,12 @@ public sealed record ConversationTurnOptions
         ValidatePositive(WaitReevaluationDelay, nameof(WaitReevaluationDelay));
         ValidatePositive(RecentWindow, nameof(RecentWindow));
         ArgumentOutOfRangeException.ThrowIfLessThan(MaxWaitReevaluations, 0);
+        ArgumentOutOfRangeException.ThrowIfLessThan(MaxBurstMessages, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(DmMinRecheckSeconds, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(DmDefaultRecheckSeconds, DmMinRecheckSeconds);
+        ArgumentOutOfRangeException.ThrowIfLessThan(DmMaxRecheckSeconds, DmDefaultRecheckSeconds);
+        ArgumentOutOfRangeException.ThrowIfLessThan(DmFollowUpAfterSilenceSeconds, DmMinRecheckSeconds);
+        ArgumentOutOfRangeException.ThrowIfLessThan(DmMaxTimedReevaluations, 0);
         ArgumentOutOfRangeException.ThrowIfLessThan(RecentMessageLimit, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(RecentCharacterLimit, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(GenerationMessageLimit, 1);

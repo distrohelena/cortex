@@ -14,7 +14,7 @@ public sealed partial class SessionFlowRuntime : IAsyncDisposable
 {
     private readonly object administrationGate = new();
     private readonly TimeProvider timeProvider;
-    private readonly Func<SessionKey, IFlowCompletion> completionFactory;
+    private readonly ISessionFlowCompletionFactory completionFactory;
     private readonly IMemoryReader memoryReader;
     private readonly Func<SessionInstructionOutput, CancellationToken, Task>? instructionOutput;
     private readonly Func<SessionNodeVisit, CancellationToken, Task>? nodeStarting;
@@ -30,6 +30,14 @@ public sealed partial class SessionFlowRuntime : IAsyncDisposable
     }
 
     public SessionFlowRuntime(TimeProvider timeProvider, Func<SessionKey, IFlowCompletion> completionFactory, IMemoryReader? memoryReader = null,
+        Func<SessionInstructionOutput, CancellationToken, Task>? instructionOutput = null,
+        Func<SessionNodeVisit, CancellationToken, Task>? nodeStarting = null,
+        Outbound.ShadowOutboundHost? outboundHost = null)
+        : this(timeProvider, new LegacyCompletionFactory(completionFactory), memoryReader, instructionOutput, nodeStarting, outboundHost)
+    {
+    }
+
+    public SessionFlowRuntime(TimeProvider timeProvider, ISessionFlowCompletionFactory completionFactory, IMemoryReader? memoryReader = null,
         Func<SessionInstructionOutput, CancellationToken, Task>? instructionOutput = null,
         Func<SessionNodeVisit, CancellationToken, Task>? nodeStarting = null,
         Outbound.ShadowOutboundHost? outboundHost = null)
@@ -87,5 +95,19 @@ public sealed partial class SessionFlowRuntime : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(completion);
         return _ => completion;
+    }
+
+    private IFlowCompletion CreateCompletion(FlowBatch batch) => completionFactory.Create(new(batch.Session,
+        batch.ExecutionId, batch.BatchId, batch.Project.ProjectId, batch.Project.ProjectVersion, batch.Project.ProjectRevision));
+
+    private sealed class LegacyCompletionFactory : ISessionFlowCompletionFactory
+    {
+        private readonly Func<SessionKey, IFlowCompletion> create;
+        internal LegacyCompletionFactory(Func<SessionKey, IFlowCompletion> create)
+        {
+            ArgumentNullException.ThrowIfNull(create);
+            this.create = create;
+        }
+        public IFlowCompletion Create(SessionCompletionContext context) => create(context.Session);
     }
 }

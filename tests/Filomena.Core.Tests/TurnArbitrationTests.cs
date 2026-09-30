@@ -67,7 +67,7 @@ public sealed class TurnArbitrationTests
     }
 
     [Fact]
-    public void InvalidOutputForClearlyAddressedAllowlistedDmFallsBackToRespond()
+    public void InvalidOutputForAllowlistedDmWaitsWithoutGuessingCompleteness()
     {
         var dm = Group with
         {
@@ -82,10 +82,10 @@ public sealed class TurnArbitrationTests
 
         var fallback = TurnDecisionPolicy.InvalidOutputFallback(request);
 
-        Assert.Equal(TurnAction.Respond, fallback.Decision);
-        Assert.Equal("message-1", fallback.AnchorRef);
-        Assert.Equal(Helena.StableId, fallback.TargetRef);
-        Assert.Equal(TurnReason.ClearDirectMessageExpectation, fallback.Reason);
+        Assert.Equal(TurnAction.Wait, fallback.Decision);
+        Assert.Null(fallback.AnchorRef);
+        Assert.Null(fallback.TargetRef);
+        Assert.Equal(TurnReason.InvalidArbiterOutput, fallback.Reason);
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public sealed class TurnArbitrationTests
                 HasStructuralReply: false,
                 SinceLastFilomenaTurn: null));
 
-        Assert.Equal(TurnAction.Ignore, TurnDecisionPolicy.InvalidOutputFallback(request).Decision);
+        Assert.Equal(TurnAction.Wait, TurnDecisionPolicy.InvalidOutputFallback(request).Decision);
     }
 
     private static TurnArbitrationRequest Request(

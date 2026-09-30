@@ -21,12 +21,25 @@ public sealed class FilomenaAgent(
         if (request.Messages.Any(message => message.Conversation?.Id != request.Conversation.Id))
             throw new InvalidDataException("Cross-conversation generation context rejected.");
 
-        var text = (await model.CompleteResponseAsync(options.SystemPrompt, BuildPrompt(request), cancellationToken)).Trim();
+        var conversationInstructions = request.Conversation.Kind switch
+        {
+            ConversationKind.DirectMessage => options.DirectMessageInstructions,
+            ConversationKind.Group => options.GroupInstructions,
+            _ => throw new InvalidDataException("Unknown conversation kind cannot generate a reply."),
+        };
+        var systemPrompt = options.SystemPrompt + "\n\n" + conversationInstructions;
+        if (request.Decision.ResponseKind == TurnResponseKind.FollowUp)
+        {
+            if (request.Conversation.Kind != ConversationKind.DirectMessage)
+                throw new InvalidDataException("Follow-up generation is only enabled for DM.");
+            systemPrompt += "\n\n" + options.FollowUpInstructions;
+        }
+        var text = (await model.CompleteResponseAsync(systemPrompt, BuildPrompt(request), cancellationToken)).Trim();
         if (text.StartsWith("Filomena:", StringComparison.OrdinalIgnoreCase)) text = text[9..].Trim();
         if (string.IsNullOrWhiteSpace(text) || text is "NO_REPLY" or "HEARTBEAT_OK") return null;
-        text = "Filomena: " + text;
         if (text.Length > options.MaxResponseCharacters)
             throw new InvalidDataException("Generated response exceeded the configured limit.");
+        if (request.IsSuperseded?.Invoke() == true) return null;
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromSeconds(options.SendTimeoutSeconds));
         var receipt = await sender.SendTextAsync(request.Conversation.SessionKey, text, timeout.Token);

@@ -15,6 +15,11 @@ public enum InboundBridgeAcceptance
 
 public sealed class OpenClawInboundBridgeReceiver
 {
+    private readonly Func<InboundConversationEvent, InboundConversationEvent>? prepareForQueue;
+
+    public OpenClawInboundBridgeReceiver(Func<InboundConversationEvent, InboundConversationEvent>? prepareForQueue = null)
+        => this.prepareForQueue = prepareForQueue;
+
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly ObservedMessageRegistry observedMessages = new();
     private readonly Channel<InboundConversationEvent> events = Channel.CreateUnbounded<InboundConversationEvent>(
@@ -48,14 +53,15 @@ public sealed class OpenClawInboundBridgeReceiver
             return InboundBridgeAcceptance.Invalid;
         }
 
-        if (!observedMessages.TryRemember(conversation.Id.Namespace, message.ProviderMessageId))
+        var dedupScope = JsonSerializer.Serialize(new[] { conversation.Id.Channel, conversation.Id.AccountId, conversation.Id.NativeId });
+        if (!observedMessages.TryRemember(dedupScope, message.ProviderMessageId))
         {
             return InboundBridgeAcceptance.Duplicate;
         }
 
         // Once remembered, ownership is transferred to the process inbox even
         // if the HTTP caller disconnects before receiving its acknowledgement.
-        await events.Writer.WriteAsync(message, CancellationToken.None);
+        await events.Writer.WriteAsync(prepareForQueue?.Invoke(message) ?? message, CancellationToken.None);
         return InboundBridgeAcceptance.Accepted;
     }
 

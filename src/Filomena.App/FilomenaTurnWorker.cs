@@ -56,13 +56,16 @@ public sealed class FilomenaTurnWorker(
         await foreach (var result in turnManager.Results.ReadAllAsync(cancellationToken))
         {
             logger.LogInformation(
-                "Turn decision: conversation={ConversationNamespace} decision={Decision} reason={Reason} anchor={AnchorRef} target={TargetRef} messages={MessageCount} outboundMessageId={OutboundMessageId}.",
+                "Turn decision: conversation={ConversationNamespace} decision={Decision} reason={Reason} anchor={AnchorRef} target={TargetRef} messages={MessageCount} responseKind={ResponseKind} recheckAfterSeconds={RecheckAfterSeconds} awaitingInbound={AwaitingInbound} outboundMessageId={OutboundMessageId}.",
                 result.Conversation.Id.Namespace,
                 result.Decision.Decision,
                 result.Decision.Reason,
                 result.Decision.AnchorRef,
                 result.Decision.TargetRef,
                 result.PendingMessageIds.Count,
+                result.Decision.ResponseKind,
+                result.Decision.RecheckAfterSeconds,
+                result.AwaitingInbound,
                 result.SentTurn?.ProviderMessageId ?? "not-sent");
             if (result.ExecutionError is not null)
                 logger.LogWarning("Generation/send failed: conversation={ConversationNamespace} error={Error}. No automatic send retry; delivery may be uncertain.",

@@ -1,40 +1,26 @@
-using System.Text;
-using System.Text.Json;
-using Filomena.Evaluation.Tools;
-
 namespace Filomena.Evaluation.Cli;
 
 internal static class Program
 {
     private static async Task<int> Main(string[] args)
     {
-        OfflineToolResponse response;
-        if (args is not ["offline"])
+        using var cancellation = new CancellationTokenSource();
+        ConsoleCancelEventHandler cancel = (_, eventArgs) =>
         {
-            response = OfflineEvaluationTools.Error("usage_offline_json_stdin_required");
-        }
-        else
+            eventArgs.Cancel = true;
+            cancellation.Cancel();
+        };
+        Console.CancelKeyPress += cancel;
+        try
         {
-            using var cancellation = new CancellationTokenSource();
-            Console.CancelKeyPress += (_, eventArgs) => { eventArgs.Cancel = true; cancellation.Cancel(); };
-            try
-            {
-                var text = new StringBuilder();
-                var chunk = new char[4096];
-                var oversized = false;
-                while (true)
-                {
-                    var read = await Console.In.ReadAsync(chunk.AsMemory(), cancellation.Token);
-                    if (read == 0) break;
-                    if (text.Length + read > 1_048_576) { oversized = true; break; }
-                    text.Append(chunk, 0, read);
-                }
-                response = oversized ? OfflineEvaluationTools.Error("request_too_large") : OfflineEvaluationTools.Invoke(text.ToString());
-            }
-            catch (OperationCanceledException) { response = OfflineEvaluationTools.Error("cancelled"); }
-            catch (IOException) { response = OfflineEvaluationTools.Error("stdin_unavailable"); }
+            // No datasource, host principal or credential is bootstrapped from
+            // argv/stdin. Standalone persisted mode remains unavailable until a
+            // separately configured host composition supplies its binding.
+            return await new CommandDispatcher().RunAsync(args, Console.In, Console.Out, cancellation.Token);
         }
-        Console.WriteLine(JsonSerializer.Serialize(response, new JsonSerializerOptions(JsonSerializerDefaults.Web)));
-        return response.Success ? 0 : 2;
+        finally
+        {
+            Console.CancelKeyPress -= cancel;
+        }
     }
 }

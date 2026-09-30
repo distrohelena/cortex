@@ -78,7 +78,9 @@ public sealed class SystemOneFlowCompletion(SystemOneClient client, string provi
                         {
                             if (string.IsNullOrWhiteSpace(profile.Instructions) || profile.Criteria.Any(p => string.IsNullOrWhiteSpace(p.Value)) ||
                                 !profile.Criteria.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(criteria.Select(p => p.Key))) throw Unsupported();
-                            question["instructions"] = profile.Instructions;
+                            // Choice semantics supplement the task; they must not erase the
+                            // pinned node instructions, state guidance or field description.
+                            instructions["choiceGuidance"] = profile.Instructions;
                             foreach (var option in profile.Criteria) criteria[option.Key] = option.Value;
                         }
                         question["type"] = "choice";

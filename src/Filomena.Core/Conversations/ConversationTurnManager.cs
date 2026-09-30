@@ -12,6 +12,7 @@ public sealed record ConversationTurnResult(
 {
     public SentConversationTurn? SentTurn { get; init; }
     public string? ExecutionError { get; init; }
+    public bool AwaitingInbound { get; init; }
 }
 
 public sealed class ConversationTurnManager : IAsyncDisposable
@@ -59,7 +60,7 @@ public sealed class ConversationTurnManager : IAsyncDisposable
             conversation.Id.Namespace,
             _ => new ConversationTurnState(conversation));
         _ = state.Start(() => ProcessConversationAsync(state, shutdown.Token));
-        return state.Inbox.Writer.WriteAsync(message, cancellationToken);
+        return state.Inbox.Writer.WriteAsync(new QueuedInbound(message, clock.UtcNow), cancellationToken);
     }
 
     public async ValueTask DisposeAsync()
@@ -102,8 +103,11 @@ public sealed class ConversationTurnManager : IAsyncDisposable
             await CollectBurstAsync(state, pending, burstStartedAt, cancellationToken);
 
             var waitCount = 0;
-            var decision = await DecideAsync(state, pending, cancellationToken);
-            while (decision.Decision == TurnAction.Wait && waitCount < options.MaxWaitReevaluations)
+            var adaptiveDm = BuildSignals(state, pending).IsAllowlistedDirectMessage;
+            var decision = adaptiveDm
+                ? await DecideDirectMessageAsync(state, pending, burstStartedAt, cancellationToken)
+                : await DecideAsync(state, pending, cancellationToken);
+            while (!adaptiveDm && decision.Decision == TurnAction.Wait && waitCount < options.MaxWaitReevaluations)
             {
                 waitCount++;
                 var receivedMore = await WaitForMoreOrDelayAsync(
@@ -137,10 +141,13 @@ public sealed class ConversationTurnManager : IAsyncDisposable
                 {
                     sent = await executor.ExecuteAsync(new ConversationGenerationRequest(
                         state.Conversation,
-                        BuildRecentContext(state, generation: true),
+                        BuildRecentContext(state, generation: true, pending),
                         RecentOutbound(state, options.GenerationWindow),
                         pending.Select(message => message.ProviderMessageId).ToArray(),
-                        decision), cancellationToken);
+                        decision)
+                    {
+                        IsSuperseded = adaptiveDm ? () => state.Inbox.Reader.TryPeek(out _) : null,
+                    }, cancellationToken);
                     if (sent is not null)
                     {
                         state.LastFilomenaTurnAt = sent.SentAt;
@@ -169,6 +176,68 @@ public sealed class ConversationTurnManager : IAsyncDisposable
         }
     }
 
+    private async Task<TurnDecision> DecideDirectMessageAsync(
+        ConversationTurnState state, List<InboundConversationEvent> pending,
+        DateTimeOffset pendingStartedAt, CancellationToken cancellationToken)
+    {
+        var timedRechecks = 0;
+        while (true)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (state.Inbox.Reader.TryPeek(out _))
+            {
+                await CollectDmContinuationAsync(state, pending, cancellationToken);
+                timedRechecks = 0;
+            }
+            var silence = Math.Max(0, (clock.UtcNow - (state.LastInboundObservedAt ?? clock.UtcNow)).TotalSeconds);
+            var request = new TurnArbitrationRequest(state.Conversation,
+                BuildRecentContext(state, pending: pending), BuildSignals(state, pending))
+            {
+                PendingMessageIds = pending.Select(message => message.ProviderMessageId).ToArray(),
+                RecentOutbound = RecentOutbound(state, options.RecentWindow),
+                DirectMessageTiming = new(silence, Math.Max(0, (clock.UtcNow - pendingStartedAt).TotalSeconds),
+                    Math.Max(0, options.DmMaxTimedReevaluations - timedRechecks),
+                    silence >= options.DmFollowUpAfterSilenceSeconds,
+                    options.DmDefaultRecheckSeconds, options.DmMinRecheckSeconds, options.DmMaxRecheckSeconds),
+            };
+            var decision = await arbiter.DecideAsync(request, cancellationToken);
+            // A decision based on an older snapshot cannot authorize a DM send.
+            if (state.Inbox.Reader.TryPeek(out _)) continue;
+            if (!TurnDecisionPolicy.IsValid(decision, request))
+                decision = TurnDecisionPolicy.InvalidOutputFallback(request);
+            if (decision.Decision != TurnAction.Wait) return decision;
+
+            var park = timedRechecks >= options.DmMaxTimedReevaluations;
+            var seconds = Math.Clamp(decision.RecheckAfterSeconds ?? options.DmDefaultRecheckSeconds,
+                options.DmMinRecheckSeconds, options.DmMaxRecheckSeconds);
+            decision = decision with { RecheckAfterSeconds = park ? null : seconds };
+            await results.Writer.WriteAsync(new(state.Conversation,
+                pending.Select(message => message.ProviderMessageId).ToArray(), decision, clock.UtcNow)
+            { AwaitingInbound = park }, cancellationToken);
+
+            var hasMore = park
+                ? await state.Inbox.Reader.WaitToReadAsync(cancellationToken)
+                : await WaitForMoreOrDelayAsync(state.Inbox.Reader, TimeSpan.FromSeconds(seconds), cancellationToken);
+            if (hasMore)
+            {
+                await CollectDmContinuationAsync(state, pending, cancellationToken);
+                timedRechecks = 0;
+            }
+            else timedRechecks++;
+        }
+    }
+
+    private async Task CollectDmContinuationAsync(ConversationTurnState state,
+        List<InboundConversationEvent> pending, CancellationToken cancellationToken)
+    {
+        var continuation = new List<InboundConversationEvent>();
+        AppendAvailable(state, continuation);
+        await CollectBurstAsync(state, continuation, clock.UtcNow, cancellationToken);
+        pending.AddRange(continuation);
+        if (pending.Count > options.MaxBurstMessages)
+            pending.RemoveRange(0, pending.Count - options.MaxBurstMessages);
+    }
+
     private async Task CollectBurstAsync(
         ConversationTurnState state,
         List<InboundConversationEvent> pending,
@@ -180,7 +249,7 @@ public sealed class ConversationTurnManager : IAsyncDisposable
             var timing = ResolveTiming(state.Conversation, pending);
             var elapsed = clock.UtcNow - burstStartedAt;
             var remainingMax = timing.MaxBurst - elapsed;
-            if (remainingMax <= TimeSpan.Zero)
+            if (remainingMax <= TimeSpan.Zero || pending.Count >= options.MaxBurstMessages)
             {
                 return;
             }
@@ -206,6 +275,7 @@ public sealed class ConversationTurnManager : IAsyncDisposable
         var signals = BuildSignals(state, pending);
         var request = new TurnArbitrationRequest(state.Conversation, recent, signals)
         {
+            PendingMessageIds = pending.Select(message => message.ProviderMessageId).ToArray(),
             RecentOutbound = RecentOutbound(state, options.RecentWindow),
         };
         return await arbiter.DecideAsync(request, cancellationToken);
@@ -215,9 +285,11 @@ public sealed class ConversationTurnManager : IAsyncDisposable
         ConversationTurnState state,
         ICollection<InboundConversationEvent> pending)
     {
-        while (state.Inbox.Reader.TryRead(out var message))
+        while (pending.Count < options.MaxBurstMessages && state.Inbox.Reader.TryRead(out var queued))
         {
+            var message = queued.Message;
             pending.Add(message);
+            state.LastInboundObservedAt = queued.ReceivedAt;
             state.Conversation = message.Conversation!;
             state.History.Add(new ObservedInbound(message, message.Timestamp ?? clock.UtcNow));
             var retainedLimit = Math.Max(options.RecentMessageLimit, options.GenerationMessageLimit);
@@ -227,7 +299,7 @@ public sealed class ConversationTurnManager : IAsyncDisposable
     }
 
     private IReadOnlyList<InboundConversationEvent> BuildRecentContext(
-        ConversationTurnState state, bool generation = false)
+        ConversationTurnState state, bool generation = false, IReadOnlyList<InboundConversationEvent>? pending = null)
     {
         var window = generation ? options.GenerationWindow : options.RecentWindow;
         var messageLimit = generation ? options.GenerationMessageLimit : options.RecentMessageLimit;
@@ -241,7 +313,8 @@ public sealed class ConversationTurnManager : IAsyncDisposable
              index--)
         {
             var message = state.History[index].Message;
-            if (state.History[index].ObservedAt < cutoff) continue;
+            if (state.History[index].ObservedAt < cutoff &&
+                pending?.Any(item => item.ProviderMessageId == message.ProviderMessageId) != true) continue;
             var remaining = characterLimit - characters;
             if (remaining <= 0)
             {
@@ -315,7 +388,7 @@ public sealed class ConversationTurnManager : IAsyncDisposable
     }
 
     private async Task<bool> WaitForMoreOrDelayAsync(
-        ChannelReader<InboundConversationEvent> reader,
+        ChannelReader<QueuedInbound> reader,
         TimeSpan delay,
         CancellationToken cancellationToken)
     {

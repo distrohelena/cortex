@@ -368,15 +368,28 @@ public sealed partial class NativeObservationReader
             // These are explicit protocol notifications, not a missing/decrypt-failed text.
             var metadataOnly = !hasContent && nativeMessage.TryGetProperty("messageStubType", out var stub)
                 && stub.TryGetInt32(out var stubType) && stubType is 21 or 24;
-            if (!hasContent && !metadataOnly) throw new NativeObservationException("unsupported_payload");
-            if (metadataOnly) content = JsonSerializer.SerializeToElement(new { });
+            // A proven WAProto CIPHERTEXT failure is unavailable input, not human text.
+            // Preserve its identity and an explicit reconciliation disposition in the inbox;
+            // the original payload remains in the native journal. Never claim it was read.
+            var ciphertextUnavailable = !hasContent
+                && nativeMessage.TryGetProperty("messageStubType", out var cipherStub)
+                && cipherStub.TryGetInt32(out var cipherType) && cipherType == 2
+                && nativeMessage.TryGetProperty("messageStubParameters", out var parameters)
+                && parameters.ValueKind == JsonValueKind.Array && parameters.GetArrayLength() == 1
+                && parameters[0].ValueKind == JsonValueKind.String
+                && parameters[0].GetString() == "No session found to decrypt message"
+                && nativeMessage.TryGetProperty("key", out var cipherKey)
+                && Text(cipherKey, "id") == record.NativeMessageId
+                && IsCurrentConversationAlias(Text(cipherKey, "remoteJid"));
+            if (!hasContent && !metadataOnly && !ciphertextUnavailable) throw new NativeObservationException("unsupported_payload");
+            if (metadataOnly || ciphertextUnavailable) content = JsonSerializer.SerializeToElement(new { });
             var text = content.TryGetProperty("conversation", out var conversation) && conversation.ValueKind == JsonValueKind.String
                 ? conversation.GetString() : content.TryGetProperty("extendedTextMessage", out var extended) ? Text(extended, "text") : null;
             foreach (var media in new[] { "imageMessage", "videoMessage", "documentMessage" })
                 if (text is null && content.TryGetProperty(media, out var attachment)
                     && attachment.TryGetProperty("caption", out var caption) && caption.ValueKind == JsonValueKind.String)
                     text = caption.GetString();
-            var skipNonText = metadataOnly || string.IsNullOrWhiteSpace(text) && (IsKnownNonText(content) || IsEncryptedEdit(content));
+            var skipNonText = metadataOnly || ciphertextUnavailable || string.IsNullOrWhiteSpace(text) && (IsKnownNonText(content) || IsEncryptedEdit(content));
             if (string.IsNullOrWhiteSpace(text) && !skipNonText) throw new NativeObservationException("unsupported_payload");
             var timestamp = record.OccurredAt ?? DateTimeOffset.FromUnixTimeMilliseconds(record.Payload.GetProperty("receivedAt").GetInt64());
             var session = binding.Session;
@@ -389,17 +402,25 @@ public sealed partial class NativeObservationReader
                     SessionMessageDirection.Inbound, binding.Kind, JsonSerializer.SerializeToElement(new
                     {
                         texto = RenderSelfMentions(content, text ?? ""),
-                        // This contract supplies identity, not a trusted display name.
-                        remetente = new { nome = "", stableId = stableActor },
+                        // Presentation only; pushName never establishes actor or session authority.
+                        remetente = new { nome = NativeDisplayName(nativeMessage), stableId = stableActor },
                         canal = new { nome = binding.Kind == SessionEntryKind.Group ? "Grupo" : "DM", nativeId = session.NativeConversationId },
                         reply = ReadReply(content)
-                    })), record.FromMe, skipNonText);
+                    })), record.FromMe, skipNonText,
+                ciphertextUnavailable ? "ciphertext_unavailable_requires_manual_reconciliation" : null);
             if (!binding.Accepts(inbound)) throw new NativeObservationException("integrity_violation");
             return inbound;
         }
         catch (NativeObservationException) { throw; }
         catch (Exception e) when (e is JsonException or InvalidOperationException or KeyNotFoundException or ArgumentException)
         { throw new NativeObservationException("unsupported_payload"); }
+    }
+
+    private static string NativeDisplayName(JsonElement message)
+    {
+        if (!message.TryGetProperty("pushName", out var value) || value.ValueKind != JsonValueKind.String) return "";
+        var name = value.GetString()!.Trim();
+        return name.Length is > 0 and <= 256 && !name.Any(char.IsControl) ? name : "";
     }
 
     private object? ReadReply(JsonElement content)
@@ -428,9 +449,17 @@ public sealed partial class NativeObservationReader
             // A provider-carried quote is context supplied by the sender, not an independent
             // authenticated inbound or authority to execute/resolve another conversation.
             object? sender = null;
-            if (context.TryGetProperty("participant", out var participant) && participant.ValueKind == JsonValueKind.String
-                && actorBindings.TryGetValue(ActorRef(sourceSession, CanonicalNativeParticipant(participant.GetString()!)), out var quotedActor))
-                sender = new { nome = "", stableId = quotedActor };
+            if (context.TryGetProperty("participant", out var participant) && participant.ValueKind == JsonValueKind.String)
+            {
+                var nativeActor = CanonicalNativeParticipant(participant.GetString()!);
+                // Self uses a different observation reference from human participants.
+                // Resolve only the host-provided PN/LID aliases; quoted text/names do not
+                // establish identity. This labels a citation, not an authenticated event.
+                if (selfMentionIdentity is { } self && (nativeActor == self.AccountPn || nativeActor == self.AccountLid))
+                    sender = new { nome = self.DisplayName, stableId = selfActor };
+                else if (actorBindings.TryGetValue(ActorRef(sourceSession, nativeActor), out var quotedActor))
+                    sender = new { nome = "", stableId = quotedActor };
+            }
             return new { id = id.GetString(), texto = text, remetente = sender, origem = "citacao_do_remetente" };
         }
         return null;

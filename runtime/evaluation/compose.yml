@@ -1,0 +1,43 @@
+services:
+  database:
+    image: postgres@sha256:742f40ea20b9ff2ff31db5458d127452988a2164df9e17441e191f3b72252193
+    container_name: ${CONTAINER_NAME}
+    labels:
+      io.filomena.evaluation.owner: "evaluation-workbench"
+      io.filomena.evaluation.tool: "filomena-eval"
+      io.filomena.evaluation.instance: ${INSTANCE_ID}
+      io.filomena.evaluation.state-directory: ${STATE_DIRECTORY}
+    environment:
+      POSTGRES_USER: evaluation_admin
+      POSTGRES_DB: evaluation
+      POSTGRES_PASSWORD_FILE: /run/secrets/bootstrap-password
+    ports:
+      - target: 5432
+        published: "49152-65535"
+        host_ip: 127.0.0.1
+        protocol: tcp
+    volumes:
+      - evaluation-data:/var/lib/postgresql/data
+      - "${STATE_DIRECTORY}/bootstrap-password:/run/secrets/bootstrap-password:ro"
+      - "${STATE_DIRECTORY}/init.sql:/docker-entrypoint-initdb.d/00-evaluation-roles.sql:ro"
+    networks:
+      - evaluation-private
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U evaluation_admin -d evaluation"]
+      interval: 2s
+      timeout: 3s
+      retries: 5
+      start_period: 3s
+
+volumes:
+  evaluation-data:
+    name: ${VOLUME_NAME}
+
+networks:
+  evaluation-private:
+    name: ${NETWORK_NAME}
+    internal: true
+    labels:
+      io.filomena.evaluation.owner: "evaluation-workbench"
+      io.filomena.evaluation.tool: "filomena-eval"
+      io.filomena.evaluation.instance: ${INSTANCE_ID}

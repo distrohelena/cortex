@@ -12,6 +12,16 @@
 
 import { randomUUID } from "node:crypto";
 
+/** Diagnostic classification only; never grants permission to retry a write. */
+export type GraphitiFailureCategory = "http_rejection" | "rpc_rejection" | "tool_rejection"
+  | "transport_unconfirmed" | "invalid_response" | "argument_validation";
+export class GraphitiRequestError extends Error {
+  constructor(readonly category: GraphitiFailureCategory, message: string, readonly httpStatus?: number) {
+    super(message);
+    this.name = "GraphitiRequestError";
+  }
+}
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -147,7 +157,7 @@ export class GraphitiClient {
 
     if (!response.ok) {
       this.initPromise = null;
-      throw new Error(`Graphiti MCP init failed: ${response.status} ${response.statusText}`);
+      throw new GraphitiRequestError("http_rejection", `Graphiti MCP init failed: ${response.status} ${response.statusText}`, response.status);
     }
 
     // Capture session ID from response header
@@ -212,21 +222,29 @@ export class GraphitiClient {
       method: "POST",
       headers,
       body: JSON.stringify(request),
-    });
+    }).catch(() => { throw new GraphitiRequestError("transport_unconfirmed", "Graphiti MCP transport unconfirmed"); });
 
     if (!response.ok) {
-      throw new Error(`Graphiti MCP server error: ${response.status} ${response.statusText}`);
+      throw new GraphitiRequestError("http_rejection", `Graphiti MCP server error: ${response.status} ${response.statusText}`, response.status);
     }
 
-    const json = await this.parseResponse(response);
+    const json = await this.parseResponse(response).catch(() => {
+      throw new GraphitiRequestError("invalid_response", "Graphiti MCP response invalid or incomplete");
+    });
 
     if (json.error) {
-      throw new Error(`Graphiti tool ${name} failed: ${json.error.message}`);
+      throw new GraphitiRequestError("rpc_rejection", `Graphiti tool ${name} failed: ${json.error.message}`);
     }
 
     const returnedError = extractToolError(json.result);
     if (returnedError) {
-      throw new Error(`Graphiti tool ${name} failed: ${returnedError}`);
+      const result = json.result as { isError?: boolean; content?: Array<{ type?: string; text?: string }> };
+      // Classify known MCP validation failures without retaining their input_value payload.
+      // Diagnostic only: this never changes retry authorization.
+      const validation = result?.isError === true && Array.isArray(result.content) && result.content.some(item =>
+        item.type === "text" && typeof item.text === "string"
+        && /^Error executing tool [a-z_]+: \d+ validation errors? for [A-Za-z_]+Arguments\r?\n/u.test(item.text));
+      throw new GraphitiRequestError(validation ? "argument_validation" : "tool_rejection", `Graphiti tool ${name} failed: ${returnedError}`);
     }
 
     return json.result;

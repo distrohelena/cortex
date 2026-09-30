@@ -52,6 +52,40 @@ describe("GraphitiClient", () => {
     vi.restoreAllMocks();
   });
 
+  test.each([400, 503])("retains HTTP %s as structured evidence without implying safe retry", async status => {
+    const mocked = vi.spyOn(globalThis, "fetch"); mockInit(mocked);
+    mocked.mockResolvedValueOnce(new Response("private response", { status }));
+    await expect(client.getEpisodes("synthetic", 10)).rejects.toMatchObject({
+      category: "http_rejection", httpStatus: status,
+    });
+  });
+
+  test("distinguishes an interrupted request from a malformed response", async () => {
+    const mocked = vi.spyOn(globalThis, "fetch"); mockInit(mocked);
+    mocked.mockRejectedValueOnce(new Error("private network detail"));
+    await expect(client.getEpisodes("synthetic", 10)).rejects.toMatchObject({ category: "transport_unconfirmed" });
+    mocked.mockResolvedValueOnce(new Response("not JSON", { headers: { "Content-Type": "application/json" } }));
+    await expect(client.getEpisodes("synthetic", 10)).rejects.toMatchObject({ category: "invalid_response" });
+  });
+
+  test("preserves MCP argument validation category instead of an opaque tool failure", async () => {
+    const mocked = vi.spyOn(globalThis, "fetch"); mockInit(mocked);
+    mocked.mockResolvedValueOnce(sseResponse({ jsonrpc: "2.0", id: 2, result: {
+      isError: true, content: [{ type: "text", text: "Error executing tool add_memory: 1 validation error for add_memoryArguments\nextraction_body\n  Input should be a valid string [type=string_type, input_value={'private': 'data'}, input_type=dict]" }],
+    } }));
+    await expect(client.addEpisode({ name: "synthetic", episode_body: "{}", episode_uuid: "synthetic-id" }))
+      .rejects.toMatchObject({ category: "argument_validation" });
+  });
+
+  test.each([
+    [{ error: { code: -32603, message: "private rpc detail" } }, "rpc_rejection"],
+    [{ result: { isError: true, content: [{ type: "text", text: "private tool detail" }] } }, "tool_rejection"],
+  ])("classifies explicit protocol rejection independently of HTTP", async (body, category) => {
+    const mocked = vi.spyOn(globalThis, "fetch"); mockInit(mocked);
+    mocked.mockResolvedValueOnce(sseResponse({ jsonrpc: "2.0", id: 2, ...body }));
+    await expect(client.getEpisodes("synthetic", 10)).rejects.toMatchObject({ category });
+  });
+
   test("missing episode list is contract failure, not valid empty", async () => {
     const mocked = vi.spyOn(globalThis, "fetch"); mockInit(mocked);
     mocked.mockResolvedValueOnce(sseResponse({ jsonrpc: "2.0", id: 2, result: { content: [{ type: "text", text: JSON.stringify({ message: "unrecognized response" }) }] } }));

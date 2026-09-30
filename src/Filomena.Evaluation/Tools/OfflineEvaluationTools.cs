@@ -82,9 +82,9 @@ public static class OfflineEvaluationTools
     {
         var input = Read<ComparisonInput>(payload);
         if (input.Candidates is null || input.Cells is null || input.Trials is null ||
-            input.Cells.Any(c => c is null) || input.Trials.Any(t => t is null || t.Cell is null || t.Currency is null))
+            input.Cells.Any(c => c is null) || input.Trials.Any(t => t is null || t.Cell is null))
             throw new InvalidDataException();
-        return Result(ExperimentComparer.Compare(input.Candidates, input.Cells, input.Trials));
+        return Result(ExperimentComparer.Compare(input.Candidates, input.Cells, input.Trials, input.PairedPolicy));
     }
 
     private static OfflineToolResponse ProjectCost(JsonElement payload)
@@ -130,7 +130,8 @@ public static class OfflineEvaluationTools
         [property: JsonRequired] int ContractVersion,
         [property: JsonRequired] string Operation,
         [property: JsonRequired] JsonElement Payload);
-    private sealed record ComparisonInput(IReadOnlyList<string> Candidates, IReadOnlyList<EvaluationCell> Cells, IReadOnlyList<ComparisonTrial> Trials);
+    private sealed record ComparisonInput(IReadOnlyList<string> Candidates, IReadOnlyList<EvaluationCell> Cells,
+        IReadOnlyList<ComparisonTrial> Trials, PairedBootstrapPolicy? PairedPolicy = null);
     private sealed record CostInput(ProviderTokenUsage? Usage, PriceSnapshot Price);
     private sealed record ScheduleInput(ExperimentManifest Manifest, IReadOnlyList<ScopedRevisionRef> Cases);
     private sealed record AssessmentInput(string Output, IReadOnlyList<FieldCriterion> Criteria, IReadOnlyList<string> ManualCriteria);

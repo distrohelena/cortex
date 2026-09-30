@@ -6,6 +6,33 @@ namespace Filomena.Evaluation.Tests;
 public sealed class ComparisonTests
 {
     [Fact]
+    public void Shared_secondary_call_cannot_count_as_two_independent_trials()
+    {
+        var a = Trial("a", 0);
+        var b = Trial("a", 1);
+        var shared = Guid.NewGuid();
+        a = a with { TrialId = Guid.NewGuid(), PhysicalAttempts = [a.PhysicalAttempt, shared] };
+        b = b with { TrialId = Guid.NewGuid(), PhysicalAttempts = [b.PhysicalAttempt, shared] };
+        Assert.Throws<InvalidDataException>(() => ExperimentComparer.Compare(["a"], Cells(2), [a, b]));
+    }
+
+    [Fact]
+    public void Same_logical_trial_cannot_be_relabelled_as_another_repetition()
+    {
+        var a = Trial("a", 0) with { TrialId = Guid.NewGuid() };
+        var b = Trial("a", 1) with { TrialId = a.TrialId };
+        Assert.Throws<InvalidDataException>(() => ExperimentComparer.Compare(["a"], Cells(2), [a, b]));
+    }
+
+    [Fact]
+    public void Unknown_currency_with_unknown_cost_does_not_require_a_fabricated_currency()
+    {
+        var report = ExperimentComparer.Compare(["a"], Cells(1), [Trial("a", 0) with { Currency = null!, Cost = null }]);
+        Assert.Null(Assert.Single(report.Candidates).Currency);
+        Assert.Null(Assert.Single(report.Candidates).MeanCost);
+    }
+
+    [Fact]
     public void Case_breakdown_exposes_regression_hidden_by_overall_accuracy()
     {
         EvaluationCell[] cells = [new("direct", 0), new("indirect", 0)];

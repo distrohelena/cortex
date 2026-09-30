@@ -14,13 +14,14 @@ public static class NativeInboundContext
         if (input.FromMe || input.SkipNonText || binding.IsSelf(input.ActorId)) return input;
         var person = await participants.ResolveAsync(binding.ConversationNamespace, input.ActorId, token);
         var message = JsonNode.Parse(input.Message.Message.GetRawText())!;
-        message["remetente"]!["nome"] = person.DisplayName ?? "";
+        if (person.DisplayName is { } registeredName)
+            message["remetente"]!["nome"] = registeredName;
         if (message["reply"] is JsonObject quote && quote["remetente"] is JsonObject sender
             && sender["stableId"]?.GetValue<string>() is { } quotedActor && binding.IsPeer(quotedActor))
         {
             var quotedPerson = quotedActor == input.ActorId ? person
                 : await participants.ResolveAsync(binding.ConversationNamespace, quotedActor, token);
-            sender["nome"] = quotedPerson.DisplayName ?? "";
+            if (quotedPerson.DisplayName is { } quotedName) sender["nome"] = quotedName;
         }
         return input with { Message = input.Message with { Message = JsonSerializer.SerializeToElement(message) } };
     }

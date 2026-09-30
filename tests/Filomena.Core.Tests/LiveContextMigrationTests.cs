@@ -23,6 +23,8 @@ public sealed class LiveContextMigrationTests : IDisposable
     [InlineData("same")]
     [InlineData("reply")]
     [InlineData("natural")]
+    [InlineData("conversation-repair")]
+    [InlineData("situation-repair")]
     public void Group_checkpoint_transfer_preserves_group_history_without_execution(string variant)
     {
         var oldPin = Pin;
@@ -38,8 +40,8 @@ public sealed class LiveContextMigrationTests : IDisposable
                 return PinnedShadowProject.FromBytes(bytes, "manual-shadow-direct-rule-v3", 3,
                     Convert.ToHexString(SHA256.HashData(bytes)));
             }
-            oldPin = Read(variant == "natural" ? "manual-group-live-project-v3-optional-reply-v1.json" : "manual-group-live-project-v3-punctuation-v2.json");
-            newPin = Read(variant == "natural" ? "manual-group-live-project-v3-natural-v1.json" : "manual-group-live-project-v3-optional-reply-v1.json");
+            oldPin = Read(variant == "situation-repair" ? "manual-group-live-project-v3-conversation-repair-v1.json" : variant == "conversation-repair" ? "manual-group-live-project-v3-natural-v1.json" : variant == "natural" ? "manual-group-live-project-v3-optional-reply-v1.json" : "manual-group-live-project-v3-punctuation-v2.json");
+            newPin = Read(variant == "situation-repair" ? "../evaluation/conversation-quality-v1/group-situation-grounded-v2.project.json" : variant == "conversation-repair" ? "manual-group-live-project-v3-conversation-repair-v1.json" : variant == "natural" ? "manual-group-live-project-v3-natural-v1.json" : "manual-group-live-project-v3-optional-reply-v1.json");
         }
         var session = Session with { NativeConversationId = "120363000001@g.us" };
         var binding = new ShadowSessionBinding(session, "group-test", ["self"], ["peer"], SessionEntryKind.Group);

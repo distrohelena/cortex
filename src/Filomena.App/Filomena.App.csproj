@@ -19,6 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="Playground/index.html" />
     <EmbeddedResource Include="Playground/flow.html;Playground/flow.css;Playground/flow.js;Playground/flow-model.mjs" />
     <EmbeddedResource Include="Playground/flow-layout.mjs" />
     <EmbeddedResource Include="Playground/flow-contract.mjs;Playground/flow-typed-panel.mjs" />

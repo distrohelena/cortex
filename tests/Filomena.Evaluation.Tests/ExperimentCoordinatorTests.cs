@@ -52,6 +52,7 @@ public sealed class ExperimentCoordinatorTests
         var coordinator = new ExperimentCoordinator(source);
         var id = Guid.NewGuid();
         var receipt = await coordinator.PlanAsync(evaluator, id, manifest, [baseline], token);
+        await MonetaryTestApproval.GrantAsync(source, scope, receipt, manifest.Budgets.MaxCost, token);
         Assert.Equal(receipt, await coordinator.PlanAsync(evaluator, id, manifest, [baseline], token));
         var claims = await Task.WhenAll(coordinator.ClaimNextAsync(evaluator, id, Guid.NewGuid(), token),
             coordinator.ClaimNextAsync(evaluator, id, Guid.NewGuid(), token));
@@ -64,7 +65,7 @@ public sealed class ExperimentCoordinatorTests
         var artifact = await store.RegisterArtifactAsync(evaluator, result.ToArtifact(false), token);
         // Saving an output alone cannot certify execution without an observed physical attempt.
         await Assert.ThrowsAsync<InvalidOperationException>(() => coordinator.CompleteAsync(evaluator, id, claimed, result, artifact, token));
-        var ledger = new AttemptLedger(source, evaluator, id, claimed.TrialId, claimed.Owner, claimed.Generation, new(100, 100, 0.01m));
+        var ledger = new AttemptLedger(source, evaluator, id, claimed.TrialId, claimed.Owner, claimed.Generation, new(100, 100, 0.01m), "BRL");
         var attempt = await ledger.BeginAsync(new("openai", new string('a', 64), 20), token);
         await Assert.ThrowsAsync<InvalidOperationException>(() => coordinator.CompleteAsync(evaluator, id, claimed, result, artifact, token));
         await ledger.FinishAsync(attempt, new("response_received", TimeSpan.FromMilliseconds(5),

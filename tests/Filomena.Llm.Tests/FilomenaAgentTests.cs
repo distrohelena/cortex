@@ -9,13 +9,50 @@ namespace Filomena.Llm.Tests;
 public sealed class FilomenaAgentTests
 {
     [Fact]
-    public async Task GeneratesAndSendsExactlyOnceToTheObservedRoute()
+    public async Task FollowUpAsksForMissingContextRatherThanInventingAnAnswer()
     {
         var io = new FakeIo();
+        var request = Request();
+        request = request with
+        {
+            Conversation = request.Conversation with { Kind = ConversationKind.DirectMessage },
+            Decision = request.Decision with { ResponseKind = TurnResponseKind.FollowUp, Reason = TurnReason.IncompleteThoughtFollowUp },
+        };
+        await Create(io).ExecuteAsync(request, TestContext.Current.CancellationToken);
+        Assert.Contains("acompanhamento curto", io.SystemPrompt);
+        Assert.Contains("não infira sofrimento", io.SystemPrompt);
+    }
+
+    [Fact]
+    public async Task NewInboundBeforeSendSuppressesStaleGeneration()
+    {
+        var io = new FakeIo();
+        var result = await Create(io).ExecuteAsync(Request() with { IsSuperseded = () => true }, TestContext.Current.CancellationToken);
+        Assert.Null(result);
+        Assert.Equal(0, io.SendCount);
+    }
+    [Theory]
+    [InlineData(ConversationKind.DirectMessage, "conversa privada", "participando de um grupo")]
+    [InlineData(ConversationKind.Group, "participando de um grupo", "conversa privada")]
+    public async Task GenerationUsesInstructionsForTheConversationKind(ConversationKind kind, string expected, string excluded)
+    {
+        var io = new FakeIo();
+        var request = Request();
+        request = request with { Conversation = request.Conversation with { Kind = kind } };
+        await Create(io).ExecuteAsync(request, TestContext.Current.CancellationToken);
+        Assert.Contains(expected, io.SystemPrompt);
+        Assert.DoesNotContain(excluded, io.SystemPrompt);
+    }
+    [Theory]
+    [InlineData("Tudo bem!")]
+    [InlineData("Filomena: Tudo bem!")]
+    public async Task GeneratesAndSendsExactlyOnceToTheObservedRoute(string response)
+    {
+        var io = new FakeIo { Response = response };
         var agent = Create(io);
         var sent = await agent.ExecuteAsync(Request(), TestContext.Current.CancellationToken);
         Assert.Equal("sent-1", sent?.ProviderMessageId);
-        Assert.Equal("Filomena: Tudo bem!", io.SentText);
+        Assert.Equal("Tudo bem!", io.SentText);
         Assert.Equal("opaque-route", io.Route);
         Assert.Equal(1, io.GenerationCount);
         Assert.Equal(1, io.SendCount);
@@ -133,10 +170,12 @@ public sealed class FilomenaAgentTests
         public string? Route { get; private set; }
         public string? SentText { get; private set; }
         public string Prompt { get; private set; } = "";
+        public string SystemPrompt { get; private set; } = "";
         public Task<string> CompleteResponseAsync(string systemPrompt, string userPrompt, CancellationToken cancellationToken)
         {
             GenerationCount++;
             Prompt = userPrompt;
+            SystemPrompt = systemPrompt;
             return Task.FromResult(Response);
         }
         public Task<SendReceipt> SendTextAsync(string sessionKey, string text, CancellationToken cancellationToken)

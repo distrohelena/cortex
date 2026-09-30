@@ -17,6 +17,7 @@ public sealed class AccessTests
         Assert.False(access.CanReadArtifact(isHoldout: true));
         Assert.False(access.Can(EvaluationOperation.AppendAssessment));
         Assert.False(access.Can(EvaluationOperation.RegisterTrial));
+        Assert.False(access.Can(EvaluationOperation.CancelExperiment));
     }
 
     [Fact]
@@ -30,6 +31,7 @@ public sealed class AccessTests
         Assert.False(access.Can(EvaluationOperation.Operate));
         Assert.True(access.Can(EvaluationOperation.AppendAssessment));
         Assert.False(access.Can(EvaluationOperation.RedactArtifact));
+        Assert.True(access.Can(EvaluationOperation.CancelExperiment));
     }
 
     [Fact]
@@ -43,6 +45,7 @@ public sealed class AccessTests
         Assert.False(access.CanReadArtifact(isHoldout: true));
         Assert.True(access.Can(EvaluationOperation.RedactArtifact));
         Assert.False(access.Can(EvaluationOperation.AppendAssessment));
+        Assert.True(access.Can(EvaluationOperation.CancelExperiment));
     }
 
     [Fact]

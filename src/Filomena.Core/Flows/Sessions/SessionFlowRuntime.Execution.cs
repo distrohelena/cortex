@@ -426,7 +426,7 @@ public sealed partial class SessionFlowRuntime
             CheckReviewedResponse(batch, executionToken);
             if (batch.ReviewedResponse is null)
                 initialInterpretations = await InterpretBatchAsync(batch, executionToken).ConfigureAwait(false);
-            var completion = completionFactory(batch.Session);
+            var completion = CreateCompletion(batch);
             if (batch.ReviewedResponse is { } reviewed)
                 completion = new ReviewedParticipationCompletion(
                     new ParticipationReviewCompletion(completion, () => CheckReviewedResponse(batch, executionToken),

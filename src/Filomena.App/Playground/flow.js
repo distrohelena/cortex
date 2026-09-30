@@ -1,4 +1,4 @@
-import {isEntry,isTerminal,nodePorts,executionPorts,connectExecution,branchOperators,accumulatorDefaults,accumulatorSettings,historyDefaults,connect,removeNode,initialProject,stateGraph,addProjectState,saveProject,openProject,saveProjectReloadState,readProjectReloadState} from './flow-model.mjs';
+import {isEntry,isTerminal,nodePorts,executionPorts,connectExecution,parseLiveStatus,branchOperators,accumulatorDefaults,accumulatorSettings,historyDefaults,connect,removeNode,initialProject,stateGraph,addProjectState,saveProject,openProject,saveProjectReloadState,readProjectReloadState} from './flow-model.mjs';
 import {setupFlowLayout} from './flow-layout.mjs';
 import {createFlowGraphEditor} from './flow-graph/index.js';
 import {catalogOptions,chooseProvider,chooseModel} from './flow-catalog.mjs';
@@ -10,6 +10,7 @@ let project=initialProject(),selectedStateId=project.initialStateId;
 let graph=stateGraph(project,selectedStateId),selected='prompt',busy=false,traces=[],controller=null;
 let lastContracts=[],lastCalls=[];
 let modelCatalog=null,defaultModel='',catalogError='';
+let liveStatus=null,activeProjectSnapshot=null,liveDraftChanged=false,liveBusy=false,liveUncertain=false;
 const titles={count:'Contar Itens',input:'Mensagem privada',dm:'Mensagem privada',group:'Mensagem de grupo',prompt:'Instrução',accumulate:'Acumular',history:'Histórico da Sessão',exit:'Trocar Estado',branch:'Branch',send:'Enviar mensagem',property:'Obter Propriedade',switch:'Switch'};
 const portTypeLabels={text:'texto',message:'Mensagem','message[]':'Mensagem[]',actor:'Pessoa',channel:'Canal','actor|channel':'Pessoa | Canal','text|messages':'Mensagem | Mensagens[]',messages:'Mensagem[]',enum:'Enum',visual:'visual'};
 const nodeTitle=node=>node.title||(node.kind==='property'?`Obter Propriedade · ${(node.settings?.path??[]).join('.')}`:node.kind==='prompt'?`Instrução · ${node.id}`:titles[node.kind]);
@@ -54,7 +55,18 @@ $('save-project').addEventListener('click',async()=>{
  }catch(error){tell('Não foi possível salvar: '+error.message);}
  finally{projectSaving=false;$('save-project').disabled=false;}
 });
-function invalidate(){traces=[];lastContracts=[];lastCalls=[];$('contract-content').textContent='Valide para atualizar o contrato.';$('result').textContent='Fluxo alterado. Execute para atualizar o resultado.';$('status').textContent='Pronto para testar.';}
+function updateLiveControls(){
+ const controls=$('live-controls');if(!controls)return;
+ if(!liveStatus?.available){controls.hidden=true;return;}
+ controls.hidden=false;
+ const target=liveStatus.target;
+ $('live-target').textContent=target?`${target.channel} · ${target.accountId} · ${target.nativeId}`:'Alvo não informado';
+ $('live-activate').disabled=busy||liveBusy;
+ $('live-deactivate').disabled=liveBusy;
+ const changed=liveStatus.active&&(liveDraftChanged||(activeProjectSnapshot!==null&&activeProjectSnapshot!==currentProjectSnapshot()));
+ $('live-status').textContent=liveUncertain?'Estado não confirmado · Desativar continua disponível.':!liveStatus.active?'Inativo':activeProjectSnapshot===null?'Ativo · snapshot não confirmado; reaplique para garantir o rascunho atual.':changed?'Ativo · rascunho alterado; reaplique para atualizar.':'Ativo';
+}
+function invalidate(){if(liveStatus?.active)liveDraftChanged=true;traces=[];lastContracts=[];lastCalls=[];$('contract-content').textContent='Valide para atualizar o contrato.';$('result').textContent='Fluxo alterado. Execute para atualizar o resultado.';$('status').textContent='Pronto para testar.';updateLiveControls();}
 function wireRender(){editor.redrawWires();}
 
 function renderResponseFields(node){
@@ -297,6 +309,40 @@ async function api(path,body,signal){
  let data;try{data=await response.json();}catch{throw new Error(`O servidor não aceitou o pedido (${response.status}).`);}
  if(!response.ok)throw new Error(data.error||'Falha no servidor.');return data;
 }
+async function readLiveStatus(signal){
+ const response=await fetch('/api/flow/live',{headers:{'X-Filomena-Playground':'1'},signal});
+ let data;try{data=await response.json();}catch{throw new Error(`O servidor não aceitou o pedido (${response.status}).`);}
+ if(!response.ok)throw new Error(data.error||'Falha no servidor.');return parseLiveStatus(data);
+}
+function liveTargetMessage(){
+ const target=liveStatus?.target;return target?`${target.channel} · ${target.accountId} · ${target.nativeId}`:'DM autorizada';
+}
+async function activateLive(){
+ if(busy||liveBusy||!liveStatus?.available)return;
+ const snapshot=currentProjectSnapshot();if(!snapshot)return;
+ liveBusy=true;updateLiveControls();
+ try{
+  const projectDocument=JSON.parse(saveProject(project));
+  const status=parseLiveStatus(await api('/api/flow/live/activate',projectDocument));
+  liveStatus=status;liveUncertain=false;activeProjectSnapshot=status.active?snapshot:null;liveDraftChanged=status.active&&currentProjectSnapshot()!==snapshot;updateLiveControls();tell(`Fluxo ativado na ${liveTargetMessage()}.`);
+ }catch(error){await reconcileLiveStatus();tell(`Ativação sem confirmação: ${error.message}`);}
+ finally{liveBusy=false;updateLiveControls();}
+}
+async function deactivateLive(){
+ if(liveBusy||!liveStatus?.available)return;
+ liveBusy=true;updateLiveControls();
+ try{
+  liveStatus=parseLiveStatus(await api('/api/flow/live/deactivate',{}));liveUncertain=false;activeProjectSnapshot=null;liveDraftChanged=false;updateLiveControls();tell('Fluxo desativado.');
+ }catch(error){await reconcileLiveStatus();tell(`Desativação sem confirmação: ${error.message}`);}
+ finally{liveBusy=false;updateLiveControls();}
+}
+async function reconcileLiveStatus(){
+ activeProjectSnapshot=null;liveUncertain=true;
+ try{liveStatus=await readLiveStatus(AbortSignal.timeout(3000));liveUncertain=false;}catch{}
+ updateLiveControls();
+}
+$('live-activate').addEventListener('click',activateLive);
+$('live-deactivate').addEventListener('click',deactivateLive);
 let contextStateId=null;
 function closeStateMenu(){ $('state-context-menu').hidePopover();contextStateId=null; }
 function renderStates(){
@@ -365,7 +411,7 @@ for(const menu of addSubmenus){
  menu.addEventListener('keydown',event=>{if(event.key==='Escape'){event.preventDefault();event.stopPropagation();menu.open=false;menu.querySelector('summary').focus();}});
 }
 $('add').addEventListener('pointerenter',event=>{if(event.pointerType==='mouse')for(const menu of addSubmenus)menu.open=false;});
-function setBusy(value){busy=value;for(const id of ['run','add','add-dm','add-group','add-accumulate','add-history','add-memory','add-branch','add-exit','add-send','show-states','event-entry','open','save','message'])$(id).disabled=value;$('cancel').disabled=!value;render();}
+function setBusy(value){busy=value;for(const id of ['run','add','add-dm','add-group','add-accumulate','add-history','add-memory','add-branch','add-exit','add-send','show-states','event-entry','open','save','message'])$(id).disabled=value;$('cancel').disabled=!value;render();updateLiveControls();}
 $('cancel').addEventListener('click',()=>controller?.abort());
 function typedRequest(){return {graph,entryNodeId:$('event-entry').value,message:{texto:$('message').value,remetente:{nome:'Pessoa de teste',stableId:'fixture:person'},canal:{nome:'Conversa de teste',nativeId:'fixture:conversation'},reply:null}};}
 function projectValidationRequest(){return {project:JSON.parse(saveProject(project)).project};}
@@ -401,6 +447,7 @@ $('branch-b').addEventListener('change',()=>{
  else node.settings.b=$('branch-b').value==='true';
  invalidate();render();
 });
+readLiveStatus().then(status=>{liveStatus=status;activeProjectSnapshot=null;liveDraftChanged=false;updateLiveControls();}).catch(error=>{if(error.name!=='AbortError')tell(`Live indisponível: ${error.message}`);});
 function describeNode(node){
  const ports=['in','out'].flatMap(direction=>nodePorts(node,direction,graph).map(port=>({...port,direction})));
  let preview;

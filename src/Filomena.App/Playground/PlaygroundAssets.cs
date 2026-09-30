@@ -7,7 +7,7 @@ internal sealed class PlaygroundAssets(string? sourceDirectory)
 {
     public static readonly (string Route, string File, string Type)[] Files =
     [
-        ("/", "flow.html", "text/html"), ("/flow", "flow.html", "text/html"),
+        ("/", "index.html", "text/html"), ("/flow", "flow.html", "text/html"),
         ("/flow.css", "flow.css", "text/css"), ("/flow.js", "flow.js", "text/javascript"),
         ("/flow-model.mjs", "flow-model.mjs", "text/javascript"),
         ("/flow-contract.mjs", "flow-contract.mjs", "text/javascript"),

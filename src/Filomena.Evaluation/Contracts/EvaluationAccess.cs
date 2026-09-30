@@ -17,7 +17,9 @@ public enum EvaluationOperation
     RegisterCase,
     RegisterTrial,
     AppendAssessment,
-    RedactArtifact
+    RedactArtifact,
+    ReadExperiment,
+    CancelExperiment
 }
 
 /// <summary>
@@ -40,8 +42,10 @@ public sealed class EvaluationAccess
                 EvaluationOperation.RegisterCase],
             EvaluationRole.Evaluator =>
             [EvaluationOperation.Evaluate, EvaluationOperation.ReadRevision, EvaluationOperation.ReadArtifact,
-                EvaluationOperation.RegisterCase, EvaluationOperation.RegisterTrial, EvaluationOperation.AppendAssessment],
-            EvaluationRole.Operator => [EvaluationOperation.Operate, EvaluationOperation.RedactArtifact],
+                EvaluationOperation.RegisterCase, EvaluationOperation.RegisterTrial, EvaluationOperation.AppendAssessment,
+                EvaluationOperation.ReadExperiment, EvaluationOperation.CancelExperiment],
+            EvaluationRole.Operator => [EvaluationOperation.Operate, EvaluationOperation.RedactArtifact,
+                EvaluationOperation.ReadExperiment, EvaluationOperation.CancelExperiment],
             _ => throw new ArgumentOutOfRangeException(nameof(role))
         };
     }

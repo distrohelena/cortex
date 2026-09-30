@@ -19,10 +19,21 @@ public enum TurnReason
     ClearDirectMessageExpectation,
     InvalidArbiterOutput,
     WaitLimitReached,
+    ThoughtComplete,
+    ThoughtIncomplete,
+    WaitingForContinuation,
+    IncompleteThoughtFollowUp,
+    ConversationClosed,
 }
+
+public enum TurnResponseKind { Reply, FollowUp }
 
 public sealed record TurnDecision(
     TurnAction Decision,
     string? AnchorRef,
     string? TargetRef,
-    TurnReason Reason);
+    TurnReason Reason)
+{
+    public int? RecheckAfterSeconds { get; init; }
+    public TurnResponseKind ResponseKind { get; init; } = TurnResponseKind.Reply;
+}

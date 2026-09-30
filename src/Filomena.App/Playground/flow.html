@@ -6,7 +6,7 @@
 </head>
 <body>
  <header><div><span class="eyebrow">FILOMENA / LABORATÓRIO</span><h1>Fluxo local <span class="badge">RASCUNHO</span></h1></div>
-  <nav aria-label="Arquivo"><button id="open">Abrir JSON</button><button id="save">Salvar JSON</button></nav>
+  <nav aria-label="Arquivo"><a href="/">Instrução simples</a><button id="open">Abrir JSON</button><button id="save">Salvar JSON</button></nav>
  </header>
  <div class="toolbar"><div><nav aria-label="Fluxo">
   <details id="project-menu" class="strip-menu"><summary>Projeto</summary><div class="strip-menu-items"><button id="save-project">Salvar</button><button id="show-states" aria-controls="states-panel" aria-expanded="false">Estados</button></div></details>
@@ -28,7 +28,10 @@
    <button id="add-send">Enviar mensagem</button>
    </div></details>
   </div></details>
- </nav></div></div>
+ </nav></div><div id="live-controls" class="live-controls" hidden>
+  <span id="live-target" class="quiet"></span><span id="live-status" role="status">Inativo</span>
+  <button id="live-activate" class="primary">Ativar na DM</button><button id="live-deactivate">Desativar</button>
+ </div></div>
  <main>
   <section class="workspace" aria-label="Editor de fluxo">
    <div id="viewport"><div id="canvas"><svg id="wires" aria-label="Conexões"></svg><div id="nodes"></div></div></div>

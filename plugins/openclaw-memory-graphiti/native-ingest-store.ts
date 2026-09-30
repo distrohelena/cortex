@@ -1,6 +1,13 @@
 import { DatabaseSync } from "node:sqlite";
 import { createHash } from "node:crypto";
 import type { NormalizedInboundMessage } from "./channel-adapters/types.js";
+import type { GraphitiFailureCategory } from "./graphiti.js";
+
+/** Bounded, sanitized evidence. No exception text, request payload or endpoint. */
+export type NativeIngestFailure = {
+  category: GraphitiFailureCategory | "authorization_unavailable_or_denied" | "unclassified";
+  httpStatus?: number;
+};
 
 export type NativeIngestStatusV1 = {
   version: "native-memory-ingest:v1";
@@ -8,6 +15,8 @@ export type NativeIngestStatusV1 = {
   episodeUuid: string;
   state: "pending" | "queued" | "persisted" | "rejected" | "failed";
   diagnostic?: string;
+  submissionFailure?: NativeIngestFailure;
+  confirmationFailure?: NativeIngestFailure;
   retryDisposition: "safe" | "reconcile" | "none";
 };
 export type StoredIngest = {

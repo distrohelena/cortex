@@ -6,6 +6,230 @@ namespace Filomena.Core.Tests;
 
 public sealed class ConversationTurnManagerTests
 {
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task AuthorizedDmGreetingStillRequiresCompletenessArbiter(bool authorized)
+    {
+        var clock = new ManualConversationClock();
+        var arbiter = new RecordingArbiter(authorized
+            ? new TurnDecision(TurnAction.Respond, "hello", Actor.StableId, TurnReason.ThoughtComplete)
+            : new TurnDecision(TurnAction.Ignore, null, null, TurnReason.NoUsefulContribution));
+        var dm = GroupA with
+        {
+            Kind = ConversationKind.DirectMessage,
+            Id = GroupA.Id with { NativeId = authorized ? "5511944558218@s.whatsapp.net" : "other", Namespace = "test-dm" },
+        };
+        await using var manager = new ConversationTurnManager(arbiter, Options(), clock);
+        await manager.EnqueueAsync(Message(dm, "hello", "Hey Filooo"), TestContext.Current.CancellationToken);
+        var result = await ReadResultByAdvancingClockAsync(manager, clock);
+        if (authorized)
+        {
+            Assert.Equal(TurnAction.Respond, result.Decision.Decision);
+            Assert.Equal(TurnReason.ThoughtComplete, result.Decision.Reason);
+            Assert.Equal("hello", result.Decision.AnchorRef);
+            Assert.Equal(Actor.StableId, result.Decision.TargetRef);
+            Assert.Single(arbiter.Requests);
+            Assert.NotNull(arbiter.Requests[0].DirectMessageTiming);
+        }
+        else
+        {
+            Assert.Single(arbiter.Requests);
+            Assert.Equal(TurnAction.Ignore, result.Decision.Decision);
+        }
+    }
+
+    [Fact]
+    public async Task DmWaitUsesSuggestedDelayThenAllowsOneContextualFollowUp()
+    {
+        var clock = new ManualConversationClock();
+        var arbiter = new RecordingArbiter(
+            new(TurnAction.Wait, null, null, TurnReason.ThoughtIncomplete) { RecheckAfterSeconds = 45 },
+            new(TurnAction.Respond, "m1", Actor.StableId, TurnReason.IncompleteThoughtFollowUp) { ResponseKind = TurnResponseKind.FollowUp });
+        var executor = new ImmediateExecutor();
+        await using var manager = new ConversationTurnManager(arbiter, Options(), clock, executor);
+        await manager.EnqueueAsync(Message(AuthorizedDm, "m1", "eu queria te contar uma coisa..."), TestContext.Current.CancellationToken);
+        var waiting = await AdvanceNextDelayAndReadAsync(manager, clock);
+        Assert.Equal(TurnAction.Wait, waiting.Decision.Decision);
+        await clock.WaitForDelayAsync();
+        Assert.Equal(TimeSpan.FromSeconds(45), clock.LastRequestedDelay);
+        clock.Advance(TimeSpan.FromSeconds(45));
+        var result = await ReadResultAsync(manager);
+        Assert.Equal(TurnResponseKind.FollowUp, result.Decision.ResponseKind);
+        Assert.NotNull(result.SentTurn);
+        Assert.Single(executor.Requests);
+        Assert.True(arbiter.Requests[^1].DirectMessageTiming!.FollowUpAllowed);
+        clock.Advance(TimeSpan.FromHours(1));
+        Assert.False(manager.Results.TryRead(out _));
+        Assert.Single(executor.Requests);
+    }
+
+    [Fact]
+    public async Task DmWaitParksWithoutIgnoreAndResumesWithPendingContext()
+    {
+        var clock = new ManualConversationClock();
+        var arbiter = new RecordingArbiter(
+            new(TurnAction.Wait, null, null, TurnReason.ThoughtIncomplete) { RecheckAfterSeconds = 10 },
+            new(TurnAction.Wait, null, null, TurnReason.WaitingForContinuation) { RecheckAfterSeconds = 10 },
+            new(TurnAction.Respond, "m2", Actor.StableId, TurnReason.ThoughtComplete));
+        await using var manager = new ConversationTurnManager(arbiter,
+            Options() with { DmMaxTimedReevaluations = 1 }, clock);
+        await manager.EnqueueAsync(Message(AuthorizedDm, "m1", "queria perguntar..."), TestContext.Current.CancellationToken);
+        Assert.Equal(TurnAction.Wait, (await AdvanceNextDelayAndReadAsync(manager, clock)).Decision.Decision);
+        var parked = await AdvanceNextDelayAndReadAsync(manager, clock);
+        Assert.Equal(TurnAction.Wait, parked.Decision.Decision);
+        Assert.True(parked.AwaitingInbound);
+        clock.Advance(TimeSpan.FromHours(1));
+        await manager.EnqueueAsync(Message(AuthorizedDm, "m2", "sobre o roteador", clock.UtcNow), TestContext.Current.CancellationToken);
+        var result = await AdvanceNextDelayAndReadAsync(manager, clock);
+        Assert.Equal(TurnAction.Respond, result.Decision.Decision);
+        Assert.Contains(arbiter.Requests[^1].Messages, message => message.ProviderMessageId == "m1");
+        Assert.Contains(arbiter.Requests[^1].Messages, message => message.ProviderMessageId == "m2");
+    }
+
+    [Fact]
+    public async Task DmNewMessageDuringArbitrationInvalidatesOldResponse()
+    {
+        var clock = new ManualConversationClock();
+        var arbiter = new BlockingArbiter();
+        var executor = new ImmediateExecutor();
+        await using var manager = new ConversationTurnManager(arbiter, Options(), clock, executor);
+        await manager.EnqueueAsync(Message(AuthorizedDm, "m1", "eu queria..."), TestContext.Current.CancellationToken);
+        await clock.WaitForDelayAsync();
+        clock.Advance(clock.LastRequestedDelay);
+        await arbiter.WaitUntilCalledAsync();
+        await manager.EnqueueAsync(Message(AuthorizedDm, "m2", "pera, ainda estou escrevendo"), TestContext.Current.CancellationToken);
+        arbiter.Release(new(TurnAction.Respond, "m1", Actor.StableId, TurnReason.ThoughtComplete));
+        _ = await ReadResultByAdvancingClockAsync(manager, clock);
+        Assert.Empty(executor.Requests);
+    }
+
+    private static ConversationInfo AuthorizedDm => GroupA with
+    {
+        Id = new("whatsapp", "default", "5511944558218@s.whatsapp.net", "whatsapp-dm-5511944558218-s-whatsapp-net"),
+        Kind = ConversationKind.DirectMessage,
+    };
+
+    [Theory]
+    [InlineData(1, 5)]
+    [InlineData(9999, 120)]
+    public async Task DmSuggestedWaitIsClampedToConfiguredLimits(int suggested, int expected)
+    {
+        var clock = new ManualConversationClock();
+        var arbiter = new RecordingArbiter(
+            new TurnDecision(TurnAction.Wait, null, null, TurnReason.ThoughtIncomplete) { RecheckAfterSeconds = suggested });
+        await using var manager = new ConversationTurnManager(arbiter, Options(), clock);
+        await manager.EnqueueAsync(Message(AuthorizedDm, "m1", "eu queria..."), TestContext.Current.CancellationToken);
+        var result = await AdvanceNextDelayAndReadAsync(manager, clock);
+        Assert.Equal(expected, result.Decision.RecheckAfterSeconds);
+        await clock.WaitForDelayAsync();
+        Assert.Equal(TimeSpan.FromSeconds(expected), clock.LastRequestedDelay);
+    }
+
+    [Fact]
+    public async Task NewMessageInterruptsAdaptiveWaitAndRestartsQuietWindow()
+    {
+        var clock = new ManualConversationClock();
+        var arbiter = new RecordingArbiter(
+            new(TurnAction.Wait, null, null, TurnReason.ThoughtIncomplete) { RecheckAfterSeconds = 90 },
+            new(TurnAction.Respond, "m2", Actor.StableId, TurnReason.ThoughtComplete));
+        await using var manager = new ConversationTurnManager(arbiter, Options(), clock);
+        await manager.EnqueueAsync(Message(AuthorizedDm, "m1", "queria perguntar..."), TestContext.Current.CancellationToken);
+        _ = await AdvanceNextDelayAndReadAsync(manager, clock);
+        await clock.WaitForDelayAsync();
+        clock.Advance(TimeSpan.FromSeconds(2));
+        var previousRequests = clock.RequestCount;
+        await manager.EnqueueAsync(Message(AuthorizedDm, "m2", "como funciona DNS?", clock.UtcNow), TestContext.Current.CancellationToken);
+        await clock.WaitForRequestCountAsync(previousRequests + 1);
+        Assert.Equal(TimeSpan.FromSeconds(1.8), clock.LastRequestedDelay);
+        clock.Advance(clock.LastRequestedDelay);
+        var result = await ReadResultAsync(manager);
+        Assert.Equal(TurnAction.Respond, result.Decision.Decision);
+        Assert.Equal(2, arbiter.Requests.Count);
+        Assert.Equal(1.8, arbiter.Requests[^1].DirectMessageTiming!.SilenceSeconds, precision: 3);
+    }
+
+    [Fact]
+    public async Task PendingDmDoesNotBlockAnotherConversationAndCancelsCleanly()
+    {
+        var clock = new ManualConversationClock();
+        var arbiter = new RecordingArbiter(
+            new(TurnAction.Wait, null, null, TurnReason.ThoughtIncomplete) { RecheckAfterSeconds = 120 },
+            new(TurnAction.Ignore, null, null, TurnReason.NoUsefulContribution));
+        var manager = new ConversationTurnManager(arbiter, Options(), clock);
+        await manager.EnqueueAsync(Message(AuthorizedDm, "m1", "espera..."), TestContext.Current.CancellationToken);
+        _ = await AdvanceNextDelayAndReadAsync(manager, clock);
+        await clock.WaitForDelayAsync();
+        var previousRequests = clock.RequestCount;
+        await manager.EnqueueAsync(Message(GroupB, "group1", "outro chat"), TestContext.Current.CancellationToken);
+        await clock.WaitForRequestCountAsync(previousRequests + 1);
+        clock.Advance(TimeSpan.FromSeconds(3.5));
+        Assert.Equal(GroupB.Id, (await ReadResultAsync(manager)).Conversation.Id);
+        await manager.DisposeAsync();
+        Assert.True(manager.Results.Completion.IsCompletedSuccessfully);
+    }
+
+    private sealed class ImmediateExecutor : IConversationTurnExecutor
+    {
+        public List<ConversationGenerationRequest> Requests { get; } = [];
+        public Task<SentConversationTurn?> ExecuteAsync(ConversationGenerationRequest request, CancellationToken cancellationToken)
+        {
+            Requests.Add(request);
+            return Task.FromResult<SentConversationTurn?>(new("sent", "Você ia completar?", DateTimeOffset.Parse("2026-09-04T18:01:00Z")));
+        }
+    }
+
+    private static async Task<ConversationTurnResult> AdvanceNextDelayAndReadAsync(
+        ConversationTurnManager manager, ManualConversationClock clock)
+    {
+        await clock.WaitForDelayAsync();
+        clock.Advance(clock.LastRequestedDelay);
+        return await ReadResultAsync(manager);
+    }
+
+    [Fact]
+    public async Task TenDmMessagesTwoSecondsApartWaitForTheFinalQuietWindow()
+    {
+        var clock = new ManualConversationClock();
+        var arbiter = new RecordingArbiter();
+        var options = Options() with
+        {
+            AllowlistedDirectMessageQuietWindow = TimeSpan.FromSeconds(3),
+            AllowlistedDirectMessageMaxBurst = TimeSpan.FromSeconds(60),
+            MaxBurstMessages = 50,
+        };
+        var dm = GroupA with { Kind = ConversationKind.DirectMessage };
+        await using var manager = new ConversationTurnManager(arbiter, options, clock);
+        await manager.EnqueueAsync(Message(dm, "m1", "primeiro trecho"), TestContext.Current.CancellationToken);
+        await clock.WaitForRequestCountAsync(1);
+        for (var index = 2; index <= 10; index++)
+        {
+            clock.Advance(TimeSpan.FromSeconds(2));
+            var previous = clock.RequestCount;
+            await manager.EnqueueAsync(Message(dm, $"m{index}", "mais um trecho"), TestContext.Current.CancellationToken);
+            await clock.WaitForRequestCountAsync(previous + 1);
+            Assert.Empty(arbiter.Requests);
+        }
+        clock.Advance(TimeSpan.FromSeconds(3));
+        var result = await ReadResultAsync(manager);
+        Assert.Equal(10, result.PendingMessageIds.Count);
+        Assert.Single(arbiter.Requests);
+    }
+
+    [Fact]
+    public async Task MessageCountCapEndsBurstWithoutWaitingForSilence()
+    {
+        var clock = new ManualConversationClock();
+        var arbiter = new RecordingArbiter();
+        await using var manager = new ConversationTurnManager(arbiter, Options() with { MaxBurstMessages = 2 }, clock);
+        await manager.EnqueueAsync(Message(GroupA, "m1", "um"), TestContext.Current.CancellationToken);
+        await clock.WaitForDelayAsync();
+        await manager.EnqueueAsync(Message(GroupA, "m2", "dois"), TestContext.Current.CancellationToken);
+        var result = await ReadResultAsync(manager);
+        Assert.Equal(2, result.PendingMessageIds.Count);
+        Assert.Single(arbiter.Requests);
+    }
+
     [Fact]
     public async Task GenerationBlocksOnlyItsConversationAndRecordsConfirmedTurn()
     {

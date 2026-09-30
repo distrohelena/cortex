@@ -52,6 +52,10 @@ export class SpiceDbClient {
     this.promises = this.client.promises;
   }
 
+  close(): void {
+    this.client.close();
+  }
+
   // --------------------------------------------------------------------------
   // Schema
   // --------------------------------------------------------------------------

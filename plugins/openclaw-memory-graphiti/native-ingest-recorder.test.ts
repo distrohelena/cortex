@@ -66,7 +66,7 @@ test.each([
 ])("%s preserves source attribution without claiming an extracted fact", async (_kind, text) => {
   const f = fixture(); await f.recorder.submitInbound({ ...f.message, content: text });
   const submitted = f.state.submissions[0];
-  expect(submitted.extraction_body).toBe(text);
+  expect(JSON.parse(submitted.extraction_body!).current_message.text).toBe(text);
   expect(submitted.bound_entities).toHaveLength(1);
   expect(submitted.bound_entities![0]).toMatchObject({ role: "speaker", name: "whatsapp:15550000001@s.whatsapp.net", entity_type: "Person" });
   expect(JSON.parse(submitted.episode_body)).toMatchObject({ text, sender: { stable_id: "whatsapp:15550000001@s.whatsapp.net" } });

@@ -8,7 +8,9 @@ public static class MigrationCatalog
     {
         ArgumentNullException.ThrowIfNull(applied);
         var migrations = new[] { Read(1, "001_evaluation.sql"), Read(2, "002_execution.sql"),
-            Read(3, "003_schedule.sql"), Read(4, "004_trial_result.sql") };
+            Read(3, "003_schedule.sql"), Read(4, "004_trial_result.sql"), Read(5, "005_case_input_binding.sql"),
+            Read(6, "006_comparison_reports.sql"), Read(7, "007_monetary_budget_approvals.sql"),
+            Read(8, "008_attempt_monetary_binding.sql"), Read(9, "009_attempt_charge_declarations.sql") };
         if (applied.Keys.Any(version => version < 1 || version > migrations.Length) ||
             !applied.Keys.Order().SequenceEqual(Enumerable.Range(1, applied.Count)))
             throw new InvalidOperationException("Evaluation migration history has an unknown version or a missing predecessor.");

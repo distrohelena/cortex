@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Filomena · Testar prompt</title>
+<style>
+body{font:16px/1.5 system-ui,sans-serif;background:#14151a;color:#eee;margin:0;padding:32px 20px}main{max-width:800px;margin:auto}h1{margin-bottom:8px}p{color:#bfc1cf}label{display:block;margin-top:24px;font-weight:600}textarea{box-sizing:border-box;width:100%;margin-top:8px;padding:14px;border:1px solid #646779;border-radius:8px;background:#20222c;color:#fff;font:inherit;resize:vertical}button{margin-top:20px;padding:12px 24px;border:0;border-radius:8px;background:#ccb5ff;color:#17131f;font:inherit;font-weight:600;cursor:pointer}button:disabled{opacity:.6;cursor:wait}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#20222c;padding:20px;border-radius:8px;min-height:70px;font:inherit}small{color:#bfc1cf}:focus-visible{outline:2px solid #ccb5ff;outline-offset:3px}
+</style>
+<main>
+<h1>Testar prompt</h1>
+<p><a href="/flow" style="color:#ccb5ff">Abrir editor de flow →</a></p>
+<p>Um prompt, uma mensagem, uma resposta. Sem WhatsApp, memória ou árbitro.</p>
+<small id="model">Modelo configurado no backend</small>
+<label for="prompt">Prompt de sistema</label>
+<textarea id="prompt" rows="6" maxlength="16000">Você é Filomena. Converse em português de forma natural e direta.</textarea>
+<label for="message">Mensagem</label>
+<textarea id="message" rows="3" maxlength="16000" placeholder="Hey Filooo"></textarea>
+<button id="test" type="button">Testar prompt</button>
+<p id="status" role="status" aria-live="polite">As alterações ficam somente nesta página. Cada teste começa sem histórico.</p>
+<h2>Resposta</h2>
+<pre id="result">A resposta aparece aqui.</pre>
+</main>
+<script>
+const promptInput=document.querySelector('#prompt'),messageInput=document.querySelector('#message'),button=document.querySelector('#test'),statusText=document.querySelector('#status'),result=document.querySelector('#result');
+fetch('/api/model').then(r=>r.json()).then(data=>document.querySelector('#model').textContent='LM Studio · '+data.model).catch(()=>{});
+button.addEventListener('click',async()=>{
+ if(!promptInput.value.trim()||!messageInput.value.trim()){statusText.textContent='Preencha o prompt e a mensagem.';return;}
+ button.disabled=true;result.textContent='';const start=performance.now();
+ const update=()=>statusText.textContent='Aguardando LM Studio… '+((performance.now()-start)/1000).toFixed(1)+'s';update();const timer=setInterval(update,100);
+ try{
+  const response=await fetch('/api/test',{method:'POST',headers:{'Content-Type':'application/json','X-Filomena-Playground':'1'},body:JSON.stringify({prompt:promptInput.value,message:messageInput.value})});
+  const data=await response.json();if(!response.ok)throw new Error(data.error||'Falha no teste.');
+  result.textContent=data.text;statusText.textContent='Concluído em '+(data.elapsedMs/1000).toFixed(1)+'s. Nada foi enviado para um chat.';
+ }catch(error){statusText.textContent=error.message||'Não foi possível conectar ao backend.';}
+ finally{clearInterval(timer);button.disabled=false;}
+});
+</script>
+</html>

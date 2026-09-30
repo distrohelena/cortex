@@ -116,6 +116,29 @@ public sealed class NativeMemoryIngestTests
     }
 
     [Fact]
+    public void Staging_preserves_display_name_without_changing_canonical_identity()
+    {
+        var dir = Directory.CreateTempSubdirectory("memory-name-test-");
+        try
+        {
+            var b = Binding();
+            using var box = new NativeMemoryOutbox(Config(b, dir.FullName), b);
+            var input = Input(b);
+            input = input with { Message = input.Message with { Message = JsonSerializer.SerializeToElement(new
+            {
+                texto = "Gosto de café.", remetente = new { nome = "Nome do WhatsApp", stableId = input.ActorId }
+            }) } };
+            box.StageBatch([input]);
+            box.StageBatch([input]);
+            var sender = Assert.Single(box.Pending).Request.Message.GetProperty("sender");
+            Assert.Equal("Nome do WhatsApp", sender.GetProperty("displayName").GetString());
+            Assert.Equal(input.ActorId, sender.GetProperty("stableId").GetString());
+            Assert.Equal("trusted_native_observation", sender.GetProperty("identitySource").GetString());
+        }
+        finally { dir.Delete(true); }
+    }
+
+    [Fact]
     public void Self_snapshot_suppressed_and_pre_boundary_events_are_not_ingested()
     {
         var dir = Directory.CreateTempSubdirectory("memory-outbox-test-");

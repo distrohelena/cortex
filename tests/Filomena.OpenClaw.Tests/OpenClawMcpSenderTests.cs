@@ -39,6 +39,75 @@ public sealed class OpenClawMcpSenderTests
     }
 
     [Fact]
+    public async Task StartupPreparesConnectionWithoutSendingAndSendChecksItAgain()
+    {
+        var client = new Client();
+        var connections = 0;
+        await using var sender = new OpenClawMcpSender(_ =>
+        {
+            connections++;
+            return Task.FromResult<IMcpToolClient>(client);
+        });
+        var service = new Filomena.App.OpenClawMcpWarmupService(sender,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<Filomena.App.OpenClawMcpWarmupService>.Instance);
+        await service.StartAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(1, connections);
+        Assert.Equal(1, client.HealthChecks);
+        Assert.Equal(0, client.Calls);
+        await sender.SendTextAsync("a", "oi", TestContext.Current.CancellationToken);
+        Assert.Equal(1, connections);
+        Assert.Equal(2, client.HealthChecks);
+        Assert.Equal(1, client.Calls);
+    }
+
+    [Fact]
+    public async Task CanceledWarmupDoesNotConnectOrSend()
+    {
+        var connections = 0;
+        await using var sender = new OpenClawMcpSender(_ =>
+        {
+            connections++;
+            return Task.FromResult<IMcpToolClient>(new Client());
+        });
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => sender.EnsureReadyAsync(cancellation.Token));
+        Assert.Equal(0, connections);
+    }
+
+    [Fact]
+    public async Task BrokenPreflightReconnectsBeforeSendingAndNeverSendsOnBrokenClient()
+    {
+        var broken = new Client { FailHealth = true };
+        var working = new Client();
+        var connections = 0;
+        await using var sender = new OpenClawMcpSender(_ =>
+            Task.FromResult<IMcpToolClient>(++connections == 1 ? broken : working));
+        var receipt = await sender.SendTextAsync("a", "oi", TestContext.Current.CancellationToken);
+        Assert.Equal("sent", receipt.ProviderMessageId);
+        Assert.Equal(2, connections);
+        Assert.Equal(0, broken.Calls);
+        Assert.True(broken.Disposed);
+        Assert.Equal(1, working.HealthChecks);
+        Assert.Equal(1, working.Calls);
+    }
+
+    [Fact]
+    public async Task UnavailablePreflightDoesNotAttemptMessageAndStopsAfterOneReconnect()
+    {
+        var clients = new List<Client>();
+        await using var sender = new OpenClawMcpSender(_ =>
+        {
+            var client = new Client { FailHealth = true };
+            clients.Add(client);
+            return Task.FromResult<IMcpToolClient>(client);
+        });
+        await Assert.ThrowsAsync<IOException>(() => sender.SendTextAsync("a", "oi", TestContext.Current.CancellationToken));
+        Assert.Equal(2, clients.Count);
+        Assert.All(clients, client => { Assert.Equal(0, client.Calls); Assert.True(client.Disposed); });
+    }
+
+    [Fact]
     public async Task ReusesOneConnectionForMultipleSends()
     {
         var client = new Client();
@@ -75,9 +144,16 @@ public sealed class OpenClawMcpSenderTests
     {
         public int Calls { get; private set; }
         public bool Fail { get; init; }
+        public bool FailHealth { get; set; }
+        public int HealthChecks { get; private set; }
         public bool Disposed { get; private set; }
-        public Task<IReadOnlyList<McpToolDescriptor>> ListToolsAsync(CancellationToken cancellationToken) =>
-            Task.FromResult<IReadOnlyList<McpToolDescriptor>>([]);
+        public Task<IReadOnlyList<McpToolDescriptor>> ListToolsAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            HealthChecks++;
+            if (FailHealth) throw new IOException("MCP disconnected before send");
+            return Task.FromResult<IReadOnlyList<McpToolDescriptor>>([]);
+        }
         public Task<JsonElement> CallToolAsync(string name, IReadOnlyDictionary<string, object?> arguments, CancellationToken cancellationToken)
         {
             Calls++;

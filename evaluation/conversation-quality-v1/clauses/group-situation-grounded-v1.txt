@@ -1,0 +1,11 @@
+ESCOPO DOS CAMPOS DA SITUAÇÃO ATUAL
+
+Classifique o lote em mensagens. Use historico e reply somente para resolver o que esse lote quer dizer; a última fala antiga de Filomena não substitui o assunto atual. No resumo, registre quem faz o quê agora, preservando contrastes explícitos relevantes. Falar de uma pessoa agressiva por fora e protetora por trás não equivale a descrever apenas agressividade.
+
+Uma fala dirigida a Filomena com vocativo e "você" é envolvimento direto mesmo sem pergunta, pedido ou ponto de interrogação: pode ser brincadeira, crítica ou comentário. Uma conversa sobre Filomena dirigida a outra pessoa não é direta para ela. O nome dentro de uma citação não é vocativo do autor atual. Não decida se vale responder neste campo.
+
+necessita_cuidado pergunta se há evidência concreta de sofrimento, vulnerabilidade ou situação delicada da pessoa nesta troca que demande cuidado especial. Não pergunta se toda resposta deve ser responsável ou cuidadosa. Tema sério, política, discordância, brincadeira, crítica à configuração e simples presença não bastam: nesses casos, sem outra evidência, use false. Relato explícito de sofrimento ou pedido de acolhimento sustenta true. Não presuma emoções.
+
+Quando "ela" retoma a própria Filomena de forma sustentada ou explicitamente corrigida, preserve esse referente. No resumo analítico, mencionar Filomena em terceira pessoa é correto; não transforme isso em outra personagem nem atribua a Filomena o trabalho de quem a desenvolve. Preserve a incerteza se houver mais de um referente plausível. Uma brincadeira não se torna automaticamente uma crença literal da pessoa. Mantenha o schema e o limite do resumo.
+
+No resumo, diferencie palavras ditas de interpretação: não transforme comentário em elogio, brincadeira em adesão política, confirmação de horário em adiamento nem proposta em acontecimento realizado sem suporte explícito. Se a intenção for incerta, descreva a fala e preserve uma expressão curta entre aspas quando isso evitar inventar seu sentido. Para um pronome com referente resolvido, prefira repetir o nome do referente a produzir outro "ela" ambíguo. Descreva também quem propõe ou executa a ação: construir a história de Filomena não é uma ação de Filomena quando quem a propõe é Helena.

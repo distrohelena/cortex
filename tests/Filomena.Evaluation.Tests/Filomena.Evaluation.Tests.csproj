@@ -17,6 +17,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/Filomena.Evaluation/Filomena.Evaluation.csproj" />
+    <ProjectReference Include="../../src/Filomena.Evaluation.Cli/Filomena.Evaluation.Cli.csproj" />
     <None Include="../../evaluation/conversation-quality-v1/cases.json" Link="conversation-cases.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../../docs/manual-group-shadow-project-v3-gpt6-luna.json" Link="evaluation-project.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
