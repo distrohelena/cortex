@@ -1,5 +1,13 @@
 # Cortex / Filo split status
 
+Update 2026-10-01: physical rename completed with explicit approval. The current
+root is C:/dev/cortex; C:/dev/filo resolves it by default. Gateway plugin/workspace
+and memory companion paths were updated with restricted private backups. Gateway
+health/ready returned 200. The conversation host remains stopped and capture OFF:
+a new capture epoch requires explicit cursor reconciliation before safe resume.
+No cursor, receipt or history was reset. Earlier operational notes below describe
+the pre-rename checkpoint, not the final physical path.
+
 Source checkpoint: `557eab0e073452b9287c7b819c6455ac6258dd33`.
 Approved native execution: 2026-10-01. No agents, push or live operation.
 

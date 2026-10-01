@@ -22,8 +22,8 @@ See [split status](docs/repository-split-status.md), the approved
 [plan](docs/superpowers/plans/2026-10-01-cortex-filo-repository-split.md) and
 [ownership manifest](docs/repository-split-manifest.json).
 
-The current directory remains `C:/dev/filomena` temporarily because the active
-launcher uses it. The destination is `C:/dev/cortex`. Preserved operational
+The directory is now `C:/dev/cortex`. The authorized physical rename completed
+on 2026-10-01 after a graceful host drain. Preserved operational
 files on disk are not part of this repository's current tracked application.
 Historical commits still contain the original monorepo.
 
