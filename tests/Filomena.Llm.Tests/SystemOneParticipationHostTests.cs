@@ -2,10 +2,10 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using Filomena.App;
-using Filomena.Core.Flows;
-using Filomena.Core.Shadow;
-using Filomena.Core.Flows.Sessions;
-using Filomena.Core.Outbound;
+using Cortex.Core.Flows;
+using Cortex.Core.Shadow;
+using Cortex.Core.Flows.Sessions;
+using Cortex.Core.Outbound;
 using Xunit;
 
 namespace Filomena.Llm.Tests;

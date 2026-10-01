@@ -1,7 +1,7 @@
 using System.Text.Json;
-using Filomena.Core.Arbitration;
-using Filomena.Core.Conversations;
-using Filomena.Llm.LmStudio;
+using Cortex.Core.Arbitration;
+using Cortex.Core.Conversations;
+using Cortex.Inference.LmStudio;
 
 namespace Filomena.Llm.Agent;
 

@@ -1,4 +1,4 @@
-using Filomena.Core.Flows.Sessions;
+using Cortex.Core.Flows.Sessions;
 using static Filomena.Llm.Tests.DirectParticipationRuleLiveTests;
 using static Filomena.Llm.Tests.ParticipationExperiments;
 

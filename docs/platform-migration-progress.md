@@ -1,5 +1,23 @@
 # Migração da plataforma: acompanhamento de execução
 
+## Nome da fundação: Cortex — 2026-09-30
+
+**Atualização 2026-10-01:** plano aprovado e renomeação implementada localmente:
+Core, Inference, Memory, OpenClaw, Evaluation e CLI. Filomena.App e a camada
+específica Filomena.Llm permanecem. [Evidências e limites atuais](cortex-migration-status.md):
+consumidores de produção compilam, mas a validação global continua com falhas
+anteriores no compilador de flows e testes de frontend/settings. Sem deploy.
+O parágrafo abaixo registra o estado documental anterior à implementação.
+
+Aprovado em conversa o recorte: Cortex é a infraestrutura compartilhada;
+Filomena permanece a aplicação/personagem e Damma é consumidora futura.
+A [especificação de nomenclatura e compatibilidade](superpowers/specs/2026-09-30-cortex-foundation-design.md)
+foi aprovada; o [plano de implementação](superpowers/plans/2026-09-30-cortex-foundation.md)
+está escrito para revisão, sem implementação. Mantém o repositório/pasta atual,
+dados, identidade persistida, brain e instalação ativa. Não substitui os planos
+de inferência, ownership ou aceitação PostgreSQL existentes. Esta atualização
+é documental; nenhum build, teste, serviço ou modelo foi executado nesta etapa.
+
 ## Escopo e autorização
 
 ### Auditoria das fatias maiores e revalidação de inferência (2026-09-28)

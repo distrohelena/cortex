@@ -1,7 +1,7 @@
-using Filomena.Core.Conversations;
-using Filomena.Llm.LmStudio;
-using Filomena.OpenClaw.Bridge;
-using Filomena.OpenClaw.Mcp;
+using Cortex.Core.Conversations;
+using Cortex.Inference.LmStudio;
+using Cortex.OpenClaw.Bridge;
+using Cortex.OpenClaw.Mcp;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;

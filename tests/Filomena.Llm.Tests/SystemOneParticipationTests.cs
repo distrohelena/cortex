@@ -1,9 +1,10 @@
 using System.Net;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Filomena.Core.Flows;
-using Filomena.Core.Flows.Sessions;
+using Cortex.Core.Flows;
+using Cortex.Core.Flows.Sessions;
 using Filomena.Llm.SystemOne;
+using Cortex.Inference.SystemOne;
 using Xunit;
 using static Filomena.Llm.Tests.ParticipationExperiments;
 

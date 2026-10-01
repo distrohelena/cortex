@@ -7,7 +7,7 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="../../src/Filomena.Core/Filomena.Core.csproj" />
+    <ProjectReference Include="../../src/Cortex.Core/Cortex.Core.csproj" />
     <ProjectReference Include="../../src/Filomena.App/Filomena.App.csproj" />
   </ItemGroup>
 </Project>

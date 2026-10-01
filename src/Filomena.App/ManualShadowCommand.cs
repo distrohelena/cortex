@@ -1,15 +1,15 @@
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using Filomena.Core.Flows;
-using Filomena.Core.Flows.Sessions;
+using Cortex.Core.Flows;
+using Cortex.Core.Flows.Sessions;
 using Filomena.Core.Identity;
-using Filomena.Core.Outbound;
-using Filomena.Core.Shadow;
-using Filomena.Llm;
-using Filomena.Llm.LmStudio;
-using Filomena.Llm.OpenAi;
-using Filomena.Memory;
+using Cortex.Core.Outbound;
+using Cortex.Core.Shadow;
+using Cortex.Inference;
+using Cortex.Inference.LmStudio;
+using Cortex.Inference.OpenAi;
+using Cortex.Memory;
 
 namespace Filomena.App;
 

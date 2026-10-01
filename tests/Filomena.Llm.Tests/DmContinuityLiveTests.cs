@@ -2,10 +2,10 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Filomena.Core.Flows;
-using Filomena.Core.Flows.Sessions;
-using Filomena.Core.Shadow;
-using Filomena.Llm.LmStudio;
+using Cortex.Core.Flows;
+using Cortex.Core.Flows.Sessions;
+using Cortex.Core.Shadow;
+using Cortex.Inference.LmStudio;
 using Xunit;
 using static Filomena.Llm.Tests.ParticipationExperiments;
 

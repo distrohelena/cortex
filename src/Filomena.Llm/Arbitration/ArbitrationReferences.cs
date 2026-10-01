@@ -1,4 +1,4 @@
-using Filomena.Core.Arbitration;
+using Cortex.Core.Arbitration;
 
 namespace Filomena.Llm.Arbitration;
 

@@ -1,8 +1,8 @@
 using System.Text.Json;
-using Filomena.Core.Flows.Sessions;
+using Cortex.Core.Flows.Sessions;
 using Filomena.Core.Identity;
-using Filomena.Core.Outbound;
-using Filomena.Core.Shadow;
+using Cortex.Core.Outbound;
+using Cortex.Core.Shadow;
 using Filomena.Llm.Context;
 using Xunit;
 using Filomena.App;

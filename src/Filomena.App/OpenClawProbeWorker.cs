@@ -1,6 +1,6 @@
 using System.Text.Json;
-using Filomena.Core.Conversations;
-using Filomena.OpenClaw.Mcp;
+using Cortex.Core.Conversations;
+using Cortex.OpenClaw.Mcp;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

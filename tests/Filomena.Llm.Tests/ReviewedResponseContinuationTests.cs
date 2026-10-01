@@ -1,9 +1,9 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Filomena.Core.Conversations;
-using Filomena.Core.Flows.Sessions;
-using Filomena.Core.Outbound;
-using Filomena.Core.Tests.Flows;
+using Cortex.Core.Conversations;
+using Cortex.Core.Flows.Sessions;
+using Cortex.Core.Outbound;
+using Cortex.Core.Tests.Flows;
 using Xunit;
 
 namespace Filomena.Llm.Tests;

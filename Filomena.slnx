@@ -1,13 +1,15 @@
 <Solution>
   <Project Path="src/Filomena.App/Filomena.App.csproj" />
-  <Project Path="src/Filomena.Core/Filomena.Core.csproj" />
-  <Project Path="src/Filomena.Evaluation/Filomena.Evaluation.csproj" />
-  <Project Path="src/Filomena.Evaluation.Cli/Filomena.Evaluation.Cli.csproj" />
+  <Project Path="src/Cortex.Core/Cortex.Core.csproj" />
+  <Project Path="src/Cortex.Evaluation/Cortex.Evaluation.csproj" />
+  <Project Path="src/Cortex.Evaluation.Cli/Cortex.Evaluation.Cli.csproj" />
   <Project Path="src/Filomena.Llm/Filomena.Llm.csproj" />
-  <Project Path="src/Filomena.Memory/Filomena.Memory.csproj" />
-  <Project Path="src/Filomena.OpenClaw/Filomena.OpenClaw.csproj" />
-  <Project Path="tests/Filomena.Core.Tests/Filomena.Core.Tests.csproj" />
-  <Project Path="tests/Filomena.Evaluation.Tests/Filomena.Evaluation.Tests.csproj" />
+  <Project Path="src/Cortex.Memory/Cortex.Memory.csproj" />
+  <Project Path="src/Cortex.OpenClaw/Cortex.OpenClaw.csproj" />
+  <Project Path="tests/Cortex.Core.Tests/Cortex.Core.Tests.csproj" />
+  <Project Path="tests/Cortex.Evaluation.Tests/Cortex.Evaluation.Tests.csproj" />
   <Project Path="tests/Filomena.Llm.Tests/Filomena.Llm.Tests.csproj" />
-  <Project Path="tests/Filomena.OpenClaw.Tests/Filomena.OpenClaw.Tests.csproj" />
+  <Project Path="tests/Cortex.OpenClaw.Tests/Cortex.OpenClaw.Tests.csproj" />
+  <Project Path="src/Cortex.Inference/Cortex.Inference.csproj" />
+  <Project Path="tests/Cortex.Inference.Tests/Cortex.Inference.Tests.csproj" />
 </Solution>

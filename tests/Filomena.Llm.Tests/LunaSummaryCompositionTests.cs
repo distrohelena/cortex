@@ -4,10 +4,11 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Filomena.App;
-using Filomena.Core.Flows;
-using Filomena.Core.Flows.Sessions;
-using Filomena.Core.Shadow;
-using Filomena.Llm.OpenAi;
+using Cortex.Core.Flows;
+using Cortex.Core.Flows.Sessions;
+using Cortex.Core.Shadow;
+using Cortex.Inference.OpenAi;
+using Cortex.Inference;
 using Xunit;
 
 namespace Filomena.Llm.Tests;

@@ -1,6 +1,6 @@
-using Filomena.Core.Conversations;
+using Cortex.Core.Conversations;
 using Filomena.Core.Identity;
-using Filomena.Llm.LmStudio;
+using Cortex.Inference.LmStudio;
 
 namespace Filomena.App.FlowRuntime;
 

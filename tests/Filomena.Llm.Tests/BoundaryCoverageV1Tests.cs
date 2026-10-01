@@ -1,14 +1,15 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text.Json;
-using Filomena.Core.Flows;
-using Filomena.Core.Flows.Sessions;
+using Cortex.Core.Flows;
+using Cortex.Core.Flows.Sessions;
 using Filomena.Core.Identity;
-using Filomena.Core.Memory;
-using Filomena.Core.Outbound;
-using Filomena.Core.Shadow;
-using Filomena.Llm.OpenAi;
-using Filomena.Llm.LmStudio;
+using Cortex.Core.Memory;
+using Cortex.Core.Outbound;
+using Cortex.Core.Shadow;
+using Cortex.Inference.OpenAi;
+using Cortex.Inference.LmStudio;
+using Cortex.Inference;
 using Xunit;
 
 namespace Filomena.Llm.Tests;

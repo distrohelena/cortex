@@ -1,6 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Filomena.Core.Shadow;
+using Cortex.Core.Shadow;
 using Xunit;
 
 namespace Filomena.Llm.Tests;

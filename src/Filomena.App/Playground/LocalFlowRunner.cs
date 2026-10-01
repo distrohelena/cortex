@@ -1,6 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
-using Filomena.Llm.LmStudio;
+using Cortex.Inference.LmStudio;
 
 namespace Filomena.App.Playground;
 

@@ -1,8 +1,8 @@
 using System.Diagnostics;
 using System.Text.Json;
-using Filomena.Core.Boundaries;
-using Filomena.Core.Flows;
-using Filomena.Llm.OpenAi;
+using Cortex.Core.Boundaries;
+using Cortex.Core.Flows;
+using Cortex.Inference.OpenAi;
 using Xunit;
 
 namespace Filomena.Llm.Tests;

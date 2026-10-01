@@ -25,12 +25,15 @@
     <None Include="../fixtures/typed-flow-slice35*.json" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../fixtures/typed-flow-slice36*.json" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../fixtures/typed-flow-slice37.json" Link="typed-flow-slice37.json" CopyToOutputDirectory="PreserveNewest" />
-    <Compile Include="../Filomena.Core.Tests/Flows/FakeTimeProvider.cs" Link="Support/FakeTimeProvider.cs" />
+    <Compile Include="../Cortex.Core.Tests/Flows/FakeTimeProvider.cs" Link="Support/FakeTimeProvider.cs" />
     <None Include="../fixtures/typed-flow-slice2.json" Link="typed-flow-slice2.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="../fixtures/typed-flow-slice3.json" Link="typed-flow-slice3.json" CopyToOutputDirectory="PreserveNewest" />
-    <ProjectReference Include="../../src/Filomena.Core/Filomena.Core.csproj" />
+    <ProjectReference Include="../../src/Cortex.Core/Cortex.Core.csproj" />
     <ProjectReference Include="../../src/Filomena.Llm/Filomena.Llm.csproj" />
     <ProjectReference Include="../../src/Filomena.App/Filomena.App.csproj" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="../Shared/SystemOneTestSupport.cs" Link="Support/SystemOneTestSupport.cs" />
   </ItemGroup>
 </Project>

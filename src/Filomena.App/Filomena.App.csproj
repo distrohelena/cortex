@@ -8,10 +8,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Filomena.Core/Filomena.Core.csproj" />
+    <ProjectReference Include="../Cortex.Core/Cortex.Core.csproj" />
+    <ProjectReference Include="../Cortex.Inference/Cortex.Inference.csproj" />
     <ProjectReference Include="../Filomena.Llm/Filomena.Llm.csproj" />
-    <ProjectReference Include="../Filomena.Memory/Filomena.Memory.csproj" />
-    <ProjectReference Include="../Filomena.OpenClaw/Filomena.OpenClaw.csproj" />
+    <ProjectReference Include="../Cortex.Memory/Cortex.Memory.csproj" />
+    <ProjectReference Include="../Cortex.OpenClaw/Cortex.OpenClaw.csproj" />
   </ItemGroup>
 
   <ItemGroup>

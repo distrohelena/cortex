@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Net.Http.Json;
 using Filomena.App;
-using Filomena.Core.Flows.Sessions;
+using Cortex.Core.Flows.Sessions;
 using Xunit;
 
 namespace Filomena.Llm.Tests;
@@ -41,7 +41,7 @@ public sealed class ParticipationSliceTests
             new ParticipationExperiments.FakeModel(), memory, "fake", TestContext.Current.CancellationToken);
         Assert.True(run.Report.Success, run.Report.Error);
         var query = Assert.Single(memory.Queries);
-        Assert.Equal(Core.Memory.MemoryMode.Exact, query.Mode);
+        Assert.Equal(Cortex.Core.Memory.MemoryMode.Exact, query.Mode);
         Assert.Equal(4, query.MaxItems); Assert.Equal(700, query.MaxCharacters);
         Assert.Null(query.Text);
         Assert.Equal("whatsapp-group-5511981042361-1589823314-g-us", query.ConversationNamespace);

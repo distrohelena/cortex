@@ -1,12 +1,12 @@
 using Filomena.App;
-using Filomena.Core.Conversations;
-using Filomena.Core.Flows.Sessions;
+using Cortex.Core.Conversations;
+using Cortex.Core.Flows.Sessions;
 using Filomena.Core.Identity;
-using Filomena.Core.Outbound;
-using Filomena.Core.Shadow;
-using Filomena.Core.Flows;
-using Filomena.Core.Memory;
-using Filomena.Memory;
+using Cortex.Core.Outbound;
+using Cortex.Core.Shadow;
+using Cortex.Core.Flows;
+using Cortex.Core.Memory;
+using Cortex.Memory;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -341,13 +341,13 @@ public sealed class NativeGroupHostTests
                 var capabilities = new TransportSafetyCapabilities(true, true, true, true, true, true, true);
                 var proof = JsonSerializer.SerializeToUtf8Bytes(new {
                     version = "native-live-capabilities:v1", approvedRevision = "R1", observationSessionRef = "source",
-                    routeBindingRef = Filomena.OpenClaw.Observation.NativeObservationReader.RouteBindingRef(config.Session),
+                    routeBindingRef = Cortex.OpenClaw.Observation.NativeObservationReader.RouteBindingRef(config.Session),
                     boundSendContract = "whatsapp-bound-group-text:v1", capabilities, maxInteractions = 5
                 }, json);
                 await File.WriteAllBytesAsync(Path.Combine(directory.FullName, "proof.json"), proof, TestContext.Current.CancellationToken);
                 var liveFile = Path.Combine(directory.FullName, "live.json");
                 await File.WriteAllTextAsync(liveFile, JsonSerializer.Serialize(new {
-                    nativeConfigFile = file, mcp = new Filomena.OpenClaw.Mcp.OpenClawMcpClientOptions("never-start", []),
+                    nativeConfigFile = file, mcp = new Cortex.OpenClaw.Mcp.OpenClawMcpClientOptions("never-start", []),
                     transportRoute = "group-route", speakerName = "Filomena", maxSinglePartCharacters = 4000,
                     capabilities, capabilityEvidenceFile = "proof.json", capabilityEvidenceSha256 = Convert.ToHexString(SHA256.HashData(proof)),
                     maxInteractions = 5, allowExactGroupDelivery = true
@@ -421,13 +421,13 @@ public sealed class NativeGroupHostTests
             var capabilities = new TransportSafetyCapabilities(true, true, true, true, true, true, true);
             var proof = JsonSerializer.SerializeToUtf8Bytes(new {
                 version = "native-live-capabilities:v1", approvedRevision = "R1", observationSessionRef = "source",
-                routeBindingRef = Filomena.OpenClaw.Observation.NativeObservationReader.RouteBindingRef(config.Session),
+                routeBindingRef = Cortex.OpenClaw.Observation.NativeObservationReader.RouteBindingRef(config.Session),
                 boundSendContract = "whatsapp-bound-text:v1", capabilities, maxInteractions = 1, continuousDm = true
             }, json);
             await File.WriteAllBytesAsync(Path.Combine(directory.FullName, "proof.json"), proof, TestContext.Current.CancellationToken);
             var liveFile = Path.Combine(directory.FullName, "live.json");
             await File.WriteAllTextAsync(liveFile, JsonSerializer.Serialize(new {
-                nativeConfigFile = nativeFile, mcp = new Filomena.OpenClaw.Mcp.OpenClawMcpClientOptions("never-start", []),
+                nativeConfigFile = nativeFile, mcp = new Cortex.OpenClaw.Mcp.OpenClawMcpClientOptions("never-start", []),
                 transportRoute = "dm-route", speakerName = "Filomena", maxSinglePartCharacters = 4000,
                 capabilities, capabilityEvidenceFile = "proof.json", capabilityEvidenceSha256 = Convert.ToHexString(SHA256.HashData(proof)),
                 maxInteractions = 1, continuousDm = true

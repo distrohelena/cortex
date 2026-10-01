@@ -1,8 +1,8 @@
 // Offline operator utility. No sender, credentials, model, Graphiti or transport dependencies.
 using System.Text.Json;
 using Filomena.App;
-using Filomena.Core.Flows.Sessions;
-using Filomena.Core.Shadow;
+using Cortex.Core.Flows.Sessions;
+using Cortex.Core.Shadow;
 
 var transferCheckpoint = args.Length == 9 && args[8] == "--checkpoint";
 if (args.Length != 8 && !transferCheckpoint)

@@ -1,5 +1,9 @@
 # Evaluation workbench: offline development checkpoint
 
+Naming update (2026-10-01): current source/CLI projects use `Cortex.Evaluation`.
+Historical commands and counts below retain their original names. Use
+[current CLI instructions](evaluation-cli.md) and [migration verification](cortex-migration-status.md).
+
 The host is being migrated. Docker/PostgreSQL operations are suspended by user instruction.
 Filomena is not activated by this work. No chat bootstrap, sender, Graphiti writer or production
 configuration is used by the evaluation project.

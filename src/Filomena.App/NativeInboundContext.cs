@@ -1,7 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Filomena.Core.Shadow;
-using Filomena.Memory;
+using Cortex.Core.Shadow;
+using Cortex.Memory;
 
 namespace Filomena.App;
 

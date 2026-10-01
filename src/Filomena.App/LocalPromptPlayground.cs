@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.Net;
 using System.Text.Json;
-using Filomena.Llm.LmStudio;
-using Filomena.Core.Memory;
-using Filomena.Memory;
+using Cortex.Inference.LmStudio;
+using Cortex.Core.Memory;
+using Cortex.Memory;
 using Filomena.App.Playground;
 using Filomena.App.FlowRuntime;
 using Microsoft.AspNetCore.Builder;
@@ -117,11 +117,11 @@ public static class LocalPromptPlayground
             try
             {
                 // Absent query preserves the historical endpoint; explicit v2 selection is never a latest alias.
-                var template = Filomena.Core.Boundaries.BoundaryDetectionTemplates.Resolve(templateVersion ?? "no_teasing_about_topic:v1",
+                var template = Cortex.Core.Boundaries.BoundaryDetectionTemplates.Resolve(templateVersion ?? "no_teasing_about_topic:v1",
                     semanticVersion ?? "boundary-semantic-features:v1", evaluatorVersion ?? "no_teasing_about_topic:evaluator-v1");
                 return Results.Ok(new
                 {
-                    executionProfile = Filomena.Core.Boundaries.BoundaryEnforcementProfile.Id,
+                    executionProfile = Cortex.Core.Boundaries.BoundaryEnforcementProfile.Id,
                     semanticContractVersion = template.SemanticVersion,
                     boundaryEvaluatorVersion = template.EvaluatorVersion,
                     boundaryTemplateVersion = template.TemplateId,
@@ -135,12 +135,12 @@ public static class LocalPromptPlayground
         app.MapGet("/api/boundary-policies", () => Results.Ok(new
         {
             taxonomyVersion = "v1",
-            grammarVersion = Filomena.Core.Boundaries.BoundarySourceParserV1.Version,
-            supportedForms = Filomena.Core.Boundaries.BoundarySourceParserV1.SupportedForms,
-            supportedTopics = Filomena.Core.Boundaries.BoundarySourceParserV1.SupportedTopics,
+            grammarVersion = Cortex.Core.Boundaries.BoundarySourceParserV1.Version,
+            supportedForms = Cortex.Core.Boundaries.BoundarySourceParserV1.SupportedForms,
+            supportedTopics = Cortex.Core.Boundaries.BoundarySourceParserV1.SupportedTopics,
             templatesVersion = "v1",
-            policy = Filomena.Core.Boundaries.BoundaryPolicies.TopicV1,
-            disclosure = Filomena.Core.Boundaries.BoundaryPolicies.DisclosureV1
+            policy = Cortex.Core.Boundaries.BoundaryPolicies.TopicV1,
+            disclosure = Cortex.Core.Boundaries.BoundaryPolicies.DisclosureV1
         }));
         app.MapGet("/api/model-catalog", () =>
         {

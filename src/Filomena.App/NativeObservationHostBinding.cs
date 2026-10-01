@@ -1,8 +1,8 @@
 using System.Text.RegularExpressions;
-using Filomena.Core.Flows.Sessions;
+using Cortex.Core.Flows.Sessions;
 using Filomena.Core.Identity;
-using Filomena.Core.Shadow;
-using Filomena.Core.Outbound;
+using Cortex.Core.Shadow;
+using Cortex.Core.Outbound;
 
 namespace Filomena.App;
 

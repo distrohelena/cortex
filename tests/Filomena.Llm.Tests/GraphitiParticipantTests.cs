@@ -1,6 +1,6 @@
 using System.Text.Json;
-using Filomena.Core.Memory;
-using Filomena.Memory;
+using Cortex.Core.Memory;
+using Cortex.Memory;
 using Xunit;
 
 namespace Filomena.Llm.Tests;
@@ -11,15 +11,15 @@ public sealed class GraphitiParticipantTests
     public async Task Native_context_uses_registered_name_and_preserves_quote_cursor_and_message_identity()
     {
         const string actor = "whatsapp:123456789@s.whatsapp.net", ns = "whatsapp-test-group";
-        var session = new Filomena.Core.Flows.Sessions.SessionKey("r", "filomena", "whatsapp", "default", "123@g.us");
-        var binding = new Filomena.Core.Shadow.ShadowSessionBinding(session, ns, ["agent:filomena"], [actor],
-            Filomena.Core.Flows.Sessions.SessionEntryKind.Group);
+        var session = new Cortex.Core.Flows.Sessions.SessionKey("r", "filomena", "whatsapp", "default", "123@g.us");
+        var binding = new Cortex.Core.Shadow.ShadowSessionBinding(session, ns, ["agent:filomena"], [actor],
+            Cortex.Core.Flows.Sessions.SessionEntryKind.Group);
         var person = MemoryIdentity.Person(ns, actor, null);
         var client = new Client(JsonSerializer.SerializeToElement(new { facts = Array.Empty<object>(), entity = new {
             uuid = person.ParticipantUuid, group_id = ns, stable_id = actor, labels = new[] { "Person" }, display_name_current = "Helena Assis" } }));
-        var input = new Filomena.Core.Shadow.CanonicalShadowInbound("epoch", 22, session, binding.Kind, ns, actor,
+        var input = new Cortex.Core.Shadow.CanonicalShadowInbound("epoch", 22, session, binding.Kind, ns, actor,
             new("incoming-id", "whatsapp", "default", "123@g.us", DateTimeOffset.UtcNow,
-                Filomena.Core.Flows.Sessions.SessionMessageDirection.Inbound, binding.Kind,
+                Cortex.Core.Flows.Sessions.SessionMessageDirection.Inbound, binding.Kind,
                 JsonSerializer.SerializeToElement(new { texto = "responde isso", remetente = new { nome = "", stableId = actor },
                     canal = new { nome = "Grupo", nativeId = "123@g.us" },
                     reply = new { id = "quoted-id", texto = "John Mayer?", origem = "citacao_do_remetente" } })));

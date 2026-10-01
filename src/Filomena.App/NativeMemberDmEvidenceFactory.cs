@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
-using Filomena.Core.Outbound;
-using Filomena.Core.Shadow;
+using Cortex.Core.Outbound;
+using Cortex.Core.Shadow;
 
 namespace Filomena.App;
 

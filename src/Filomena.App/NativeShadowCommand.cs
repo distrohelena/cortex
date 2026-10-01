@@ -1,16 +1,16 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Collections.Concurrent;
-using Filomena.Core.Flows;
+using Cortex.Core.Flows;
 using Filomena.Core.Identity;
-using Filomena.Core.Outbound;
-using Filomena.Core.Shadow;
-using Filomena.Llm;
-using Filomena.Llm.LmStudio;
-using Filomena.Llm.OpenAi;
-using Filomena.Memory;
-using Filomena.OpenClaw.Observation;
-using Filomena.OpenClaw.Mcp;
+using Cortex.Core.Outbound;
+using Cortex.Core.Shadow;
+using Cortex.Inference;
+using Cortex.Inference.LmStudio;
+using Cortex.Inference.OpenAi;
+using Cortex.Memory;
+using Cortex.OpenClaw.Observation;
+using Cortex.OpenClaw.Mcp;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Logging;
 
@@ -108,11 +108,11 @@ public static class NativeShadowCommand
                 : NativeObservationHostBinding.Create(config, native.NativeConversationId, native.GroupParticipants,
                     live is not null, live?.AllowExactGroupDelivery == true);
             ContextInterpretationHost.Validate(native.ContextInterpretation, pin, binding, live is not null);
-            if (binding.Kind == Filomena.Core.Flows.Sessions.SessionEntryKind.Group)
+            if (binding.Kind == Cortex.Core.Flows.Sessions.SessionEntryKind.Group)
                 NativeObservationHostBinding.ValidateGroupSendWiring(pin, config.OutboundBindings);
-            if (live?.ContinuousGroup == true && (binding.Kind != Filomena.Core.Flows.Sessions.SessionEntryKind.Group
+            if (live?.ContinuousGroup == true && (binding.Kind != Cortex.Core.Flows.Sessions.SessionEntryKind.Group
                 || native.Recovery is not null)) throw new InvalidDataException("invalid_continuous_group_scope");
-            if (live?.ContinuousDm == true && (binding.Kind != Filomena.Core.Flows.Sessions.SessionEntryKind.Dm
+            if (live?.ContinuousDm == true && (binding.Kind != Cortex.Core.Flows.Sessions.SessionEntryKind.Dm
                 || live.AllowExactGroupDelivery || live.AllowNativeGroupParticipants || live.AllowNativeGroupReplies
                 || native.Recovery is not null)) throw new InvalidDataException("invalid_continuous_dm_scope");
             if (live is not null && (live.Evidence is not { } proof || proof.ApprovedRevision != native.ApprovedRevision
@@ -150,7 +150,7 @@ public static class NativeShadowCommand
             if (!graphEndpoint.IsLoopback || graphEndpoint.Scheme is not ("http" or "https")) throw new InvalidDataException();
             credential = Environment.GetEnvironmentVariable(native.ObservationTokenEnvironmentVariable) ?? throw new InvalidDataException();
             var configuredJournalDirectory = Path.GetFullPath(native.JournalDirectory, Path.GetDirectoryName(file)!);
-            directory = binding.Kind == Filomena.Core.Flows.Sessions.SessionEntryKind.Group
+            directory = binding.Kind == Cortex.Core.Flows.Sessions.SessionEntryKind.Group
                 ? NativeConversationSupervisor.ResolveSessionDirectory(configuredJournalDirectory, binding, configuredJournalDirectory)
                 : configuredJournalDirectory;
             var manualConfigDirectory = Path.GetDirectoryName(Path.GetFullPath(native.ManualConfigFile, Path.GetDirectoryName(file)!))!;
@@ -288,7 +288,7 @@ public static class NativeShadowCommand
                     await CheckTransport();
                     Interlocked.Increment(ref sendBoundaryAttempts);
                 }, live.MaxInteractions, live.ContinuousGroup, live.ContinuousDm,
-                live.ManagedMemberDm ? new Filomena.Core.Outbound.MemberDmBoundTextBinding(
+                live.ManagedMemberDm ? new Cortex.Core.Outbound.MemberDmBoundTextBinding(
                     live.Evidence!.NativeConversationId!, live.Evidence.ObservationSessionRef,
                     live.Evidence.RouteBindingRef, live.Evidence.ApprovedRevision, live.Evidence.MembershipLeaseRef!) : null,
                 participation: ContextInterpretationHost.CreateLiveOptions(native.ContextInterpretation, pin, binding, completion));
@@ -296,7 +296,7 @@ public static class NativeShadowCommand
             readPosition?.Save(cursor);
             var historyBeforeRecovery = liveRun?.History.ToArray();
             await Emit(new { phase = "run_started", runId,
-                source = binding.Kind == Filomena.Core.Flows.Sessions.SessionEntryKind.Group ? "native_observation_v2" : "native_observation_v1", cursor, evidence,
+                source = binding.Kind == Cortex.Core.Flows.Sessions.SessionEntryKind.Group ? "native_observation_v2" : "native_observation_v1", cursor, evidence,
                 restoredHistoryCount = liveRun?.History.Count ?? 0,
                 maxInteractions = live?.ContinuousGroup == true || live?.ContinuousDm == true ? (int?)null : native.MaxInteractions,
                 continuousGroup = live?.ContinuousGroup == true,

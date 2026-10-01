@@ -1,6 +1,6 @@
-using Filomena.Core.Flows;
-using Filomena.Core.Flows.Sessions;
-using Filomena.Core.Shadow;
+using Cortex.Core.Flows;
+using Cortex.Core.Flows.Sessions;
+using Cortex.Core.Shadow;
 using Filomena.Llm.Context;
 
 namespace Filomena.App;
@@ -37,7 +37,7 @@ internal static class ContextInterpretationHost
     internal static void Configure(ContextInterpretationHostConfig? config, PinnedShadowProject pin,
         ShadowSessionBinding binding, ObservedShadowRun run, IFlowCompletion completion)
     {
-        Validate(config, pin, binding, run.OutboundMode != Filomena.Core.Outbound.OutboundMode.Shadow);
+        Validate(config, pin, binding, run.OutboundMode != Cortex.Core.Outbound.OutboundMode.Shadow);
         if (config is null) return;
         var analyzer = new ContextInterpretationAnalyzer(completion, config.Model);
         run.ConfigureParticipationObservation(config.Participation, analyzer.ReassessAsync, config.MessageHorizon,

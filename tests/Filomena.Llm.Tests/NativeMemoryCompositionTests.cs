@@ -1,8 +1,8 @@
 using System.Text.Json;
 using Filomena.App;
 using Filomena.Core.Identity;
-using Filomena.Core.Memory;
-using Filomena.Memory;
+using Cortex.Core.Memory;
+using Cortex.Memory;
 using Xunit;
 
 namespace Filomena.Llm.Tests;

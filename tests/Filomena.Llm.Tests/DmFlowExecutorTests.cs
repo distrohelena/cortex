@@ -2,8 +2,8 @@ using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Filomena.App.FlowRuntime;
-using Filomena.Core.Conversations;
-using Filomena.Llm.LmStudio;
+using Cortex.Core.Conversations;
+using Cortex.Inference.LmStudio;
 using Xunit;
 
 namespace Filomena.Llm.Tests;

@@ -1,7 +1,7 @@
 using Filomena.App;
-using Filomena.Core.Flows.Sessions;
+using Cortex.Core.Flows.Sessions;
 using Filomena.Core.Identity;
-using Filomena.Core.Shadow;
+using Cortex.Core.Shadow;
 using Xunit;
 
 namespace Filomena.Llm.Tests;
@@ -18,7 +18,7 @@ public sealed class NativeLiveCommandTests
         var config = new NativeLiveConfig("native.json", new("never-start", []), "route", "Agent", 1000,
             new(true, true, true, true, true, true, true), "proof.json", "hash",
             AllowExactGroupDelivery: true, AllowNativeGroupReplies: authorized);
-        var roles = new Filomena.Core.Outbound.OutboundBindings(
+        var roles = new Cortex.Core.Outbound.OutboundBindings(
             [], [], new Dictionary<string, string> { ["generate"] = "texto" }, [], null)
         {
             ReplyTargetPorts = wired ? new Dictionary<string, string> { ["generate"] = "replyTo" }
@@ -40,7 +40,7 @@ public sealed class NativeLiveCommandTests
         try
         {
             var json = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
-            var capabilities = new Filomena.Core.Outbound.TransportSafetyCapabilities(true, true, true, true, true, true, true);
+            var capabilities = new Cortex.Core.Outbound.TransportSafetyCapabilities(true, true, true, true, true, true, true);
             var bytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new {
                 version = "native-live-capabilities:v1", approvedRevision = "R1", observationSessionRef = "session",
                 routeBindingRef = "route", boundSendContract = group ? "whatsapp-bound-group-text:v1" : "whatsapp-bound-text:v1",
@@ -73,7 +73,7 @@ public sealed class NativeLiveCommandTests
         try
         {
             var json = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
-            var capabilities = new Filomena.Core.Outbound.TransportSafetyCapabilities(true, true, true, true, true, true, true);
+            var capabilities = new Cortex.Core.Outbound.TransportSafetyCapabilities(true, true, true, true, true, true, true);
             var bytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new {
                 version = "native-live-capabilities:v1", approvedRevision = "R1", observationSessionRef = "session",
                 routeBindingRef = "route", boundSendContract = group ? "whatsapp-bound-group-text:v1" : "whatsapp-bound-text:v1",
@@ -112,7 +112,7 @@ public sealed class NativeLiveCommandTests
         try
         {
             var json = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
-            var capabilities = new Filomena.Core.Outbound.TransportSafetyCapabilities(true, true, true, true, true, true, true);
+            var capabilities = new Cortex.Core.Outbound.TransportSafetyCapabilities(true, true, true, true, true, true, true);
             var bytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new {
                 version = "native-live-capabilities:v1", approvedRevision = "R1", observationSessionRef = "session",
                 routeBindingRef = "route", boundSendContract = groupReplies ? "whatsapp-bound-group-reply:v1"
@@ -150,13 +150,13 @@ public sealed class NativeLiveCommandTests
         try
         {
             var json = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
-            var capabilities = new Filomena.Core.Outbound.TransportSafetyCapabilities(true, true, true, true, true, true, true);
+            var capabilities = new Cortex.Core.Outbound.TransportSafetyCapabilities(true, true, true, true, true, true, true);
             var bytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new {
                 version = "native-live-capabilities:v1", approvedRevision = "native-dispatch-R7", observationSessionRef = "dm-scope",
                 routeBindingRef = "dm-route", boundSendContract = contract, capabilities, continuousDm = true,
                 managedMemberDm = managedEvidence, nativeConversationId, membershipLeaseRef,
                 nativeObservationCapabilities = managedEvidence
-                    ? Filomena.Core.Shadow.NativeObservationPreflight.RequiredCapabilities.ToDictionary(capability => capability, _ => true)
+                    ? Cortex.Core.Shadow.NativeObservationPreflight.RequiredCapabilities.ToDictionary(capability => capability, _ => true)
                     : null,
                 nativeAccountId = managedEvidence ? "account-a" : null,
                 nativeSourceGroupJid = managedEvidence ? "120363318973251043@g.us" : null,
@@ -193,7 +193,7 @@ public sealed class NativeLiveCommandTests
         try
         {
             var json = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
-            var capabilities = new Filomena.Core.Outbound.TransportSafetyCapabilities(true, true, true, true, true, true, true);
+            var capabilities = new Cortex.Core.Outbound.TransportSafetyCapabilities(true, true, true, true, true, true, true);
             var bytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new {
                 version = "native-live-capabilities:v1", approvedRevision = "R1", observationSessionRef = "session",
                 routeBindingRef = "route", boundSendContract = contract, capabilities, maxInteractions = 5
@@ -223,7 +223,7 @@ public sealed class NativeLiveCommandTests
         try
         {
             var json = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
-            var capabilities = new Filomena.Core.Outbound.TransportSafetyCapabilities(true, true, true, true, true, true, true);
+            var capabilities = new Cortex.Core.Outbound.TransportSafetyCapabilities(true, true, true, true, true, true, true);
             var bytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new {
                 version = "native-live-capabilities:v1", approvedRevision = "R1", observationSessionRef = "session",
                 routeBindingRef = "route", boundSendContract = "whatsapp-bound-text:v1", capabilities,
@@ -260,7 +260,7 @@ public sealed class NativeLiveCommandTests
         try
         {
             var json = new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web);
-            var capabilities = new Filomena.Core.Outbound.TransportSafetyCapabilities(true, true, true, true, true, true, true);
+            var capabilities = new Cortex.Core.Outbound.TransportSafetyCapabilities(true, true, true, true, true, true, true);
             var bytes = System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new {
                 version = "native-live-capabilities:v1", approvedRevision = "R1", observationSessionRef = "session",
                 routeBindingRef = "route", boundSendContract = "whatsapp-bound-text:v1", capabilities, maxInteractions = proofBudget

@@ -1,12 +1,12 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Security.Cryptography;
-using Filomena.Core.Shadow;
-using Filomena.Core.Outbound;
+using Cortex.Core.Shadow;
+using Cortex.Core.Outbound;
 using Filomena.App;
 using System.Net.Http.Json;
-using Filomena.Core.Flows;
-using Filomena.Core.Flows.Sessions;
+using Cortex.Core.Flows;
+using Cortex.Core.Flows.Sessions;
 using Xunit;
 using static Filomena.Llm.Tests.ParticipationExperiments;
 
@@ -142,9 +142,9 @@ public sealed class DirectParticipationRuleTests
         Assert.DoesNotContain(r.Trace, e => e.EventName == "node-outbound");
         Assert.DoesNotContain(model.Calls, c => c.NodeId.EndsWith("-generation"));
     }
-    private sealed class UnavailableMemory : Filomena.Core.Memory.IMemoryReader
+    private sealed class UnavailableMemory : Cortex.Core.Memory.IMemoryReader
     {
-        public Task<IReadOnlyList<Filomena.Core.Memory.MemoryItem>> QueryAsync(Filomena.Core.Memory.MemoryQuery query, CancellationToken token)
+        public Task<IReadOnlyList<Cortex.Core.Memory.MemoryItem>> QueryAsync(Cortex.Core.Memory.MemoryQuery query, CancellationToken token)
             => throw new HttpRequestException("Controlled recall outage, never valid empty.");
     }
 

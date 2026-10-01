@@ -110,7 +110,7 @@ internal sealed class PlaygroundProjectStore(string directory)
             foreach (var node in Array(graph, "nodes", 64).EnumerateArray())
             {
                 Keys(node, "id", "kind", "x", "y", "prompt", "provider", "model", "settings", "responseFields", "inputs", "correctionRetry", "title", "usePersonalityCore", "useStateGuidance", "useInterestProfile", "outputMode", "reasoningEffort", "maxOutputTokens", "executionProfile", "semanticContractVersion", "boundaryEvaluatorVersion", "boundaryTemplateVersion", "enforcementStrategy", "complementaryContractVersion", "aggregationPolicyVersion");
-                if (Text(node, "kind") == "send") Filomena.Core.Outbound.SendNodeContract.Validate(node);
+                if (Text(node, "kind") == "send") Cortex.Core.Outbound.SendNodeContract.Validate(node);
                 if (node.TryGetProperty("outputMode", out _)) Text(node, "outputMode", 32);
                 foreach (var flag in new[] { "usePersonalityCore", "useStateGuidance", "useInterestProfile" })
                     if (node.TryGetProperty(flag, out var enabled) && enabled.ValueKind is not (JsonValueKind.True or JsonValueKind.False)) throw new InvalidDataException();

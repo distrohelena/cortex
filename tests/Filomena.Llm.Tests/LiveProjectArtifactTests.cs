@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json.Nodes;
-using Filomena.Core.Shadow;
+using Cortex.Core.Shadow;
 using Xunit;
 
 namespace Filomena.Llm.Tests;

@@ -1,9 +1,9 @@
 using System.Text.Json;
 using Filomena.App;
-using Filomena.Core.Flows.Sessions;
-using Filomena.Core.Memory;
-using Filomena.Core.Shadow;
-using Filomena.Memory;
+using Cortex.Core.Flows.Sessions;
+using Cortex.Core.Memory;
+using Cortex.Core.Shadow;
+using Cortex.Memory;
 using Xunit;
 
 namespace Filomena.Llm.Tests;

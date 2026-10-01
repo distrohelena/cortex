@@ -2,7 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Filomena.Core.Identity;
-using Filomena.Core.Shadow;
+using Cortex.Core.Shadow;
 
 namespace Filomena.App;
 
@@ -68,7 +68,7 @@ public sealed class NativeMemoryOutbox : IDisposable
             {
                 direction = "inbound", providerLabel = "WhatsApp", providerMessageId = input.Message.ProviderMessageId,
                 conversation = new { channel = binding.Session.ChannelId, accountId = binding.Session.AccountId,
-                    nativeId = binding.Session.NativeConversationId, kind = binding.Kind == Core.Flows.Sessions.SessionEntryKind.Group ? "group" : "dm",
+                    nativeId = binding.Session.NativeConversationId, kind = binding.Kind == Cortex.Core.Flows.Sessions.SessionEntryKind.Group ? "group" : "dm",
                     @namespace = binding.ConversationNamespace },
                 content = text, referenceTime = input.Message.Timestamp.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.fff'Z'"),
                 originalTimestamp = input.Message.Timestamp.ToUnixTimeMilliseconds(), timestampSource = "provider",

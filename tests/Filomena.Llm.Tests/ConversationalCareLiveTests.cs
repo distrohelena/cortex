@@ -2,9 +2,9 @@ using System.Diagnostics;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Filomena.Core.Flows;
-using Filomena.Core.Shadow;
-using Filomena.Llm.OpenAi;
+using Cortex.Core.Flows;
+using Cortex.Core.Shadow;
+using Cortex.Inference.OpenAi;
 using Xunit;
 
 namespace Filomena.Llm.Tests;

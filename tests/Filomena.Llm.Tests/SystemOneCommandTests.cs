@@ -1,6 +1,6 @@
 using Filomena.App;
 using Xunit;
-using static Filomena.Llm.Tests.SystemOneClientTests;
+using static Cortex.TestSupport.SystemOneTestSupport;
 
 namespace Filomena.Llm.Tests;
 

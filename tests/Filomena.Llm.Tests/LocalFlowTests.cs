@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Filomena.App;
 using Filomena.App.Playground;
-using Filomena.Llm.LmStudio;
+using Cortex.Inference.LmStudio;
 using Xunit;
 
 namespace Filomena.Llm.Tests;

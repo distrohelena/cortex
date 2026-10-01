@@ -1,8 +1,8 @@
 using System.Diagnostics;
 using System.Text.Json;
-using Filomena.Core.Flows.Sessions;
+using Cortex.Core.Flows.Sessions;
 using Filomena.Llm.Context;
-using Filomena.Llm.OpenAi;
+using Cortex.Inference.OpenAi;
 using Xunit;
 
 namespace Filomena.Llm.Tests;

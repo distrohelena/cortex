@@ -1,10 +1,10 @@
 using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Filomena.Core.Flows;
-using Filomena.Llm;
-using Filomena.Llm.LmStudio;
-using Filomena.Llm.OpenAi;
+using Cortex.Core.Flows;
+using Cortex.Inference;
+using Cortex.Inference.LmStudio;
+using Cortex.Inference.OpenAi;
 using Xunit;
 using static Filomena.Llm.Tests.ParticipationExperiments;
 
@@ -87,7 +87,7 @@ public sealed class LunaGeneratorGateLiveTests
         var path = Path.Combine(evidenceRoot, $"luna-generator-H{repetition}-{Guid.NewGuid():N}.json");
         await File.WriteAllTextAsync(path, JsonSerializer.Serialize(evidence), token);
         TestContext.Current.TestOutputHelper!.WriteLine("LUNA_H_FILE=" + path);
-        Assert.All(run.History, h => Assert.Equal(Filomena.Core.Flows.Sessions.SessionMessageDirection.Inbound, h.Direction));
+        Assert.All(run.History, h => Assert.Equal(Cortex.Core.Flows.Sessions.SessionMessageDirection.Inbound, h.Direction));
         if (!run.Outcome.Success) Assert.Null(sent);
     }
 

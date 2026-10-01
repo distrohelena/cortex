@@ -1,5 +1,5 @@
-using Filomena.Core.Conversations;
-using Filomena.OpenClaw.Bridge;
+using Cortex.Core.Conversations;
+using Cortex.OpenClaw.Bridge;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;

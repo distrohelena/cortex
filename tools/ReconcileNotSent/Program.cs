@@ -1,9 +1,9 @@
 // Explicit operator reconciliation. No sender, runtime, memory client or Rearm.
 using System.Security.Cryptography;
 using System.Text.Json;
-using Filomena.Core.Flows.Sessions;
-using Filomena.Core.Outbound;
-using Filomena.Core.Shadow;
+using Cortex.Core.Flows.Sessions;
+using Cortex.Core.Outbound;
+using Cortex.Core.Shadow;
 
 if (args.Length != 5 || args[4] is not ("--check" or "--apply"))
     throw new ArgumentException("native-config attempt-ref expected-journal-sha256 evidence-ref --check|--apply");

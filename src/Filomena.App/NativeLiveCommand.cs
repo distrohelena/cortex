@@ -1,10 +1,10 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Runtime.CompilerServices;
-using Filomena.Core.Outbound;
-using Filomena.Core.Shadow;
-using Filomena.OpenClaw.Mcp;
-using Filomena.OpenClaw.Observation;
+using Cortex.Core.Outbound;
+using Cortex.Core.Shadow;
+using Cortex.OpenClaw.Mcp;
+using Cortex.OpenClaw.Observation;
 
 [assembly: InternalsVisibleTo("Filomena.Llm.Tests")]
 
@@ -151,7 +151,7 @@ public static class NativeLiveCommand
                             @"\A[0-9]+(?::[0-9]+)?@(s\.whatsapp\.net|lid)\z"))
                         || proof.NativeAliases.Distinct(StringComparer.Ordinal).Count() != proof.NativeAliases.Length
                         || proof.NativeObservationCapabilities is null
-                        || Filomena.Core.Shadow.NativeObservationPreflight.RequiredCapabilities.Any(capability =>
+                        || Cortex.Core.Shadow.NativeObservationPreflight.RequiredCapabilities.Any(capability =>
                             !proof.NativeObservationCapabilities.GetValueOrDefault(capability))))
                 || (!live.ManagedMemberDm && (proof.NativeConversationId is not null || proof.MembershipLeaseRef is not null
                     || proof.NativeObservationCapabilities is not null || proof.NativeAccountId is not null

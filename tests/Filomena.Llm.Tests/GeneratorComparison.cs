@@ -1,6 +1,6 @@
 using System.Text.Json;
-using Filomena.Core.Flows;
-using Filomena.Core.Memory;
+using Cortex.Core.Flows;
+using Cortex.Core.Memory;
 using static Filomena.Llm.Tests.ParticipationExperiments;
 
 namespace Filomena.Llm.Tests;

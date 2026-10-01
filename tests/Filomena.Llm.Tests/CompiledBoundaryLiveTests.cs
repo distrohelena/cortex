@@ -1,10 +1,10 @@
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Filomena.Core.Flows;
-using Filomena.Core.Boundaries;
-using Filomena.Core.Flows.Sessions;
-using Filomena.Llm.OpenAi;
+using Cortex.Core.Flows;
+using Cortex.Core.Boundaries;
+using Cortex.Core.Flows.Sessions;
+using Cortex.Inference.OpenAi;
 using Xunit;
 
 namespace Filomena.Llm.Tests;

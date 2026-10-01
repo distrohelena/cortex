@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../Filomena.Core/Filomena.Core.csproj" />
+    <ProjectReference Include="../Cortex.Core/Cortex.Core.csproj" />
+    <ProjectReference Include="../Cortex.Inference/Cortex.Inference.csproj" />
   </ItemGroup>
 </Project>

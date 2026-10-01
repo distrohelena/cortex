@@ -1,5 +1,5 @@
 using System.Text.Json;
-using Filomena.Core.Flows;
+using Cortex.Core.Flows;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 
@@ -22,8 +22,8 @@ internal static class TypedFlowEndpoints
                     contracts = flow.Nodes.Values.Where(n => n.Source.Kind == "prompt").Select(n => new
                     {
                         nodeId = n.Source.Id,
-                        system = Filomena.Core.Boundaries.BoundaryEnforcementProfile.Enabled(n.Source.Config)
-                            ? Filomena.Core.Boundaries.BoundaryDetectionTemplates.Read(n.Source.Config).SemanticContractDefinition
+                        system = Cortex.Core.Boundaries.BoundaryEnforcementProfile.Enabled(n.Source.Config)
+                            ? Cortex.Core.Boundaries.BoundaryDetectionTemplates.Read(n.Source.Config).SemanticContractDefinition
                             : n.Source.Config.GetProperty("prompt").GetString(),
                         inputs = n.Inputs.Select(p => new { p.Id, p.Name, type = p.Type.ToJsonSchema(), p.Required }),
                         responseSchema = TypedFlowRunner.ResponseSchema(n),

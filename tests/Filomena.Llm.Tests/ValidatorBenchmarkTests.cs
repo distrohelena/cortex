@@ -1,10 +1,10 @@
 using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Filomena.Core.Flows;
-using Filomena.Llm;
-using Filomena.Llm.LmStudio;
-using Filomena.Llm.OpenAi;
+using Cortex.Core.Flows;
+using Cortex.Inference;
+using Cortex.Inference.LmStudio;
+using Cortex.Inference.OpenAi;
 using Xunit;
 
 namespace Filomena.Llm.Tests;

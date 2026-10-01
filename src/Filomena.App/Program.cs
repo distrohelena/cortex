@@ -1,11 +1,11 @@
 using Filomena.App;
-using Filomena.Core.Arbitration;
-using Filomena.Core.Conversations;
+using Cortex.Core.Arbitration;
+using Cortex.Core.Conversations;
 using Filomena.Llm.Arbitration;
 using Filomena.Llm.Agent;
-using Filomena.Llm.LmStudio;
-using Filomena.OpenClaw.Bridge;
-using Filomena.OpenClaw.Mcp;
+using Cortex.Inference.LmStudio;
+using Cortex.OpenClaw.Bridge;
+using Cortex.OpenClaw.Mcp;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;

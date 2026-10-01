@@ -1,11 +1,11 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text.Json;
-using Filomena.Core.Flows;
-using Filomena.Core.Flows.Sessions;
+using Cortex.Core.Flows;
+using Cortex.Core.Flows.Sessions;
 using Filomena.Core.Identity;
-using Filomena.Core.Memory;
-using Filomena.Memory;
+using Cortex.Core.Memory;
+using Cortex.Memory;
 using Xunit;
 
 namespace Filomena.Llm.Tests;

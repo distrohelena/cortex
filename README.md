@@ -12,6 +12,12 @@ a separate history-redaction review.
 
 ## Components
 
+- `src/Cortex.Core`: shared flows, sessions, authority and delivery contracts.
+- `src/Cortex.Inference`: provider adapters and typed/summary composition, without character dependencies.
+- `src/Cortex.Memory` and `src/Cortex.OpenClaw`: optional memory and transport adapters.
+- `src/Cortex.Evaluation` and `src/Cortex.Evaluation.Cli`: the existing evaluation workbench.
+- `src/Filomena.App` and `src/Filomena.Llm`: Filomena's host and character-specific behavior.
+- `Filomena.slnx`: the aggregate solution; the repository directory is unchanged.
 - `plugins/whatsapp-filomena-guard`: dispatch and reply-label policy.
 - `plugins/telegram-filomena-guard`: thin Telegram response-policy adapter.
 - `plugins/filomena-conversation-policy-core`: provider-neutral response evaluator and outbound-ID registry.
@@ -22,6 +28,10 @@ a separate history-redaction review.
 - `workspace`: active OpenClaw prompt workspace; local memory files are ignored.
 
 ## Prerequisites
+
+The Cortex rename preserves existing identities and storage contracts; it does not
+establish cross-application memory ownership. See [migration evidence and validation
+limits](docs/cortex-migration-status.md). Deployment is separate from the source rename.
 
 - Docker Desktop
 - Node.js

@@ -1,10 +1,10 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Filomena.App;
-using Filomena.Core.Flows.Sessions;
+using Cortex.Core.Flows.Sessions;
 using Filomena.Core.Identity;
-using Filomena.Core.Outbound;
-using Filomena.Core.Shadow;
+using Cortex.Core.Outbound;
+using Cortex.Core.Shadow;
 using Xunit;
 
 namespace Filomena.Llm.Tests;

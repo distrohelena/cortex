@@ -2,11 +2,12 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Filomena.Core.Flows;
-using Filomena.Core.Flows.Sessions;
-using Filomena.Core.Outbound;
-using Filomena.Core.Shadow;
+using Cortex.Core.Flows;
+using Cortex.Core.Flows.Sessions;
+using Cortex.Core.Outbound;
+using Cortex.Core.Shadow;
 using Filomena.Llm.SystemOne;
+using Cortex.Inference.SystemOne;
 using Xunit;
 using static Filomena.Llm.Tests.ParticipationExperiments;
 
@@ -72,7 +73,7 @@ public sealed class SystemOneSummaryCompositionTests
     [Fact]
     public async Task Invalid_typed_result_never_falls_back_to_generative_situation()
     {
-        using var http = new HttpClient(new SystemOneClientTests.Handler("{}"));
+        using var http = new HttpClient(new Cortex.TestSupport.SystemOneTestSupport.Handler("{}"));
         var baseline = new Baseline();
         var completion = new SystemOneSummaryComposition(SystemOneParticipationTests.Completion(http), baseline, "laya", "multilingual");
         var result = await ExecuteAsync(new(1, "typed outage", Inactive, [new("Helena", "Filomena, me ajuda?")]), false,

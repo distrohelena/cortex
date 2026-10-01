@@ -3,8 +3,8 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Filomena.App;
-using Filomena.Core.Flows;
-using Filomena.Llm.LmStudio;
+using Cortex.Core.Flows;
+using Cortex.Inference.LmStudio;
 using Xunit;
 
 namespace Filomena.Llm.Tests;

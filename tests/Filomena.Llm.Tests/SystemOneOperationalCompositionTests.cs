@@ -1,6 +1,7 @@
 using System.Text.Json;
-using Filomena.Core.Flows;
+using Cortex.Core.Flows;
 using Filomena.Llm.SystemOne;
+using Cortex.Inference.SystemOne;
 using Xunit;
 
 namespace Filomena.Llm.Tests;

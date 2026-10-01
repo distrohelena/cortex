@@ -1,6 +1,6 @@
 using System.Text.Json;
 using Filomena.App;
-using Filomena.Core.Memory;
+using Cortex.Core.Memory;
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 using Xunit;

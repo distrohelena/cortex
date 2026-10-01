@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Cortex.Core/Cortex.Core.csproj" />
+    <ProjectReference Include="../Cortex.Inference/Cortex.Inference.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Npgsql" Version="10.0.3" />
+    <EmbeddedResource Include="Storage/Migrations/001_evaluation.sql"
+                      LogicalName="Filomena.Evaluation.Storage.Migrations.001_evaluation.sql" />
+    <EmbeddedResource Include="Storage/Migrations/002_execution.sql"
+                      LogicalName="Filomena.Evaluation.Storage.Migrations.002_execution.sql" />
+    <EmbeddedResource Include="Storage/Migrations/003_schedule.sql"
+                      LogicalName="Filomena.Evaluation.Storage.Migrations.003_schedule.sql" />
+    <EmbeddedResource Include="Storage/Migrations/004_trial_result.sql"
+                      LogicalName="Filomena.Evaluation.Storage.Migrations.004_trial_result.sql" />
+    <EmbeddedResource Include="Storage/Migrations/005_case_input_binding.sql"
+                      LogicalName="Filomena.Evaluation.Storage.Migrations.005_case_input_binding.sql" />
+    <EmbeddedResource Include="Storage/Migrations/006_comparison_reports.sql"
+                      LogicalName="Filomena.Evaluation.Storage.Migrations.006_comparison_reports.sql" />
+    <EmbeddedResource Include="Storage/Migrations/007_monetary_budget_approvals.sql"
+                      LogicalName="Filomena.Evaluation.Storage.Migrations.007_monetary_budget_approvals.sql" />
+    <EmbeddedResource Include="Storage/Migrations/008_attempt_monetary_binding.sql"
+                      LogicalName="Filomena.Evaluation.Storage.Migrations.008_attempt_monetary_binding.sql" />
+    <EmbeddedResource Include="Storage/Migrations/009_attempt_charge_declarations.sql"
+                      LogicalName="Filomena.Evaluation.Storage.Migrations.009_attempt_charge_declarations.sql" />
+  </ItemGroup>
+</Project>

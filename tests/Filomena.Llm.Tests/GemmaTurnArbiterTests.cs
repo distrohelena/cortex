@@ -1,7 +1,7 @@
-using Filomena.Core.Arbitration;
-using Filomena.Core.Conversations;
+using Cortex.Core.Arbitration;
+using Cortex.Core.Conversations;
 using Filomena.Llm.Arbitration;
-using Filomena.Llm.LmStudio;
+using Cortex.Inference.LmStudio;
 using Xunit;
 
 namespace Filomena.Llm.Tests;

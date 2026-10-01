@@ -1,4 +1,4 @@
-using Filomena.Core.Shadow;
+using Cortex.Core.Shadow;
 
 namespace Filomena.App;
 

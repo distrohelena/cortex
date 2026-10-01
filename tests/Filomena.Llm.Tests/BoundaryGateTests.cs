@@ -1,9 +1,9 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Net.Http.Json;
-using Filomena.Core.Flows;
-using Filomena.Core.Flows.Sessions;
-using Filomena.Core.Memory;
+using Cortex.Core.Flows;
+using Cortex.Core.Flows.Sessions;
+using Cortex.Core.Memory;
 using Xunit;
 using static Filomena.Llm.Tests.ParticipationExperiments;
 

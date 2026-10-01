@@ -1,6 +1,6 @@
 using System.Text.Json;
-using Filomena.Core.Arbitration;
-using Filomena.Llm.LmStudio;
+using Cortex.Core.Arbitration;
+using Cortex.Inference.LmStudio;
 
 namespace Filomena.Llm.Arbitration;
 

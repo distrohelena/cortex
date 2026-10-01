@@ -1,6 +1,6 @@
 using System.Net.Http.Json;
 using System.Text.Json;
-using Filomena.Llm.LmStudio;
+using Cortex.Inference.LmStudio;
 using Xunit;
 using static Filomena.Llm.Tests.ParticipationExperiments;
 

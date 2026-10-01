@@ -108,14 +108,14 @@ composition is prepared and compiled, **not executed** in the current offline wi
 Build:
 
 ```powershell
-dotnet build src/Filomena.Evaluation.Cli -c NativeMemory
+dotnet build src/Cortex.Evaluation.Cli -c NativeMemory
 ```
 
 Send one JSON request on standard input:
 
 ```powershell
 '{"contractVersion":1,"operation":"revision.hash","payload":{"contractVersion":1,"kind":"example","payload":{"a":1}}}' |
-  dotnet src/Filomena.Evaluation.Cli/bin/NativeMemory/net10.0/Filomena.Evaluation.Cli.dll offline
+  dotnet src/Cortex.Evaluation.Cli/bin/NativeMemory/net10.0/Cortex.Evaluation.Cli.dll offline
 ```
 
 Stdout is one JSON response. Exit code 0 means the requested calculation completed; 2 means
@@ -134,7 +134,7 @@ the request failed. A successful calculation is not model-quality approval or pr
 | `instruction.describe` | `{ project: SessionFlowProject, stateId: string, entryKind: "dm" or "group", nodeId: string }` | Effective system text, schema, inputs and node configuration, using the runtime compiler/composer without execution |
 | `experiment.preview` | `{ manifest: ExperimentManifest, cases: ScopedRevisionRef[] }` | Deterministic schedule, minimum call count; no dispatch authority |
 
-Contracts live in `Filomena.Evaluation.Contracts`, `.Execution` and `.Comparison`. Profile
+Contracts live in `Cortex.Evaluation.Contracts`, `.Execution` and `.Comparison`. Profile
 validation does not verify credentials, endpoint availability or remote model identity.
 Comparison inputs must already refer to the same dataset, evaluation policy and paired schedule;
 the preview is a calculator over caller-supplied data, **not** a trusted stored-evidence report.
@@ -795,7 +795,7 @@ The separate adapter smoke that opens an ephemeral loopback listener is now tagg
 they did not invoke LM Studio or external APIs. To require no listener at all:
 
 ```powershell
-dotnet test tests/Filomena.Evaluation.Tests -c NativeMemory --no-restore --filter 'Category!=Postgres&Category!=LocalSocket&FullyQualifiedName!~DatabaseLifecycleTests' --verbosity quiet
+dotnet test tests/Cortex.Evaluation.Tests -c NativeMemory --no-restore --filter 'Category!=Postgres&Category!=LocalSocket&FullyQualifiedName!~DatabaseLifecycleTests' --verbosity quiet
 ```
 
 This selection passed 587 tests; the previous 588 included that one local-socket

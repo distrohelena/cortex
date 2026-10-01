@@ -1,6 +1,6 @@
 using System.Text.Json.Nodes;
-using Filomena.Core.Flows;
-using Filomena.Core.Flows.Sessions;
+using Cortex.Core.Flows;
+using Cortex.Core.Flows.Sessions;
 using Xunit;
 using static Filomena.Llm.Tests.ParticipationExperiments;
 

@@ -1,6 +1,6 @@
-using Filomena.Core.Shadow;
-using Filomena.Core.Outbound;
-using Filomena.OpenClaw.Observation;
+using Cortex.Core.Shadow;
+using Cortex.Core.Outbound;
+using Cortex.OpenClaw.Observation;
 using System.Collections.ObjectModel;
 
 namespace Filomena.App;
@@ -73,7 +73,7 @@ public sealed class NativeConversationSupervisor : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(binding);
         ArgumentNullException.ThrowIfNull(runSession);
         var memberBinding = facts.ToBoundTextBinding();
-        if (binding.Kind != Filomena.Core.Flows.Sessions.SessionEntryKind.Dm
+        if (binding.Kind != Cortex.Core.Flows.Sessions.SessionEntryKind.Dm
             || binding.Session.AccountId != facts.AccountId
             || binding.Session.NativeConversationId != facts.NativeConversationId)
             throw new InvalidDataException("member_dm_worker_binding_mismatch");
@@ -91,7 +91,7 @@ public sealed class NativeConversationSupervisor : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(authenticatedGroupReader);
         ArgumentNullException.ThrowIfNull(runSession);
         var memberBinding = facts.ToBoundTextBinding();
-        if (binding.Kind != Filomena.Core.Flows.Sessions.SessionEntryKind.Dm
+        if (binding.Kind != Cortex.Core.Flows.Sessions.SessionEntryKind.Dm
             || binding.Session.AccountId != facts.AccountId
             || binding.Session.NativeConversationId != facts.NativeConversationId)
             throw new InvalidDataException("member_dm_worker_binding_mismatch");
@@ -387,7 +387,7 @@ public sealed class NativeConversationSupervisor : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(authenticatedGroupReader);
         ArgumentNullException.ThrowIfNull(facts);
         var groupSession = authenticatedGroupReader.BoundTransportSession;
-        if (authenticatedGroupReader.BoundKind != Filomena.Core.Flows.Sessions.SessionEntryKind.Group
+        if (authenticatedGroupReader.BoundKind != Cortex.Core.Flows.Sessions.SessionEntryKind.Group
             || groupSession.AccountId != facts.AccountId
             || groupSession.NativeConversationId != facts.SourceGroupJid
             || string.IsNullOrWhiteSpace(authenticatedGroupReader.BoundSessionRef))
@@ -499,7 +499,7 @@ public sealed class NativeConversationSupervisor : IAsyncDisposable
     {
         ArgumentNullException.ThrowIfNull(binding);
 
-        if (binding.Kind == Filomena.Core.Flows.Sessions.SessionEntryKind.Group)
+        if (binding.Kind == Cortex.Core.Flows.Sessions.SessionEntryKind.Group)
         {
             if (string.IsNullOrWhiteSpace(existingGroupStateDirectory))
                 throw new InvalidOperationException("existing_group_state_directory_required");

@@ -1,5 +1,5 @@
 using System.Diagnostics;
-using Filomena.Llm.LmStudio;
+using Cortex.Inference.LmStudio;
 using Microsoft.Extensions.Logging;
 
 namespace Filomena.App;

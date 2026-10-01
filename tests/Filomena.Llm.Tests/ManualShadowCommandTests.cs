@@ -1,7 +1,7 @@
 using Filomena.App;
-using Filomena.Core.Flows;
-using Filomena.Core.Outbound;
-using Filomena.Core.Shadow;
+using Cortex.Core.Flows;
+using Cortex.Core.Outbound;
+using Cortex.Core.Shadow;
 using System.Reflection;
 using System.Security.Cryptography;
 using Xunit;

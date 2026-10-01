@@ -1,10 +1,10 @@
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Filomena.Core.Flows;
-using Filomena.Core.Flows.Sessions;
-using Filomena.Core.Memory;
-using Filomena.Core.Tests.Flows;
+using Cortex.Core.Flows;
+using Cortex.Core.Flows.Sessions;
+using Cortex.Core.Memory;
+using Cortex.Core.Tests.Flows;
 
 namespace Filomena.Llm.Tests;
 

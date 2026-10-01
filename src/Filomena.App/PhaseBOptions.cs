@@ -1,4 +1,4 @@
-using Filomena.Core.Conversations;
+using Cortex.Core.Conversations;
 
 namespace Filomena.App;
 
