@@ -1,0 +1,12 @@
+<Solution>
+  <Project Path="src/Cortex.Core/Cortex.Core.csproj" />
+  <Project Path="src/Cortex.Inference/Cortex.Inference.csproj" />
+  <Project Path="src/Cortex.Memory/Cortex.Memory.csproj" />
+  <Project Path="src/Cortex.OpenClaw/Cortex.OpenClaw.csproj" />
+  <Project Path="src/Cortex.Evaluation/Cortex.Evaluation.csproj" />
+  <Project Path="src/Cortex.Evaluation.Cli/Cortex.Evaluation.Cli.csproj" />
+  <Project Path="tests/Cortex.Core.Tests/Cortex.Core.Tests.csproj" />
+  <Project Path="tests/Cortex.Inference.Tests/Cortex.Inference.Tests.csproj" />
+  <Project Path="tests/Cortex.Evaluation.Tests/Cortex.Evaluation.Tests.csproj" />
+  <Project Path="tests/Cortex.OpenClaw.Tests/Cortex.OpenClaw.Tests.csproj" />
+</Solution>

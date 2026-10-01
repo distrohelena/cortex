@@ -1,4 +1,0 @@
-# Build with the captured active image as BASE_IMAGE. One-file correction only.
-ARG BASE_IMAGE=filomena-graphiti-mcp:luna-memory-candidate-20260928
-FROM ${BASE_IMAGE}
-COPY mcp_server/src/graphiti_mcp_server.py /app/mcp/src/graphiti_mcp_server.py

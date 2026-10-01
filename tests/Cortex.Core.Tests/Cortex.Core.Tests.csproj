@@ -19,6 +19,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Cortex.Core/Cortex.Core.csproj" />
-    <ProjectReference Include="../../src/Filomena.Llm/Filomena.Llm.csproj" />
+    <ProjectReference Include="../../src/Cortex.Inference/Cortex.Inference.csproj" />
+    <InternalsVisibleTo Include="Filomena.App.Tests" />
   </ItemGroup>
 </Project>

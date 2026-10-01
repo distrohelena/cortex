@@ -23,7 +23,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../../src/Filomena.App/Filomena.App.csproj" />
     <ProjectReference Include="../../src/Cortex.Core/Cortex.Core.csproj" />
     <ProjectReference Include="../../src/Cortex.OpenClaw/Cortex.OpenClaw.csproj" />
   </ItemGroup>

@@ -1,8 +1,0 @@
-{
-  "name": "telegram-filomena-guard",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "scripts": { "test": "node --experimental-strip-types --test guard.test.js index.test.ts" },
-  "openclaw": { "extensions": ["./index.ts"] }
-}

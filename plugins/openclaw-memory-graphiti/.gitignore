@@ -1,7 +1,0 @@
-node_modules/
-dist/
-.env
-*.tgz
-
-# Native dev environment (scripts/dev-setup.sh)
-.dev/

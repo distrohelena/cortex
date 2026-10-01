@@ -147,7 +147,7 @@ public sealed class FlowExamplesTests
         {
             for (var directory = new DirectoryInfo(start); directory is not null; directory = directory.Parent)
             {
-                if (File.Exists(Path.Combine(directory.FullName, "Filomena.slnx")))
+                if (File.Exists(Path.Combine(directory.FullName, "Cortex.slnx")))
                 {
                     return directory.FullName;
                 }

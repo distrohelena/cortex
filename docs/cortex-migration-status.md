@@ -1,5 +1,8 @@
 # Cortex migration status
 
+Repository separation: see [2026-10-01 split status](repository-split-status.md).
+The physical rename remains gated on the active launcher migration.
+
 Latest acceptance update: see **2026-10-01: local acceptance blockers closed** below.
 Earlier failed runs are retained as historical evidence, not the current status.
 

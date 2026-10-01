@@ -1,217 +1,323 @@
 {
-    "checkpoint":  "17ad29a",
-    "files":  [
-                  {
-                      "sha256":  "0a8207d6337f2018aa75022d1ec0728ca73035232b7206663372ab5142758488",
-                      "path":  "docs/context-fidelity-clause-v1.txt"
-                  },
-                  {
-                      "sha256":  "49f9bb97d20d4a04e1dd3eaafe51ecf9a01dfe84c70722bdf688778e67fc9674",
-                      "path":  "docs/conversational-care-clause.txt"
-                  },
-                  {
-                      "sha256":  "d5e14c01cf3da37c002c6de6fa95674af731aef7e7b0d5f810320c86b53d4d86",
-                      "path":  "docs/conversational-care-v2-clause.txt"
-                  },
-                  {
-                      "sha256":  "04fa9785c93a1bfa2e5bceec5183dd2692c3a6475ae3420b41fc493deb84b17f",
-                      "path":  "docs/conversational-care-v3-clause.txt"
-                  },
-                  {
-                      "sha256":  "fd3831ea1c49bbf1caf3f67eb1fd8fccd2c1284c6c30fc256765cde156d90c2b",
-                      "path":  "docs/dm-continuity-situation-clause.txt"
-                  },
-                  {
-                      "sha256":  "6835aaa792457139e1306b6ae08fbf123030c79da56d0caa5358c21e3c12c2e4",
-                      "path":  "docs/grounding-ab-clause.txt"
-                  },
-                  {
-                      "sha256":  "ce356e1335eac1c149f1a2daa7a756c94777f30439e05386e5a4bb0aba03fe6c",
-                      "path":  "docs/manual-group-live-project-v3-conversation-repair-v1.json"
-                  },
-                  {
-                      "sha256":  "fe18a25eb48388ee65704a9d3fa9e234db944d3a187da6733ac703b2594dc0ed",
-                      "path":  "docs/manual-group-live-project-v3-natural-v1.json"
-                  },
-                  {
-                      "sha256":  "6f35be1195d1cb9fc3b31fdbea662d910bc922818fb209a9e029d69bad40fc87",
-                      "path":  "docs/manual-group-live-project-v3-optional-reply-v1.json"
-                  },
-                  {
-                      "sha256":  "db94e3f7e238da410e1b991338c7da82cef74b5f13a0e2b692d3f20b08da2ed8",
-                      "path":  "docs/manual-group-live-project-v3-pt-br-v1.json"
-                  },
-                  {
-                      "sha256":  "c10691673e0a1bf1064ebe2464a246f0d2d220552112c1e1523e3dd12e302f97",
-                      "path":  "docs/manual-group-live-project-v3-punctuation-v2.json"
-                  },
-                  {
-                      "sha256":  "dbb4e9928fdf194eb3343c839da8c1cd3f73c0be129126bcbe8f8cc962bc36d9",
-                      "path":  "docs/manual-group-live-project-v3-recipient-v1.json"
-                  },
-                  {
-                      "sha256":  "a3b066c5b05b3d28e1b429ce0d900c38c8ff82d892429c3d2e42a4e2b15aaf97",
-                      "path":  "docs/manual-group-shadow-project-v3-gpt6-luna.json"
-                  },
-                  {
-                      "sha256":  "44449109b0ef24cb71bd3dcbc6b27827512e276a8c129cb0e6973dd1ff45467c",
-                      "path":  "docs/manual-live-project-v3-care-v2.json"
-                  },
-                  {
-                      "sha256":  "bde240996d7739ff7cb025dddf9998928f22d06ce7238da50dc9fd58e2c25686",
-                      "path":  "docs/manual-live-project-v3-care-v3.json"
-                  },
-                  {
-                      "sha256":  "e6542c60c32f2c8fe04dc5fb9928794fb9b2ca8ac375be861d790b40e03b0be1",
-                      "path":  "docs/manual-live-project-v3-care.json"
-                  },
-                  {
-                      "sha256":  "1b1e2dc571d50f77ace0ac1e6b060bb6749988996e6324bfff24fd6c4756afd5",
-                      "path":  "docs/manual-live-project-v3-continuity.json"
-                  },
-                  {
-                      "sha256":  "e01d0012a223eabaacee5d741efbc19098e5185790543e1594481afb4832a792",
-                      "path":  "docs/manual-live-project-v3-conversational.json"
-                  },
-                  {
-                      "sha256":  "62368ec88ed3b7690066bb56be61a0e59c08348128acdd3a4ec7decd170d32a5",
-                      "path":  "docs/manual-live-project-v3-dm-continuity.json"
-                  },
-                  {
-                      "sha256":  "7789735ac766b4fa38a8c1749679e1352bba8b8f9760d3fa9189f076f89bdb39",
-                      "path":  "docs/manual-live-project-v3-gpt6-luna.json"
-                  },
-                  {
-                      "sha256":  "b598029e0bd03b6f14f0156eab001c28f04fb8f2d7bd817cd5f43a20f507e3a8",
-                      "path":  "docs/manual-live-project-v3-sent.json"
-                  },
-                  {
-                      "sha256":  "425fa07cad30b750bb8bb41573caba971e96ddfd18ddbee78b3667e152482301",
-                      "path":  "docs/manual-shadow-project-v1.json"
-                  },
-                  {
-                      "sha256":  "4313ae81ee501b4ec342ae21786c761a657aa24ea00cbbe179f39b56c092541a",
-                      "path":  "docs/manual-shadow-project-v2.json"
-                  },
-                  {
-                      "sha256":  "47d1d4521bcf013e919ddcb3de5900485dda7f8bacefa7437fedfbdffc9bc55e",
-                      "path":  "docs/manual-shadow-project-v3.json"
-                  },
-                  {
-                      "sha256":  "a095c314fcf1a3da85203aa7ad693bc9130da076aa94ec398fd6fe913caa4277",
-                      "path":  "docs/natural-conversation-clause-v1.txt"
-                  },
-                  {
-                      "sha256":  "263523d43f00d4b411c67e021cff9dfbcdcc522c53d099cd79910d1c65c1d163",
-                      "path":  "docs/situation-recipient-clause-v1.txt"
-                  },
-                  {
-                      "sha256":  "8b7c9adf7e1d3cedae58bd4ba7d1129a4c20d723e7525404ae37e0873ce91c26",
-                      "path":  "evaluation/conversation-quality-v1/clauses/context-v1.txt"
-                  },
-                  {
-                      "sha256":  "f22a465dfa4586dcf516b8b09ea2dc3d47a01cb1c05c94d91a2e6723d0530a41",
-                      "path":  "evaluation/conversation-quality-v1/clauses/group-self-reference-v1.txt"
-                  },
-                  {
-                      "sha256":  "db04fdd53001842551ba6635196a13425241e79dab744135232a179b91c50696",
-                      "path":  "evaluation/conversation-quality-v1/clauses/group-simple-turn-v1.txt"
-                  },
-                  {
-                      "sha256":  "f396b67d8a77b79021754de58e0f5ab2d96eb4fec7103440c3ad318f318049be",
-                      "path":  "evaluation/conversation-quality-v1/clauses/group-situation-grounded-v1.txt"
-                  },
-                  {
-                      "sha256":  "59445e72b9051fd0496c7d4ef0983ceaf7aad80f858c30cb22072cc8b1b5fa15",
-                      "path":  "evaluation/conversation-quality-v1/clauses/group-situation-grounded-v2.txt"
-                  },
-                  {
-                      "sha256":  "05f194bf139bf00e8ba9e01dd1427092b28d070b58255fad4887fd5e2ebeb398",
-                      "path":  "evaluation/conversation-quality-v1/clauses/group-summary-colloquial-v1.txt"
-                  },
-                  {
-                      "sha256":  "398fed47bbda7ad509f122c52a7456b783f4317eec374999949d03fa849a2867",
-                      "path":  "evaluation/conversation-quality-v1/clauses/group-unforced-voice-v1.txt"
-                  },
-                  {
-                      "sha256":  "fc9892fab0d1d713537710d1bc7b99a6255379438ac1fd5c6889ffb555b1b527",
-                      "path":  "evaluation/conversation-quality-v1/clauses/group-unforced-voice-v2.txt"
-                  },
-                  {
-                      "sha256":  "5965d5163747c6db897fa0fa67581b55cdc6dda3a416da8d80be16dde8854fd1",
-                      "path":  "evaluation/conversation-quality-v1/clauses/group-unforced-voice-v3.txt"
-                  },
-                  {
-                      "sha256":  "c0c55f89bce20f46669d2a0f2752d8291cee5651608a72c060c43243ecd78e8e",
-                      "path":  "evaluation/conversation-quality-v1/clauses/group-unforced-voice-v4.txt"
-                  },
-                  {
-                      "sha256":  "1b3b2663c95d2071092d2177786408da4ee14719d078820e658fafcf64dba479",
-                      "path":  "evaluation/conversation-quality-v1/clauses/participation-v1.txt"
-                  },
-                  {
-                      "sha256":  "49fa665736a66fa3215ff27af7eb5f8c865cb295a79d7e84a4e87b0db01b11d0",
-                      "path":  "evaluation/conversation-quality-v1/clauses/repetition-v1.txt"
-                  },
-                  {
-                      "sha256":  "73d2472489cfad18cc6252488bed6b49042ca14080ff29a14244ef44a9ee764c",
-                      "path":  "evaluation/conversation-quality-v1/clauses/voice-v1.txt"
-                  },
-                  {
-                      "sha256":  "0f6247929215fdb20f470db6122ebc23fde1bd863a436e2019a78669b3eb385e",
-                      "path":  "evaluation/conversation-quality-v1/group-luna-summary-v1.project.json"
-                  },
-                  {
-                      "sha256":  "0d104f3c1b3412475d6995f0aafe0ae649bcb0d11f37d17fc366a8d1b5a8544b",
-                      "path":  "evaluation/conversation-quality-v1/group-simple-turn-v1.project.json"
-                  },
-                  {
-                      "sha256":  "77ecdaabbf48a957516ad18371c32377495843d499f747425ac47a2c414f8fa8",
-                      "path":  "evaluation/conversation-quality-v1/group-situation-grounded-v2.project.json"
-                  },
-                  {
-                      "sha256":  "bf824a7af2991228c8ba1b8b2493462dfc4a1af5c5e1b3b16fbf5f7b9c828667",
-                      "path":  "evaluation/conversation-quality-v1/group-unforced-voice-v3.project.json"
-                  },
-                  {
-                      "sha256":  "aeae3a58ad2dcf9a4286d5ba62885e02e17a3dfbe6b7eee4dd9e328588e6ebc0",
-                      "path":  "src/Filomena.Evaluation/Storage/Migrations/001_evaluation.sql"
-                  },
-                  {
-                      "sha256":  "8423b5984140f804aa9e4b597f12a8f957e8496b284aae951d6f474a5a1e8872",
-                      "path":  "src/Filomena.Evaluation/Storage/Migrations/002_execution.sql"
-                  },
-                  {
-                      "sha256":  "dd9b516368e465d8c891e7bc28a420af04b8631bc84ed11fd66ceb2fa881b36f",
-                      "path":  "src/Filomena.Evaluation/Storage/Migrations/003_schedule.sql"
-                  },
-                  {
-                      "sha256":  "65bb91e1977ca9e5abc572dec40e7016ca0e331f219743c93b1e9906665e8737",
-                      "path":  "src/Filomena.Evaluation/Storage/Migrations/004_trial_result.sql"
-                  },
-                  {
-                      "sha256":  "12b3a8737aa87d459ff41f7e3728656b2af2ca0b2cac9b550fde54184877f7ce",
-                      "path":  "src/Filomena.Evaluation/Storage/Migrations/005_case_input_binding.sql"
-                  },
-                  {
-                      "sha256":  "6727a6c51181d24f9a40fd9d0475e79f65abc5ceeba58eb3907273d7c753685e",
-                      "path":  "src/Filomena.Evaluation/Storage/Migrations/006_comparison_reports.sql"
-                  },
-                  {
-                      "sha256":  "226587b116c09c5027a8f530740b313c176820dc3f861d42df9c1f5032afac46",
-                      "path":  "src/Filomena.Evaluation/Storage/Migrations/007_monetary_budget_approvals.sql"
-                  },
-                  {
-                      "sha256":  "d43140397d67f6effbe5fa2ecda6c5a43946248ff79092bab3c978eb033b5d40",
-                      "path":  "src/Filomena.Evaluation/Storage/Migrations/008_attempt_monetary_binding.sql"
-                  },
-                  {
-                      "sha256":  "4c2e27c4d47f0026a99f68d804e185321698a12374bf4f957f25506c53d1dcc4",
-                      "path":  "src/Filomena.Evaluation/Storage/Migrations/009_attempt_charge_declarations.sql"
-                  },
-                  {
-                      "sha256":  "c41419cc7312ef9480b0ac5ef34abf55c83abc24eee1ba6174b693d58a5a7d42",
-                      "path":  "workspace/SOUL.md"
-                  }
-              ]
+  "checkpoint": "17ad29a",
+  "files": [
+    {
+      "sha256": "0a8207d6337f2018aa75022d1ec0728ca73035232b7206663372ab5142758488",
+      "path": "docs/context-fidelity-clause-v1.txt",
+      "owner": "filo",
+      "currentPath": "docs/context-fidelity-clause-v1.txt"
+    },
+    {
+      "sha256": "49f9bb97d20d4a04e1dd3eaafe51ecf9a01dfe84c70722bdf688778e67fc9674",
+      "path": "docs/conversational-care-clause.txt",
+      "owner": "filo",
+      "currentPath": "docs/conversational-care-clause.txt"
+    },
+    {
+      "sha256": "d5e14c01cf3da37c002c6de6fa95674af731aef7e7b0d5f810320c86b53d4d86",
+      "path": "docs/conversational-care-v2-clause.txt",
+      "owner": "filo",
+      "currentPath": "docs/conversational-care-v2-clause.txt"
+    },
+    {
+      "sha256": "04fa9785c93a1bfa2e5bceec5183dd2692c3a6475ae3420b41fc493deb84b17f",
+      "path": "docs/conversational-care-v3-clause.txt",
+      "owner": "filo",
+      "currentPath": "docs/conversational-care-v3-clause.txt"
+    },
+    {
+      "sha256": "fd3831ea1c49bbf1caf3f67eb1fd8fccd2c1284c6c30fc256765cde156d90c2b",
+      "path": "docs/dm-continuity-situation-clause.txt",
+      "owner": "filo",
+      "currentPath": "docs/dm-continuity-situation-clause.txt"
+    },
+    {
+      "sha256": "6835aaa792457139e1306b6ae08fbf123030c79da56d0caa5358c21e3c12c2e4",
+      "path": "docs/grounding-ab-clause.txt",
+      "owner": "filo",
+      "currentPath": "docs/grounding-ab-clause.txt"
+    },
+    {
+      "sha256": "ce356e1335eac1c149f1a2daa7a756c94777f30439e05386e5a4bb0aba03fe6c",
+      "path": "docs/manual-group-live-project-v3-conversation-repair-v1.json",
+      "owner": "filo",
+      "currentPath": "docs/manual-group-live-project-v3-conversation-repair-v1.json"
+    },
+    {
+      "sha256": "fe18a25eb48388ee65704a9d3fa9e234db944d3a187da6733ac703b2594dc0ed",
+      "path": "docs/manual-group-live-project-v3-natural-v1.json",
+      "owner": "filo",
+      "currentPath": "docs/manual-group-live-project-v3-natural-v1.json"
+    },
+    {
+      "sha256": "6f35be1195d1cb9fc3b31fdbea662d910bc922818fb209a9e029d69bad40fc87",
+      "path": "docs/manual-group-live-project-v3-optional-reply-v1.json",
+      "owner": "filo",
+      "currentPath": "docs/manual-group-live-project-v3-optional-reply-v1.json"
+    },
+    {
+      "sha256": "db94e3f7e238da410e1b991338c7da82cef74b5f13a0e2b692d3f20b08da2ed8",
+      "path": "docs/manual-group-live-project-v3-pt-br-v1.json",
+      "owner": "filo",
+      "currentPath": "docs/manual-group-live-project-v3-pt-br-v1.json"
+    },
+    {
+      "sha256": "c10691673e0a1bf1064ebe2464a246f0d2d220552112c1e1523e3dd12e302f97",
+      "path": "docs/manual-group-live-project-v3-punctuation-v2.json",
+      "owner": "filo",
+      "currentPath": "docs/manual-group-live-project-v3-punctuation-v2.json"
+    },
+    {
+      "sha256": "dbb4e9928fdf194eb3343c839da8c1cd3f73c0be129126bcbe8f8cc962bc36d9",
+      "path": "docs/manual-group-live-project-v3-recipient-v1.json",
+      "owner": "filo",
+      "currentPath": "docs/manual-group-live-project-v3-recipient-v1.json"
+    },
+    {
+      "sha256": "a3b066c5b05b3d28e1b429ce0d900c38c8ff82d892429c3d2e42a4e2b15aaf97",
+      "path": "docs/manual-group-shadow-project-v3-gpt6-luna.json",
+      "owner": "filo",
+      "currentPath": "docs/manual-group-shadow-project-v3-gpt6-luna.json"
+    },
+    {
+      "sha256": "44449109b0ef24cb71bd3dcbc6b27827512e276a8c129cb0e6973dd1ff45467c",
+      "path": "docs/manual-live-project-v3-care-v2.json",
+      "owner": "filo",
+      "currentPath": "docs/manual-live-project-v3-care-v2.json"
+    },
+    {
+      "sha256": "bde240996d7739ff7cb025dddf9998928f22d06ce7238da50dc9fd58e2c25686",
+      "path": "docs/manual-live-project-v3-care-v3.json",
+      "owner": "filo",
+      "currentPath": "docs/manual-live-project-v3-care-v3.json"
+    },
+    {
+      "sha256": "e6542c60c32f2c8fe04dc5fb9928794fb9b2ca8ac375be861d790b40e03b0be1",
+      "path": "docs/manual-live-project-v3-care.json",
+      "owner": "filo",
+      "currentPath": "docs/manual-live-project-v3-care.json"
+    },
+    {
+      "sha256": "1b1e2dc571d50f77ace0ac1e6b060bb6749988996e6324bfff24fd6c4756afd5",
+      "path": "docs/manual-live-project-v3-continuity.json",
+      "owner": "filo",
+      "currentPath": "docs/manual-live-project-v3-continuity.json"
+    },
+    {
+      "sha256": "e01d0012a223eabaacee5d741efbc19098e5185790543e1594481afb4832a792",
+      "path": "docs/manual-live-project-v3-conversational.json",
+      "owner": "filo",
+      "currentPath": "docs/manual-live-project-v3-conversational.json"
+    },
+    {
+      "sha256": "62368ec88ed3b7690066bb56be61a0e59c08348128acdd3a4ec7decd170d32a5",
+      "path": "docs/manual-live-project-v3-dm-continuity.json",
+      "owner": "filo",
+      "currentPath": "docs/manual-live-project-v3-dm-continuity.json"
+    },
+    {
+      "sha256": "7789735ac766b4fa38a8c1749679e1352bba8b8f9760d3fa9189f076f89bdb39",
+      "path": "docs/manual-live-project-v3-gpt6-luna.json",
+      "owner": "filo",
+      "currentPath": "docs/manual-live-project-v3-gpt6-luna.json"
+    },
+    {
+      "sha256": "b598029e0bd03b6f14f0156eab001c28f04fb8f2d7bd817cd5f43a20f507e3a8",
+      "path": "docs/manual-live-project-v3-sent.json",
+      "owner": "filo",
+      "currentPath": "docs/manual-live-project-v3-sent.json"
+    },
+    {
+      "sha256": "425fa07cad30b750bb8bb41573caba971e96ddfd18ddbee78b3667e152482301",
+      "path": "docs/manual-shadow-project-v1.json",
+      "owner": "filo",
+      "currentPath": "docs/manual-shadow-project-v1.json"
+    },
+    {
+      "sha256": "4313ae81ee501b4ec342ae21786c761a657aa24ea00cbbe179f39b56c092541a",
+      "path": "docs/manual-shadow-project-v2.json",
+      "owner": "filo",
+      "currentPath": "docs/manual-shadow-project-v2.json"
+    },
+    {
+      "sha256": "47d1d4521bcf013e919ddcb3de5900485dda7f8bacefa7437fedfbdffc9bc55e",
+      "path": "docs/manual-shadow-project-v3.json",
+      "owner": "filo",
+      "currentPath": "docs/manual-shadow-project-v3.json"
+    },
+    {
+      "sha256": "a095c314fcf1a3da85203aa7ad693bc9130da076aa94ec398fd6fe913caa4277",
+      "path": "docs/natural-conversation-clause-v1.txt",
+      "owner": "filo",
+      "currentPath": "docs/natural-conversation-clause-v1.txt"
+    },
+    {
+      "sha256": "263523d43f00d4b411c67e021cff9dfbcdcc522c53d099cd79910d1c65c1d163",
+      "path": "docs/situation-recipient-clause-v1.txt",
+      "owner": "filo",
+      "currentPath": "docs/situation-recipient-clause-v1.txt"
+    },
+    {
+      "sha256": "8b7c9adf7e1d3cedae58bd4ba7d1129a4c20d723e7525404ae37e0873ce91c26",
+      "path": "evaluation/conversation-quality-v1/clauses/context-v1.txt",
+      "owner": "filo",
+      "currentPath": "evaluation/conversation-quality-v1/clauses/context-v1.txt"
+    },
+    {
+      "sha256": "f22a465dfa4586dcf516b8b09ea2dc3d47a01cb1c05c94d91a2e6723d0530a41",
+      "path": "evaluation/conversation-quality-v1/clauses/group-self-reference-v1.txt",
+      "owner": "filo",
+      "currentPath": "evaluation/conversation-quality-v1/clauses/group-self-reference-v1.txt"
+    },
+    {
+      "sha256": "db04fdd53001842551ba6635196a13425241e79dab744135232a179b91c50696",
+      "path": "evaluation/conversation-quality-v1/clauses/group-simple-turn-v1.txt",
+      "owner": "filo",
+      "currentPath": "evaluation/conversation-quality-v1/clauses/group-simple-turn-v1.txt"
+    },
+    {
+      "sha256": "f396b67d8a77b79021754de58e0f5ab2d96eb4fec7103440c3ad318f318049be",
+      "path": "evaluation/conversation-quality-v1/clauses/group-situation-grounded-v1.txt",
+      "owner": "filo",
+      "currentPath": "evaluation/conversation-quality-v1/clauses/group-situation-grounded-v1.txt"
+    },
+    {
+      "sha256": "59445e72b9051fd0496c7d4ef0983ceaf7aad80f858c30cb22072cc8b1b5fa15",
+      "path": "evaluation/conversation-quality-v1/clauses/group-situation-grounded-v2.txt",
+      "owner": "filo",
+      "currentPath": "evaluation/conversation-quality-v1/clauses/group-situation-grounded-v2.txt"
+    },
+    {
+      "sha256": "05f194bf139bf00e8ba9e01dd1427092b28d070b58255fad4887fd5e2ebeb398",
+      "path": "evaluation/conversation-quality-v1/clauses/group-summary-colloquial-v1.txt",
+      "owner": "filo",
+      "currentPath": "evaluation/conversation-quality-v1/clauses/group-summary-colloquial-v1.txt"
+    },
+    {
+      "sha256": "398fed47bbda7ad509f122c52a7456b783f4317eec374999949d03fa849a2867",
+      "path": "evaluation/conversation-quality-v1/clauses/group-unforced-voice-v1.txt",
+      "owner": "filo",
+      "currentPath": "evaluation/conversation-quality-v1/clauses/group-unforced-voice-v1.txt"
+    },
+    {
+      "sha256": "fc9892fab0d1d713537710d1bc7b99a6255379438ac1fd5c6889ffb555b1b527",
+      "path": "evaluation/conversation-quality-v1/clauses/group-unforced-voice-v2.txt",
+      "owner": "filo",
+      "currentPath": "evaluation/conversation-quality-v1/clauses/group-unforced-voice-v2.txt"
+    },
+    {
+      "sha256": "5965d5163747c6db897fa0fa67581b55cdc6dda3a416da8d80be16dde8854fd1",
+      "path": "evaluation/conversation-quality-v1/clauses/group-unforced-voice-v3.txt",
+      "owner": "filo",
+      "currentPath": "evaluation/conversation-quality-v1/clauses/group-unforced-voice-v3.txt"
+    },
+    {
+      "sha256": "c0c55f89bce20f46669d2a0f2752d8291cee5651608a72c060c43243ecd78e8e",
+      "path": "evaluation/conversation-quality-v1/clauses/group-unforced-voice-v4.txt",
+      "owner": "filo",
+      "currentPath": "evaluation/conversation-quality-v1/clauses/group-unforced-voice-v4.txt"
+    },
+    {
+      "sha256": "1b3b2663c95d2071092d2177786408da4ee14719d078820e658fafcf64dba479",
+      "path": "evaluation/conversation-quality-v1/clauses/participation-v1.txt",
+      "owner": "filo",
+      "currentPath": "evaluation/conversation-quality-v1/clauses/participation-v1.txt"
+    },
+    {
+      "sha256": "49fa665736a66fa3215ff27af7eb5f8c865cb295a79d7e84a4e87b0db01b11d0",
+      "path": "evaluation/conversation-quality-v1/clauses/repetition-v1.txt",
+      "owner": "filo",
+      "currentPath": "evaluation/conversation-quality-v1/clauses/repetition-v1.txt"
+    },
+    {
+      "sha256": "73d2472489cfad18cc6252488bed6b49042ca14080ff29a14244ef44a9ee764c",
+      "path": "evaluation/conversation-quality-v1/clauses/voice-v1.txt",
+      "owner": "filo",
+      "currentPath": "evaluation/conversation-quality-v1/clauses/voice-v1.txt"
+    },
+    {
+      "sha256": "0f6247929215fdb20f470db6122ebc23fde1bd863a436e2019a78669b3eb385e",
+      "path": "evaluation/conversation-quality-v1/group-luna-summary-v1.project.json",
+      "owner": "filo",
+      "currentPath": "evaluation/conversation-quality-v1/group-luna-summary-v1.project.json"
+    },
+    {
+      "sha256": "0d104f3c1b3412475d6995f0aafe0ae649bcb0d11f37d17fc366a8d1b5a8544b",
+      "path": "evaluation/conversation-quality-v1/group-simple-turn-v1.project.json",
+      "owner": "filo",
+      "currentPath": "evaluation/conversation-quality-v1/group-simple-turn-v1.project.json"
+    },
+    {
+      "sha256": "77ecdaabbf48a957516ad18371c32377495843d499f747425ac47a2c414f8fa8",
+      "path": "evaluation/conversation-quality-v1/group-situation-grounded-v2.project.json",
+      "owner": "filo",
+      "currentPath": "evaluation/conversation-quality-v1/group-situation-grounded-v2.project.json"
+    },
+    {
+      "sha256": "bf824a7af2991228c8ba1b8b2493462dfc4a1af5c5e1b3b16fbf5f7b9c828667",
+      "path": "evaluation/conversation-quality-v1/group-unforced-voice-v3.project.json",
+      "owner": "filo",
+      "currentPath": "evaluation/conversation-quality-v1/group-unforced-voice-v3.project.json"
+    },
+    {
+      "sha256": "aeae3a58ad2dcf9a4286d5ba62885e02e17a3dfbe6b7eee4dd9e328588e6ebc0",
+      "path": "src/Filomena.Evaluation/Storage/Migrations/001_evaluation.sql",
+      "owner": "cortex",
+      "currentPath": "src/Cortex.Evaluation/Storage/Migrations/001_evaluation.sql"
+    },
+    {
+      "sha256": "8423b5984140f804aa9e4b597f12a8f957e8496b284aae951d6f474a5a1e8872",
+      "path": "src/Filomena.Evaluation/Storage/Migrations/002_execution.sql",
+      "owner": "cortex",
+      "currentPath": "src/Cortex.Evaluation/Storage/Migrations/002_execution.sql"
+    },
+    {
+      "sha256": "dd9b516368e465d8c891e7bc28a420af04b8631bc84ed11fd66ceb2fa881b36f",
+      "path": "src/Filomena.Evaluation/Storage/Migrations/003_schedule.sql",
+      "owner": "cortex",
+      "currentPath": "src/Cortex.Evaluation/Storage/Migrations/003_schedule.sql"
+    },
+    {
+      "sha256": "65bb91e1977ca9e5abc572dec40e7016ca0e331f219743c93b1e9906665e8737",
+      "path": "src/Filomena.Evaluation/Storage/Migrations/004_trial_result.sql",
+      "owner": "cortex",
+      "currentPath": "src/Cortex.Evaluation/Storage/Migrations/004_trial_result.sql"
+    },
+    {
+      "sha256": "12b3a8737aa87d459ff41f7e3728656b2af2ca0b2cac9b550fde54184877f7ce",
+      "path": "src/Filomena.Evaluation/Storage/Migrations/005_case_input_binding.sql",
+      "owner": "cortex",
+      "currentPath": "src/Cortex.Evaluation/Storage/Migrations/005_case_input_binding.sql"
+    },
+    {
+      "sha256": "6727a6c51181d24f9a40fd9d0475e79f65abc5ceeba58eb3907273d7c753685e",
+      "path": "src/Filomena.Evaluation/Storage/Migrations/006_comparison_reports.sql",
+      "owner": "cortex",
+      "currentPath": "src/Cortex.Evaluation/Storage/Migrations/006_comparison_reports.sql"
+    },
+    {
+      "sha256": "226587b116c09c5027a8f530740b313c176820dc3f861d42df9c1f5032afac46",
+      "path": "src/Filomena.Evaluation/Storage/Migrations/007_monetary_budget_approvals.sql",
+      "owner": "cortex",
+      "currentPath": "src/Cortex.Evaluation/Storage/Migrations/007_monetary_budget_approvals.sql"
+    },
+    {
+      "sha256": "d43140397d67f6effbe5fa2ecda6c5a43946248ff79092bab3c978eb033b5d40",
+      "path": "src/Filomena.Evaluation/Storage/Migrations/008_attempt_monetary_binding.sql",
+      "owner": "cortex",
+      "currentPath": "src/Cortex.Evaluation/Storage/Migrations/008_attempt_monetary_binding.sql"
+    },
+    {
+      "sha256": "4c2e27c4d47f0026a99f68d804e185321698a12374bf4f957f25506c53d1dcc4",
+      "path": "src/Filomena.Evaluation/Storage/Migrations/009_attempt_charge_declarations.sql",
+      "owner": "cortex",
+      "currentPath": "src/Cortex.Evaluation/Storage/Migrations/009_attempt_charge_declarations.sql"
+    },
+    {
+      "sha256": "c41419cc7312ef9480b0ac5ef34abf55c83abc24eee1ba6174b693d58a5a7d42",
+      "path": "workspace/SOUL.md",
+      "owner": "filo",
+      "currentPath": "workspace/SOUL.md"
+    }
+  ]
 }

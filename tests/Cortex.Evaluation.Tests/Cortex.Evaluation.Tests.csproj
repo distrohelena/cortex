@@ -18,7 +18,5 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Cortex.Evaluation/Cortex.Evaluation.csproj" />
     <ProjectReference Include="../../src/Cortex.Evaluation.Cli/Cortex.Evaluation.Cli.csproj" />
-    <None Include="../../evaluation/conversation-quality-v1/cases.json" Link="conversation-cases.json" CopyToOutputDirectory="PreserveNewest" />
-    <None Include="../../docs/manual-group-shadow-project-v3-gpt6-luna.json" Link="evaluation-project.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

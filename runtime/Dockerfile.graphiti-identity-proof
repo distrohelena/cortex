@@ -1,6 +1,0 @@
-# Narrow overlay over the operator's preserved, verified Graphiti image.
-# Build context: vendor/graphiti. No dependency or configuration changes.
-ARG BASE_IMAGE=filomena-graphiti-mcp:identity-proof-rollback-20260924
-FROM ${BASE_IMAGE}
-COPY mcp_server/src/graphiti_mcp_server.py /app/mcp/src/graphiti_mcp_server.py
-COPY mcp_server/src/models/response_types.py /app/mcp/src/models/response_types.py

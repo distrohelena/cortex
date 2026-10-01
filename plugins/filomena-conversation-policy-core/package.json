@@ -1,7 +1,0 @@
-{
-  "name": "filomena-conversation-policy-core",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "scripts": { "test": "node --test policy.test.js state.test.js" }
-}
