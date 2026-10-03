@@ -16,6 +16,8 @@ public sealed class LmStudioOptions
 
     public int GenerationMaxTokens { get; set; } = 8192;
 
+    public string? GenerationReasoningEffort { get; set; }
+
     public int RequestTimeoutSeconds { get; set; } = 180;
 
     public void Validate()
@@ -37,6 +39,8 @@ public sealed class LmStudioOptions
             throw new InvalidOperationException("LmStudio:GenerationTemperature must be between 0 and 2.");
         }
         ArgumentOutOfRangeException.ThrowIfLessThan(GenerationMaxTokens, 1);
+        if (GenerationReasoningEffort is not (null or "none" or "minimal" or "low" or "medium" or "high" or "xhigh"))
+            throw new InvalidOperationException("LmStudio:GenerationReasoningEffort is invalid.");
         if (RequestTimeoutSeconds != Timeout.Infinite) ArgumentOutOfRangeException.ThrowIfLessThan(RequestTimeoutSeconds, 1);
     }
 }

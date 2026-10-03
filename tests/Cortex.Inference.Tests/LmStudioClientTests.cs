@@ -8,6 +8,27 @@ namespace Cortex.Inference.Tests;
 
 public sealed class LmStudioClientTests
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task GenerationCanDisableReasoningWithoutChangingArbitration(bool structured)
+    {
+        var handler = new CapturingHandler("""{"choices":[{"message":{"content":"{}"}}]}""");
+        using var http = new HttpClient(handler);
+        var options = JsonSerializer.Deserialize<LmStudioOptions>("""{"GenerationReasoningEffort":"none"}""")!;
+        var client = new LmStudioClient(http, options);
+        if (structured)
+            await client.CompleteStructuredAsync("system", "segments", "gemma", JsonSerializer.SerializeToElement(new { type = "object" }), TestContext.Current.CancellationToken);
+        else
+            await client.CompleteResponseAsync("system", "segments", TestContext.Current.CancellationToken);
+        using var body = JsonDocument.Parse(handler.RequestBody!);
+        Assert.True(body.RootElement.TryGetProperty("reasoning_effort", out var effort));
+        Assert.Equal("none", effort.GetString());
+        await client.CompleteArbitrationJsonAsync("system", "segments", TestContext.Current.CancellationToken);
+        using var arbitration = JsonDocument.Parse(handler.RequestBody!);
+        Assert.False(arbitration.RootElement.TryGetProperty("reasoning_effort", out _));
+    }
+
     [Fact]
     public async Task RejectsTruncatedEvenSyntacticallyValidStructuredOutput()
     {

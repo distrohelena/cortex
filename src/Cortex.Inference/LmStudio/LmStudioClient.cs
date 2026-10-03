@@ -150,7 +150,7 @@ public sealed class LmStudioClient : ILmStudioChatClient, IModelResponseChatClie
                 new { role = "system", content = systemPrompt },
                 new { role = "user", content = userPrompt },
             },
-        }, cancellationToken);
+        }, cancellationToken, generation: true);
     }
 
     public Task<string> CompleteStructuredAsync(string systemPrompt, string userPrompt, string model, JsonElement schema, CancellationToken cancellationToken)
@@ -163,11 +163,17 @@ public sealed class LmStudioClient : ILmStudioChatClient, IModelResponseChatClie
             max_tokens = options.GenerationMaxTokens,
             messages = new object[] { new { role = "system", content = systemPrompt }, new { role = "user", content = userPrompt } },
             response_format = new { type = "json_schema", json_schema = new { name = "flow_output", strict = true, schema } },
-        }, cancellationToken);
+        }, cancellationToken, generation: true);
     }
 
-    private async Task<string> CompleteAsync(object payload, CancellationToken cancellationToken)
+    private async Task<string> CompleteAsync(object payload, CancellationToken cancellationToken, bool generation = false)
     {
+        if (generation && options.GenerationReasoningEffort is { } effort)
+        {
+            var json = JsonSerializer.SerializeToNode(payload)!;
+            json["reasoning_effort"] = effort;
+            payload = json;
+        }
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         if (options.RequestTimeoutSeconds != Timeout.Infinite) timeout.CancelAfter(TimeSpan.FromSeconds(options.RequestTimeoutSeconds));
         using var response = await httpClient.PostAsJsonAsync(
