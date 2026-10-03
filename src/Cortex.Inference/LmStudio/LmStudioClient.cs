@@ -179,6 +179,9 @@ public sealed class LmStudioClient : ILmStudioChatClient, IModelResponseChatClie
         using var document = await JsonDocument.ParseAsync(
             await response.Content.ReadAsStreamAsync(timeout.Token),
             cancellationToken: timeout.Token);
+        if (document.RootElement.TryGetProperty("choices", out var completedChoices) && completedChoices.ValueKind == JsonValueKind.Array && completedChoices.GetArrayLength() > 0 &&
+            completedChoices[0].TryGetProperty("finish_reason", out var finish) && finish.ValueKind == JsonValueKind.String && finish.GetString() is not ("stop" or "eos"))
+            throw new InvalidDataException("LM Studio output was truncated or did not finish normally.");
         if (document.RootElement.TryGetProperty("choices", out var choices) &&
             choices.ValueKind == JsonValueKind.Array &&
             choices.GetArrayLength() > 0 &&

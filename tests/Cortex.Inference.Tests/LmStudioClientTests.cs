@@ -9,6 +9,14 @@ namespace Cortex.Inference.Tests;
 public sealed class LmStudioClientTests
 {
     [Fact]
+    public async Task RejectsTruncatedEvenSyntacticallyValidStructuredOutput()
+    {
+        var handler = new CapturingHandler("""{"choices":[{"finish_reason":"length","message":{"content":"{\"mentions\":[]}"}}]}""");
+        using var http = new HttpClient(handler);
+        var client = new LmStudioClient(http, new LmStudioOptions());
+        await Assert.ThrowsAsync<InvalidDataException>(() => client.CompleteStructuredAsync("system", "segments", "gemma", JsonSerializer.SerializeToElement(new { type = "object" }), TestContext.Current.CancellationToken));
+    }
+    [Fact]
     public async Task InfiniteRequestDeadlineStillHonorsExplicitCancellation()
     {
         using var http = new HttpClient(new CapturingHandler("{}")) { Timeout = Timeout.InfiniteTimeSpan };
