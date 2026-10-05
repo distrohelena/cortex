@@ -177,12 +177,12 @@ criar `tests/Cortex.Core.Tests/Durable/IncrementalKernelTests.cs`, `RunnerParity
 `KernelStepResult` identifica completed operational node, exit, next state, StepEffect e trace events; inclui termino/erro/transicao sem criar nova identidade.
 `FlowExecutionServices` usa binding da tarefa 3 e registries restaurados. Conversoes state/snapshot V1 preservam todos os campos definidos na tarefa 1.
 
-- [ ] Escrever `OneAdvanceExecutesAtMostOneOperationalNode`, `PromptThenBranchResumePreservesOutputs`, `RestartKeepsDomainReferencesAndConfirmedSend`, `OptionalInputsAndTextStructuredCorrectionAreUnchanged`.
+- [x] Escrever `OneAdvanceExecutesAtMostOneOperationalNode`, `PromptThenBranchResumePreservesOutputs`, `RestartKeepsDomainReferencesAndConfirmedSend`, `OptionalInputsAndTextStructuredCorrectionAreUnchanged`.
   `RunnerAndIncrementalDriverProduceSameOutcome` cobre dm/group, accumulate/history, memory, interpretBoundaries, prompt normal/enforcement, property/count, branch/switch, send e exit; comparar outputs, exits, target state e numero de chamadas.
-- [ ] Rodar `dotnet test tests/Cortex.Core.Tests/Cortex.Core.Tests.csproj --filter "FullyQualifiedName~IncrementalKernelTests|FullyQualifiedName~RunnerParityTests"`; observar falha por nao existir advance independente.
-- [ ] Extrair sem reescrever as regras do runner. `TypedFlowRunner.RunAsync`/`RunSessionAsync` dirigem o mesmo kernel ate o fim. Preserve correctionRetry de validacao existente: a politica de uma tentativa Temporal nao remove a correcao configurada dentro do node. Um Advance puro percorre no maximo 64 projections/branch/switch e retorna ANTES do proximo efeito Inference/Memory/Boundary/Send/Feedback; o descritor identifica esse efeito para escolher a policy correta. Cada node ainda gera trace proprio. Testar `PureAdvanceStopsBeforePaidEffect`: completion calls=0 ate um Advance separado de Inference.
-- [ ] Rodar testes novos e `dotnet test tests/Cortex.Core.Tests/Cortex.Core.Tests.csproj --filter "FullyQualifiedName~Flows|FullyQualifiedName~Outbound|FullyQualifiedName~Boundaries"`; esperar paridade e nenhuma mudanca nas fixtures congeladas.
-- [ ] Commit: `refactor(core): share an incremental execution kernel with the local runner`.
+- [x] Rodar `dotnet test tests/Cortex.Core.Tests/Cortex.Core.Tests.csproj --filter "FullyQualifiedName~IncrementalKernelTests|FullyQualifiedName~RunnerParityTests"`; observar falha por nao existir advance independente.
+- [x] Extrair sem reescrever as regras do runner. `TypedFlowRunner.RunAsync`/`RunSessionAsync` dirigem o mesmo kernel ate o fim. Preserve correctionRetry de validacao existente: a politica de uma tentativa Temporal nao remove a correcao configurada dentro do node. Um Advance puro percorre no maximo 64 projections/branch/switch e retorna ANTES do proximo efeito Inference/Memory/Boundary/Send/Feedback; o descritor identifica esse efeito para escolher a policy correta. Cada node ainda gera trace proprio. Testar `PureAdvanceStopsBeforePaidEffect`: completion calls=0 ate um Advance separado de Inference.
+- [x] Rodar testes novos e `dotnet test tests/Cortex.Core.Tests/Cortex.Core.Tests.csproj --filter "FullyQualifiedName~Flows|FullyQualifiedName~Outbound|FullyQualifiedName~Boundaries"`; esperar paridade e nenhuma mudanca nas fixtures congeladas.
+- [x] Commit: `refactor(core): share an incremental execution kernel with the local runner`.
 
 ## Tarefa 5: Contrato e compilacao do node de feedback humano
 
