@@ -224,6 +224,18 @@ public sealed class DurableSessionArtifacts(FileExecutionArtifactStore store, IS
         var outcomeRef = await Put(scope, "outcome", outcome, token).ConfigureAwait(false);
         await ledger.RecordOnceAsync(new(scope.InstallationId, scope.Session, "outcomes", scope.ExecutionId, outcomeRef), token).ConfigureAwait(false);
         await CommitTraces(command, snapshot, success, error, token).ConfigureAwait(false);
+        if (snapshot.ConfirmedSend is not null)
+        {
+            var binding = await bindings.ResolveAsync(scope, token).ConfigureAwait(false);
+            if (binding.Scope != scope) throw new InvalidDataException("Speech commit host scope mismatch.");
+            if (binding.OutboundHost is { } host)
+            {
+                var projectSource = await Read<SessionFlowProject>(snapshot.ProjectRef, token).ConfigureAwait(false);
+                var outbound = host.Begin(projectSource.Document, scope.ExecutionId, scope.Session, snapshot.EntryKind, payload.ProviderMessageIds, payload.ReplyTargetIds, payload.ShadowOnly);
+                var receipt = host.RecoverExecutionSend(outbound);
+                if (receipt?.JournalRef is { } attempt && host.PendingSpeechCommits(scope.Session).Any(p => p.AttemptRef == attempt)) host.CompleteSpeechCommit(scope.Session, attempt, applied);
+            }
+        }
         var committed = new CommittedSessionOutcome(outcomeRef, target, applied, watermark, (await History(scope.InstallationId, scope.Session, token).ConfigureAwait(false)).Count);
         await Put(scope, "committed-outcome", committed, token).ConfigureAwait(false);
         return committed;
@@ -244,7 +256,7 @@ public sealed class DurableSessionArtifacts(FileExecutionArtifactStore store, IS
             for (var n = 0; n < nodes.Count; n++)
             {
                 var node = nodes[n];
-                traces.Add((reference.Key + "-" + n, Trace("node-" + node.Status, node.Timestamp, node.NodeId, node.Exit, node.Duration.TotalMilliseconds) with { MemoryMetadata = node.Metadata }));
+                traces.Add((reference.Key + "-" + n, Trace(node.Status.StartsWith("MemoryQuery", StringComparison.Ordinal) ? node.Status : "node-" + node.Status, node.Timestamp, node.NodeId, node.Exit, node.Duration.TotalMilliseconds) with { MemoryMetadata = node.Metadata }));
             }
         }
         traces = traces.OrderBy(t => t.Trace.Timestamp).ToList();

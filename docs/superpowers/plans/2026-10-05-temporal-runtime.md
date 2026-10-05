@@ -326,11 +326,11 @@ reutilizando HostBoundSessionCompletionFactory e binding de memoria/transporte;
 `ExecutionActivities.RecoverAsync` consulta snapshot e journals por StepKey antes de novo efeito.
 `CommitOutcomeAsync(ArtifactRef outcomeRef): Task` em SessionActivities registra history/outcome/transition uma vez, por ExecutionId + ProviderMessageId + StateVersion esperada.
 
-- [ ] Escrever `RevokedInferenceGrantAndForeignMemoryScopeFail`, `RecoveredModelOutputIsNotRegenerated`, `ModelCompletedWithoutDurableResultIsExplicitFailure`, `CrashAfterReservationIsIndeterminate`, `CrashAfterReceiptBeforeCheckpointDoesNotResend`, `HistoryCommitResponseLostDoesNotDuplicateSpeechOrTransition`, `KillSwitchAndChangedRouteRemainEffectiveAfterFeedback`.
-- [ ] Rodar `dotnet test tests/Cortex.Temporal.Tests/Cortex.Temporal.Tests.csproj --filter "FullyQualifiedName~HostBoundEffectTests|FullyQualifiedName~OutboundCrashRecoveryTests"`; esperar falta dos caminhos de recuperacao.
-- [ ] Implementar recuperacao pelo journal e gravacao idempotente de outcome. Workflow captura Activity failure e agenda Recover; se nao ha resultado recuperavel, manter Failed/ReconciliationRequired conforme evidencia. Nao usar retries de Workflow que criem nova identidade/reautorizem o mesmo envio.
-- [ ] Repetir testes com store/journal reabertos entre cada fronteira de crash e transporte fake. Esperar Calls=1 nos casos de envio confirmado/indeterminado; numero de mensagens no history e de transicoes continua 1 no caso confirmado.
-- [ ] Commit: `feat(temporal): recover host-bound effects without duplicate dispatch`.
+- [x] Escrever `RevokedInferenceGrantAndForeignMemoryScopeFail`, `RecoveredModelOutputIsNotRegenerated`, `ModelCompletedWithoutDurableResultIsExplicitFailure`, `CrashAfterReservationIsIndeterminate`, `CrashAfterReceiptBeforeCheckpointDoesNotResend`, `HistoryCommitResponseLostDoesNotDuplicateSpeechOrTransition`, `KillSwitchAndChangedRouteRemainEffectiveAfterFeedback`.
+- [x] Rodar `dotnet test tests/Cortex.Temporal.Tests/Cortex.Temporal.Tests.csproj --filter "FullyQualifiedName~HostBoundEffectTests|FullyQualifiedName~OutboundCrashRecoveryTests"`; esperar falta dos caminhos de recuperacao.
+- [x] Implementar recuperacao pelo journal e gravacao idempotente de outcome. Workflow captura Activity failure e agenda Recover; se nao ha resultado recuperavel, manter Failed/ReconciliationRequired conforme evidencia. Nao usar retries de Workflow que criem nova identidade/reautorizem o mesmo envio.
+- [x] Repetir testes com store/journal reabertos entre cada fronteira de crash e transporte fake. Esperar Calls=1 nos casos de envio confirmado/indeterminado; numero de mensagens no history e de transicoes continua 1 no caso confirmado.
+- [x] Commit: `feat(temporal): recover host-bound effects without duplicate dispatch`.
 
 ## Tarefa 11: Paridade de revisoes, previews e handoffs
 

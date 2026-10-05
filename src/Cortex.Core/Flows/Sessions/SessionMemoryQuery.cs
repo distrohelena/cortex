@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Globalization;
 using Cortex.Core.Boundaries;
 using Cortex.Core.Memory;
 using Filomena.Core.Identity;
@@ -8,7 +9,8 @@ namespace Cortex.Core.Flows.Sessions;
 internal static class SessionMemoryQuery
 {
     internal static async Task<JsonElement> QueryAsync(SessionKey session, TypedNode node, JsonElement? suppliedPersons,
-        string? text, BoundaryExecutionRegistry registry, IMemoryReader reader, TimeProvider clock, CancellationToken token)
+        string? text, BoundaryExecutionRegistry registry, IMemoryReader reader, TimeProvider clock, CancellationToken token,
+        Action<string, double, IReadOnlyDictionary<string, string>>? trace = null)
     {
         var settings = MemoryNodeSettings.Read(node.Source.Config);
         var ns = SessionFlowRuntime.ConversationNamespace(session);
@@ -25,11 +27,22 @@ internal static class SessionMemoryQuery
         }
         var query = new MemoryQuery(ns, FilomenaIdentity.AgentUuid(ns), settings.Mode, settings.Scope, persons, text, settings.Categories, settings.MaxItems, settings.MaxCharacters);
         MemoryResultPolicy.ValidateQuery(query);
+        var metadata = new Dictionary<string, string>
+        {
+            ["mode"] = settings.Mode.ToString(), ["scope"] = settings.Scope.ToString(),
+            ["participantCount"] = persons.Count.ToString(CultureInfo.InvariantCulture), ["requestedLimit"] = settings.MaxItems.ToString(CultureInfo.InvariantCulture),
+        };
+        trace?.Invoke("MemoryQueryStarted", 0, new Dictionary<string, string>(metadata));
+        var started = clock.GetTimestamp();
         IReadOnlyList<MemoryItem> candidates;
         try { candidates = await reader.QueryAsync(query, token).ConfigureAwait(false); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
         catch (Exception error) when (error is not OutOfMemoryException) { throw new InvalidDataException("Memory query failed (" + error.GetType().Name + ")."); }
         token.ThrowIfCancellationRequested();
-        return registry.RegisterMemories(MemoryResultPolicy.Apply(query, candidates, clock.GetUtcNow()));
+        var result = MemoryResultPolicy.Apply(query, candidates, clock.GetUtcNow());
+        metadata["returnedItemCount"] = result.Count.ToString(CultureInfo.InvariantCulture);
+        metadata["categories"] = string.Join(',', result.Select(i => MemoryCategories.Name(i.Category)).Distinct());
+        trace?.Invoke("MemoryQueryCompleted", clock.GetElapsedTime(started).TotalMilliseconds, metadata);
+        return registry.RegisterMemories(result);
     }
 }

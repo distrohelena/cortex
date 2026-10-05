@@ -171,7 +171,7 @@ internal sealed class OutboundJournal : IDisposable
         return latest.Status switch
         {
             "sent" or "history_committed" => new("sent", "recovered_provider_receipt", latest.AttemptRef, null, sent!.ProviderMessageId,
-                new(reservation.SpeakerName!, reservation.SpeakerStableId!)) { ReplyToMessageId = reservation.ReplyToMessageId },
+                new(reservation.SpeakerName!, reservation.SpeakerStableId!)) { ReplyToMessageId = reservation.ReplyToMessageId, RecoveredText = reservation.Text },
             "pending" or "indeterminate" => new("indeterminate", "reconciliation_required", latest.AttemptRef),
             "shadowed" => new("shadowed", "recovered_shadow_receipt", latest.AttemptRef),
             _ => new("failed", "recovered_" + latest.Status, latest.AttemptRef)

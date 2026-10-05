@@ -32,13 +32,14 @@ public sealed class FlowExecutionDriver(FileExecutionArtifactStore store, IExecu
         using var lease = await store.OperationLocks.AcquireAsync(Operation(command.Key), token).ConfigureAwait(false);
         var intent = await store.FindAsync(command.Key.Scope, "intent-" + Operation(command.Key), token).ConfigureAwait(false);
         if (intent is not null && (await ReadAsync<StepCommand>(intent, token).ConfigureAwait(false)) != command) throw new InvalidDataException("Conflicting step command.");
-        var recovered = await RecoverAsync(command.Key, token).ConfigureAwait(false);
+        var recovered = await RecoverUnderLeaseAsync(command.Key, token).ConfigureAwait(false);
         if (recovered is not null) return recovered;
         var snapshot = ExecutionSnapshotCodec.Decode(await store.ReadAsync(command.SnapshotRef, token).ConfigureAwait(false), command.Key.Scope);
         ValidateCommand(snapshot, command, ExecutionStatus.Ready);
         var loaded = await LoadAsync(snapshot.Scope, snapshot.ProjectRef, snapshot.BatchRef, snapshot.StateId, snapshot.EntryKind, token).ConfigureAwait(false);
         var binding = await BindingAsync(snapshot.Scope, loaded.Project, token).ConfigureAwait(false);
-        var services = Services(snapshot, loaded, binding);
+        var memoryTraces = new List<TypedNodeExecutionTrace>();
+        var services = Services(snapshot, loaded, binding, memoryTraces.Add);
         var effect = FlowExecutionKernel.Effect(loaded.Flow.Nodes[snapshot.Cursor!]);
         if (intent is not null && effect is StepEffect.Inference or StepEffect.Send or StepEffect.Memory or StepEffect.Boundary)
         {
@@ -49,14 +50,57 @@ public sealed class FlowExecutionDriver(FileExecutionArtifactStore store, IExecu
         var state = new FlowExecutionState(snapshot, RuntimeOutputs(loaded));
         var result = await FlowExecutionKernel.AdvanceAsync(loaded.Flow, state, services, token).ConfigureAwait(false);
         snapshot.TrustedEvidence = JsonSerializer.SerializeToElement(new Evidence(services.BoundaryRegistry?.CaptureEvidence(), services.Outbound?.CaptureEvidence(snapshot.Values)), Options);
-        await store.PutOnceAsync(snapshot.Scope, "traces-" + Operation(command.Key), JsonSerializer.SerializeToElement(result.Traces, Options), token).ConfigureAwait(false);
+        await store.PutOnceAsync(snapshot.Scope, "traces-" + Operation(command.Key), JsonSerializer.SerializeToElement(result.Traces.Concat(memoryTraces).OrderBy(t => t.Timestamp).ToArray(), Options), token).ConfigureAwait(false);
         return await SaveAsync(snapshot, "after-" + Operation(command.Key), token).ConfigureAwait(false);
     }
 
     public async Task<ExecutionDescriptor?> RecoverAsync(StepKey key, CancellationToken token)
     {
+        using var lease = await store.OperationLocks.AcquireAsync(Operation(key), token).ConfigureAwait(false);
+        return await RecoverUnderLeaseAsync(key, token).ConfigureAwait(false);
+    }
+    private async Task<ExecutionDescriptor?> RecoverUnderLeaseAsync(StepKey key, CancellationToken token)
+    {
         var reference = await store.FindAsync(key.Scope, "after-" + Operation(key), token).ConfigureAwait(false);
-        return reference is null ? null : await DescribeAsync(reference, token).ConfigureAwait(false);
+        if (reference is not null) return await DescribeAsync(reference, token).ConfigureAwait(false);
+        var intentRef = await store.FindAsync(key.Scope, "intent-" + Operation(key), token).ConfigureAwait(false);
+        if (intentRef is null) return null;
+        var command = await ReadAsync<StepCommand>(intentRef, token).ConfigureAwait(false);
+        if (command.Key != key || command.SnapshotRef.Scope != key.Scope) throw new InvalidDataException("Recovery intent scope mismatch.");
+        var snapshot = ExecutionSnapshotCodec.Decode(await store.ReadAsync(command.SnapshotRef, token).ConfigureAwait(false), key.Scope);
+        ValidateCommand(snapshot, command, ExecutionStatus.Ready);
+        var loaded = await LoadAsync(snapshot.Scope, snapshot.ProjectRef, snapshot.BatchRef, snapshot.StateId, snapshot.EntryKind, token).ConfigureAwait(false);
+        var node = loaded.Flow.Nodes[key.NodeId]; var effect = FlowExecutionKernel.Effect(node);
+        if (effect is StepEffect.Pure or StepEffect.Artifact) return null;
+        snapshot.Status = effect == StepEffect.Send ? ExecutionStatus.ReconciliationRequired : ExecutionStatus.Failed;
+        if (effect == StepEffect.Send)
+        {
+            var binding = await bindings.ResolveAsync(key.Scope, token).ConfigureAwait(false);
+            if (binding.Scope != key.Scope || !JsonElement.DeepEquals(binding.Project, loaded.Project.Document)) throw new InvalidDataException("Recovery host scope mismatch.");
+            // A durable provider receipt is a fact. Reading it does not rebind inference, restore expired memory, or rearm dispatch.
+            var outbound = binding.OutboundHost?.Begin(binding.Project, key.Scope.ExecutionId, key.Scope.Session, snapshot.EntryKind,
+                loaded.Batch.ProviderMessageIds, loaded.Batch.ReplyTargetIds, loaded.Batch.ShadowOnly);
+            var result = outbound is null ? null : binding.OutboundHost!.RecoverExecutionSend(outbound);
+            snapshot.SendAttempted = true;
+            if (result is not null && result.Status != "indeterminate")
+            {
+                if (result.Status == "sent")
+                {
+                    if (result.RecoveredText is null || result.ProviderMessageId is null || result.Speaker is null) throw new InvalidDataException("Incomplete durable send receipt.");
+                    snapshot.ConfirmedSend = new(key.NodeId, result.ProviderMessageId, result.RecoveredText, result.Speaker) { ReplyToMessageId = result.ReplyToMessageId };
+                }
+                snapshot.Outputs[key.NodeId] = new()
+                {
+                    ["status"] = new(node.Outputs.Single(p => p.Id == "status").Type, JsonSerializer.SerializeToElement(result.Status)),
+                    ["diagnostico"] = new(new StringType(), JsonSerializer.SerializeToElement(result.DiagnosticCode)),
+                };
+                foreach (var output in snapshot.Outputs[key.NodeId]) snapshot.Values[new(key.NodeId, output.Key)] = output.Value;
+                snapshot.Steps.Add(new(key.NodeId, "completed", result.Status, null)); snapshot.Ordinal++;
+                snapshot.Cursor = loaded.Flow.Graph.ControlEdges.SingleOrDefault(e => e.Source == new PortRef(key.NodeId, result.Status))?.Target.NodeId;
+                snapshot.Status = snapshot.Cursor is null ? ExecutionStatus.Completed : ExecutionStatus.Ready;
+            }
+        }
+        return await SaveAsync(snapshot, "after-" + Operation(key), token).ConfigureAwait(false);
     }
 
     public async Task ValidateFeedbackAsync(FeedbackSubmission submission, CancellationToken token)
@@ -163,7 +207,7 @@ public sealed class FlowExecutionDriver(FileExecutionArtifactStore store, IExecu
     private static IReadOnlyDictionary<string, IReadOnlyDictionary<string, TypedValue>> RuntimeOutputs(Loaded loaded) =>
         loaded.Batch.RuntimeOutputs.ToDictionary(x => x.Key, x => (IReadOnlyDictionary<string, TypedValue>)x.Value.ToDictionary(p => p.Key,
             p => new TypedValue(loaded.Flow.Nodes[x.Key].Outputs.Single(o => o.Id == p.Key).Type, p.Value.Clone())));
-    private static FlowExecutionServices Services(ExecutionSnapshotV1 snapshot, Loaded loaded, ExecutionHostBinding binding)
+    private static FlowExecutionServices Services(ExecutionSnapshotV1 snapshot, Loaded loaded, ExecutionHostBinding binding, Action<TypedNodeExecutionTrace>? memoryTrace = null)
     {
         var evidence = snapshot.TrustedEvidence.TryGetProperty("Boundaries", out _) ? snapshot.TrustedEvidence.Deserialize<Evidence>(Options) : null;
         var ns = loaded.Flow.Nodes.Values.Any(n => n.Source.Kind is "memory" or "interpretBoundaries") ? SessionFlowRuntime.ConversationNamespace(snapshot.Scope.Session) : "";
@@ -175,7 +219,8 @@ public sealed class FlowExecutionDriver(FileExecutionArtifactStore store, IExecu
         var completion = binding.CompletionFactory.Create(new(snapshot.Scope.Session, snapshot.Scope.ExecutionId, snapshot.BatchId,
             loaded.Project.ProjectId, loaded.Project.ProjectVersion, loaded.Project.ProjectRevision));
         return new(completion) { Clock = binding.Clock, BoundaryRegistry = registry, Outbound = outbound, InstructionContext = loaded.State.InstructionContext,
-            MemoryQuery = (node, persons, query, token) => SessionMemoryQuery.QueryAsync(snapshot.Scope.Session, node, persons, query, registry, binding.MemoryReader, binding.Clock, token),
+            MemoryQuery = (node, persons, query, token) => SessionMemoryQuery.QueryAsync(snapshot.Scope.Session, node, persons, query, registry, binding.MemoryReader, binding.Clock, token,
+                (name, duration, metadata) => memoryTrace?.Invoke(new(node.Source.Id, name, null, null, binding.Clock.GetUtcNow(), TimeSpan.FromMilliseconds(duration), metadata))),
             InstructionOutput = binding.InstructionOutput is null ? null : (node, outputs, token) => binding.InstructionOutput(new(snapshot.Scope.ExecutionId, snapshot.BatchId, snapshot.Scope.Session,
                 snapshot.StateId, snapshot.StateVersion, snapshot.Scope.ProjectRevision, node, outputs), token),
             NodeStarting = binding.NodeStarting is null ? null : (node, outputs, token) => binding.NodeStarting(new(snapshot.Scope.ExecutionId, snapshot.BatchId, snapshot.Scope.Session,

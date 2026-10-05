@@ -9,6 +9,21 @@ namespace Cortex.Core.Tests.Durable;
 
 public sealed class DurableDriverTests
 {
+    [Fact]
+    public async Task ModelIntentWithoutDurableOutputFailsWithoutRegenerating()
+    {
+        using var directory = new ArtifactDirectory(); await using var store = directory.Open();
+        var project = Project(); var model = new IncrementalKernelTests.Model(); var bindings = new Bindings(project, model);
+        var driver = new FlowExecutionDriver(store, bindings);
+        var ready = await driver.InitializeAsync(await PrepareAsync(store, project), TestContext.Current.CancellationToken);
+        ready = await driver.AdvanceAsync(Command(ready), TestContext.Current.CancellationToken);
+        var command = Command(ready);
+        await store.PutOnceAsync(command.Key.Scope, "intent-" + DurableIdentity.OperationId(command.Key), JsonSerializer.SerializeToElement(command), TestContext.Current.CancellationToken);
+        bindings.Revoked = true;
+        var recovered = await driver.RecoverAsync(command.Key, TestContext.Current.CancellationToken);
+        Assert.Equal(ExecutionStatus.Failed, recovered!.Status); Assert.Empty(model.Requests);
+        Assert.Equal(recovered, await driver.AdvanceAsync(command, TestContext.Current.CancellationToken));
+    }
     internal static SessionFlowProject Project(JsonElement? graph = null)
     {
         var flow = IncrementalKernelTests.Flow();

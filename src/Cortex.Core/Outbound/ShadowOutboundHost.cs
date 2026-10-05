@@ -69,6 +69,7 @@ public sealed record LiveRouteBinding(SessionKey Session, string TransportRoute,
 public sealed record ShadowSendResult(string Status, string DiagnosticCode, string? JournalRef = null, string? WouldTransitionTo = null,
     string? ProviderMessageId = null, OutboundSpeaker? Speaker = null)
 {
+    internal string? RecoveredText { get; init; }
     public string? ReplyToMessageId { get; init; }
 }
 
