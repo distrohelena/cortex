@@ -25,6 +25,16 @@ internal sealed record TypedNodeExecutionTrace(string NodeId, string Status, str
 
 public static class TypedFlowRunner
 {
+    /// <summary>Run a host-defined graph without a chat message or a text model provider.</summary>
+    public static Task<TypedRunResult> RunAsync(TypedFlow flow, CancellationToken token) =>
+        RunAsync(flow, JsonSerializer.SerializeToElement(new { }), new NoCompletion(), token);
+
+    private sealed class NoCompletion : IFlowCompletion
+    {
+        public Task<string> CompleteAsync(FlowCompletionRequest request, CancellationToken token) =>
+            throw new InvalidDataException("A text model provider is required for prompt nodes.");
+    }
+
     public static JsonElement? ResponseSchema(TypedNode node)
     {
         if (BoundaryEnforcementProfile.Enabled(node.Source.Config)) return BoundaryDetectionTemplates.Read(node.Source.Config).SemanticSchema.ToJsonSchema();

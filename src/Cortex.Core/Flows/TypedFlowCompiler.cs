@@ -9,8 +9,14 @@ public sealed class TypedFlowException(IReadOnlyList<TypedFlowIssue> issues) : E
     public IReadOnlyList<TypedFlowIssue> Issues { get; } = issues;
 }
 public sealed record TypedPort(string Id, string Name, FlowType Type, bool Required, JsonElement Config);
-public sealed record TypedNode(FlowNode Source, IReadOnlyList<TypedPort> Inputs, IReadOnlyList<TypedPort> Outputs, IReadOnlyList<string> Exits);
-public sealed record TypedFlow(GraphDocument Graph, string EntryId, IReadOnlyDictionary<string, TypedNode> Nodes);
+public sealed record TypedNode(FlowNode Source, IReadOnlyList<TypedPort> Inputs, IReadOnlyList<TypedPort> Outputs, IReadOnlyList<string> Exits)
+{
+    internal FlowEffect? HostEffect { get; init; }
+}
+public sealed record TypedFlow(GraphDocument Graph, string EntryId, IReadOnlyDictionary<string, TypedNode> Nodes)
+{
+    internal IReadOnlyDictionary<string, FlowNodeHandler> HostNodes { get; init; } = new Dictionary<string, FlowNodeHandler>();
+}
 
 public static class TypedFlowCompiler
 {
@@ -25,12 +31,21 @@ public static class TypedFlowCompiler
     private static readonly HashSet<string> ExecutableKinds =
         ["dm", "group", "accumulate", "history", "memory", "interpretBoundaries", "exit", "property", "count", "prompt", "switch", "branch", "send", "humanFeedback"];
 
-    public static TypedFlow Compile(JsonElement source, string entryId) => CompileCore(source, entryId, true);
+    public static TypedFlow Compile(JsonElement source, string entryId) => CompileCore(source, entryId, true, new Dictionary<string, FlowNodeHandler>());
 
-    private static TypedFlow CompileCore(JsonElement source, string entryId, bool validateAlternateEntries)
+    public static TypedFlow Compile(JsonElement source, string entryId, IEnumerable<FlowNodeHandler> hostNodes)
+    {
+        var handlers = hostNodes.ToDictionary(handler => handler.Definition.Kind, StringComparer.Ordinal);
+        if (handlers.Keys.Any(ExecutableKinds.Contains)) throw new ArgumentException("Host nodes cannot replace built-in node kinds.", nameof(hostNodes));
+        return CompileCore(source, entryId, true, handlers);
+    }
+
+    private static TypedFlow CompileCore(JsonElement source, string entryId, bool validateAlternateEntries,
+        IReadOnlyDictionary<string, FlowNodeHandler> hostNodes)
     {
         var issues = new List<TypedFlowIssue>();
         void Error(string node, string port, string reason) => issues.Add(new(node, port, reason));
+        bool IsEntry(FlowNode node) => node.Kind is "dm" or "group" || hostNodes.TryGetValue(node.Kind, out var handler) && handler.IsEntry;
         try
         {
             if (source.GetProperty("version").GetInt32() != 3) throw new InvalidDataException("Use graph versão 3.");
@@ -44,8 +59,8 @@ public static class TypedFlowCompiler
             var control = allControl;
             if (data.Length > 128 || control.Length > 128) throw new InvalidDataException("Máximo de 128 fios de cada tipo.");
             var graph = new GraphDocument("local", 3, GraphRole.Character, null, nodes.Values, data, control, [entryId]);
-            if (!nodes.TryGetValue(entryId, out var entry) || entry.Kind is not ("dm" or "group")) throw new InvalidDataException("Selecione uma entrada DM/grupo.");
-            ValidateGlobalStructure(allNodes, allData, allControl, issues);
+            if (!nodes.TryGetValue(entryId, out var entry) || !IsEntry(entry)) throw new InvalidDataException("Selecione uma entrada DM/grupo ou uma entrada registrada pelo host.");
+            ValidateGlobalStructure(allNodes, allData, allControl, issues, hostNodes, IsEntry);
             if (issues.Count > 0) throw new TypedFlowException(issues);
             // DM and group may intentionally feed the same typed input. Compile one
             // deterministic entry path and retain the single-producer rule inside it.
@@ -57,7 +72,7 @@ public static class TypedFlowCompiler
                     if (activeControlNodes.Add(edge.Target.NodeId)) pending.Enqueue(edge.Target.NodeId);
 
             var inactiveEntries = allNodes.Values
-                .Where(node => node.Kind is "dm" or "group" && node.Id != entryId)
+                .Where(node => IsEntry(node) && node.Id != entryId)
                 .Select(node => node.Id)
                 .ToHashSet(StringComparer.Ordinal);
             var inactiveControlNodes = new HashSet<string>(inactiveEntries, StringComparer.Ordinal);
@@ -196,7 +211,14 @@ public static class TypedFlowCompiler
                         if (cases.Length > 64 || names.Distinct().Count() != names.Length || ids.Distinct().Count() != ids.Length || ids.Any(string.IsNullOrWhiteSpace) || ids.Contains("other")) throw new InvalidDataException("Casos inválidos ou duplicados.");
                         if (value.Type is EnumType en && !en.Values.ToHashSet().SetEquals(names)) throw new InvalidDataException("Atualize os casos para corresponder ao enum.");
                         result = new(node, [Port("value", value.Type)], [], HasOther(config) ? [.. ids, "other"] : ids); break;
-                    default: throw new InvalidDataException("Node fora deste recorte executável: " + node.Kind);
+                    default:
+                        if (!hostNodes.TryGetValue(node.Kind, out var handler)) throw new InvalidDataException("Node fora deste recorte executável: " + node.Kind);
+                        var definition = handler.Definition.Resolve(FlowNodeHandler.Config(node));
+                        if (definition.Issues.Count > 0) throw new InvalidDataException(string.Join("; ", definition.Issues.Select(issue => issue.Message)));
+                        TypedPort DataPort(FlowDataPortDefinition port) => Port(port.Name, port.Type, port.Required);
+                        result = new(node, definition.DataInputs.Select(DataPort).ToArray(), definition.DataOutputs.Select(DataPort).ToArray(),
+                            definition.ControlOutputs.Select(port => port.Name).ToArray()) { HostEffect = handler.Definition.Effect };
+                        break;
                 }
                 visiting.Remove(id); resolved[id] = result; return result;
             }
@@ -220,18 +242,18 @@ public static class TypedFlowCompiler
             foreach (var edge in control)
             {
                 if (!resolved.TryGetValue(edge.Source.NodeId, out var from) || !from.Exits.Contains(edge.Source.Port)) Error(edge.Source.NodeId, edge.Source.Port, "Saída de execução inexistente.");
-                if (!resolved.TryGetValue(edge.Target.NodeId, out var to) || to.Source.Kind is "property" or "count" or "dm" or "group" || edge.Target.Port != "exec") Error(edge.Target.NodeId, edge.Target.Port, "Entrada de execução inexistente.");
+                if (!resolved.TryGetValue(edge.Target.NodeId, out var to) || to.Source.Kind is "property" or "count" || IsEntry(to.Source) || edge.Target.Port != "exec") Error(edge.Target.NodeId, edge.Target.Port, "Entrada de execução inexistente.");
             }
             foreach (var group in control.GroupBy(e => e.Source)) if (group.Count() > 1) Error(group.Key.NodeId, group.Key.Port, "Sem fan-out: conecte apenas um próximo node.");
             DetectCycles(nodes.Keys, data.Select(e => (e.Source.NodeId, e.Target.NodeId)), issues);
             DetectCycles(nodes.Keys, control.Select(e => (e.Source.NodeId, e.Target.NodeId)), issues);
             if (issues.Count == 0) ValidateAvailability(graph, resolved, entryId, issues);
             if (issues.Count == 0 && validateAlternateEntries)
-                foreach (var alternate in allNodes.Values.Where(node => node.Kind is "dm" or "group" && node.Id != entryId))
-                    try { _ = CompileCore(source, alternate.Id, false); }
+                foreach (var alternate in allNodes.Values.Where(node => IsEntry(node) && node.Id != entryId))
+                    try { _ = CompileCore(source, alternate.Id, false, hostNodes); }
                     catch (TypedFlowException exception) { issues.AddRange(exception.Issues); }
             if (issues.Count > 0) throw new TypedFlowException(issues);
-            return new(graph, entryId, resolved);
+            return new(graph, entryId, resolved) { HostNodes = hostNodes };
         }
         catch (Exception e) when (ConfigurationError(e)) { throw new TypedFlowException([new("graph", "config", e.Message)]); }
     }
@@ -242,10 +264,11 @@ public static class TypedFlowCompiler
         IReadOnlyDictionary<string, FlowNode> nodes,
         IReadOnlyList<DataEdge> data,
         IReadOnlyList<ControlEdge> control,
-        List<TypedFlowIssue> issues)
+        List<TypedFlowIssue> issues,
+        IReadOnlyDictionary<string, FlowNodeHandler> hostNodes, Func<FlowNode, bool> isEntry)
     {
         foreach (var node in nodes.Values)
-            if (!ExecutableKinds.Contains(node.Kind)) issues.Add(new(node.Id, "kind", "Node fora deste recorte executável: " + node.Kind));
+            if (!ExecutableKinds.Contains(node.Kind) && !hostNodes.ContainsKey(node.Kind)) issues.Add(new(node.Id, "kind", "Node fora deste recorte executável: " + node.Kind));
         foreach (var edge in data)
         {
             if (!nodes.ContainsKey(edge.Source.NodeId)) issues.Add(new(edge.Source.NodeId, edge.Source.Port, "Origem inexistente."));
@@ -261,7 +284,7 @@ public static class TypedFlowCompiler
         DetectCycles(nodes.Keys, data.Select(edge => (edge.Source.NodeId, edge.Target.NodeId)), issues);
         DetectCycles(nodes.Keys, control.Select(edge => (edge.Source.NodeId, edge.Target.NodeId)), issues);
 
-        var reachable = new HashSet<string>(nodes.Values.Where(node => node.Kind is "dm" or "group").Select(node => node.Id), StringComparer.Ordinal);
+        var reachable = new HashSet<string>(nodes.Values.Where(isEntry).Select(node => node.Id), StringComparer.Ordinal);
         var pending = new Queue<string>(reachable);
         while (pending.TryDequeue(out var current))
             foreach (var edge in control.Where(item => item.Source.NodeId == current))

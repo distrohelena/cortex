@@ -7,13 +7,17 @@
 <div id="viewport"><div id="canvas"><svg id="wires"></svg><div id="nodes"></div></div></div>
 <script type="module">
 import {createFlowGraphEditor} from './dist/index.js';
-const graph={nodes:[{id:'a',kind:'source',x:60,y:80},{id:'b',kind:'transform',x:420,y:80}],edges:[],controlEdges:[]};
-let selected='a';
+const graphUrl=new URLSearchParams(location.search).get('graph');
+const graph=graphUrl?await fetch(graphUrl).then(response=>{
+ if(!response.ok)throw new Error('Não foi possível carregar o graph.');
+ return response.json();
+}):{nodes:[{id:'a',kind:'source',x:60,y:80},{id:'b',kind:'transform',x:420,y:80}],edges:[],controlEdges:[]};
+let selected=graph.nodes[0]?.id;
 const element=id=>document.getElementById(id);
 const editor=createFlowGraphEditor({
  viewport:element('viewport'),canvas:element('canvas'),wires:element('wires'),nodes:element('nodes'),
  getGraph:()=>graph,getSelectedId:()=>selected,
- describeNode:node=>({title:node.kind,ports:[{id:'value',label:'Valor',type:'number',direction:node.id==='a'?'out':'in'}],
+ describeNode:node=>graph.descriptions?.[node.id]??({title:node.kind,ports:[{id:'value',label:'Valor',type:'number',direction:node.id==='a'?'out':'in'}],
   executionPorts:[{id:node.id==='a'?'then':'exec',label:'Executar',direction:node.id==='a'?'out':'in'}]}),
  onSelect:node=>{selected=node.id;},onMove:(node,position)=>Object.assign(node,position),
  onConnect:({kind,...edge})=>{const key=kind==='execution'?'controlEdges':'edges';graph[key]=graph[key].filter(e=>e.target!==edge.target||e.targetPort!==edge.targetPort);graph[key].push(edge);},

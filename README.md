@@ -1,9 +1,9 @@
 # Cortex
 
-**Dynamic graph engineering for configurable, stateful AI systems.**
+**Typed graphs for local tools, data processing, and AI systems.**
 
 Cortex is a .NET foundation for designing, validating, and running graphs that
-bring together typed data, control flow, state, memory, and model inference.
+bring together local operations, typed data, control flow, state, memory, and model inference.
 Its focus is giving developers room to shape how a system works: which steps
 run, what information they exchange, how decisions choose a path, and how
 execution changes with the context of a session.

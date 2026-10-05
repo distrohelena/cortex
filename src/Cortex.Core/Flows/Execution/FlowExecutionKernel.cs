@@ -16,10 +16,11 @@ internal static class FlowExecutionKernel
             ProjectRef = identity.ProjectRef, BatchRef = identity.BatchRef, StateId = identity.StateId,
             StateVersion = identity.StateVersion, EntryKind = identity.EntryKind, Cursor = flow.EntryId,
             Status = ExecutionStatus.Ready };
-        snapshot.Values[new(flow.EntryId, "message")] = new(FlowDomain.Message, message.Clone());
+        if (flow.Nodes[flow.EntryId].Source.Kind is "dm" or "group")
+            snapshot.Values[new(flow.EntryId, "message")] = new(FlowDomain.Message, message.Clone());
         return new(snapshot, runtimeOutputs);
     }
-    internal static StepEffect Effect(TypedNode node) => node.Source.Kind switch
+    internal static StepEffect Effect(TypedNode node) => node.HostEffect is FlowEffect.Model ? StepEffect.Inference : node.Source.Kind switch
     {
         "prompt" => StepEffect.Inference, "memory" => StepEffect.Memory,
         "interpretBoundaries" => StepEffect.Boundary, "send" => StepEffect.Send,
@@ -104,7 +105,8 @@ internal static class FlowExecutionKernel
         }
         try
         {
-            FlowDomain.Check(values[new(flow.EntryId, "message")].Value, FlowDomain.Message);
+            if (flow.Nodes[flow.EntryId].Source.Kind is "dm" or "group")
+                FlowDomain.Check(values[new(flow.EntryId, "message")].Value, FlowDomain.Message);
             while (true)
             {
                 token.ThrowIfCancellationRequested();
@@ -118,7 +120,29 @@ internal static class FlowExecutionKernel
                 if (nodeStarting is not null)
                     await nodeStarting(current, published.ToDictionary(pair => pair.Key,
                         pair => (IReadOnlyDictionary<string, TypedValue>)pair.Value.AsReadOnly()).AsReadOnly(), token);
-                if (node.Source.Kind == "humanFeedback")
+                if (flow.HostNodes.TryGetValue(node.Source.Kind, out var handler))
+                {
+                    var inputs = new Dictionary<string, TypedValue>(StringComparer.Ordinal);
+                    foreach (var port in node.Inputs)
+                    {
+                        if (!port.Required && !flow.Graph.DataEdges.Any(e => e.Target == new PortRef(current, port.Id))) continue;
+                        var input = Input(node, port);
+                        FlowDomain.Check(input.Value, port.Type);
+                        inputs.Add(port.Id, input);
+                    }
+                    var raw = await handler.ExecuteAsync(FlowNodeHandler.Config(node.Source), inputs.AsReadOnly(), token);
+                    if (!raw.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(node.Outputs.Select(port => port.Id)))
+                        throw new InvalidDataException("Host output ports do not match the declared ports.");
+                    var output = new Dictionary<string, TypedValue>(StringComparer.Ordinal);
+                    foreach (var port in node.Outputs)
+                    {
+                        FlowDomain.Check(raw[port.Id], port.Type);
+                        output.Add(port.Id, new(port.Type, raw[port.Id].Clone()));
+                    }
+                    published[current] = output;
+                    foreach (var (port, value) in output) values[new(current, port)] = value;
+                }
+                else if (node.Source.Kind == "humanFeedback")
                 {
                     snapshot.Ordinal--; // This node remains pending until a durable resolution completes it.
                     var port = node.Inputs.Single();
