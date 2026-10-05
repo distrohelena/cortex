@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <IsTestProject>true</IsTestProject><IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" /><PackageReference Include="xunit.v3" Version="3.0.1" /><PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../../src/Cortex.Editor/Cortex.Editor.csproj" />
+    <ProjectReference Include="../Cortex.Plugin.TestFixture/Cortex.Plugin.TestFixture.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+  <Target Name="CopyPluginFixture" AfterTargets="Build">
+    <MSBuild Projects="../Cortex.Plugin.TestFixture/Cortex.Plugin.TestFixture.csproj" Targets="GetTargetPath" BuildInParallel="false"><Output TaskParameter="TargetOutputs" ItemName="PluginFixtureTarget" /></MSBuild>
+    <ItemGroup><PluginFixtureFiles Include="@(PluginFixtureTarget);@(PluginFixtureTarget->'%(RootDir)%(Directory)%(Filename).deps.json')" /></ItemGroup>
+    <Copy SourceFiles="@(PluginFixtureFiles)" DestinationFolder="$(OutDir)plugin-fixture" />
+  </Target>
+</Project>

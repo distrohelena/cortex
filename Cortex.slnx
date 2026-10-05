@@ -1,6 +1,7 @@
 <Solution>
   <Project Path="src/Cortex.Core/Cortex.Core.csproj" />
   <Project Path="src/Cortex.Video/Cortex.Video.csproj" />
+  <Project Path="src/Cortex.Editor/Cortex.Editor.csproj" />
   <Project Path="src/Cortex.Temporal/Cortex.Temporal.csproj" />
   <Project Path="src/Cortex.Inference/Cortex.Inference.csproj" />
   <Project Path="src/Cortex.Memory/Cortex.Memory.csproj" />
@@ -9,6 +10,7 @@
   <Project Path="src/Cortex.Evaluation.Cli/Cortex.Evaluation.Cli.csproj" />
   <Project Path="tests/Cortex.Core.Tests/Cortex.Core.Tests.csproj" />
   <Project Path="tests/Cortex.Video.Tests/Cortex.Video.Tests.csproj" />
+  <Project Path="tests/Cortex.Editor.Tests/Cortex.Editor.Tests.csproj" />
   <Project Path="tests/Cortex.Temporal.Tests/Cortex.Temporal.Tests.csproj" />
   <Project Path="tests/Cortex.Inference.Tests/Cortex.Inference.Tests.csproj" />
   <Project Path="tests/Cortex.Evaluation.Tests/Cortex.Evaluation.Tests.csproj" />

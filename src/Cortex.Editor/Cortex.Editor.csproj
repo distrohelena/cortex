@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Cortex.Core/Cortex.Core.csproj" />
+    <InternalsVisibleTo Include="Cortex.Editor.Tests" />
+    <Content Update="wwwroot/**/*" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="../../packages/flow-graph/dist/*.js;../../packages/flow-graph/dist/*.css" Link="wwwroot/flow-graph/%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+  <Target Name="BuildReusableCanvas" BeforeTargets="BeforeBuild">
+    <Exec Command="node &quot;$(MSBuildThisFileDirectory)../../packages/flow-graph/build.mjs&quot;" />
+  </Target>
+</Project>
