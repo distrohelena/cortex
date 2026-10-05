@@ -135,11 +135,11 @@ criar `tests/Cortex.Core.Tests/Durable/FileArtifactStoreTests.cs`, `SessionLedge
 `ValueTask RecordOnceAsync(LedgerRecord record, CancellationToken token)`.
 `LedgerAdmissionRequest` grava instalacao/sessao, inputKey, inputRef, digest, batchId, executionId e proposedWatermark; `LedgerAdmission` devolve status/watermark/identidades anteriores. `LedgerRecord` usa collection, operationId e ref. Collections permitidas: history, outcomes, traces, feedback, admissions.
 
-- [ ] Escrever `ReopenReturnsIdenticalArtifact`, `SameKeyDifferentPayloadFails`, `WrongScopeAndDigestFail`, `TraversalAndForeignInstallationFail`, `SecondWriterCannotOpen`, `IncompleteTemporaryWriteDoesNotReplaceCommittedArtifact`. Para ledger: `LostAdmissionResponseReplaysOriginalReceipt`, `ConflictingInputIdFails`, `DuplicateDoesNotIncrementWatermark`, `StablePaginationHasNoDuplicateOrMissingItem` com 205 refs em paginas 100/100/5.
-- [ ] Rodar `dotnet test tests/Cortex.Core.Tests/Cortex.Core.Tests.csproj --filter "FullyQualifiedName~FileArtifactStoreTests|FullyQualifiedName~SessionLedgerTests"`; esperar falha das APIs novas.
-- [ ] Implementar gravacao atomica por arquivo temporario, flush duravel e rename; chaves viram nomes por hash, nunca caminhos fornecidos pelo caller. Registro de admissao e seu indice sao uma operacao recuperavel idempotente. Truncamento/corrupcao committed falha explicitamente. Preservar artefatos de execucoes abertas e indices de dedupe; exclusao so via politica explicita do host.
-- [ ] Repetir testes, incluindo fechar/reabrir objetos do store e subprocesso concorrente para exclusao. Esperar recuperacao sem dependencia de dicionario anterior.
-- [ ] Commit: `feat(core): persist scoped execution artifacts and session receipts`.
+- [x] Escrever `ReopenReturnsIdenticalArtifact`, `SameKeyDifferentPayloadFails`, `WrongScopeAndDigestFail`, `TraversalAndForeignInstallationFail`, `SecondWriterCannotOpen`, `IncompleteTemporaryWriteDoesNotReplaceCommittedArtifact`. Para ledger: `LostAdmissionResponseReplaysOriginalReceipt`, `ConflictingInputIdFails`, `DuplicateDoesNotIncrementWatermark`, `StablePaginationHasNoDuplicateOrMissingItem` com 205 refs em paginas 100/100/5.
+- [x] Rodar `dotnet test tests/Cortex.Core.Tests/Cortex.Core.Tests.csproj --filter "FullyQualifiedName~FileArtifactStoreTests|FullyQualifiedName~SessionLedgerTests"`; esperar falha das APIs novas.
+- [x] Implementar gravacao atomica por arquivo temporario, flush duravel e rename; chaves viram nomes por hash, nunca caminhos fornecidos pelo caller. Registro de admissao e seu indice sao uma operacao recuperavel idempotente. Truncamento/corrupcao committed falha explicitamente. Preservar artefatos de execucoes abertas e indices de dedupe; exclusao so via politica explicita do host.
+- [x] Repetir testes, incluindo fechar/reabrir objetos do store e subprocesso concorrente para exclusao. Esperar recuperacao sem dependencia de dicionario anterior.
+- [x] Commit: `feat(core): persist scoped execution artifacts and session receipts`.
 
 ## Tarefa 3: Evidencia confiavel recuperavel
 
