@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors><EnableDynamicLoading>true</EnableDynamicLoading>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Cortex.Core/Cortex.Core.csproj" />
+    <None Include="cortex-video.plugin.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

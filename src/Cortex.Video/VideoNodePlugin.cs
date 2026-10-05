@@ -1,0 +1,24 @@
+using System.Text.Json;
+using Cortex.Core.Flows;
+using Cortex.Core.Plugins;
+
+namespace Cortex.Video;
+
+public sealed class VideoNodePlugin : IFlowNodePlugin
+{
+    public int ContractVersion => NodePluginContext.CurrentContractVersion;
+    public IReadOnlyList<FlowNodeHandler> CreateHandlers(NodePluginContext context)
+    {
+        string Text(string name, string fallback = "")
+        {
+            if (!context.Configuration.TryGetProperty(name, out var value)) return fallback;
+            return value.ValueKind == JsonValueKind.String ? value.GetString()! : throw new InvalidDataException("Opção de vídeo inválida: " + name);
+        }
+        var tools = new TranscriptionTools(
+            NodePluginContext.ResolvePath(Text("whisperExecutable"), context.ConfigurationDirectory),
+            NodePluginContext.ResolvePath(Text("modelFile"), context.ConfigurationDirectory),
+            NodePluginContext.ResolvePath(Text("ffmpegExecutable", "ffmpeg"), context.ConfigurationDirectory, true),
+            NodePluginContext.ResolvePath(Text("ffprobeExecutable", "ffprobe"), context.ConfigurationDirectory, true));
+        return VideoNodes.CreateHandlers(new WhisperCppTranscriber(tools, context.Diagnostic));
+    }
+}

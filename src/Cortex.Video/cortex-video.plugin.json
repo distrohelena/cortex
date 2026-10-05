@@ -1,0 +1,14 @@
+{
+  "id": "video",
+  "displayName": "Vídeo",
+  "description": "Arquivo de vídeo, transcrição local em português e transcript tipado.",
+  "assemblyPath": "Cortex.Video.dll",
+  "entryType": "Cortex.Video.VideoNodePlugin",
+  "contractVersion": 1,
+  "configurationFields": [
+    { "name": "whisperExecutable", "label": "Executável do whisper.cpp", "defaultValue": "", "required": true },
+    { "name": "modelFile", "label": "Modelo Whisper multilíngue", "defaultValue": "", "required": true },
+    { "name": "ffmpegExecutable", "label": "Executável do ffmpeg", "defaultValue": "ffmpeg" },
+    { "name": "ffprobeExecutable", "label": "Executável do ffprobe", "defaultValue": "ffprobe" }
+  ]
+}
