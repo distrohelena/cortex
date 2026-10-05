@@ -8,6 +8,7 @@ namespace Cortex.Core.Flows.Sessions;
 public sealed partial class DurableSessionArtifacts(FileExecutionArtifactStore store, ISessionLedger ledger, IExecutionHostBindings bindings) : ISessionArtifactServices
 {
     private sealed record HistoryRecord(SessionHistoryEntry Entry, string? ConfirmedSendOf);
+    private sealed record HistoryCursorV1(int Version, ArtifactRef PageRef, int Offset);
     private static ArtifactScope LedgerScope(string installation, SessionKey session) => new(installation, session, "session-ledger", "session-ledger-v1");
 
     public async Task<ProjectPublicationDescriptor> ReadPublicationAsync(ArtifactRef reference, CancellationToken token)
@@ -322,9 +323,33 @@ public sealed partial class DurableSessionArtifacts(FileExecutionArtifactStore s
     }
     public async Task<ArtifactPage<SessionHistoryEntry>> ReadHistoryAsync(string installation, SessionKey session, PageRequest page, CancellationToken token)
     {
-        var records = await ledger.ReadPageAsync(installation, session, "history", page, token).ConfigureAwait(false);
-        var result = new List<SessionHistoryEntry>(); foreach (var reference in records.Items) result.Add((await Read<HistoryRecord>(reference, token).ConfigureAwait(false)).Entry);
-        return new(result, records.NextCursor);
+        page.Validate();
+        var scope = new ArtifactScope(installation, session, "history-pages", "history-pages-v1");
+        HistoryCursorV1 cursor;
+        if (page.Cursor is null)
+        {
+            var retained = (await History(installation, session, token).ConfigureAwait(false)).Select(r => r.Entry).ToArray();
+            var payload = JsonSerializer.SerializeToElement(retained);
+            var reference = await store.PutOnceAsync(scope, "history-page-" + FileExecutionArtifactStore.Digest(payload), payload, token).ConfigureAwait(false);
+            cursor = new(1, reference, 0);
+        }
+        else
+        {
+            try
+            {
+                if (page.Cursor.Length > 8192) throw new InvalidDataException("Oversized history cursor.");
+                cursor = JsonSerializer.Deserialize<HistoryCursorV1>(Convert.FromBase64String(page.Cursor)) ?? throw new InvalidDataException("Empty history cursor.");
+            }
+            catch (Exception error) when (error is FormatException or JsonException) { throw new InvalidDataException("Invalid history cursor.", error); }
+        }
+        if (cursor.Version != 1 || cursor.PageRef.Scope != scope || !cursor.PageRef.Key.StartsWith("history-page-", StringComparison.Ordinal) || cursor.Offset < 0)
+            throw new InvalidDataException("Foreign history cursor.");
+        var entries = await Read<List<SessionHistoryEntry>>(cursor.PageRef, token).ConfigureAwait(false);
+        if (cursor.Offset > entries.Count) throw new InvalidDataException("Invalid history offset.");
+        var items = entries.Skip(cursor.Offset).Take(page.Limit).ToArray();
+        var nextOffset = cursor.Offset + items.Length;
+        var next = nextOffset < entries.Count ? Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(cursor with { Offset = nextOffset })) : null;
+        return new(items, next);
     }
     public Task<ArtifactPage<SessionFlowOutcome>> ReadOutcomesAsync(string installation, SessionKey session, PageRequest page, CancellationToken token) => ReadPage<SessionFlowOutcome>(installation, session, "outcomes", page, token);
     public Task<ArtifactPage<SessionTraceEvent>> ReadTraceAsync(string installation, SessionKey session, PageRequest page, CancellationToken token) => ReadPage<SessionTraceEvent>(installation, session, "traces", page, token);

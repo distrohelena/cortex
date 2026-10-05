@@ -54,7 +54,8 @@ public sealed class SessionWorkflowV1
                 {
                     batch = state.Queue[0];
                     state = state with { ActiveBatch = batch, Queue = state.Queue.Skip(1).ToArray() };
-                    prepared = await Workflow.ExecuteActivityAsync((SessionActivities a) => a.PrepareExecutionAsync(batch, state.CurrentStateId, state.StateVersion, state.InstallationId, state.Session), Options());
+                    try { prepared = await Workflow.ExecuteActivityAsync((SessionActivities a) => a.PrepareExecutionAsync(batch, state.CurrentStateId, state.StateVersion, state.InstallationId, state.Session), Options()); }
+                    catch (ActivityFailureException) { throw Failure("session-preparation-failed"); }
                 }
             }
             finally { Release(); }
@@ -66,8 +67,12 @@ public sealed class SessionWorkflowV1
                     descriptor = await Workflow.ExecuteActivityAsync((ExecutionActivities a) => a.InitializeAsync(prepared.Start), Options());
                     descriptor = descriptor with { Status = ExecutionStatus.Failed, Diagnostic = prepared.Diagnostic };
                 }
-                else descriptor = await Workflow.ExecuteChildWorkflowAsync((FlowExecutionWorkflowV1 w) => w.RunAsync(new(prepared.Start, input.ActivityPolicy)),
-                    new() { Id = DurableIdentity.ExecutionWorkflowId(prepared.Start.Scope, batch.BatchId), TaskQueue = input.WorkflowTaskQueue });
+                else
+                {
+                    try { descriptor = await Workflow.ExecuteChildWorkflowAsync((FlowExecutionWorkflowV1 w) => w.RunAsync(new(prepared.Start, input.ActivityPolicy)),
+                        new() { Id = DurableIdentity.ExecutionWorkflowId(prepared.Start.Scope, batch.BatchId), TaskQueue = input.WorkflowTaskQueue }); }
+                    catch (ChildWorkflowFailureException) { throw Failure("session-child-failed"); }
+                }
                 await Acquire();
                 try
                 {

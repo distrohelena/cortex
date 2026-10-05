@@ -2,6 +2,9 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Runtime.Versioning;
+using System.Security.AccessControl;
+using System.Security.Principal;
 
 namespace Cortex.Core.Flows.Durable;
 
@@ -23,9 +26,20 @@ public sealed class FileExecutionArtifactStore : IExecutionArtifactStore, IAsync
         DurableIdentity.Require(installationId);
         this.directory = Path.GetFullPath(directory);
         this.installationId = installationId;
+        if (Path.TrimEndingDirectorySeparator(this.directory) == Path.TrimEndingDirectorySeparator(Path.GetPathRoot(this.directory)!))
+            throw new ArgumentException("Artifact store must use a dedicated directory.", nameof(directory));
         Directory.CreateDirectory(this.directory);
         RejectLink(this.directory);
-        if (!OperatingSystem.IsWindows()) File.SetUnixFileMode(this.directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+        var ownership = Path.Combine(this.directory, ".installation");
+        RejectLink(ownership);
+        if (File.Exists(ownership))
+        {
+            if (File.ReadAllText(ownership) != installationId) throw new InvalidDataException("Artifact directory belongs to a different installation.");
+        }
+        else if (Directory.EnumerateFileSystemEntries(this.directory).Any())
+            throw new InvalidDataException("An unowned artifact directory must be empty.");
+        if (OperatingSystem.IsWindows()) ProtectWindowsDirectory(this.directory);
+        else File.SetUnixFileMode(this.directory, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
         var lockPath = Path.Combine(this.directory, ".writer.lock");
         RejectLink(lockPath);
         writerLock = new(lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
@@ -126,7 +140,7 @@ public sealed class FileExecutionArtifactStore : IExecutionArtifactStore, IAsync
     private string ArtifactPath(ArtifactScope scope, string key) => Path.Combine(directory,
         ScopeHash(scope) + "_" + DurableIdentity.Hash("key", [key]) + ".json");
     private static string ScopeHash(ArtifactScope scope) => DurableIdentity.Hash("scope", DurableIdentity.ScopeParts(scope));
-    private static string Digest(JsonElement payload) => Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(payload, Options)));
+    internal static string Digest(JsonElement payload) => Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(payload, Options)));
     private static Envelope ReadEnvelope(string path)
     {
         try
@@ -144,6 +158,16 @@ public sealed class FileExecutionArtifactStore : IExecutionArtifactStore, IAsync
     {
         if ((File.Exists(path) || Directory.Exists(path)) && (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
             throw new InvalidDataException("Artifact paths cannot be symbolic links or reparse points.");
+    }
+    [SupportedOSPlatform("windows")]
+    private static void ProtectWindowsDirectory(string path)
+    {
+        var owner = WindowsIdentity.GetCurrent().User ?? throw new UnauthorizedAccessException("Private store requires a host identity.");
+        var security = new DirectorySecurity();
+        security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+        security.AddAccessRule(new FileSystemAccessRule(owner, FileSystemRights.FullControl,
+            InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
+        new DirectoryInfo(path).SetAccessControl(security);
     }
     private static void WriteAtomic(string path, byte[] bytes)
     {

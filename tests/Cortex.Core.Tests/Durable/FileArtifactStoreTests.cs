@@ -6,6 +6,26 @@ namespace Cortex.Core.Tests.Durable;
 
 public sealed class FileArtifactStoreTests
 {
+    [Fact]
+    public async Task StoreRequiresDedicatedDirectoryAndPrivateWindowsAcl()
+    {
+        Assert.Throws<ArgumentException>(() => new FileExecutionArtifactStore(Path.GetPathRoot(Path.GetTempPath())!, "installation"));
+        using var foreign = new ArtifactDirectory();
+        Directory.CreateDirectory(foreign.Path);
+        File.WriteAllText(Path.Combine(foreign.Path, "foreign.txt"), "unrelated");
+        Assert.Throws<InvalidDataException>(() => foreign.Open());
+        using var directory = new ArtifactDirectory();
+        await using var store = directory.Open();
+        if (OperatingSystem.IsWindows())
+        {
+            var acl = System.IO.FileSystemAclExtensions.GetAccessControl(new DirectoryInfo(directory.Path));
+            Assert.True(acl.AreAccessRulesProtected);
+            var sid = System.Security.Principal.WindowsIdentity.GetCurrent().User;
+            foreach (System.Security.AccessControl.FileSystemAccessRule rule in acl.GetAccessRules(true, true, typeof(System.Security.Principal.SecurityIdentifier)))
+                Assert.Equal(sid, rule.IdentityReference);
+        }
+    }
+
     [Theory]
     [InlineData("{ \"text\": \"Não + <🌱>\" }")]
     [InlineData("{\n  \"text\": \"a\"\n}")]

@@ -8,6 +8,30 @@ namespace Cortex.Core.Tests.Durable;
 public sealed class DurableSessionArtifactsTests
 {
     [Fact]
+    public async Task HistoryPagesHonorCharacterRetentionAndFreezeAcrossNewAdmissions()
+    {
+        using var directory = new ArtifactDirectory(); await using var store = directory.Open();
+        var ledger = new DurableSessionLedger(store); var scope = DurableIdentityTests.Scope;
+        var artifacts = new DurableSessionArtifacts(store, ledger, new DurableDriverTests.Bindings(DurableDriverTests.Project(), new IncrementalKernelTests.Model()));
+        async Task Append(int ordinal)
+        {
+            var value = JsonSerializer.SerializeToElement(new { texto = new string('x', 400000), remetente = (object?)null, canal = new { nome = "DM", nativeId = scope.Session.NativeConversationId }, reply = (object?)null });
+            var entry = new SessionHistoryEntry(ordinal, "provider-" + ordinal, DateTimeOffset.UtcNow, SessionMessageDirection.Inbound, SessionEntryKind.Dm, scope.Session.ChannelId, scope.Session.AccountId, scope.Session.NativeConversationId, value);
+            var reference = await store.PutOnceAsync(scope, "retention-history-" + ordinal, JsonSerializer.SerializeToElement(new { Entry = entry, ConfirmedSendOf = (string?)null }), TestContext.Current.CancellationToken);
+            await ledger.RecordOnceAsync(new(scope.InstallationId, scope.Session, "history", "entry-" + ordinal, reference), TestContext.Current.CancellationToken);
+        }
+        await Append(1); await Append(2); await Append(3);
+        var first = await artifacts.ReadHistoryAsync(scope.InstallationId, scope.Session, new(Limit: 1), TestContext.Current.CancellationToken);
+        Assert.Equal("provider-2", Assert.Single(first.Items).ProviderMessageId); Assert.NotNull(first.NextCursor);
+        await Append(4);
+        var second = await artifacts.ReadHistoryAsync(scope.InstallationId, scope.Session, new(first.NextCursor, 1), TestContext.Current.CancellationToken);
+        Assert.Equal("provider-3", Assert.Single(second.Items).ProviderMessageId); Assert.Null(second.NextCursor);
+        var current = await artifacts.ReadHistoryAsync(scope.InstallationId, scope.Session, new(), TestContext.Current.CancellationToken);
+        Assert.Equal(["provider-3", "provider-4"], current.Items.Select(h => h.ProviderMessageId));
+        await Assert.ThrowsAsync<InvalidDataException>(() => artifacts.ReadHistoryAsync(scope.InstallationId, scope.Session with { NativeConversationId = "foreign" }, new(first.NextCursor), TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
     public async Task ImportRestoresWatermarkAndDedupeWithoutExecutingHistoricalInput()
     {
         using var directory = new ArtifactDirectory(); await using var store = directory.Open();

@@ -21,7 +21,8 @@ public sealed class FlowExecutionWorkflowV1
     {
         policy = input.ActivityPolicy;
         policy.Validate();
-        current = await Workflow.ExecuteActivityAsync((ExecutionActivities a) => a.InitializeAsync(input.Start), Options(StepEffect.Artifact));
+        try { current = await Workflow.ExecuteActivityAsync((ExecutionActivities a) => a.InitializeAsync(input.Start), Options(StepEffect.Artifact)); }
+        catch (ActivityFailureException) { throw Failure("execution-initialization-failed"); }
         while (current.Status is ExecutionStatus.Ready or ExecutionStatus.WaitingForHuman)
         {
             if (current.Status == ExecutionStatus.WaitingForHuman)
@@ -58,7 +59,7 @@ public sealed class FlowExecutionWorkflowV1
             }
             if (cancelRequested)
             {
-                current = current with { Status = ExecutionStatus.Cancelled, NodeId = null, Diagnostic = "execution-cancelled" };
+                current = await Workflow.ExecuteActivityAsync((ExecutionActivities a) => a.CancelAsync(current.SnapshotRef), Options(StepEffect.Artifact));
                 break;
             }
             var step = Command();
@@ -68,7 +69,9 @@ public sealed class FlowExecutionWorkflowV1
             }
             catch (ActivityFailureException)
             {
-                var recovered = await Workflow.ExecuteActivityAsync((ExecutionActivities a) => a.RecoverAsync(step.Key), Options(StepEffect.Artifact));
+                ExecutionDescriptor? recovered = null;
+                try { recovered = await Workflow.ExecuteActivityAsync((ExecutionActivities a) => a.RecoverAsync(step.Key), Options(StepEffect.Artifact)); }
+                catch (ActivityFailureException) { /* A recovery failure must not cause another paid effect or an endless workflow-task retry. */ }
                 current = recovered ?? current with { Status = current.Effect == StepEffect.Send ? ExecutionStatus.ReconciliationRequired : ExecutionStatus.Failed, Diagnostic = "step-outcome-unconfirmed" };
             }
         }

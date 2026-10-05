@@ -17,4 +17,7 @@
     <ProjectReference Include="../../src/Cortex.Core/Cortex.Core.csproj" />
     <ProjectReference Include="../../src/Cortex.Temporal/Cortex.Temporal.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <None Update="Fixtures/*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

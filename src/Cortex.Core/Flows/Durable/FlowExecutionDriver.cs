@@ -11,6 +11,7 @@ public sealed class FlowExecutionDriver(FileExecutionArtifactStore store, IExecu
 {
     private static readonly JsonSerializerOptions Options = new() { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow };
     private sealed record Evidence(BoundaryExecutionEvidence? Boundaries, OutboundExecutionEvidence? Outbound);
+    private sealed record StepCheckpoint(JsonElement Snapshot, IReadOnlyList<TypedNodeExecutionTrace> Traces);
     private sealed record Loaded(SessionFlowProject Project, ExecutionBatchV1 Batch, CompiledSessionFlowState State, TypedFlow Flow, DurableParticipationReviewV1? Review);
     private static string Operation(StepKey key) => DurableIdentity.OperationId(key);
     private const string InitialNode = "@initial-interpretation:";
@@ -23,9 +24,18 @@ public sealed class FlowExecutionDriver(FileExecutionArtifactStore store, IExecu
         if (existing is not null) return await DescribeAsync(existing, token).ConfigureAwait(false);
         if (start.ProjectRef.Scope != start.Scope || start.BatchRef.Scope != start.Scope) throw new InvalidDataException("Execution artifacts have foreign scopes.");
         var loaded = await LoadAsync(start.Scope, start.ProjectRef, start.BatchRef, start.StateId, start.EntryKind, token).ConfigureAwait(false);
-        var binding = await BindingAsync(start.Scope, loaded.Project, token).ConfigureAwait(false);
-        await ValidatePurposeAsync(loaded, binding, token).ConfigureAwait(false);
         var state = FlowExecutionKernel.Start(loaded.Flow, loaded.Batch.Message, start, RuntimeOutputs(loaded));
+        ExecutionHostBinding binding;
+        try
+        {
+            binding = await BindingAsync(start.Scope, loaded.Project, token).ConfigureAwait(false);
+            await ValidatePurposeAsync(loaded, binding, token).ConfigureAwait(false);
+        }
+        catch (Exception error) when (error is UnauthorizedAccessException or InvalidOperationException or InvalidDataException)
+        {
+            state.Snapshot.Status = ExecutionStatus.Failed; state.Snapshot.Cursor = null;
+            return await SaveAsync(state.Snapshot, "initial-snapshot", token).ConfigureAwait(false);
+        }
         if (loaded.Batch.InitialContexts.Count > 0 && (loaded.Batch.Purpose == SessionExecutionPurpose.Normal && binding.AnalyzeInitialAsync is not null
             || loaded.Batch.Reassess && binding.AnalyzeReassessmentAsync is not null))
         {
@@ -83,8 +93,9 @@ public sealed class FlowExecutionDriver(FileExecutionArtifactStore store, IExecu
         var result = await FlowExecutionKernel.AdvanceAsync(loaded.Flow, state, services, token).ConfigureAwait(false);
         await ValidatePurposeAsync(loaded, binding, token).ConfigureAwait(false);
         snapshot.TrustedEvidence = JsonSerializer.SerializeToElement(new Evidence(services.BoundaryRegistry?.CaptureEvidence(), services.Outbound?.CaptureEvidence(snapshot.Values)), Options);
-        await store.PutOnceAsync(snapshot.Scope, "traces-" + Operation(command.Key), JsonSerializer.SerializeToElement(result.Traces.Concat(memoryTraces).OrderBy(t => t.Timestamp).ToArray(), Options), token).ConfigureAwait(false);
-        return await SaveAsync(snapshot, "after-" + Operation(command.Key), token).ConfigureAwait(false);
+        var checkpoint = new StepCheckpoint(ExecutionSnapshotCodec.Encode(snapshot), result.Traces.Concat(memoryTraces).OrderBy(t => t.Timestamp).ToArray());
+        await store.PutOnceAsync(snapshot.Scope, "step-result-" + Operation(command.Key), JsonSerializer.SerializeToElement(checkpoint, Options), token).ConfigureAwait(false);
+        return await PublishCheckpointAsync(command.Key, checkpoint, token).ConfigureAwait(false);
     }
 
     public async Task<ExecutionDescriptor?> RecoverAsync(StepKey key, CancellationToken token)
@@ -96,6 +107,8 @@ public sealed class FlowExecutionDriver(FileExecutionArtifactStore store, IExecu
     {
         var reference = await store.FindAsync(key.Scope, "after-" + Operation(key), token).ConfigureAwait(false);
         if (reference is not null) return await DescribeAsync(reference, token).ConfigureAwait(false);
+        var checkpointRef = await store.FindAsync(key.Scope, "step-result-" + Operation(key), token).ConfigureAwait(false);
+        if (checkpointRef is not null) return await PublishCheckpointAsync(key, await ReadAsync<StepCheckpoint>(checkpointRef, token).ConfigureAwait(false), token).ConfigureAwait(false);
         var intentRef = await store.FindAsync(key.Scope, "intent-" + Operation(key), token).ConfigureAwait(false);
         if (intentRef is null) return null;
         var command = await ReadAsync<StepCommand>(intentRef, token).ConfigureAwait(false);
@@ -104,7 +117,7 @@ public sealed class FlowExecutionDriver(FileExecutionArtifactStore store, IExecu
         ValidateCommand(snapshot, command, ExecutionStatus.Ready);
         var loaded = await LoadAsync(snapshot.Scope, snapshot.ProjectRef, snapshot.BatchRef, snapshot.StateId, snapshot.EntryKind, token).ConfigureAwait(false);
         var node = IsInitial(key.NodeId) ? null : loaded.Flow.Nodes[key.NodeId]; var effect = node is null ? StepEffect.Inference : FlowExecutionKernel.Effect(node);
-        if (effect is StepEffect.Pure or StepEffect.Artifact) return null;
+        if (effect is StepEffect.Pure or StepEffect.Artifact or StepEffect.Feedback) return null;
         snapshot.Status = effect == StepEffect.Send ? ExecutionStatus.ReconciliationRequired : ExecutionStatus.Failed;
         if (effect == StepEffect.Send)
         {
@@ -134,6 +147,27 @@ public sealed class FlowExecutionDriver(FileExecutionArtifactStore store, IExecu
             }
         }
         return await SaveAsync(snapshot, "after-" + Operation(key), token).ConfigureAwait(false);
+    }
+
+    private async Task<ExecutionDescriptor> PublishCheckpointAsync(StepKey key, StepCheckpoint checkpoint, CancellationToken token)
+    {
+        var snapshot = ExecutionSnapshotCodec.Decode(checkpoint.Snapshot, key.Scope);
+        if (snapshot.Ordinal < key.Ordinal || snapshot.Ordinal == key.Ordinal && snapshot.Status != ExecutionStatus.WaitingForHuman)
+            throw new InvalidDataException("Invalid step checkpoint ordinal.");
+        await store.PutOnceAsync(key.Scope, "traces-" + Operation(key), JsonSerializer.SerializeToElement(checkpoint.Traces, Options), token).ConfigureAwait(false);
+        return await SaveAsync(snapshot, "after-" + Operation(key), token).ConfigureAwait(false);
+    }
+
+    public async Task<ExecutionDescriptor> CancelAsync(ArtifactRef snapshotRef, CancellationToken token)
+    {
+        using var lease = await store.OperationLocks.AcquireAsync("cancel-" + snapshotRef.Scope.ExecutionId, token).ConfigureAwait(false);
+        var key = "cancelled-" + snapshotRef.Sha256;
+        var existing = await store.FindAsync(snapshotRef.Scope, key, token).ConfigureAwait(false);
+        if (existing is not null) return await DescribeAsync(existing, token).ConfigureAwait(false);
+        var snapshot = ExecutionSnapshotCodec.Decode(await store.ReadAsync(snapshotRef, token).ConfigureAwait(false), snapshotRef.Scope);
+        if (snapshot.Status != ExecutionStatus.Ready) throw new InvalidDataException("Only a ready execution can use this cancellation checkpoint.");
+        snapshot.Status = ExecutionStatus.Cancelled; snapshot.Cursor = null;
+        return await SaveAsync(snapshot, key, token).ConfigureAwait(false);
     }
 
     public async Task ValidateFeedbackAsync(FeedbackSubmission submission, CancellationToken token)

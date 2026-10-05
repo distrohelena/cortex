@@ -402,12 +402,12 @@ fixtures sinteticas em `tests/Cortex.Temporal.Tests/Fixtures`; atualizar documen
 fake com contadores duraveis e store isolado. Historicos exportados para replay
 contem somente metadados e refs sinteticas, sem dados reais ou credenciais.
 
-- [ ] Escrever `PauseStopWorkerRestartAnswerComplete` com grafo prompt -> feedback -> prompt -> exit; assert upstream=1, downstream=1, mesma ExecutionId/revisao e transicao=1. Matrix cobre crash antes/depois de reserva, dispatch, receipt, snapshot e history commit. `TemporalHistoryContainsNoPrivatePayload` procura marcadores de pergunta, contexto, feedback, prompt e conversa completos e exige ausencia.
-- [ ] Rodar `dotnet test tests/Cortex.Temporal.Tests/Cortex.Temporal.Tests.csproj --filter "FullyQualifiedName~TemporalAcceptanceTests|FullyQualifiedName~ReplayCompatibilityTests|FullyQualifiedName~PayloadPrivacyTests|FullyQualifiedName~RecoveryFaultMatrixTests"`; primeiro demonstrar falha para cada caso novo ainda nao satisfeito.
-- [ ] Corrigir lacunas dos componentes donos, sem afrouxar invariantes. Exportar/replay historico V1 com WorkflowReplayer do SDK; manter um historico golden sintetico para release posterior. Documentar tempo de espera duravel, parada de worker versus cancelamento, dependencia do store local e limites do retry.
-- [ ] Rodar `dotnet build Cortex.slnx`, `dotnet test Cortex.slnx --filter "Category!=Postgres&Category!=LocalSocket&FullyQualifiedName!~DatabaseLifecycleTests"`, `node --test tests/architecture/*.test.mjs packages/flow-graph/tests/*.test.mjs`; testes Temporal disponiveis executam e nao sao silenciosamente omitidos. Registrar separadamente indisponibilidade de servico/binario e skips live existentes; nao alegar recuperacao somente por suite de kernel passar.
-- [ ] Repetir suites Filo offline e frontend afetadas usando os comandos do seu README. Registrar evidencia por backend e verificador de ausencia de dados privados; conferir `git diff --check` nos dois repositorios.
-- [ ] Commit dos testes/docs e correcoes por ownership: `test(temporal): prove replay restart and effect recovery parity`.
+- [x] Escrever `PauseStopWorkerRestartAnswerComplete` com grafo prompt -> feedback -> prompt -> exit; assert upstream=1, downstream=1, mesma ExecutionId/revisao e transicao=1. Matrix cobre crash antes/depois de reserva, dispatch, receipt, snapshot e history commit. `TemporalHistoryContainsNoPrivatePayload` procura marcadores de pergunta, contexto, feedback, prompt e conversa completos e exige ausencia.
+- [x] Rodar `dotnet test tests/Cortex.Temporal.Tests/Cortex.Temporal.Tests.csproj --filter "FullyQualifiedName~TemporalAcceptanceTests|FullyQualifiedName~ReplayCompatibilityTests|FullyQualifiedName~PayloadPrivacyTests|FullyQualifiedName~RecoveryFaultMatrixTests"`; primeiro demonstrar falha para cada caso novo ainda nao satisfeito.
+- [x] Corrigir lacunas dos componentes donos, sem afrouxar invariantes. Exportar/replay historico V1 com WorkflowReplayer do SDK; manter um historico golden sintetico para release posterior. Documentar tempo de espera duravel, parada de worker versus cancelamento, dependencia do store local e limites do retry.
+- [x] Rodar `dotnet build Cortex.slnx`, `dotnet test Cortex.slnx --filter "Category!=Postgres&Category!=LocalSocket&FullyQualifiedName!~DatabaseLifecycleTests"`, `node --test tests/architecture/*.test.mjs packages/flow-graph/tests/*.test.mjs`; testes Temporal disponiveis executam e nao sao silenciosamente omitidos. Registrar separadamente indisponibilidade de servico/binario e skips live existentes; nao alegar recuperacao somente por suite de kernel passar.
+- [x] Repetir suites Filo offline e frontend afetadas usando os comandos do seu README. Registrar evidencia por backend e verificador de ausencia de dados privados; conferir `git diff --check` nos dois repositorios.
+- [x] Commit dos testes/docs e correcoes por ownership: `test(temporal): prove replay restart and effect recovery parity`.
 
 ## Tarefa 14: Importacao ociosa e runbook de cutover
 
@@ -458,5 +458,5 @@ cutover e recusa destino com estado divergente.
 - [x] Plano escrito com interfaces, arquivos, testes e evidencias por etapa.
 - [x] Auto-revisao de cobertura, consistencia das interfaces e paths; corrigidas fronteira de retry puro, assinatura wire de Activity, importacao e autenticacao antes de resolver feedback.
 - [x] Usuario aprovou o plano e execucao inline em 2026-10-05 (vai).
-- [ ] Tarefas de implementacao executadas e verificadas.
+- [x] Tarefas de implementacao executadas e verificadas (QA visual indisponivel registrada na tarefa 12; corte real pendente).
 - [ ] Cutover operacional autorizado e verificado.

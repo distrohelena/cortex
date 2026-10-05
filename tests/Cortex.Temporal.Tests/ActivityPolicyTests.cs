@@ -16,7 +16,7 @@ public sealed class ActivityPolicyTests
         Assert.Equal(TimeSpan.FromSeconds(30), options.StartToCloseTimeout);
         Assert.Equal("installation-effects", options.TaskQueue);
     }
-    [Theory] [InlineData(StepEffect.Pure)] [InlineData(StepEffect.Artifact)]
+    [Theory] [InlineData(StepEffect.Pure)] [InlineData(StepEffect.Artifact)] [InlineData(StepEffect.Feedback)]
     public void ArtifactEffectsUseFiveAttemptsWithOneToThirtySecondsBackoff(StepEffect effect)
     {
         var policy = TemporalActivityPolicy.For(effect, Policy()).RetryPolicy!;

@@ -107,6 +107,7 @@ public sealed partial class DurableSessionArtifacts : ISessionReviewArtifactServ
     {
         var scope = command.Prepared.Start.Scope;
         if (command.Execution.Scope != scope || command.Execution.SnapshotRef.Scope != scope || command.Current.Session != scope.Session) throw new InvalidDataException("Review completion scope mismatch.");
+        using var lease = await store.OperationLocks.AcquireAsync("review-commit-" + scope.ExecutionId, token).ConfigureAwait(false);
         var existing = await store.FindAsync(scope, "committed-review", token).ConfigureAwait(false);
         if (existing is not null) return await Read<CommittedSessionReview>(existing, token).ConfigureAwait(false);
         var operation = await Read<SessionReviewOperationV1>(command.Prepared.RequestRef, token).ConfigureAwait(false);
@@ -150,7 +151,8 @@ public sealed partial class DurableSessionArtifacts : ISessionReviewArtifactServ
             var batch = await Read<DurableSessionBatch>(batchRef, token).ConfigureAwait(false);
             var preparedRef = await store.FindAsync(scope, "prepared", token).ConfigureAwait(false) ?? throw new InvalidDataException("Missing review preparation.");
             var prepared = await Read<PreparedSessionExecution>(preparedRef, token).ConfigureAwait(false);
-            outcome = await CommitOutcomeAsync(new(batch, command.Execution, prepared.StartedAt, command.CompletedAt, command.Current.CurrentStateId, command.Current.StateVersion, command.Current.AdmissionWatermark), token).ConfigureAwait(false);
+            var execution = current ? command.Execution : command.Execution with { Status = ExecutionStatus.Failed, Diagnostic = "review-context-stale" };
+            outcome = await CommitOutcomeAsync(new(batch, execution, prepared.StartedAt, command.CompletedAt, command.Current.CurrentStateId, command.Current.StateVersion, command.Current.AdmissionWatermark), token).ConfigureAwait(false);
             var full = await Read<SessionFlowOutcome>(outcome.OutcomeRef, token).ConfigureAwait(false);
             resultRef = await Put(scope, "continuation-result", new SessionReviewedResponseResult(full.Success ? ParticipationReviewStatus.Completed : ParticipationReviewStatus.Failed, full.Error ?? "reviewed-response-completed", full), token).ConfigureAwait(false);
         }

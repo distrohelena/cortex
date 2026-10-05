@@ -16,7 +16,7 @@ public static class TemporalActivityPolicy
             StartToCloseTimeout = policy.StartToCloseTimeouts[effect],
             RetryPolicy = new RetryPolicy
             {
-                MaximumAttempts = effect is StepEffect.Pure or StepEffect.Artifact ? 5 : 1,
+                MaximumAttempts = effect is StepEffect.Pure or StepEffect.Artifact or StepEffect.Feedback ? 5 : 1,
                 InitialInterval = TimeSpan.FromSeconds(1),
                 MaximumInterval = TimeSpan.FromSeconds(30),
             },
