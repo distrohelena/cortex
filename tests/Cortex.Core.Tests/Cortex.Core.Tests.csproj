@@ -20,6 +20,14 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Cortex.Core/Cortex.Core.csproj" />
     <ProjectReference Include="../../src/Cortex.Inference/Cortex.Inference.csproj" />
+    <ProjectReference Include="../Cortex.Plugin.TestFixture/Cortex.Plugin.TestFixture.csproj" ReferenceOutputAssembly="false" />
     <InternalsVisibleTo Include="Filomena.App.Tests" />
   </ItemGroup>
+  <Target Name="CopyPluginFixture" AfterTargets="Build">
+    <MSBuild Projects="../Cortex.Plugin.TestFixture/Cortex.Plugin.TestFixture.csproj" Targets="GetTargetPath" BuildInParallel="false">
+      <Output TaskParameter="TargetOutputs" ItemName="PluginFixtureTarget" />
+    </MSBuild>
+    <ItemGroup><PluginFixtureFiles Include="@(PluginFixtureTarget);@(PluginFixtureTarget->'%(RootDir)%(Directory)%(Filename).deps.json')" /></ItemGroup>
+    <Copy SourceFiles="@(PluginFixtureFiles)" DestinationFolder="$(OutDir)plugin-fixture" />
+  </Target>
 </Project>

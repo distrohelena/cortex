@@ -30,6 +30,7 @@ public static class TypedFlowCompiler
 
     private static readonly HashSet<string> ExecutableKinds =
         ["dm", "group", "accumulate", "history", "memory", "interpretBoundaries", "exit", "property", "count", "prompt", "switch", "branch", "send", "humanFeedback"];
+    internal static bool IsBuiltinKind(string kind) => ExecutableKinds.Contains(kind);
 
     public static TypedFlow Compile(JsonElement source, string entryId) => CompileCore(source, entryId, true, new Dictionary<string, FlowNodeHandler>());
 
