@@ -7,5 +7,6 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="Filomena.App.Tests" />
+    <InternalsVisibleTo Include="Cortex.Core.Tests" />
   </ItemGroup>
 </Project>

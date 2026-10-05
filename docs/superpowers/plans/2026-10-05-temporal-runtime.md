@@ -1,4 +1,4 @@
-# Temporal Runtime Implementation Plan
+﻿# Temporal Runtime Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans for the recommended inline execution, or superpowers:subagent-driven-development only if the user chooses delegation. Execute task-by-task; steps use checkbox (`- [ ]`) syntax. No independent review is authorized by this plan.
 
@@ -116,11 +116,11 @@ Codec interno:
 `ValueTask<JsonElement> ReadAsync(ArtifactRef reference, CancellationToken token)`;
 `ValueTask<ArtifactRef?> FindAsync(ArtifactScope scope, string key, CancellationToken token)`.
 
-- [ ] Escrever `IdsIncludeEverySessionDimension` (mudar qualquer um dos cinco campos ou instalacao muda o ID), `OrdinalAndRevisionChangeOperationId` e `TypeAndValueRoundTrip` (enum, nullable, arrays, dominio e referencias preservados). `WrongScopeAndUnknownSnapshotVersionFail` deve rejeitar ambos, sem deserializacao permissiva.
-- [ ] Rodar `dotnet test tests/Cortex.Core.Tests/Cortex.Core.Tests.csproj --filter "FullyQualifiedName~DurableIdentityTests|FullyQualifiedName~ExecutionSnapshotCodecTests"`; esperar falha pelas APIs ausentes.
-- [ ] Implementar canonizacao com campos explicitamente ordenados, SHA-256 e versao de protocolo 1. Validar campos vazios/controle, chaves, ordinais negativos, limite de pagina de 1 a 1000 e scopes divergentes. Clonar JsonElements na fronteira.
-- [ ] Repetir o comando; esperar todos os casos passando e byte roundtrip estavel para o mesmo snapshot.
-- [ ] Commit delimitado: `feat(core): define durable execution identities and snapshots`.
+- [x] Escrever `IdsIncludeEverySessionDimension` (mudar qualquer um dos cinco campos ou instalacao muda o ID), `OrdinalAndRevisionChangeOperationId` e `TypeAndValueRoundTrip` (enum, nullable, arrays, dominio e referencias preservados). `WrongScopeAndUnknownSnapshotVersionFail` deve rejeitar ambos, sem deserializacao permissiva.
+- [x] Rodar `dotnet test tests/Cortex.Core.Tests/Cortex.Core.Tests.csproj --filter "FullyQualifiedName~DurableIdentityTests|FullyQualifiedName~ExecutionSnapshotCodecTests"`; esperar falha pelas APIs ausentes.
+- [x] Implementar canonizacao com campos explicitamente ordenados, SHA-256 e versao de protocolo 1. Validar campos vazios/controle, chaves, ordinais negativos, limite de pagina de 1 a 1000 e scopes divergentes. Clonar JsonElements na fronteira.
+- [x] Repetir o comando; esperar todos os casos passando e byte roundtrip estavel para o mesmo snapshot.
+- [x] Commit delimitado: `feat(core): define durable execution identities and snapshots`.
 
 ## Tarefa 2: Store privado e ledger de sessao
 
@@ -275,7 +275,7 @@ input contem ExecutionStart e metadados de politica de Activities, sem dados pri
 `[WorkflowUpdate] Task<FeedbackReceipt> SubmitFeedbackAsync(FeedbackSubmission submission)`;
 `[WorkflowQuery] ExecutionDescriptor? Status()`;
 `[WorkflowUpdate] Task CancelAsync(string operationId)`.
-`TemporalFeedbackClient.SubmitAsync(FeedbackSubmission submission, CancellationToken token): Task<FeedbackReceipt>` obtém handle pelo ID estavel da execucao e usa UpdateId=OperationId.
+`TemporalFeedbackClient.SubmitAsync(FeedbackSubmission submission, CancellationToken token): Task<FeedbackReceipt>` obtÃ©m handle pelo ID estavel da execucao e usa UpdateId=OperationId.
 
 - [ ] Escrever `WaitingHasNoLongRunningActivity`, `WorkerRestartThenFeedbackKeepsExecutionIdAndPreviousOutputs`, `DuplicateFeedbackReturnsOriginalReceipt`, `ConflictingLateWrongScopeAndWrongDigestFail`, `TimeoutAndFeedbackResolveOnlyOnce`, `CancelDoesNotTakeThenOrTimeout`, `UnauthorizedFeedbackLeavesRequestPending`. Antes da resposta, downstream prompt calls=0; depois, upstream calls=1 e downstream calls=1; uma sessao de controle conclui durante a espera.
 - [ ] Rodar `dotnet test tests/Cortex.Temporal.Tests/Cortex.Temporal.Tests.csproj --filter "FullyQualifiedName~FeedbackWorkflowTests|FullyQualifiedName~FeedbackRestartTests"`; confirmar falta do Workflow. Preparar binario do test server em cache permitido; falha de disponibilidade e reportada, nao convertida em teste skip bem-sucedido.
@@ -352,7 +352,7 @@ ShadowSessionBinding e journal existente. `AcceptAsync(CanonicalShadowInbound in
 
 - [ ] Escrever `ReviewCutAndPreviewMatchLocalBackend`, `ReviewedPromptResponsesAreReusedAfterRestart`, `StaleReviewOrConfirmedSpeechRejectContinuation`, `InitialInterpretationUsesCapturedHistoryPrefix`, `ShadowCeilingNeverDispatches`, `UnresolvedInboxDoesNotAutoReplayAsNewWork`, `ClientDisposeLeavesPendingFeedbackOpen`.
 - [ ] Rodar `dotnet test tests/Cortex.Temporal.Tests/Cortex.Temporal.Tests.csproj --filter "FullyQualifiedName~SessionReviewParityTests|FullyQualifiedName~DurableHandoffTests"`; confirmar faltas de paridade.
-- [ ] Reutilizar cut/interpreter e diagnosticos existentes; executar efeitos via driver e refs privadas. Preservar snapshot de revisao, orçamento/horizonte e proibir preview de conceder envio. Adicionar facade async nova para consumidores Temporal, conservando facade local legada durante a migracao.
+- [ ] Reutilizar cut/interpreter e diagnosticos existentes; executar efeitos via driver e refs privadas. Preservar snapshot de revisao, orÃ§amento/horizonte e proibir preview de conceder envio. Adicionar facade async nova para consumidores Temporal, conservando facade local legada durante a migracao.
 - [ ] Rodar filtro e testes existentes de Observed/Shadow/LiveHandoff/PendingParticipationReviews. Esperar paridade semanticamente comparada sem exigir timings identicos.
 - [ ] Commit: `feat(temporal): preserve review preview and handoff semantics`.
 
@@ -457,6 +457,6 @@ cutover e recusa destino com estado divergente.
 - [x] Especificacao aprovada pelo usuario.
 - [x] Plano escrito com interfaces, arquivos, testes e evidencias por etapa.
 - [x] Auto-revisao de cobertura, consistencia das interfaces e paths; corrigidas fronteira de retry puro, assinatura wire de Activity, importacao e autenticacao antes de resolver feedback.
-- [ ] Usuario revisa o plano e escolhe execucao inline ou delegada.
+- [x] Usuario aprovou o plano e execucao inline em 2026-10-05 (vai).
 - [ ] Tarefas de implementacao executadas e verificadas.
 - [ ] Cutover operacional autorizado e verificado.
