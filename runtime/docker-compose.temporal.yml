@@ -1,0 +1,38 @@
+name: cortex-temporal
+
+services:
+  temporal-data-init:
+    image: temporalio/temporal@sha256:ad4c82c97bd12b417d1ea942610dbcd511afb250c4d5ed26c694009533df447e
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["chown temporal:temporal /var/lib/temporal && chmod 700 /var/lib/temporal"]
+    volumes:
+      - temporal-data:/var/lib/temporal
+
+  temporal:
+    image: temporalio/temporal@sha256:ad4c82c97bd12b417d1ea942610dbcd511afb250c4d5ed26c694009533df447e
+    restart: unless-stopped
+    command:
+      - server
+      - start-dev
+      - --ip=0.0.0.0
+      - --namespace=cortex-local
+      - --db-filename=/var/lib/temporal/temporal.sqlite
+      - --ui-disable-news-fetch
+    ports:
+      - "127.0.0.1:7233:7233"
+      - "127.0.0.1:8233:8233"
+    volumes:
+      - temporal-data:/var/lib/temporal
+    depends_on:
+      temporal-data-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "temporal operator cluster health --address=127.0.0.1:7233 && temporal workflow count --namespace=cortex-local --address=127.0.0.1:7233"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  temporal-data:

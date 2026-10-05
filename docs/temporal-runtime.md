@@ -65,3 +65,4 @@ A verificacao visual do Playground nao foi possivel nesta sessao: nao havia
 navegador conectado. Os testes de DOM, frontend e HTTP foram executados.
 
 Cutover de sessoes existentes segue [temporal-cutover.md](temporal-cutover.md).
+O ambiente Docker local e o launcher configurado estao em [temporal-docker.md](temporal-docker.md).
