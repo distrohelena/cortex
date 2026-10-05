@@ -24,7 +24,7 @@ public sealed class FlowValidatorTests
     [Fact]
     public void CatalogResolvesNamedBranchesAndTrustedEffects()
     {
-        Assert.Equal(19, NodeCatalog.V1.Definitions.Count);
+        Assert.Equal(20, NodeCatalog.V1.Definitions.Count);
         Assert.True(NodeCatalog.V1.TryGet("join", 1, out var join));
         Assert.Equal(FlowEffect.Pure, join.Effect);
 

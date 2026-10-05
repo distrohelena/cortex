@@ -200,11 +200,11 @@ Configuracao wire: `settings.question`, `settings.timeoutSeconds`; no catalogo V
 `FeedbackReceipt(string OperationId, string RequestId, string Status, string? Diagnostic)`.
 Status de resolucao: answered, timeout, cancelled; demais status sao rejeicoes do comando.
 
-- [ ] Escrever `FeedbackCompilesWithOptionalTextContext`, `QuestionAndTimeoutAreValidated`, `ConfiguredTimeoutRequiresControlEdge`, `TimeoutPathCannotConsumeUnavailableFeedback`, `FeedbackPausesBeforeDownstreamPrompt`. Verificar que question vazio, timeout 0/fracionario, input Number e referencia ao feedback no caminho timeout sao rejeitados.
-- [ ] Rodar `dotnet test tests/Cortex.Core.Tests/Cortex.Core.Tests.csproj --filter FullyQualifiedName~HumanFeedbackNodeTests`; esperar kind ainda nao suportado.
-- [ ] Registrar kind e portas. Manter controle `run` do catalogo; grafo tipado V3 continua usando o target `exec` existente. O kernel devolve pedido, sem chamar uma pessoa. Harness local sem handler devolve diagnostico `human-feedback-backend-required`, sem avancar para then.
-- [ ] Repetir filtro e testes de compilador/validator existentes. Confirmar fingerprint do pedido inclui pergunta, contexto e StepKey; mudanca de revisao ou texto muda o digest.
-- [ ] Commit: `feat(core): compile human feedback as an explicit execution wait`.
+- [x] Escrever `FeedbackCompilesWithOptionalTextContext`, `QuestionAndTimeoutAreValidated`, `ConfiguredTimeoutRequiresControlEdge`, `TimeoutPathCannotConsumeUnavailableFeedback`, `FeedbackPausesBeforeDownstreamPrompt`. Verificar que question vazio, timeout 0/fracionario, input Number e referencia ao feedback no caminho timeout sao rejeitados.
+- [x] Rodar `dotnet test tests/Cortex.Core.Tests/Cortex.Core.Tests.csproj --filter FullyQualifiedName~HumanFeedbackNodeTests`; esperar kind ainda nao suportado.
+- [x] Registrar kind e portas. Manter controle `run` do catalogo; grafo tipado V3 continua usando o target `exec` existente. O kernel devolve pedido, sem chamar uma pessoa. Harness local sem handler devolve diagnostico `human-feedback-backend-required`, sem avancar para then.
+- [x] Repetir filtro e testes de compilador/validator existentes. Confirmar fingerprint do pedido inclui pergunta, contexto e StepKey; mudanca de revisao ou texto muda o digest.
+- [x] Commit: `feat(core): compile human feedback as an explicit execution wait`.
 
 ## Tarefa 6: Driver duravel e contrato assincrono de backend
 

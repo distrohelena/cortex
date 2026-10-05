@@ -152,6 +152,8 @@ public sealed class NodeCatalog
             Definition("parallel", FlowEffect.Pure, controlInputs: run, resolver: ResolveBranches),
             Definition("join", FlowEffect.Pure, resolver: ResolveJoin),
             Definition("await", FlowEffect.Await, controlInputs: run, resolver: ResolveAwait),
+            Definition("humanFeedback", FlowEffect.Await, dataInputs: [Port("context", text)],
+                dataOutputs: [Port("feedback", text)], controlInputs: run, controlOutputs: [new("then"), new("timeout")], resolver: HumanFeedbackNode.Resolve),
             Definition("history-record", FlowEffect.WriteMemory, dataInputs: [Port("value", any, Required: true, AcceptsAny: true)], controlInputs: run, controlOutputs: success, configFields: [Field("spaceId", text)]),
             Definition("history-read", FlowEffect.ReadMemory, dataOutputs: [Port("result", any, AcceptsAny: true)], controlInputs: run, controlOutputs: success, configFields: [Field("spaceId", text)]),
             Definition("memory-learn", FlowEffect.WriteMemory, dataInputs: [Port("value", any, Required: true, AcceptsAny: true)], controlInputs: run, controlOutputs: success, configFields: [Field("spaceId", text)]),

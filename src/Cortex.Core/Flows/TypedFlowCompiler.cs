@@ -23,7 +23,7 @@ public static class TypedFlowCompiler
     }
 
     private static readonly HashSet<string> ExecutableKinds =
-        ["dm", "group", "accumulate", "history", "memory", "interpretBoundaries", "exit", "property", "count", "prompt", "switch", "branch", "send"];
+        ["dm", "group", "accumulate", "history", "memory", "interpretBoundaries", "exit", "property", "count", "prompt", "switch", "branch", "send", "humanFeedback"];
 
     public static TypedFlow Compile(JsonElement source, string entryId) => CompileCore(source, entryId, true);
 
@@ -96,6 +96,11 @@ public static class TypedFlowCompiler
                 TypedNode result;
                 switch (node.Kind)
                 {
+                    case "humanFeedback":
+                        var human = HumanFeedbackNode.Read(config);
+                        if (human.TimeoutSeconds is not null && !control.Any(e => e.Source == new PortRef(id, "timeout")))
+                            throw new InvalidDataException("Configured human feedback timeout requires a timeout control edge.");
+                        result = new(node, [Port("context", new StringType(), false)], [Port("feedback", new StringType())], ["then", "timeout"]); break;
                     case "send":
                         Outbound.SendNodeContract.Validate(config);
                         result = new(node, [Port("message", new StringType())],
@@ -342,7 +347,12 @@ public static class TypedFlowCompiler
             if (++visits > 4096) throw new InvalidDataException("Graph excede limite de caminhos.");
             if (paths.TryGetValue(id, out var known)) known.IntersectWith(prior); else paths[id] = new(prior);
             var next = new HashSet<string>(prior) { id };
-            foreach (var e in graph.ControlEdges.Where(e => e.Source.NodeId == id)) Walk(e.Target.NodeId, next);
+            foreach (var e in graph.ControlEdges.Where(e => e.Source.NodeId == id))
+            {
+                var available = new HashSet<string>(next);
+                if (nodes[id].Source.Kind == "humanFeedback" && e.Source.Port == "timeout") available.Remove(id);
+                Walk(e.Target.NodeId, available);
+            }
         }
         Walk(entry, []);
         IEnumerable<string> Producers(string id)

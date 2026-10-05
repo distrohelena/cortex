@@ -24,6 +24,7 @@ internal sealed class ExecutionSnapshotV1
     public bool SendAttempted { get; set; }
     public ConfirmedSend? ConfirmedSend { get; set; }
     public string? TargetStateId { get; set; }
+    public FeedbackRequestV1? PendingFeedback { get; set; }
 }
 
 internal static class ExecutionSnapshotCodec
@@ -36,7 +37,7 @@ internal static class ExecutionSnapshotCodec
         ArtifactRef BatchRef, string StateId, long StateVersion, SessionEntryKind EntryKind, string? Cursor,
         long Ordinal, ExecutionStatus Status, IReadOnlyList<TypedStep> Steps, IReadOnlyList<PortWire> Values,
         IReadOnlyList<ValueWire> TypedValues, Dictionary<string, Dictionary<string, int>> Outputs, Dictionary<string, string> References,
-        JsonElement TrustedEvidence, bool SendAttempted, ConfirmedSend? ConfirmedSend, string? TargetStateId);
+        JsonElement TrustedEvidence, bool SendAttempted, ConfirmedSend? ConfirmedSend, string? TargetStateId, FeedbackRequestV1? PendingFeedback);
 
     internal static JsonElement Encode(ExecutionSnapshotV1 state)
     {
@@ -56,7 +57,7 @@ internal static class ExecutionSnapshotCodec
             state.BatchRef, state.StateId, state.StateVersion, state.EntryKind, state.Cursor, state.Ordinal, state.Status,
             state.Steps.ToArray(), values, table, outputs,
             state.References.OrderBy(x => x.Key, StringComparer.Ordinal).ToDictionary(x => x.Key, x => x.Value),
-            state.TrustedEvidence.Clone(), state.SendAttempted, state.ConfirmedSend, state.TargetStateId), Options);
+            state.TrustedEvidence.Clone(), state.SendAttempted, state.ConfirmedSend, state.TargetStateId, state.PendingFeedback), Options);
     }
 
     internal static ExecutionSnapshotV1 Decode(JsonElement value, ArtifactScope expectedScope)
@@ -68,7 +69,7 @@ internal static class ExecutionSnapshotCodec
             var state = new ExecutionSnapshotV1 { Scope = wire.Scope, BatchId = wire.BatchId, ProjectRef = wire.ProjectRef,
                 BatchRef = wire.BatchRef, StateId = wire.StateId, StateVersion = wire.StateVersion, EntryKind = wire.EntryKind,
                 Cursor = wire.Cursor, Ordinal = wire.Ordinal, Status = wire.Status, TrustedEvidence = wire.TrustedEvidence.Clone(),
-                SendAttempted = wire.SendAttempted, ConfirmedSend = wire.ConfirmedSend, TargetStateId = wire.TargetStateId };
+                SendAttempted = wire.SendAttempted, ConfirmedSend = wire.ConfirmedSend, TargetStateId = wire.TargetStateId, PendingFeedback = wire.PendingFeedback };
             state.Steps.AddRange(wire.Steps);
             var table = wire.TypedValues.Select(DecodeValue).ToArray();
             TypedValue ValueAt(int id) => id >= 0 && id < table.Length ? table[id] : throw new InvalidDataException("Invalid typed value reference.");

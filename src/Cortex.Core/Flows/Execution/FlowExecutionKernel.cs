@@ -118,7 +118,20 @@ internal static class FlowExecutionKernel
                 if (nodeStarting is not null)
                     await nodeStarting(current, published.ToDictionary(pair => pair.Key,
                         pair => (IReadOnlyDictionary<string, TypedValue>)pair.Value.AsReadOnly()).AsReadOnly(), token);
-                if (node.Source.Kind == "prompt" && BoundaryEnforcementProfile.Enabled(node.Source.Config))
+                if (node.Source.Kind == "humanFeedback")
+                {
+                    snapshot.Ordinal--; // This node remains pending until a durable resolution completes it.
+                    var port = node.Inputs.Single();
+                    var context = flow.Graph.DataEdges.Any(e => e.Target == new PortRef(current, port.Id))
+                        ? Input(node, port).Value.GetString() : null;
+                    snapshot.PendingFeedback = HumanFeedbackNode.Request(new(snapshot.Scope, current, snapshot.Ordinal), HumanFeedbackNode.Read(node.Source.Config), context);
+                    snapshot.Status = ExecutionStatus.WaitingForHuman;
+                    snapshot.Cursor = current;
+                    observer?.Invoke(new(current, "waitingForHuman", null, null, timeProvider.GetUtcNow(), timeProvider.GetElapsedTime(nodeStartedTimestamp.Value)));
+                    nodeStartedTimestamp = null;
+                    return new(true, steps, published, null, confirmed);
+                }
+                else if (node.Source.Kind == "prompt" && BoundaryEnforcementProfile.Enabled(node.Source.Config))
                 {
                     if (boundaryRegistry is null) throw new InvalidDataException("Boundary enforcement requires trusted execution context.");
                     TypedValue ProfileInput(string name)

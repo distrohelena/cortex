@@ -568,6 +568,17 @@ public static class FlowValidator
             return;
         }
 
+        var timeoutPaths = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        foreach (var human in nodes.Values.Where(node => node.Kind == "humanFeedback"))
+        {
+            var unavailable = new HashSet<string>(StringComparer.Ordinal);
+            var pendingTimeout = new Queue<string>(graph.ControlEdges.Where(edge => edge.Source == new PortRef(human.Id, "timeout")).Select(edge => edge.Target.NodeId));
+            while (pendingTimeout.TryDequeue(out var id))
+                if (unavailable.Add(id))
+                    foreach (var next in graph.ControlEdges.Where(edge => edge.Source.NodeId == id)) pendingTimeout.Enqueue(next.Target.NodeId);
+            timeoutPaths[human.Id] = unavailable;
+        }
+
         var predecessors = reachable.ToDictionary(id => id, _ => new HashSet<string>(StringComparer.Ordinal), StringComparer.Ordinal);
         foreach (var edge in graph.ControlEdges)
         {
@@ -616,6 +627,11 @@ public static class FlowValidator
 
         foreach (var (edge, index) in graph.DataEdges.Select((value, index) => (value, index)))
         {
+            if (edge.Source.Port == "feedback" && timeoutPaths.TryGetValue(edge.Source.NodeId, out var timeoutConsumers) && timeoutConsumers.Contains(edge.Target.NodeId))
+            {
+                Add(issues, "data.value_unavailable", "/dataEdges/" + index, "Human feedback is unavailable on the timeout path.");
+                continue;
+            }
             if (!reachable.Contains(edge.Source.NodeId) || !reachable.Contains(edge.Target.NodeId) || !nodes.ContainsKey(edge.Source.NodeId) || !nodes.ContainsKey(edge.Target.NodeId))
             {
                 continue;

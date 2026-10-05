@@ -86,6 +86,8 @@ public static class TypedFlowRunner
         Execution.KernelStepResult step;
         do { step = await Execution.FlowExecutionKernel.AdvanceAsync(flow, state, services, token); }
         while (step.Status == Durable.ExecutionStatus.Ready);
+        if (step.Status == Durable.ExecutionStatus.WaitingForHuman)
+            return new(false, [.. step.Result.Steps, new(state.Snapshot.Cursor!, "failed", null, "human-feedback-backend-required")], step.Result.Outputs, null, step.Result.ConfirmedSend);
         return step.Result;
     }
 
