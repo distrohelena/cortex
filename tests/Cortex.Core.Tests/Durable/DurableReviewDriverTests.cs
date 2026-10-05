@@ -8,6 +8,26 @@ namespace Cortex.Core.Tests.Durable;
 
 public sealed class DurableReviewDriverTests
 {
+    [Fact]
+    public async Task UncertainReassessmentStopsBeforeDecisionPromptAndDoesNotRepeatAfterRestart()
+    {
+        using var directory = new ArtifactDirectory(); await using var store = directory.Open(); var token = TestContext.Current.CancellationToken;
+        var project = Project(); var model = new IncrementalKernelTests.ScriptedModel(); var calls = 0;
+        var bindings = new DurableDriverTests.Bindings(project, model) { ReviewValidation = (_, _) => Task.CompletedTask,
+            Reassessment = (_, _) => { calls++; return Task.FromResult(new ParticipationReassessment(false, ReassessmentOpportunity.Uncertain, ["input"])); } };
+        var start = await DurableDriverTests.PrepareAsync(store, project);
+        var batch = (await store.ReadAsync(start.BatchRef, token)).Deserialize<ExecutionBatchV1>()!; var now = DateTimeOffset.UtcNow;
+        var original = new SessionHistoryEntry(1, "input", now, SessionMessageDirection.Inbound, SessionEntryKind.Dm, start.Scope.Session.ChannelId, start.Scope.Session.AccountId, start.Scope.Session.NativeConversationId, batch.Message);
+        var snapshot = new SessionSnapshot(start.Scope.Session, project.ProjectId, 1, project.ProjectRevision, "initial", 0, now, 2, 1, 0, 0);
+        batch = batch with { Purpose = SessionExecutionPurpose.ParticipationReview, Reassess = true, ReviewSnapshot = snapshot,
+            ReviewDefinition = new(project.ProjectRevision, ["decision"], [new("branch", "true", ParticipationReviewDecision.Respond), new("branch", "false", ParticipationReviewDecision.Silence)]),
+            InitialContexts = [new(snapshot, original, [original], false)] };
+        var reference = await store.PutOnceAsync(start.Scope, "reassessment-batch", JsonSerializer.SerializeToElement(batch), token);
+        var driver = new FlowExecutionDriver(store, bindings); var descriptor = await driver.InitializeAsync(start with { BatchRef = reference }, token);
+        Assert.Equal(StepEffect.Inference, descriptor.Effect); var command = DurableDriverTests.Command(descriptor);
+        descriptor = await driver.AdvanceAsync(command, token); Assert.Equal(ExecutionStatus.Completed, descriptor.Status);
+        Assert.Equal(descriptor, await new FlowExecutionDriver(store, bindings).AdvanceAsync(command, token)); Assert.Equal(1, calls); Assert.Empty(model.Requests);
+    }
     internal static SessionFlowProject Project() => DurableDriverTests.Project(ExecutionSnapshotCodecTests.Json("""
         {"version":3,"nodes":[{"id":"in","kind":"dm"},
         {"id":"decision","kind":"prompt","prompt":"Decide","inputs":[],"outputMode":"structured","responseFields":[{"id":"respond","name":"respond","type":"boolean"}]},

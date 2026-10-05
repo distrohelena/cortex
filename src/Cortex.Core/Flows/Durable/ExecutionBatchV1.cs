@@ -15,6 +15,7 @@ public sealed record ExecutionBatchV1(string EntryId, JsonElement Message,
     public DateTimeOffset OriginalTimestamp { get; init; }
     public DateTimeOffset ContextCapturedAt { get; init; }
     public IReadOnlyList<ParticipationReassessmentContext> InitialContexts { get; init; } = [];
+    public bool Reassess { get; init; }
 }
 public sealed record FeedbackResponseV1(string OperationId, string RequestId, string RequestDigest,
     string Text, string AuthenticatedActorRef);

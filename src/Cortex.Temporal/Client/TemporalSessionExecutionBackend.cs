@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Cortex.Core.Flows;
 using Cortex.Core.Flows.Durable;
 using Cortex.Core.Flows.Sessions;
 using Cortex.Temporal.Hosting;
@@ -69,6 +70,12 @@ public sealed class TemporalSessionExecutionBackend : ISessionExecutionBackend
 
     public async Task<SessionAdmission> ReceiveAsync(SessionKey session, SessionMessageEnvelope message, CancellationToken token)
     {
+        try { FlowDomain.Check(message.Message, FlowDomain.Message); }
+        catch (InvalidDataException) { return new(SessionAdmissionStatus.Rejected, null, "message-domain-mismatch"); }
+        if (message.ChannelId != session.ChannelId || message.AccountId != session.AccountId || message.NativeConversationId != session.NativeConversationId)
+            return new(SessionAdmissionStatus.Rejected, null, "session-identity-mismatch");
+        if (message.Message.GetProperty("canal").GetProperty("nativeId").GetString() != message.NativeConversationId)
+            return new(SessionAdmissionStatus.Rejected, null, "message-channel-identity-mismatch");
         var handle = await EnsureSession(session, token).ConfigureAwait(false);
         var inputKey = DurableIdentity.AdmissionInputKey(options.InstallationId, session, message.ProviderMessageId);
         var scope = new ArtifactScope(options.InstallationId, session, inputKey, "inbound-v1");
@@ -102,6 +109,7 @@ public sealed class TemporalSessionExecutionBackend : ISessionExecutionBackend
             await Task.Delay(TimeSpan.FromMilliseconds(50), token).ConfigureAwait(false);
     }
     public Task CancelExecutionAsync(SessionKey session, string executionId, CancellationToken token) => Handle(session).ExecuteUpdateAsync(w => w.CancelExecutionAsync(executionId), new() { Rpc = Rpc(token) });
+    public Task<ActiveExecutionDescriptor?> ReadActiveExecutionAsync(SessionKey session, CancellationToken token) => Handle(session).QueryAsync(w => w.ActiveExecution(), new() { Rpc = Rpc(token) });
 
     public async Task<ArtifactPage<FeedbackDescriptor>> ReadFeedbackAsync(SessionKey session, PageRequest page, CancellationToken token)
     {
@@ -109,7 +117,9 @@ public sealed class TemporalSessionExecutionBackend : ISessionExecutionBackend
         if (page.Cursor is not null) throw new InvalidDataException("Active feedback has a single page.");
         var active = await Handle(session).QueryAsync(w => w.ActiveExecution(), new() { Rpc = Rpc(token) }).ConfigureAwait(false);
         if (active is null) return new([], null);
-        var descriptor = await client.GetWorkflowHandle<FlowExecutionWorkflowV1>(active.WorkflowId).QueryAsync(w => w.Status(), new() { Rpc = Rpc(token) }).ConfigureAwait(false);
+        ExecutionDescriptor? descriptor;
+        try { descriptor = await client.GetWorkflowHandle<FlowExecutionWorkflowV1>(active.WorkflowId).QueryAsync(w => w.Status(), new() { Rpc = Rpc(token) }).ConfigureAwait(false); }
+        catch (RpcException error) when (error.Code == RpcException.StatusCode.NotFound) { return new([], null); }
         return descriptor?.Status == ExecutionStatus.WaitingForHuman && descriptor.Feedback is { } request ? new([request], null) : new([], null);
     }
     public async Task<FeedbackReceipt> SubmitFeedbackAsync(FeedbackSubmission submission, CancellationToken token)

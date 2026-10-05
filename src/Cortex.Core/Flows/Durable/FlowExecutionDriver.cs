@@ -26,7 +26,8 @@ public sealed class FlowExecutionDriver(FileExecutionArtifactStore store, IExecu
         var binding = await BindingAsync(start.Scope, loaded.Project, token).ConfigureAwait(false);
         await ValidatePurposeAsync(loaded, binding, token).ConfigureAwait(false);
         var state = FlowExecutionKernel.Start(loaded.Flow, loaded.Batch.Message, start, RuntimeOutputs(loaded));
-        if (loaded.Batch.Purpose == SessionExecutionPurpose.Normal && binding.AnalyzeInitialAsync is not null && loaded.Batch.InitialContexts.Count > 0)
+        if (loaded.Batch.InitialContexts.Count > 0 && (loaded.Batch.Purpose == SessionExecutionPurpose.Normal && binding.AnalyzeInitialAsync is not null
+            || loaded.Batch.Reassess && binding.AnalyzeReassessmentAsync is not null))
         {
             state.Snapshot.InitialGraphCursor = state.Snapshot.Cursor;
             state.Snapshot.Cursor = InitialNode + "0";
@@ -51,18 +52,22 @@ public sealed class FlowExecutionDriver(FileExecutionArtifactStore store, IExecu
         {
             await store.PutOnceAsync(snapshot.Scope, "intent-" + Operation(command.Key), JsonSerializer.SerializeToElement(command, Options), token).ConfigureAwait(false);
             var index = snapshot.InitialInterpretations.Count;
-            if (snapshot.Cursor != InitialNode + index || index >= loaded.Batch.InitialContexts.Count || binding.AnalyzeInitialAsync is null)
+            var analyze = loaded.Batch.Reassess ? binding.AnalyzeReassessmentAsync : binding.AnalyzeInitialAsync;
+            if (snapshot.Cursor != InitialNode + index || index >= loaded.Batch.InitialContexts.Count || analyze is null)
                 throw new UnauthorizedAccessException("Initial interpretation is not currently bound.");
             var context = loaded.Batch.InitialContexts[index];
             if (context.Snapshot.Session != snapshot.Scope.Session || context.Snapshot.ProjectRevision != snapshot.Scope.ProjectRevision
-                || context.History.Any(h => h.AdmissionWatermark > context.Original.AdmissionWatermark)
-                || context.Snapshot.AdmissionWatermark != context.Original.AdmissionWatermark) throw new InvalidDataException("Invalid captured interpretation prefix.");
-            var analysis = await binding.AnalyzeInitialAsync(context, token).ConfigureAwait(false);
+                || context.History.Any(h => h.AdmissionWatermark > (loaded.Batch.Reassess ? context.Snapshot.AdmissionWatermark : context.Original.AdmissionWatermark))
+                || !loaded.Batch.Reassess && context.Snapshot.AdmissionWatermark != context.Original.AdmissionWatermark) throw new InvalidDataException("Invalid captured interpretation prefix.");
+            var analysis = await analyze(context, token).ConfigureAwait(false);
+            await ValidatePurposeAsync(loaded, binding, token).ConfigureAwait(false);
             PendingParticipationReviews.ValidateAnalysis(analysis, context);
             snapshot.InitialInterpretations.Add(context.Original.ProviderMessageId, analysis with { EvidenceMessageIds = analysis.EvidenceMessageIds.ToArray() });
             snapshot.Steps.Add(new(snapshot.Cursor!, "completed", "then", null)); snapshot.Ordinal++;
             snapshot.Cursor = index + 1 < loaded.Batch.InitialContexts.Count ? InitialNode + (index + 1) : snapshot.InitialGraphCursor;
             snapshot.InitialGraphCursor = index + 1 < loaded.Batch.InitialContexts.Count ? snapshot.InitialGraphCursor : null;
+            if (loaded.Batch.Reassess && (!analysis.Confident || analysis.Opportunity != ReassessmentOpportunity.Relevant))
+            { snapshot.Cursor = null; snapshot.InitialGraphCursor = null; snapshot.Status = ExecutionStatus.Completed; }
             return await SaveAsync(snapshot, "after-" + Operation(command.Key), token).ConfigureAwait(false);
         }
         var memoryTraces = new List<TypedNodeExecutionTrace>();
@@ -268,6 +273,12 @@ public sealed class FlowExecutionDriver(FileExecutionArtifactStore store, IExecu
             p => new TypedValue(loaded.Flow.Nodes[x.Key].Outputs.Single(o => o.Id == p.Key).Type, p.Value.Clone())));
     private static FlowExecutionServices Services(ExecutionSnapshotV1 snapshot, Loaded loaded, ExecutionHostBinding binding, Action<TypedNodeExecutionTrace>? memoryTrace = null)
     {
+        if (loaded.Batch.ReviewSnapshot is { } expected && binding.ValidateReviewContextAsync is { } validate)
+        {
+            var hostCheck = binding.ValidateCurrentContext;
+            // The physical sink rechecks current context, including after feedback or while another admission races generation.
+            binding = binding with { ValidateCurrentContext = () => { hostCheck?.Invoke(); validate(expected, CancellationToken.None).GetAwaiter().GetResult(); } };
+        }
         var evidence = snapshot.TrustedEvidence.TryGetProperty("Boundaries", out _) ? snapshot.TrustedEvidence.Deserialize<Evidence>(Options) : null;
         var ns = loaded.Flow.Nodes.Values.Any(n => n.Source.Kind is "memory" or "interpretBoundaries") ? SessionFlowRuntime.ConversationNamespace(snapshot.Scope.Session) : "";
         var registry = evidence?.Boundaries is { } boundary ? BoundaryExecutionRegistry.RestoreEvidence(ns, boundary, binding.Clock.GetUtcNow(), binding.Clock) : new(ns, binding.Clock);
@@ -279,10 +290,10 @@ public sealed class FlowExecutionDriver(FileExecutionArtifactStore store, IExecu
             loaded.Project.ProjectId, loaded.Project.ProjectVersion, loaded.Project.ProjectRevision));
         if (loaded.Batch.Purpose == SessionExecutionPurpose.ParticipationReview)
             completion = new SessionFlowRuntime.ParticipationReviewCompletion(completion, binding.ValidateCurrentContext ?? (() => { }),
-                loaded.Batch.OriginalTimestamp, loaded.Batch.ContextCapturedAt, completedPromptResponses: snapshot.PromptResponses);
+                loaded.Batch.OriginalTimestamp, loaded.Batch.ContextCapturedAt, snapshot.InitialInterpretations.Values.SingleOrDefault()?.Interpretation, completedPromptResponses: snapshot.PromptResponses);
         else if (loaded.Review is { } review)
             completion = new SessionFlowRuntime.ReviewedParticipationCompletion(new SessionFlowRuntime.ParticipationReviewCompletion(completion,
-                binding.ValidateCurrentContext ?? (() => { }), loaded.Batch.OriginalTimestamp, loaded.Batch.ContextCapturedAt, participationOnly: false),
+                binding.ValidateCurrentContext ?? (() => { }), loaded.Batch.OriginalTimestamp, loaded.Batch.ContextCapturedAt, review.Result.Assessment?.Interpretation, participationOnly: false),
                 review.CompletedPromptResponses, binding.ValidateCurrentContext ?? (() => { }), _ => { });
         completion = new RecordingCompletion(completion, snapshot.PromptResponses);
         if (snapshot.InitialInterpretations.Count > 0) completion = new SessionFlowRuntime.InitialInterpretationCompletion(completion, snapshot.InitialInterpretations);

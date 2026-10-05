@@ -185,6 +185,12 @@ public sealed partial class DurableSessionArtifacts(FileExecutionArtifactStore s
         }
         var projectRef = await Put(scope, "project", project, token).ConfigureAwait(false);
         var initialContexts = new List<ParticipationReassessmentContext>();
+        if (review?.Reassess == true)
+        {
+            if (host.AnalyzeReassessmentAsync is null) throw new UnauthorizedAccessException("Reassessment has no current host binding.");
+            var retained = history.Select(h => h.Entry).ToArray();
+            initialContexts.Add(new(reviewSnapshot!, retained.Single(h => h.ProviderMessageId == messages[0].ProviderMessageId), retained, false));
+        }
         if (review is null && host.AnalyzeInitialAsync is not null)
         {
             foreach (var input in batch.Inputs)
@@ -200,7 +206,7 @@ public sealed partial class DurableSessionArtifacts(FileExecutionArtifactStore s
             history.Select(h => h.Entry.ProviderMessageId).Concat(messages.Select(m => m.ProviderMessageId)).Distinct(StringComparer.Ordinal).ToArray(),
             host.ShadowOnly || review?.Purpose == SessionExecutionPurpose.ResponsePreview)
         { Purpose = review?.Purpose ?? SessionExecutionPurpose.Normal, ReviewDefinition = review?.Definition, ReviewRef = review?.ReviewRef,
-            ReviewSnapshot = reviewSnapshot, OriginalTimestamp = messages[0].Timestamp, ContextCapturedAt = batch.ClosedAt, InitialContexts = initialContexts };
+            ReviewSnapshot = reviewSnapshot, OriginalTimestamp = messages[0].Timestamp, ContextCapturedAt = batch.ClosedAt, InitialContexts = initialContexts, Reassess = review?.Reassess == true };
         var batchRef = await Put(scope, "batch", payload, token).ConfigureAwait(false);
         var prepared = new PreparedSessionExecution(new(scope, batch.BatchId, projectRef, batchRef, selectedState, selectedVersion, batch.Entry.Kind), host.Clock.GetUtcNow(), diagnostic);
         await Put(scope, "prepared", prepared, token).ConfigureAwait(false);

@@ -28,6 +28,8 @@ public sealed record SessionReviewOperationV1(string OperationId, string Origina
     ParticipationReviewDefinition? Definition, ArtifactRef? ReviewRef)
 {
     public SessionReviewPolicy Policy { get; init; } = new();
+    public bool Reassess { get; init; }
+    public SessionSnapshot? ExpectedSnapshot { get; init; }
 }
 public sealed record ReviewPreparationCommand(string InstallationId, SessionSnapshot Snapshot, ArtifactRef PublicationRef, ArtifactRef RequestRef, long Ordinal);
 public sealed record PreparedSessionReview(ExecutionStart Start, SessionSnapshot Snapshot, SessionExecutionPurpose Purpose, ArtifactRef RequestRef, string OperationId);

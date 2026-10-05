@@ -96,7 +96,7 @@ public sealed class FileExecutionArtifactStore : IExecutionArtifactStore, IAsync
         finally { gate.Release(); }
     }
 
-    internal async ValueTask<IReadOnlyList<ArtifactRef>> ListAsync(ArtifactScope scope, string prefix, CancellationToken token)
+    public async ValueTask<IReadOnlyList<ArtifactRef>> ListAsync(ArtifactScope scope, string prefix, CancellationToken token)
     {
         Validate(scope, prefix);
         await gate.WaitAsync(token).ConfigureAwait(false);

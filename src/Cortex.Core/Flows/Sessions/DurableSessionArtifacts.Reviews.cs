@@ -20,6 +20,7 @@ public sealed partial class DurableSessionArtifacts : ISessionReviewArtifactServ
             || command.RequestRef.Scope.ProjectRevision != context.ProjectRevision || context.OpenBufferCount != 0 || context.PendingExecutionCount != 0)
             throw new InvalidDataException("Review requires an idle exact session scope.");
         var operation = await Read<SessionReviewOperationV1>(command.RequestRef, token).ConfigureAwait(false);
+        if (operation.ExpectedSnapshot is { } expected && !ReviewContextMatches(expected, context)) throw new InvalidOperationException("interpretation-context-stale");
         if (operation.Purpose is not (SessionExecutionPurpose.ParticipationReview or SessionExecutionPurpose.ResponsePreview or SessionExecutionPurpose.ReviewedResponse))
             throw new InvalidDataException("Invalid review operation purpose.");
         operation.Policy.Validate();
@@ -121,11 +122,13 @@ public sealed partial class DurableSessionArtifacts : ISessionReviewArtifactServ
             var compiled = SessionFlowProjectCompiler.Compile(project);
             var cut = ParticipationReviewCut.Create(compiled.States[snapshot.StateId].Entries[snapshot.EntryKind], operation.Definition!);
             var last = snapshot.Steps.LastOrDefault(); ParticipationReviewDecision? decision = null;
+            var assessment = snapshot.InitialInterpretations.Values.SingleOrDefault();
+            var analysisOnly = operation.Reassess && assessment is not null && (!assessment.Confident || assessment.Opportunity != ReassessmentOpportunity.Relevant);
             if (status == ParticipationReviewStatus.Completed && last?.Exit is { } exit && cut.Decisions.TryGetValue(new(last.NodeId, exit), out var selected)
                 && snapshot.TargetStateId is null && snapshot.ConfirmedSend is null) decision = selected;
-            else if (status == ParticipationReviewStatus.Completed) status = ParticipationReviewStatus.Failed;
+            else if (status == ParticipationReviewStatus.Completed && !analysisOnly) status = ParticipationReviewStatus.Failed;
             var review = new SessionParticipationReviewResult(status, status == ParticipationReviewStatus.Completed ? "participation-review-only" : status == ParticipationReviewStatus.Stale ? "review-stale" : "review-not-completed",
-                operation.OriginalMessageId, command.Prepared.Snapshot, decision, snapshot.Steps.ToArray(), outputs);
+                operation.OriginalMessageId, command.Prepared.Snapshot, decision, snapshot.Steps.ToArray(), outputs) { Assessment = assessment };
             var responses = snapshot.PromptResponses.Where(p => operation.Definition!.PromptNodeIds.Contains(p.Key)).ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
             resultRef = await Put(scope, "review-result", new DurableParticipationReviewV1(scope, operation.Definition!, review, responses), token).ConfigureAwait(false);
         }

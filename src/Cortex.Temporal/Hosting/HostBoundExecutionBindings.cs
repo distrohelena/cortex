@@ -16,6 +16,7 @@ public sealed record HostExecutionSessionBinding(string InstallationId, SessionK
     public Func<SessionSnapshot, CancellationToken, Task>? ValidateReviewContextAsync { get; init; }
     public bool ShadowOnly { get; init; }
     public Func<ParticipationReassessmentContext, CancellationToken, Task<ParticipationReassessment>>? AnalyzeInitialAsync { get; init; }
+    public Func<ParticipationReassessmentContext, CancellationToken, Task<ParticipationReassessment>>? AnalyzeReassessmentAsync { get; init; }
 }
 
 public sealed class HostBoundExecutionBindings : IExecutionHostBindings
@@ -48,6 +49,6 @@ public sealed class HostBoundExecutionBindings : IExecutionHostBindings
                 throw new UnauthorizedAccessException("Execution has no exact host session/revision binding.");
         return ValueTask.FromResult(new ExecutionHostBinding(scope, binding.Project.Document.Clone(), binding.CompletionFactory, binding.MemoryReader, binding.OutboundHost, binding.Clock)
         { AuthorizeFeedbackAsync = binding.AuthorizeFeedbackAsync, ValidateCurrentContext = binding.ValidateCurrentContext,
-            InstructionOutput = binding.InstructionOutput, NodeStarting = binding.NodeStarting, ValidateReviewContextAsync = binding.ValidateReviewContextAsync, ShadowOnly = binding.ShadowOnly, AnalyzeInitialAsync = binding.AnalyzeInitialAsync });
+            InstructionOutput = binding.InstructionOutput, NodeStarting = binding.NodeStarting, ValidateReviewContextAsync = binding.ValidateReviewContextAsync, ShadowOnly = binding.ShadowOnly, AnalyzeInitialAsync = binding.AnalyzeInitialAsync, AnalyzeReassessmentAsync = binding.AnalyzeReassessmentAsync });
     }
 }

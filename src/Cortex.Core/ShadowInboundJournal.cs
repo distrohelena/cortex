@@ -92,6 +92,36 @@ public sealed class ShadowInboundJournal : IDisposable
     public bool ReconciliationRequired { get { lock (gate) return reconciliation; } }
     public bool RequiresRuntimeRestore { get; }
     public string? ShadowRunId => header.RunId;
+    public long CurrentCursor { get { lock (gate) return cursor; } }
+    public void ValidateBatchIdentity(IReadOnlyList<CanonicalShadowInbound> inputs)
+    {
+        lock (gate)
+        {
+            var plannedCursor = cursor; var planned = new Dictionary<long, string>(sequences);
+            foreach (var input in inputs)
+            {
+                if (!binding.Accepts(input) || input.StreamEpoch != header.Epoch || input.Sequence < 0) throw new InvalidDataException("Invalid observed batch identity.");
+                if (input.Sequence <= header.Sequence) continue;
+                var reference = InputRef(input.Message.ProviderMessageId);
+                if (planned.TryGetValue(input.Sequence, out var prior))
+                { if (prior != reference) throw new InvalidDataException("Conflicting observed batch sequence."); }
+                else
+                {
+                    if (input.Sequence != plannedCursor + 1) throw new InvalidDataException("Observed batch chronology requires reconciliation.");
+                    planned.Add(input.Sequence, reference); plannedCursor = input.Sequence;
+                }
+            }
+        }
+    }
+    public static (string Epoch, long InitialTail) ReadSourceAnchor(string path)
+    {
+        using var reader = new StreamReader(path, new UTF8Encoding(false, true));
+        var anchor = JsonSerializer.Deserialize<Entry>(reader.ReadLine() ?? throw new InvalidDataException("Inbox header missing.")) ?? throw new InvalidDataException("Invalid inbox anchor.");
+        while (reader.ReadLine() is { } line)
+            if (JsonSerializer.Deserialize<Entry>(line) is { Type: "shadow-run:v1" } boundary) anchor = boundary;
+        if (string.IsNullOrWhiteSpace(anchor.Epoch) || anchor.Sequence < 0) throw new InvalidDataException("Invalid inbox source anchor.");
+        return (anchor.Epoch, anchor.Sequence);
+    }
 
     // Host-only lifecycle action: requires a NEW preflight, pinned project and atomic source snapshot.
     // Previous work is preserved for audit/dedupe, never replayed into the new runtime.

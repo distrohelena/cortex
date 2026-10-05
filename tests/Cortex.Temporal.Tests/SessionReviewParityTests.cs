@@ -34,13 +34,15 @@ public sealed class SessionReviewParityTests
         try
         {
             await using var store = new FileExecutionArtifactStore(directory, "installation");
-            var project = Project(); var session = SessionWorkflowTests.Session("review"); var model = new Model();
+            var project = Project(); var session = SessionWorkflowTests.Session("review"); var model = new Model(); var assessmentCalls = 0;
             using var host = new ShadowOutboundHost(Path.Combine(directory, "outbound.jsonl"), project.Document, new([], [], new Dictionary<string, string>(), [], null), [session], TransportSafetyCapabilities.Unproven);
             host.Rearm(OutboundMode.Shadow);
             var queue = "review-" + Guid.NewGuid().ToString("N");
             TemporalSessionExecutionBackend? backend = null;
             var registry = new HostBoundExecutionBindings([new("installation", session, project, model, new UnavailableMemoryReader(), host, TimeProvider.System)
-            { ShadowOnly = true, ValidateReviewContextAsync = async (expected, token) =>
+            { ShadowOnly = true, AnalyzeReassessmentAsync = (context, _) =>
+                { assessmentCalls++; Assert.Contains(context.History, h => h.ProviderMessageId == "later"); return Task.FromResult(new ParticipationReassessment(false, ReassessmentOpportunity.Uncertain, ["original"])); },
+                ValidateReviewContextAsync = async (expected, token) =>
                 {
                     var current = await backend!.ReadSessionAsync(session, token);
                     if (current is null || !DurableSessionArtifacts.ReviewContextMatches(expected, current)) throw new InvalidOperationException("review-stale");
@@ -80,6 +82,13 @@ public sealed class SessionReviewParityTests
                     await backend.WaitForIdleAsync(session, TestContext.Current.CancellationToken);
                     var stale = await reconnected.PreviewAsync(session, reviewRef, TestContext.Current.CancellationToken);
                     Assert.Equal(ParticipationReviewStatus.Rejected, stale.Status); Assert.Equal("preview-context-stale", stale.Diagnostic);
+                    var snapshot = (await backend.ReadSessionAsync(session, TestContext.Current.CancellationToken))!;
+                    var definition = new ParticipationReviewDefinition(project.ProjectRevision, ["decision"], [new("branch", "true", ParticipationReviewDecision.Respond), new("branch", "false", ParticipationReviewDecision.Silence)]);
+                    var decisionsBefore = model.DecisionCalls;
+                    var reassessed = await reconnected.ReassessAsync(session, "original", definition, snapshot, TestContext.Current.CancellationToken);
+                    Assert.Equal(ParticipationReviewStatus.Completed, reassessed.Status); Assert.Null(reassessed.Decision); Assert.False(reassessed.Assessment!.Confident);
+                    Assert.Equal(decisionsBefore, model.DecisionCalls); Assert.Equal(1, assessmentCalls);
+                    await reconnected.ReassessAsync(session, "original", definition, snapshot, TestContext.Current.CancellationToken); Assert.Equal(1, assessmentCalls);
                 }, TestContext.Current.CancellationToken);
         }
         finally { Directory.Delete(directory, true); }
