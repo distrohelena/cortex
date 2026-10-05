@@ -33,6 +33,8 @@ public sealed class DurableSessionLedger(FileExecutionArtifactStore store) : ISe
             var scope = Scope(request.InstallationId, request.Session);
             var references = await store.ListAsync(scope, "cortex-v1-admission-", token).ConfigureAwait(false);
             long lastWatermark = 0;
+            var baseline = await store.FindAsync(scope, "import-baseline", token).ConfigureAwait(false);
+            if (baseline is not null) lastWatermark = (await Read<SessionImportRequest>(baseline, token).ConfigureAwait(false)).Snapshot.AdmissionWatermark;
             foreach (var reference in references)
                 lastWatermark = Math.Max(lastWatermark, (await Read<LedgerAdmission>(reference, token).ConfigureAwait(false)).Watermark);
             if (request.ProposedWatermark != checked(lastWatermark + 1)) throw new InvalidDataException("Admission watermark is not the next committed watermark.");
@@ -40,6 +42,21 @@ public sealed class DurableSessionLedger(FileExecutionArtifactStore store) : ISe
                 request.BatchId, request.ExecutionId, request.InputKey, request.Digest, request.InputRef);
             await store.PutOnceAsync(scope, AdmissionKey(request.InputKey), JsonSerializer.SerializeToElement(receipt, Options), token).ConfigureAwait(false);
             return receipt;
+        }
+        finally { store.LedgerGate.Release(); }
+    }
+
+    public async ValueTask SeedImportAsync(SessionImportRequest request, CancellationToken token)
+    {
+        var scope = Scope(request.InstallationId, request.Snapshot.Session);
+        await store.LedgerGate.WaitAsync(token).ConfigureAwait(false);
+        try
+        {
+            if (await store.FindAsync(scope, "import-baseline", token).ConfigureAwait(false) is null
+                && ((await store.ListAsync(scope, "cortex-v1-admission-", token).ConfigureAwait(false)).Count != 0
+                    || (await Records(scope, "history", token).ConfigureAwait(false)).Count != 0))
+                throw new InvalidOperationException("Cannot import over admitted work.");
+            await store.PutOnceAsync(scope, "import-baseline", JsonSerializer.SerializeToElement(request, Options), token).ConfigureAwait(false);
         }
         finally { store.LedgerGate.Release(); }
     }

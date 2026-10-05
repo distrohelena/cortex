@@ -307,12 +307,12 @@ ProjectPublicationDescriptor contem ProjectId/Version/Revision/ProjectRef. Messa
 `TemporalSessionExecutionBackend` implementa tarefa 6 e consulta/pagina ledger para historico/resultados/traces.
 ImportIdleAsync persiste SessionImportRequest privadamente antes do Update por referencia.
 
-- [ ] Escrever `MaxOneChildPerSessionOtherSessionsProgress`, `Backlog256Rejects257WithoutWatermarkChange`, `OpenBufferReservationCanCloseAtCapacity`, `QuietMaxWaitAndCountCloseExactlyOnce`, `OpenBufferKeepsRevisionAndEntryAfterStateChange`, `DuplicateAfterLostReceiptAndRotationKeepsOriginalBatch`, `StaleSendBatchRepinsOrBlocksBeforeEffect`, `HistoryFrontierIncludesConfirmedPredecessorOnly`.
+- [x] Escrever `MaxOneChildPerSessionOtherSessionsProgress`, `Backlog256Rejects257WithoutWatermarkChange`, `OpenBufferReservationCanCloseAtCapacity`, `QuietMaxWaitAndCountCloseExactlyOnce`, `OpenBufferKeepsRevisionAndEntryAfterStateChange`, `DuplicateAfterLostReceiptAndRotationKeepsOriginalBatch`, `StaleSendBatchRepinsOrBlocksBeforeEffect`, `HistoryFrontierIncludesConfirmedPredecessorOnly`.
   Rotacao: `ContinueAsNewCarriesWatermarkQueueAndDedupe`, `NoRotationWithActiveChildBufferOrHandler`; wrong EntryKind rejeitado.
-- [ ] Rodar `dotnet test tests/Cortex.Temporal.Tests/Cortex.Temporal.Tests.csproj --filter "FullyQualifiedName~SessionWorkflowTests|FullyQualifiedName~SessionRotationTests|FullyQualifiedName~AdmissionCrashTests"`; esperar falta de coordenacao.
-- [ ] Extrair as regras de batching/estado dos arquivos Sessions existentes para policy testavel. Serialize admissoes/publicacoes com primitive determinista do SDK; validar dedupe no ledger antes de consumir vaga e confirmar o Update apenas apos seu registro. Nunca considerar aceito somente porque uma ref foi gravada. Criar filho por batch com ID estavel, sem overlap e com cancelamento de dominio explicito.
-- [ ] Implementar timers SDK e Continue-As-New no main loop em ponto seguro, depois dos handlers. Backpressure nao descarta inputs; pagina traces/outcomes em collections privadas. Executar o filtro e os cenarios equivalentes de `SessionFlowRuntimeTests`/`SessionSliceAcceptanceTests` contra ambos os backends.
-- [ ] Commit: `feat(temporal): coordinate durable session admission batching and state`.
+- [x] Rodar `dotnet test tests/Cortex.Temporal.Tests/Cortex.Temporal.Tests.csproj --filter "FullyQualifiedName~SessionWorkflowTests|FullyQualifiedName~SessionRotationTests|FullyQualifiedName~AdmissionCrashTests"`; esperar falta de coordenacao.
+- [x] Extrair as regras de batching/estado dos arquivos Sessions existentes para policy testavel. Serialize admissoes/publicacoes com primitive determinista do SDK; validar dedupe no ledger antes de consumir vaga e confirmar o Update apenas apos seu registro. Nunca considerar aceito somente porque uma ref foi gravada. Criar filho por batch com ID estavel, sem overlap e com cancelamento de dominio explicito.
+- [x] Implementar timers SDK e Continue-As-New no main loop em ponto seguro, depois dos handlers. Backpressure nao descarta inputs; pagina traces/outcomes em collections privadas. Executar o filtro e os cenarios equivalentes de `SessionFlowRuntimeTests`/`SessionSliceAcceptanceTests` contra ambos os backends.
+- [x] Commit: `feat(temporal): coordinate durable session admission batching and state`.
 
 ## Tarefa 10: Inferencia, memoria e envio com recuperacao de efeitos
 

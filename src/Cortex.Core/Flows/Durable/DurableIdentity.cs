@@ -7,6 +7,8 @@ namespace Cortex.Core.Flows.Durable;
 
 public static class DurableIdentity
 {
+    public static string AdmissionInputKey(string installationId, SessionKey session, string providerMessageId) =>
+        Hash("input", SessionParts(installationId, session).Append(providerMessageId));
     public static string SessionWorkflowId(string installationId, SessionKey session) =>
         Hash("session", SessionParts(installationId, session));
     public static string ExecutionWorkflowId(ArtifactScope scope, string batchId) =>

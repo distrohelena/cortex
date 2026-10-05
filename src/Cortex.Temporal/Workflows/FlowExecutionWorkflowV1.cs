@@ -127,6 +127,14 @@ public sealed class FlowExecutionWorkflowV1
         await Workflow.WaitConditionAsync(() => current is not null && current.Status is not (ExecutionStatus.Ready or ExecutionStatus.WaitingForHuman));
     }
 
+    [WorkflowSignal]
+    public Task RequestCancellationAsync(string operationId)
+    {
+        if (string.IsNullOrWhiteSpace(operationId)) throw Failure("invalid-cancel-operation");
+        cancelRequested = true;
+        return Task.CompletedTask;
+    }
+
     private StepCommand Command() => new(new(current!.Scope, current.NodeId ?? throw Failure("missing-step-node"), current.Ordinal), current.SnapshotRef);
     private ActivityOptions Options(StepEffect effect) => TemporalActivityPolicy.For(effect, policy);
     private static ApplicationFailureException Failure(string code) => new(code, nonRetryable: true);
