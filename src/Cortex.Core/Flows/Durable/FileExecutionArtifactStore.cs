@@ -13,6 +13,7 @@ public sealed class FileExecutionArtifactStore : IExecutionArtifactStore, IAsync
     private readonly FileStream writerLock;
     private readonly SemaphoreSlim gate = new(1, 1);
     internal SemaphoreSlim LedgerGate { get; } = new(1, 1);
+    internal ArtifactOperationLocks OperationLocks { get; } = new();
     private bool disposed;
     private sealed record Envelope(ArtifactRef Reference, JsonElement Payload);
     private static readonly JsonSerializerOptions Options = new() { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow };

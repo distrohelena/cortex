@@ -233,11 +233,11 @@ outcomes/traces usam o mesmo padrao com SessionFlowOutcome/SessionTraceEvent;
 `Task<SessionSnapshot> ImportIdleAsync(SessionImportRequest request, CancellationToken token)`;
 local usa RestoreContext existente e rejeita contexto ocupado/projeto divergente.
 
-- [ ] Escrever `CommittedStepRetryReturnsSameSnapshotWithoutCompletionCall`, `WrongCursorOrdinalAndScopeAreRejected`, `HostBindingRecheckedForEveryNewStep`, `ResponseCommitLostRecoversDescriptor` e `PrivatePayloadsAreAbsentFromDescriptors`. Backend local: pagina history/outcomes/traces preserva ordem e total; wrappers assincronos nao usam sync-over-async.
-- [ ] Rodar `dotnet test tests/Cortex.Core.Tests/Cortex.Core.Tests.csproj --filter "FullyQualifiedName~DurableDriverTests|FullyQualifiedName~LocalBackendCompatibilityTests"`; esperar APIs ausentes.
-- [ ] Implementar drive de uma operacao com snapshot antes/depois e resultado PutOnce por StepKey. Recuperar resultado existente antes de resolver binding ou efetuar novo I/O. Validar feedback com scope/ref e publicar feedback somente answered; cancelled e terminal. Backend local adapta APIs existentes, mantendo suas assinaturas publicas originais para compatibilidade.
-- [ ] Repetir testes; simular resultado gravado e processo/driver reconstruido. Esperar nenhuma Task de longa duracao no driver para aguardar pessoa.
-- [ ] Commit: `feat(core): expose durable node driving and async session backends`.
+- [x] Escrever `CommittedStepRetryReturnsSameSnapshotWithoutCompletionCall`, `WrongCursorOrdinalAndScopeAreRejected`, `HostBindingRecheckedForEveryNewStep`, `ResponseCommitLostRecoversDescriptor` e `PrivatePayloadsAreAbsentFromDescriptors`. Backend local: pagina history/outcomes/traces preserva ordem e total; wrappers assincronos nao usam sync-over-async.
+- [x] Rodar `dotnet test tests/Cortex.Core.Tests/Cortex.Core.Tests.csproj --filter "FullyQualifiedName~DurableDriverTests|FullyQualifiedName~LocalBackendCompatibilityTests"`; esperar APIs ausentes.
+- [x] Implementar drive de uma operacao com snapshot antes/depois e resultado PutOnce por StepKey. Recuperar resultado existente antes de resolver binding ou efetuar novo I/O. Validar feedback com scope/ref e publicar feedback somente answered; cancelled e terminal. Backend local adapta APIs existentes, mantendo suas assinaturas publicas originais para compatibilidade.
+- [x] Repetir testes; simular resultado gravado e processo/driver reconstruido. Esperar nenhuma Task de longa duracao no driver para aguardar pessoa.
+- [x] Commit: `feat(core): expose durable node driving and async session backends`.
 
 ## Tarefa 7: Modulo Temporal, Activities e configuracao do worker
 

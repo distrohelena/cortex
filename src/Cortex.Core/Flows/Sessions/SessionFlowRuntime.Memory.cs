@@ -55,7 +55,7 @@ public sealed partial class SessionFlowRuntime
         return boundaryRegistry.RegisterMemories(result);
     }
 
-    private static string ConversationNamespace(SessionKey session)
+    internal static string ConversationNamespace(SessionKey session)
     {
         if (session.ChannelId == "whatsapp") return FilomenaIdentity.WhatsAppConversationNamespace(session.NativeConversationId);
         if (session.ChannelId == "telegram" && long.TryParse(session.NativeConversationId, NumberStyles.AllowLeadingSign,
