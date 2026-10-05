@@ -2,9 +2,10 @@
 
 Data: 2026-10-05. Base inspecionada: `1ac2b1b` em `C:/dev/cortex`.
 
-Status: especificacao para revisao. A escolha de Temporal foi aprovada na
-conversa; esta especificacao ainda precisa ser revisada antes do plano e da
-implementacao. Nenhuma migracao de dados ou ativacao operacional foi realizada.
+Status: especificacao aprovada pelo usuario em 2026-10-05. A escolha de Temporal
+e este desenho estao aprovados; o plano detalhado e seu metodo de execucao ainda
+precisam de revisao antes da implementacao. Nenhuma migracao de dados ou ativacao
+operacional foi realizada.
 
 ## Objetivo e criterio de sucesso
 
@@ -356,7 +357,7 @@ A suite .NET fornece servidor local e ambiente com time skipping.
 - [x] Revisao final de consistencia da especificacao: sem placeholders,
   contrato de pausa/retomada explicito, backlog com reserva por buffer,
   separacao de progresso e autoridade, e cutover condicionado a paridade.
-- [ ] Revisao da especificacao pelo usuario.
+- [x] Revisao da especificacao pelo usuario, confirmada em 2026-10-05.
 - [ ] Plano detalhado revisado e metodo de execucao escolhido.
 - [ ] Implementacao e verificacao.
 - [ ] Integracao do host e cutover operacional.
