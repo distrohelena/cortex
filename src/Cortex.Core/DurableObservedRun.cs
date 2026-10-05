@@ -22,6 +22,14 @@ public sealed class DurableObservedRun : IAsyncDisposable
     public static async Task<DurableObservedRun> CreateAsync(ISessionExecutionBackend backend, ISessionReviewBackend reviews,
         PinnedShadowProject project, ShadowSessionBinding binding, ShadowInboundJournal inbox, ShadowOutboundHost host, OutboundMode ceiling, CancellationToken token)
     {
+        await ValidateRestoreAsync(backend, project, binding, inbox, host, ceiling, token).ConfigureAwait(false);
+        await backend.PublishAsync(project.Project, token).ConfigureAwait(false);
+        return new(backend, reviews, binding, inbox, host, ceiling);
+    }
+
+    public static async Task ValidateRestoreAsync(ISessionExecutionBackend backend,
+        PinnedShadowProject project, ShadowSessionBinding binding, ShadowInboundJournal inbox, ShadowOutboundHost host, OutboundMode ceiling, CancellationToken token)
+    {
         if (ceiling is not (OutboundMode.Shadow or OutboundMode.Enabled) || host.EffectiveMode != ceiling || !inbox.IsBoundTo(binding, project.Project.ProjectRevision))
             throw new InvalidOperationException("Pinned inbox and exact host ceiling are required.");
         if (host.RequiresReconciliation(binding.Session)) throw new InvalidOperationException("Outbound reconciliation is required.");
@@ -38,8 +46,6 @@ public sealed class DurableObservedRun : IAsyncDisposable
             } while (cursor is not null);
             inbox.ConfirmDurableRestore(history);
         }
-        await backend.PublishAsync(project.Project, token).ConfigureAwait(false);
-        return new(backend, reviews, binding, inbox, host, ceiling);
     }
 
     public async Task<ShadowInboundDecision> AcceptAsync(CanonicalShadowInbound input, CancellationToken token)

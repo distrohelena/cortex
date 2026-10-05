@@ -40,10 +40,10 @@ internal sealed class OutboundJournal : IDisposable
 
     internal bool RequiresReconciliation(string sessionRef) => poisoned || HasUnresolvedAttempt(sessionRef);
 
-    internal OutboundJournal(string path)
+    internal OutboundJournal(string path, bool readOnly = false)
     {
         // Exclusive writer for the journal lifetime; a second runtime cannot race the replay index.
-        file = new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read, 4096, FileOptions.WriteThrough);
+        file = readOnly ? new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read) : new FileStream(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read, 4096, FileOptions.WriteThrough);
         try
         {
             using var reader = new StreamReader(file, new UTF8Encoding(false, true), false, 4096, leaveOpen: true);
@@ -58,7 +58,7 @@ internal sealed class OutboundJournal : IDisposable
             file.Position = file.Length;
             // A reservation that never resolved means the process died with a provider call possibly outstanding.
             // It may have been delivered; it is never retried and never resolved automatically.
-            foreach (var pending in Reservations().Where(e => Latest(e.AttemptRef) == "pending").ToArray())
+            foreach (var pending in Reservations().Where(e => !readOnly && Latest(e.AttemptRef) == "pending").ToArray())
                 Write(pending with { Status = "indeterminate", DiagnosticCode = "restart_with_pending", ProviderRef = null, Text = null, SpeakerName = null, SpeakerStableId = null });
         }
         catch { file.Dispose(); throw; }

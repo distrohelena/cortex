@@ -426,12 +426,12 @@ Command suporta `--dry-run` obrigatorio por default; execucao real exige configu
 concreta e autorizacao operacional. Importacao e idempotente pela identidade do
 cutover e recusa destino com estado divergente.
 
-- [ ] Escrever `PendingOrUnreconciledSourceCannotImport`, `ImportPreservesStateHistoryWatermarkAndDedupe`, `SameManifestRetryDoesNotRecreateWork`, `ChangedJournalFingerprintOrDestinationStateRejectsImport`, `RollbackAfterNewReceiptRequiresReconciliation`.
-- [ ] Rodar `dotnet test tests/Cortex.Core.Tests/Cortex.Core.Tests.csproj --filter FullyQualifiedName~SessionCutoverTests` e o teste Filo indicado; esperar importacao ausente.
-- [ ] Implementar apenas contexto ocioso, sem continuacao de Task nem replay de inputs ja concluidos. Runbook: identificar instalacao/endpoint/namespace/queues, pausar admissao no dono atual, drenar/reconciliar, capturar manifest, dry-run, importar, conferir scopes/cursors/recibos, trocar dono e retomar. Preservar backup privado e marcador de cutover; nunca dois backends ativos para os mesmos efeitos.
-- [ ] Executar dry-run e importacao somente com fixtures sinteticas em ambiente isolado; esperar snapshot e journal fingerprints identicos. Registrar o que falta para cutover real, incluindo nome do processo dono e estado da origem; nao inferir esses valores de notas historicas.
-- [ ] Commit: `feat(temporal): support reconciled idle-session cutover`.
-- [ ] Depois de todas as evidencias, apresentar o cutover real concreto para autorizacao operacional. A migracao de codigo pode estar pronta antes disso; sessoes reais so estao migradas quando o marcador, dono unico e verificacao posterior existem.
+- [x] Escrever `PendingOrUnreconciledSourceCannotImport`, `ImportPreservesStateHistoryWatermarkAndDedupe`, `SameManifestRetryDoesNotRecreateWork`, `ChangedJournalFingerprintOrDestinationStateRejectsImport`, `RollbackAfterNewReceiptRequiresReconciliation`.
+- [x] Rodar `dotnet test tests/Cortex.Core.Tests/Cortex.Core.Tests.csproj --filter FullyQualifiedName~SessionCutoverTests` e o teste Filo indicado; esperar importacao ausente.
+- [x] Implementar apenas contexto ocioso, sem continuacao de Task nem replay de inputs ja concluidos. Runbook: identificar instalacao/endpoint/namespace/queues, pausar admissao no dono atual, drenar/reconciliar, capturar manifest, dry-run, importar, conferir scopes/cursors/recibos, trocar dono e retomar. Preservar backup privado e marcador de cutover; nunca dois backends ativos para os mesmos efeitos.
+- [x] Executar dry-run e importacao somente com fixtures sinteticas em ambiente isolado; esperar snapshot e journal fingerprints identicos. Registrar o que falta para cutover real, incluindo nome do processo dono e estado da origem; nao inferir esses valores de notas historicas.
+- [x] Commit: `feat(temporal): support reconciled idle-session cutover`.
+- [ ] Cutover de origem antiga: nenhum processo nativo/checkpoint live identificado nos workspaces verificados; apresentar a origem concreta para autorizacao quando existir. Docker local autorizado e instalado pelo usuario nesta sessao. A migracao de codigo pode estar pronta antes disso; sessoes reais so estao migradas quando o marcador, dono unico e verificacao posterior existem.
 
 ## Fontes de implementacao
 

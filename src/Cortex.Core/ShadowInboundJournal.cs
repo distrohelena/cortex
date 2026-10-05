@@ -77,7 +77,7 @@ public sealed class ShadowInboundJournal : IDisposable
         string? Batch = null, string? Execution = null, string? RunId = null);
     private readonly object gate = new();
     private readonly FileStream file;
-    private readonly StreamWriter writer;
+    private readonly StreamWriter? writer;
     private readonly ShadowSessionBinding binding;
     private Entry header;
     private readonly Dictionary<string, string> states = new(StringComparer.Ordinal);
@@ -131,14 +131,16 @@ public sealed class ShadowInboundJournal : IDisposable
     public ShadowInboundJournal(string path, ShadowSessionBinding binding, string revision, string epoch, long initialTail)
         : this(path, binding, revision, epoch, initialTail, false) { }
 
-    private ShadowInboundJournal(string path, ShadowSessionBinding binding, string revision, string epoch, long initialTail, bool newRun)
+    internal static ShadowInboundJournal InspectReadOnly(string path, ShadowSessionBinding binding, string revision, string epoch, long initialTail) => new(path, binding, revision, epoch, initialTail, false, true);
+
+    private ShadowInboundJournal(string path, ShadowSessionBinding binding, string revision, string epoch, long initialTail, bool newRun, bool readOnly = false)
     {
         if (string.IsNullOrWhiteSpace(revision) || string.IsNullOrWhiteSpace(epoch) || initialTail < 0) throw new ArgumentException("Invalid inbox anchor.");
         this.binding = binding;
         header = new("shadow-inbox:v1", binding.AuthorityRef, revision, epoch, initialTail);
         var requested = header;
         cursor = initialTail;
-        file = new(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read, 4096, FileOptions.WriteThrough);
+        file = readOnly ? new(path, FileMode.Open, FileAccess.Read, FileShare.Read) : new(path, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.Read, 4096, FileOptions.WriteThrough);
         try
         {
             using var reader = new StreamReader(file, new UTF8Encoding(false, true), false, 4096, leaveOpen: true);
@@ -157,7 +159,8 @@ public sealed class ShadowInboundJournal : IDisposable
             reconciliation |= states.Values.Any(x => x is "observed" or "admitted");
             RequiresRuntimeRestore = !newRun && currentRunInputs.Any(id => states[id] is "observed" or "admitted" or "completed" or "execution_failed");
             file.Seek(0, SeekOrigin.End);
-            writer = new(file, new UTF8Encoding(false), 4096, leaveOpen: true);
+            writer = readOnly ? null : new(file, new UTF8Encoding(false), 4096, leaveOpen: true);
+            if (readOnly && lines.Length == 0) throw new InvalidDataException("Missing inbox anchor.");
             if (lines.Length == 0) Append(header);
             if (newRun)
             {
@@ -312,8 +315,9 @@ public sealed class ShadowInboundJournal : IDisposable
     }
     private void Append(Entry entry)
     {
+        if (writer is null) throw new InvalidOperationException("Read-only inbox inspection cannot append.");
         try { writer.WriteLine(JsonSerializer.Serialize(entry)); writer.Flush(); file.Flush(flushToDisk: true); }
         catch { reconciliation = true; throw; }
     }
-    public void Dispose() { lock (gate) { if (disposed) return; disposed = true; writer.Dispose(); file.Dispose(); } }
+    public void Dispose() { lock (gate) { if (disposed) return; disposed = true; writer?.Dispose(); file.Dispose(); } }
 }
