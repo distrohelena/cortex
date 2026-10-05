@@ -20,6 +20,8 @@ public sealed record DurableSessionState(string InstallationId, SessionKey Sessi
     DurableSessionBatch? ActiveBatch)
 {
     public ArtifactRef? ImportedManifest { get; init; }
+    public DurableActiveReview? ActiveReview { get; init; }
+    public IReadOnlyDictionary<string, ArtifactRef> ReviewReceipts { get; init; } = new Dictionary<string, ArtifactRef>(StringComparer.Ordinal);
     public static DurableSessionState Create(string installation, SessionKey session, ProjectPublicationDescriptor project, int limit, DateTimeOffset now)
     {
         if (limit is < 1 or > 4096) throw new ArgumentOutOfRangeException(nameof(limit));
@@ -32,3 +34,4 @@ public sealed record DurableSessionState(string InstallationId, SessionKey Sessi
 }
 
 public sealed record SessionPolicyDecision(DurableSessionState State, SessionAdmission Admission, DurableSessionBatch? Batch);
+public sealed record DurableActiveReview(PreparedSessionReview Prepared, string WorkflowId);

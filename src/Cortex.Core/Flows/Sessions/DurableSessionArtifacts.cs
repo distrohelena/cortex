@@ -5,7 +5,7 @@ using Cortex.Core.Flows.Durable;
 namespace Cortex.Core.Flows.Sessions;
 
 /// <summary>Private artifact materialization. Only refs and control metadata cross the workflow boundary.</summary>
-public sealed class DurableSessionArtifacts(FileExecutionArtifactStore store, ISessionLedger ledger, IExecutionHostBindings bindings) : ISessionArtifactServices
+public sealed partial class DurableSessionArtifacts(FileExecutionArtifactStore store, ISessionLedger ledger, IExecutionHostBindings bindings) : ISessionArtifactServices
 {
     private sealed record HistoryRecord(SessionHistoryEntry Entry, string? ConfirmedSendOf);
     private static ArtifactScope LedgerScope(string installation, SessionKey session) => new(installation, session, "session-ledger", "session-ledger-v1");
@@ -127,6 +127,10 @@ public sealed class DurableSessionArtifacts(FileExecutionArtifactStore store, IS
 
     public async Task<PreparedSessionExecution> PrepareExecutionAsync(DurableSessionBatch batch, string currentState, long currentVersion,
         string installation, SessionKey session, CancellationToken token)
+        => await PrepareExecutionCoreAsync(batch, currentState, currentVersion, installation, session, token).ConfigureAwait(false);
+
+    private async Task<PreparedSessionExecution> PrepareExecutionCoreAsync(DurableSessionBatch batch, string currentState, long currentVersion,
+        string installation, SessionKey session, CancellationToken token, SessionReviewOperationV1? review = null, SessionSnapshot? reviewSnapshot = null)
     {
         var scope = new ArtifactScope(installation, session, batch.ExecutionId, batch.Publication.Snapshot.ProjectRevision);
         var existing = await store.FindAsync(scope, "prepared", token).ConfigureAwait(false);
@@ -153,7 +157,7 @@ public sealed class DurableSessionArtifacts(FileExecutionArtifactStore store, IS
             ValidateEnvelope(installation, session, input, envelope);
             messages.Add(envelope);
         }
-        var history = await History(installation, session, token).ConfigureAwait(false);
+        var history = await History(installation, session, token, batch.HistoryWatermark).ConfigureAwait(false);
         history = history.Where(h => h.Entry.AdmissionWatermark <= batch.HistoryWatermark || h.ConfirmedSendOf is not null).ToList();
         var outputs = new Dictionary<string, IReadOnlyDictionary<string, JsonElement>>(StringComparer.Ordinal);
         var accumulator = flow.Nodes.Values.SingleOrDefault(n => n.Source.Kind == "accumulate");
@@ -163,9 +167,10 @@ public sealed class DurableSessionArtifacts(FileExecutionArtifactStore store, IS
             var settings = node.Source.Config.GetProperty("settings");
             var maxMessages = settings.GetProperty("maxMessages").GetInt32(); var maxCharacters = settings.GetProperty("maxCharacters").GetInt32();
             var through = settings.TryGetProperty("mode", out var mode) && mode.GetString() == "through-current-batch";
-            var boundary = through ? batch.HistoryWatermark : batch.FirstWatermark - 1;
+            var boundary = review is not null || through ? batch.HistoryWatermark : batch.FirstWatermark - 1;
             DateTimeOffset? oldest = settings.TryGetProperty("maxAgeMinutes", out var age) && age.ValueKind != JsonValueKind.Null ? batch.ClosedAt - TimeSpan.FromMinutes(age.GetDouble()) : null;
             var eligible = history.Where(h => h.Entry.AdmissionWatermark <= boundary || h.ConfirmedSendOf is not null)
+                .Where(h => review is null || !messages.Any(m => m.ProviderMessageId == h.Entry.ProviderMessageId))
                 .Where(h => settings.GetProperty("includeCharacterMessages").GetBoolean() || h.Entry.Direction != SessionMessageDirection.Outbound)
                 .Where(h => oldest is null || h.Entry.Timestamp >= oldest).ToArray();
             var selected = new List<JsonElement>(); var characters = 0;
@@ -179,8 +184,23 @@ public sealed class DurableSessionArtifacts(FileExecutionArtifactStore store, IS
             selected.Reverse(); outputs[node.Source.Id] = new Dictionary<string, JsonElement> { ["messages"] = JsonSerializer.SerializeToElement(selected) };
         }
         var projectRef = await Put(scope, "project", project, token).ConfigureAwait(false);
+        var initialContexts = new List<ParticipationReassessmentContext>();
+        if (review is null && host.AnalyzeInitialAsync is not null)
+        {
+            foreach (var input in batch.Inputs)
+            {
+                var original = history.Single(h => h.Entry.ProviderMessageId == messages[initialContexts.Count].ProviderMessageId).Entry;
+                var prefix = history.Where(h => h.Entry.AdmissionWatermark <= original.AdmissionWatermark).Select(h => h.Entry).ToArray();
+                var captured = new SessionSnapshot(session, project.ProjectId, project.ProjectVersion, project.ProjectRevision, selectedState,
+                    selectedVersion, batch.ClosedAt, original.AdmissionWatermark, prefix.Length, 0, 1);
+                initialContexts.Add(new(captured, original, prefix, false));
+            }
+        }
         var payload = new ExecutionBatchV1(flow.EntryId, Expose(messages[0], expose), outputs, messages.Select(m => m.ProviderMessageId).ToArray(),
-            history.Select(h => h.Entry.ProviderMessageId).Concat(messages.Select(m => m.ProviderMessageId)).Distinct(StringComparer.Ordinal).ToArray(), false);
+            history.Select(h => h.Entry.ProviderMessageId).Concat(messages.Select(m => m.ProviderMessageId)).Distinct(StringComparer.Ordinal).ToArray(),
+            host.ShadowOnly || review?.Purpose == SessionExecutionPurpose.ResponsePreview)
+        { Purpose = review?.Purpose ?? SessionExecutionPurpose.Normal, ReviewDefinition = review?.Definition, ReviewRef = review?.ReviewRef,
+            ReviewSnapshot = reviewSnapshot, OriginalTimestamp = messages[0].Timestamp, ContextCapturedAt = batch.ClosedAt, InitialContexts = initialContexts };
         var batchRef = await Put(scope, "batch", payload, token).ConfigureAwait(false);
         var prepared = new PreparedSessionExecution(new(scope, batch.BatchId, projectRef, batchRef, selectedState, selectedVersion, batch.Entry.Kind), host.Clock.GetUtcNow(), diagnostic);
         await Put(scope, "prepared", prepared, token).ConfigureAwait(false);
@@ -220,7 +240,9 @@ public sealed class DurableSessionArtifacts(FileExecutionArtifactStore store, IS
         var project = command.Batch.Publication.Snapshot;
         var outcome = new SessionFlowOutcome(scope.ExecutionId, command.Batch.BatchId, scope.Session, project.ProjectId, project.ProjectVersion, project.ProjectRevision,
             snapshot.StateId, snapshot.StateVersion, snapshot.EntryKind, command.Batch.CloseReason, payload.ProviderMessageIds, command.StartedAt, command.CompletedAt,
-            success, error, target, applied, snapshot.Outputs.ToDictionary(n => n.Key, n => (IReadOnlyDictionary<string, JsonElement>)n.Value.ToDictionary(p => p.Key, p => p.Value.Value)));
+            success, error, target, applied, snapshot.Outputs.ToDictionary(n => n.Key, n => (IReadOnlyDictionary<string, JsonElement>)n.Value.ToDictionary(p => p.Key, p => p.Value.Value)))
+        { ReassessmentOfMessageId = payload.Purpose == SessionExecutionPurpose.ReviewedResponse ? payload.ProviderMessageIds.Single() : null,
+            InitialInterpretations = snapshot.InitialInterpretations };
         var outcomeRef = await Put(scope, "outcome", outcome, token).ConfigureAwait(false);
         await ledger.RecordOnceAsync(new(scope.InstallationId, scope.Session, "outcomes", scope.ExecutionId, outcomeRef), token).ConfigureAwait(false);
         await CommitTraces(command, snapshot, success, error, token).ConfigureAwait(false);
@@ -274,13 +296,17 @@ public sealed class DurableSessionArtifacts(FileExecutionArtifactStore store, IS
         var copy = JsonNode.Parse(message.Message.GetRawText())!.AsObject(); copy["id"] = message.ProviderMessageId;
         return JsonSerializer.SerializeToElement(copy);
     }
-    private async Task<List<HistoryRecord>> History(string installation, SessionKey session, CancellationToken token)
+    private async Task<List<HistoryRecord>> History(string installation, SessionKey session, CancellationToken token, long? frontier = null)
     {
         var result = new List<HistoryRecord>(); string? cursor = null;
         do
         {
             var page = await ledger.ReadPageAsync(installation, session, "history", new(cursor, 1000), token).ConfigureAwait(false);
-            foreach (var reference in page.Items) result.Add(await Read<HistoryRecord>(reference, token).ConfigureAwait(false));
+            foreach (var reference in page.Items)
+            {
+                var item = await Read<HistoryRecord>(reference, token).ConfigureAwait(false);
+                if (frontier is null || item.Entry.AdmissionWatermark <= frontier || item.ConfirmedSendOf is not null) result.Add(item);
+            }
             cursor = page.NextCursor;
         } while (cursor is not null);
         result.Sort((a, b) => a.Entry.AdmissionWatermark.CompareTo(b.Entry.AdmissionWatermark));

@@ -114,7 +114,7 @@ public sealed partial class SessionFlowRuntime
         string diagnostic, string id, SessionSnapshot? snapshot = null) => new(status, diagnostic, id,
             snapshot, [], new Dictionary<string, IReadOnlyDictionary<string, JsonElement>>(), []);
 
-    private sealed class ReviewedParticipationCompletion(IFlowCompletion inner, IReadOnlyDictionary<string, string> responses,
+    internal sealed class ReviewedParticipationCompletion(IFlowCompletion inner, IReadOnlyDictionary<string, string> responses,
         Action checkCurrent, Action<string> reused) : IFlowCompletion
     {
         public Task<string> CompleteAsync(FlowCompletionRequest request, CancellationToken token)

@@ -54,7 +54,7 @@ public sealed partial class SessionFlowRuntime
     private sealed record InitialInterpretationBinding(SessionKey Session, string Revision,
         Func<ParticipationReassessmentContext, CancellationToken, Task<ParticipationReassessment>> Analyze);
 
-    private sealed class InitialInterpretationCompletion(IFlowCompletion inner, object interpretations) : IFlowCompletion
+    internal sealed class InitialInterpretationCompletion(IFlowCompletion inner, object interpretations) : IFlowCompletion
     {
         public Task<string> CompleteAsync(FlowCompletionRequest request, CancellationToken token)
         {

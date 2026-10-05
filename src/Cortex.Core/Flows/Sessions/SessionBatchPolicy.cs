@@ -48,5 +48,5 @@ public static class SessionBatchPolicy
             new(SessionAdmissionStatus.Accepted, state.AdmissionWatermark, null), batch);
     }
 
-    public static bool CanRotate(DurableSessionState state, bool allHandlersFinished) => state.ActiveBatch is null && state.Buffers.Count == 0 && allHandlersFinished;
+    public static bool CanRotate(DurableSessionState state, bool allHandlersFinished) => state.ActiveBatch is null && state.ActiveReview is null && state.Buffers.Count == 0 && allHandlersFinished;
 }

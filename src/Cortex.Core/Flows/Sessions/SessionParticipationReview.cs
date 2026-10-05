@@ -30,6 +30,7 @@ public sealed record SessionParticipationReviewResult(
 {
     // Runtime-issued, process-local completion data. Never reconstructed from a report/model/project.
     internal IReadOnlyDictionary<string, string> CompletedPromptResponses { get; init; } = new Dictionary<string, string>();
+    public Durable.ArtifactRef? ReviewRef { get; init; }
 }
 
 public sealed partial class SessionFlowRuntime
@@ -158,7 +159,7 @@ public sealed partial class SessionFlowRuntime
         string diagnostic, string id, SessionSnapshot? snapshot = null) => new(status, diagnostic, id,
             snapshot, null, [], new Dictionary<string, IReadOnlyDictionary<string, JsonElement>>());
 
-    private sealed class ParticipationReviewCompletion(IFlowCompletion inner, Action checkCurrent,
+    internal sealed class ParticipationReviewCompletion(IFlowCompletion inner, Action checkCurrent,
         DateTimeOffset originalAt, DateTimeOffset contextAt, ParticipationInterpretation? interpretation = null,
         IDictionary<string, string>? completedPromptResponses = null, bool participationOnly = true) : IFlowCompletion
     {

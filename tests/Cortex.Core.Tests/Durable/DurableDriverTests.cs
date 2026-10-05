@@ -48,11 +48,14 @@ public sealed class DurableDriverTests
         internal int Resolutions { get; private set; }
         internal bool Revoked { get; set; }
         internal Func<FeedbackSubmission, CancellationToken, Task>? FeedbackAuthorization { get; set; }
+        internal Func<SessionSnapshot, CancellationToken, Task>? ReviewValidation { get; set; }
+        internal Func<ParticipationReassessmentContext, CancellationToken, Task<ParticipationReassessment>>? InitialInterpretation { get; set; }
+        internal Cortex.Core.Outbound.ShadowOutboundHost? Outbound { get; set; }
         public ValueTask<ExecutionHostBinding> ResolveAsync(ArtifactScope scope, CancellationToken token)
         {
             Resolutions++;
             if (Revoked) throw new UnauthorizedAccessException("revoked");
-            return ValueTask.FromResult(new ExecutionHostBinding(scope, project.Document, this, new UnavailableMemoryReader(), null, TimeProvider.System) { AuthorizeFeedbackAsync = FeedbackAuthorization });
+            return ValueTask.FromResult(new ExecutionHostBinding(scope, project.Document, this, new UnavailableMemoryReader(), Outbound, TimeProvider.System) { AuthorizeFeedbackAsync = FeedbackAuthorization, ValidateReviewContextAsync = ReviewValidation, AnalyzeInitialAsync = InitialInterpretation });
         }
         public IFlowCompletion Create(SessionCompletionContext context) => model;
     }

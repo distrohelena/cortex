@@ -11,8 +11,10 @@ public sealed class FlowExecutionDriver(FileExecutionArtifactStore store, IExecu
 {
     private static readonly JsonSerializerOptions Options = new() { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow };
     private sealed record Evidence(BoundaryExecutionEvidence? Boundaries, OutboundExecutionEvidence? Outbound);
-    private sealed record Loaded(SessionFlowProject Project, ExecutionBatchV1 Batch, CompiledSessionFlowState State, TypedFlow Flow);
+    private sealed record Loaded(SessionFlowProject Project, ExecutionBatchV1 Batch, CompiledSessionFlowState State, TypedFlow Flow, DurableParticipationReviewV1? Review);
     private static string Operation(StepKey key) => DurableIdentity.OperationId(key);
+    private const string InitialNode = "@initial-interpretation:";
+    private static bool IsInitial(string? node) => node?.StartsWith(InitialNode, StringComparison.Ordinal) == true;
 
     public async Task<ExecutionDescriptor> InitializeAsync(ExecutionStart start, CancellationToken token)
     {
@@ -21,8 +23,14 @@ public sealed class FlowExecutionDriver(FileExecutionArtifactStore store, IExecu
         if (existing is not null) return await DescribeAsync(existing, token).ConfigureAwait(false);
         if (start.ProjectRef.Scope != start.Scope || start.BatchRef.Scope != start.Scope) throw new InvalidDataException("Execution artifacts have foreign scopes.");
         var loaded = await LoadAsync(start.Scope, start.ProjectRef, start.BatchRef, start.StateId, start.EntryKind, token).ConfigureAwait(false);
-        _ = await BindingAsync(start.Scope, loaded.Project, token).ConfigureAwait(false);
+        var binding = await BindingAsync(start.Scope, loaded.Project, token).ConfigureAwait(false);
+        await ValidatePurposeAsync(loaded, binding, token).ConfigureAwait(false);
         var state = FlowExecutionKernel.Start(loaded.Flow, loaded.Batch.Message, start, RuntimeOutputs(loaded));
+        if (loaded.Batch.Purpose == SessionExecutionPurpose.Normal && binding.AnalyzeInitialAsync is not null && loaded.Batch.InitialContexts.Count > 0)
+        {
+            state.Snapshot.InitialGraphCursor = state.Snapshot.Cursor;
+            state.Snapshot.Cursor = InitialNode + "0";
+        }
         return await SaveAsync(state.Snapshot, "initial-snapshot", token).ConfigureAwait(false);
     }
 
@@ -38,6 +46,25 @@ public sealed class FlowExecutionDriver(FileExecutionArtifactStore store, IExecu
         ValidateCommand(snapshot, command, ExecutionStatus.Ready);
         var loaded = await LoadAsync(snapshot.Scope, snapshot.ProjectRef, snapshot.BatchRef, snapshot.StateId, snapshot.EntryKind, token).ConfigureAwait(false);
         var binding = await BindingAsync(snapshot.Scope, loaded.Project, token).ConfigureAwait(false);
+        await ValidatePurposeAsync(loaded, binding, token).ConfigureAwait(false);
+        if (IsInitial(snapshot.Cursor))
+        {
+            await store.PutOnceAsync(snapshot.Scope, "intent-" + Operation(command.Key), JsonSerializer.SerializeToElement(command, Options), token).ConfigureAwait(false);
+            var index = snapshot.InitialInterpretations.Count;
+            if (snapshot.Cursor != InitialNode + index || index >= loaded.Batch.InitialContexts.Count || binding.AnalyzeInitialAsync is null)
+                throw new UnauthorizedAccessException("Initial interpretation is not currently bound.");
+            var context = loaded.Batch.InitialContexts[index];
+            if (context.Snapshot.Session != snapshot.Scope.Session || context.Snapshot.ProjectRevision != snapshot.Scope.ProjectRevision
+                || context.History.Any(h => h.AdmissionWatermark > context.Original.AdmissionWatermark)
+                || context.Snapshot.AdmissionWatermark != context.Original.AdmissionWatermark) throw new InvalidDataException("Invalid captured interpretation prefix.");
+            var analysis = await binding.AnalyzeInitialAsync(context, token).ConfigureAwait(false);
+            PendingParticipationReviews.ValidateAnalysis(analysis, context);
+            snapshot.InitialInterpretations.Add(context.Original.ProviderMessageId, analysis with { EvidenceMessageIds = analysis.EvidenceMessageIds.ToArray() });
+            snapshot.Steps.Add(new(snapshot.Cursor!, "completed", "then", null)); snapshot.Ordinal++;
+            snapshot.Cursor = index + 1 < loaded.Batch.InitialContexts.Count ? InitialNode + (index + 1) : snapshot.InitialGraphCursor;
+            snapshot.InitialGraphCursor = index + 1 < loaded.Batch.InitialContexts.Count ? snapshot.InitialGraphCursor : null;
+            return await SaveAsync(snapshot, "after-" + Operation(command.Key), token).ConfigureAwait(false);
+        }
         var memoryTraces = new List<TypedNodeExecutionTrace>();
         var services = Services(snapshot, loaded, binding, memoryTraces.Add);
         var effect = FlowExecutionKernel.Effect(loaded.Flow.Nodes[snapshot.Cursor!]);
@@ -49,6 +76,7 @@ public sealed class FlowExecutionDriver(FileExecutionArtifactStore store, IExecu
         await store.PutOnceAsync(snapshot.Scope, "intent-" + Operation(command.Key), JsonSerializer.SerializeToElement(command, Options), token).ConfigureAwait(false);
         var state = new FlowExecutionState(snapshot, RuntimeOutputs(loaded));
         var result = await FlowExecutionKernel.AdvanceAsync(loaded.Flow, state, services, token).ConfigureAwait(false);
+        await ValidatePurposeAsync(loaded, binding, token).ConfigureAwait(false);
         snapshot.TrustedEvidence = JsonSerializer.SerializeToElement(new Evidence(services.BoundaryRegistry?.CaptureEvidence(), services.Outbound?.CaptureEvidence(snapshot.Values)), Options);
         await store.PutOnceAsync(snapshot.Scope, "traces-" + Operation(command.Key), JsonSerializer.SerializeToElement(result.Traces.Concat(memoryTraces).OrderBy(t => t.Timestamp).ToArray(), Options), token).ConfigureAwait(false);
         return await SaveAsync(snapshot, "after-" + Operation(command.Key), token).ConfigureAwait(false);
@@ -70,7 +98,7 @@ public sealed class FlowExecutionDriver(FileExecutionArtifactStore store, IExecu
         var snapshot = ExecutionSnapshotCodec.Decode(await store.ReadAsync(command.SnapshotRef, token).ConfigureAwait(false), key.Scope);
         ValidateCommand(snapshot, command, ExecutionStatus.Ready);
         var loaded = await LoadAsync(snapshot.Scope, snapshot.ProjectRef, snapshot.BatchRef, snapshot.StateId, snapshot.EntryKind, token).ConfigureAwait(false);
-        var node = loaded.Flow.Nodes[key.NodeId]; var effect = FlowExecutionKernel.Effect(node);
+        var node = IsInitial(key.NodeId) ? null : loaded.Flow.Nodes[key.NodeId]; var effect = node is null ? StepEffect.Inference : FlowExecutionKernel.Effect(node);
         if (effect is StepEffect.Pure or StepEffect.Artifact) return null;
         snapshot.Status = effect == StepEffect.Send ? ExecutionStatus.ReconciliationRequired : ExecutionStatus.Failed;
         if (effect == StepEffect.Send)
@@ -91,7 +119,7 @@ public sealed class FlowExecutionDriver(FileExecutionArtifactStore store, IExecu
                 }
                 snapshot.Outputs[key.NodeId] = new()
                 {
-                    ["status"] = new(node.Outputs.Single(p => p.Id == "status").Type, JsonSerializer.SerializeToElement(result.Status)),
+                    ["status"] = new(node!.Outputs.Single(p => p.Id == "status").Type, JsonSerializer.SerializeToElement(result.Status)),
                     ["diagnostico"] = new(new StringType(), JsonSerializer.SerializeToElement(result.DiagnosticCode)),
                 };
                 foreach (var output in snapshot.Outputs[key.NodeId]) snapshot.Values[new(key.NodeId, output.Key)] = output.Value;
@@ -172,7 +200,7 @@ public sealed class FlowExecutionDriver(FileExecutionArtifactStore store, IExecu
                 HumanFeedbackNode.Read(loaded.Flow.Nodes[pending.Key.NodeId].Source.Config).TimeoutSeconds);
         }
         return new(snapshot.Scope, reference, snapshot.Cursor, snapshot.Ordinal, snapshot.Status,
-            snapshot.Cursor is { } nodeId ? FlowExecutionKernel.Effect(loaded.Flow.Nodes[nodeId]) : StepEffect.Pure,
+            IsInitial(snapshot.Cursor) ? StepEffect.Inference : snapshot.Cursor is { } nodeId ? FlowExecutionKernel.Effect(loaded.Flow.Nodes[nodeId]) : StepEffect.Pure,
             feedback, snapshot.Status is ExecutionStatus.Completed or ExecutionStatus.Failed or ExecutionStatus.Cancelled or ExecutionStatus.ReconciliationRequired ? reference : null,
             snapshot.Status is ExecutionStatus.Failed ? "flow-execution-failed" : snapshot.Status is ExecutionStatus.ReconciliationRequired ? "reconciliation-required" : null);
     }
@@ -202,7 +230,38 @@ public sealed class FlowExecutionDriver(FileExecutionArtifactStore store, IExecu
             throw new InvalidDataException("Private batch does not bind the exact conversation or origin identities.");
         if (!compiled.States.TryGetValue(stateId, out var state) || !state.Entries.TryGetValue(kind, out var flow) || flow.EntryId != batch.EntryId)
             throw new InvalidDataException("Wrong captured state or entry.");
-        return new(project, batch, state, flow);
+        if (!Enum.IsDefined(batch.Purpose)) throw new InvalidDataException("Unknown execution purpose.");
+        if (flow.Nodes.Keys.Any(IsInitial)) throw new InvalidDataException("Node uses a reserved execution identity.");
+        DurableParticipationReviewV1? review = null;
+        if (batch.Purpose == SessionExecutionPurpose.ParticipationReview)
+        {
+            var definition = batch.ReviewDefinition ?? throw new InvalidDataException("Missing private review definition.");
+            if (definition.ProjectRevision != scope.ProjectRevision) throw new InvalidDataException("Wrong review revision.");
+            flow = ParticipationReviewCut.Create(flow, definition).Flow;
+        }
+        else if (batch.Purpose is SessionExecutionPurpose.ResponsePreview or SessionExecutionPurpose.ReviewedResponse)
+        {
+            var reference = batch.ReviewRef ?? throw new InvalidDataException("A host-issued review artifact is required.");
+            if (reference.Scope.InstallationId != scope.InstallationId || reference.Scope.Session != scope.Session || reference.Scope.ProjectRevision != scope.ProjectRevision)
+                throw new InvalidDataException("Foreign trusted review artifact.");
+            review = await ReadAsync<DurableParticipationReviewV1>(reference, token).ConfigureAwait(false);
+            if (review.Scope != reference.Scope || review.Result.Status != ParticipationReviewStatus.Completed || review.Result.Decision != ParticipationReviewDecision.Respond
+                || review.Result.Snapshot != batch.ReviewSnapshot || review.CompletedPromptResponses.Count == 0
+                || review.CompletedPromptResponses.Keys.Any(id => !review.Definition.PromptNodeIds.Contains(id))) throw new InvalidDataException("Invalid trusted review completion.");
+            _ = ParticipationReviewCut.Create(flow, review.Definition);
+        }
+        return new(project, batch, state, flow, review);
+    }
+    private static async Task ValidatePurposeAsync(Loaded loaded, ExecutionHostBinding binding, CancellationToken token)
+    {
+        if (loaded.Batch.Purpose == SessionExecutionPurpose.Normal) return;
+        var expected = loaded.Batch.ReviewSnapshot ?? throw new InvalidDataException("Missing review context.");
+        if (expected.Session != binding.Scope.Session || expected.ProjectRevision != binding.Scope.ProjectRevision || binding.ValidateReviewContextAsync is null)
+            throw new UnauthorizedAccessException("Review context has no current host attestation.");
+        if (loaded.Batch.Purpose == SessionExecutionPurpose.ResponsePreview && (binding.OutboundHost?.EffectiveMode != OutboundMode.Shadow || !loaded.Batch.ShadowOnly)
+            || loaded.Batch.Purpose == SessionExecutionPurpose.ReviewedResponse && binding.OutboundHost?.EffectiveMode != OutboundMode.Enabled)
+            throw new UnauthorizedAccessException("Review continuation ceiling is not armed.");
+        await binding.ValidateReviewContextAsync(expected, token).ConfigureAwait(false);
     }
     private static IReadOnlyDictionary<string, IReadOnlyDictionary<string, TypedValue>> RuntimeOutputs(Loaded loaded) =>
         loaded.Batch.RuntimeOutputs.ToDictionary(x => x.Key, x => (IReadOnlyDictionary<string, TypedValue>)x.Value.ToDictionary(p => p.Key,
@@ -216,8 +275,17 @@ public sealed class FlowExecutionDriver(FileExecutionArtifactStore store, IExecu
             ? binding.OutboundHost.RestoreExecution(binding, stored, snapshot.Values)
             : binding.OutboundHost.Begin(binding.Project, snapshot.Scope.ExecutionId, snapshot.Scope.Session, snapshot.EntryKind, loaded.Batch.ProviderMessageIds,
                 loaded.Batch.ReplyTargetIds, loaded.Batch.ShadowOnly, binding.ValidateCurrentContext);
-        var completion = binding.CompletionFactory.Create(new(snapshot.Scope.Session, snapshot.Scope.ExecutionId, snapshot.BatchId,
+        IFlowCompletion completion = binding.CompletionFactory.Create(new(snapshot.Scope.Session, snapshot.Scope.ExecutionId, snapshot.BatchId,
             loaded.Project.ProjectId, loaded.Project.ProjectVersion, loaded.Project.ProjectRevision));
+        if (loaded.Batch.Purpose == SessionExecutionPurpose.ParticipationReview)
+            completion = new SessionFlowRuntime.ParticipationReviewCompletion(completion, binding.ValidateCurrentContext ?? (() => { }),
+                loaded.Batch.OriginalTimestamp, loaded.Batch.ContextCapturedAt, completedPromptResponses: snapshot.PromptResponses);
+        else if (loaded.Review is { } review)
+            completion = new SessionFlowRuntime.ReviewedParticipationCompletion(new SessionFlowRuntime.ParticipationReviewCompletion(completion,
+                binding.ValidateCurrentContext ?? (() => { }), loaded.Batch.OriginalTimestamp, loaded.Batch.ContextCapturedAt, participationOnly: false),
+                review.CompletedPromptResponses, binding.ValidateCurrentContext ?? (() => { }), _ => { });
+        completion = new RecordingCompletion(completion, snapshot.PromptResponses);
+        if (snapshot.InitialInterpretations.Count > 0) completion = new SessionFlowRuntime.InitialInterpretationCompletion(completion, snapshot.InitialInterpretations);
         return new(completion) { Clock = binding.Clock, BoundaryRegistry = registry, Outbound = outbound, InstructionContext = loaded.State.InstructionContext,
             MemoryQuery = (node, persons, query, token) => SessionMemoryQuery.QueryAsync(snapshot.Scope.Session, node, persons, query, registry, binding.MemoryReader, binding.Clock, token,
                 (name, duration, metadata) => memoryTrace?.Invoke(new(node.Source.Id, name, null, null, binding.Clock.GetUtcNow(), TimeSpan.FromMilliseconds(duration), metadata))),
@@ -225,6 +293,15 @@ public sealed class FlowExecutionDriver(FileExecutionArtifactStore store, IExecu
                 snapshot.StateId, snapshot.StateVersion, snapshot.Scope.ProjectRevision, node, outputs), token),
             NodeStarting = binding.NodeStarting is null ? null : (node, outputs, token) => binding.NodeStarting(new(snapshot.Scope.ExecutionId, snapshot.BatchId, snapshot.Scope.Session,
                 snapshot.StateId, snapshot.StateVersion, snapshot.Scope.ProjectRevision, node, outputs), token) };
+    }
+    private sealed class RecordingCompletion(IFlowCompletion inner, IDictionary<string, string> responses) : IFlowCompletion
+    {
+        public async Task<string> CompleteAsync(FlowCompletionRequest request, CancellationToken token)
+        {
+            var response = await inner.CompleteAsync(request, token).ConfigureAwait(false);
+            responses[request.NodeId] = response;
+            return response;
+        }
     }
     private async Task<T> ReadAsync<T>(ArtifactRef reference, CancellationToken token) =>
         (await store.ReadAsync(reference, token).ConfigureAwait(false)).Deserialize<T>(Options) ?? throw new InvalidDataException("Missing private artifact.");

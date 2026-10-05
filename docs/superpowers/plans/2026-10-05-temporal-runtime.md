@@ -350,11 +350,11 @@ ReviewRef e emitida pelo backend, scope-bound e registra respostas completas pri
 ShadowSessionBinding e journal existente. `AcceptAsync(CanonicalShadowInbound input, CancellationToken token): Task<ShadowInboundDecision>`,
 `DrainAsync(CancellationToken token): Task`, leituras assincronas delegadas e `DisposeAsync()` fecha o cliente, sem cancelar Workflows implicitamente.
 
-- [ ] Escrever `ReviewCutAndPreviewMatchLocalBackend`, `ReviewedPromptResponsesAreReusedAfterRestart`, `StaleReviewOrConfirmedSpeechRejectContinuation`, `InitialInterpretationUsesCapturedHistoryPrefix`, `ShadowCeilingNeverDispatches`, `UnresolvedInboxDoesNotAutoReplayAsNewWork`, `ClientDisposeLeavesPendingFeedbackOpen`.
-- [ ] Rodar `dotnet test tests/Cortex.Temporal.Tests/Cortex.Temporal.Tests.csproj --filter "FullyQualifiedName~SessionReviewParityTests|FullyQualifiedName~DurableHandoffTests"`; confirmar faltas de paridade.
-- [ ] Reutilizar cut/interpreter e diagnosticos existentes; executar efeitos via driver e refs privadas. Preservar snapshot de revisao, orÃ§amento/horizonte e proibir preview de conceder envio. Adicionar facade async nova para consumidores Temporal, conservando facade local legada durante a migracao.
-- [ ] Rodar filtro e testes existentes de Observed/Shadow/LiveHandoff/PendingParticipationReviews. Esperar paridade semanticamente comparada sem exigir timings identicos.
-- [ ] Commit: `feat(temporal): preserve review preview and handoff semantics`.
+- [x] Escrever `ReviewCutAndPreviewMatchLocalBackend`, `ReviewedPromptResponsesAreReusedAfterRestart`, `StaleReviewOrConfirmedSpeechRejectContinuation`, `InitialInterpretationUsesCapturedHistoryPrefix`, `ShadowCeilingNeverDispatches`, `UnresolvedInboxDoesNotAutoReplayAsNewWork`, `ClientDisposeLeavesPendingFeedbackOpen`.
+- [x] Rodar `dotnet test tests/Cortex.Temporal.Tests/Cortex.Temporal.Tests.csproj --filter "FullyQualifiedName~SessionReviewParityTests|FullyQualifiedName~DurableHandoffTests"`; confirmar faltas de paridade.
+- [x] Reutilizar cut/interpreter e diagnosticos existentes; executar efeitos via driver e refs privadas. Preservar snapshot de revisao, orÃ§amento/horizonte e proibir preview de conceder envio. Adicionar facade async nova para consumidores Temporal, conservando facade local legada durante a migracao.
+- [x] Rodar filtro e testes existentes de Observed/Shadow/LiveHandoff/PendingParticipationReviews. Esperar paridade semanticamente comparada sem exigir timings identicos.
+- [x] Commit: `feat(temporal): preserve review preview and handoff semantics`.
 
 ## Tarefa 12: Consumidor Filo e UI de feedback
 

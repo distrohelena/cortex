@@ -9,6 +9,14 @@ namespace Cortex.Core.Tests.Durable;
 
 public sealed class ExecutionSnapshotCodecTests
 {
+    [Fact]
+    public void PrivatePromptResponsesSurviveCheckpointWithoutPublicReportReconstruction()
+    {
+        var state = Snapshot();
+        state.PromptResponses.Add("decision", "{\"respond\":true}");
+        var restored = ExecutionSnapshotCodec.Decode(ExecutionSnapshotCodec.Encode(state), state.Scope);
+        Assert.Equal("{\"respond\":true}", restored.PromptResponses["decision"]);
+    }
     internal static JsonElement Json(string value) => JsonDocument.Parse(value).RootElement.Clone();
     internal static ExecutionSnapshotV1 Snapshot() => new()
     {

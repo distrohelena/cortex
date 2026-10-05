@@ -15,4 +15,7 @@ public sealed record ExecutionHostBinding(ArtifactScope Scope, JsonElement Proje
     public Func<SessionNodeVisit, CancellationToken, Task>? NodeStarting { get; init; }
     public Func<FeedbackSubmission, CancellationToken, Task>? AuthorizeFeedbackAsync { get; init; }
     public Action? ValidateCurrentContext { get; init; }
+    public Func<SessionSnapshot, CancellationToken, Task>? ValidateReviewContextAsync { get; init; }
+    public bool ShadowOnly { get; init; }
+    public Func<ParticipationReassessmentContext, CancellationToken, Task<ParticipationReassessment>>? AnalyzeInitialAsync { get; init; }
 }

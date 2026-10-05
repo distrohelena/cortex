@@ -50,7 +50,7 @@ public sealed class SessionWorkflowV1
                         state = SessionBatchPolicy.CloseBuffer(state, buffer.Batch.BatchId, reason, Now).State;
                     }
                 }
-                if (state.Queue.Count > 0)
+                if (state.Queue.Count > 0 && state.ActiveReview is null)
                 {
                     batch = state.Queue[0];
                     state = state with { ActiveBatch = batch, Queue = state.Queue.Skip(1).ToArray() };
@@ -83,7 +83,7 @@ public sealed class SessionWorkflowV1
             }
             var observed = change;
             var nextDue = state.Buffers.Select(Earliest).Where(t => t is not null).Min();
-            bool Changed() => change != observed || state.Queue.Count > 0 || (SessionBatchPolicy.CanRotate(state, Workflow.AllHandlersFinished)
+            bool Changed() => change != observed || state.Queue.Count > 0 && state.ActiveReview is null || (SessionBatchPolicy.CanRotate(state, Workflow.AllHandlersFinished)
                 && (Workflow.ContinueAsNewSuggested || Workflow.CurrentHistoryLength >= input.RotationEventLimit));
             if (nextDue is { } deadline) await Workflow.WaitConditionAsync(Changed, deadline > Now ? deadline - Now : TimeSpan.FromMilliseconds(1));
             else await Workflow.WaitConditionAsync(Changed);
@@ -91,9 +91,11 @@ public sealed class SessionWorkflowV1
     }
 
     [WorkflowQuery]
-    public SessionSnapshot? Snapshot() => ready ? state.Snapshot() : null;
+    public SessionSnapshot? Snapshot() => ready ? state.Snapshot() with { PendingExecutionCount = state.Queue.Count + (state.ActiveBatch is null ? 0 : 1) + (state.ActiveReview is null ? 0 : 1) } : null;
     [WorkflowQuery]
-    public ActiveExecutionDescriptor? ActiveExecution() => ready && state.ActiveBatch is { } active
+    public ActiveExecutionDescriptor? ActiveExecution() => ready && state.ActiveReview is { } review
+        ? new(review.Prepared.Start.Scope, review.Prepared.Start.BatchId, DurableIdentity.ExecutionWorkflowId(review.Prepared.Start.Scope, review.Prepared.Start.BatchId))
+        : ready && state.ActiveBatch is { } active
         ? new(new(state.InstallationId, state.Session, active.ExecutionId, active.Publication.Snapshot.ProjectRevision), active.BatchId,
             DurableIdentity.ExecutionWorkflowId(new(state.InstallationId, state.Session, active.ExecutionId, active.Publication.Snapshot.ProjectRevision), active.BatchId)) : null;
 
@@ -145,6 +147,66 @@ public sealed class SessionWorkflowV1
     }
 
     [WorkflowUpdate]
+    public async Task<ArtifactRef> ReviewAsync(ArtifactRef requestRef, string operationId)
+    {
+        await Workflow.WaitConditionAsync(() => ready);
+        await Acquire();
+        PreparedSessionReview prepared;
+        string workflowId;
+        var ownsLease = true;
+        try
+        {
+            if (state.ReviewReceipts.TryGetValue(operationId, out var prior)) return prior;
+            if (state.ActiveReview is { } running && running.Prepared.OperationId == operationId)
+            {
+                if (running.Prepared.RequestRef != requestRef) throw Failure("review-operation-conflict");
+                // Release the coordinator before waiting for the already running operation.
+                Release();
+                ownsLease = false;
+                await Workflow.WaitConditionAsync(() => state.ReviewReceipts.ContainsKey(operationId) || state.ActiveReview?.Prepared.OperationId != operationId);
+                return state.ReviewReceipts.TryGetValue(operationId, out var receipt) ? receipt : throw Failure("review-not-completed");
+            }
+            if (state.ActiveBatch is not null || state.ActiveReview is not null || state.Queue.Count != 0 || state.Buffers.Count != 0) throw Failure("session-not-idle");
+            var command = new ReviewPreparationCommand(state.InstallationId, state.Snapshot(), state.Publication.ProjectRef, requestRef, checked(state.NextReviewOrdinal + state.NextPreviewOrdinal));
+            prepared = await Workflow.ExecuteActivityAsync((SessionReviewActivities a) => a.PrepareReviewAsync(command), Options());
+            if (prepared.OperationId != operationId) throw Failure("review-operation-conflict");
+            workflowId = DurableIdentity.ExecutionWorkflowId(prepared.Start.Scope, "review-coordinator");
+            state = state with { ActiveReview = new(prepared, workflowId), NextReviewOrdinal = state.NextReviewOrdinal + (prepared.Purpose == SessionExecutionPurpose.ParticipationReview ? 1 : 0),
+                NextPreviewOrdinal = state.NextPreviewOrdinal + (prepared.Purpose == SessionExecutionPurpose.ParticipationReview ? 0 : 1) };
+        }
+        finally { if (ownsLease) Release(); }
+        try
+        {
+            var result = await Workflow.ExecuteActivityAsync((SessionReviewActivities a) => a.ReadCompletedReviewAsync(workflowId), Options());
+            if (result is null)
+            {
+                var executionInput = new ExecutionWorkflowInput(prepared.Start, input.ActivityPolicy);
+                result = await Workflow.ExecuteChildWorkflowAsync((SessionReviewWorkflowV1 w) => w.RunAsync(executionInput),
+                    new() { Id = workflowId, TaskQueue = input.WorkflowTaskQueue, IdReusePolicy = Temporalio.Api.Enums.V1.WorkflowIdReusePolicy.RejectDuplicate });
+            }
+            await Acquire();
+            try
+            {
+                var commit = new ReviewCommitCommand(prepared, result, state.Snapshot(), Now);
+                var committed = await Workflow.ExecuteActivityAsync((SessionReviewActivities a) => a.CommitReviewAsync(commit), Options());
+                var receipts = state.ReviewReceipts.Append(new KeyValuePair<string, ArtifactRef>(operationId, committed.ResultRef)).TakeLast(256).ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
+                state = state with { ReviewReceipts = receipts, AdmissionWatermark = committed.AdmissionWatermark, HistoryCount = committed.HistoryCount,
+                    CurrentStateId = committed.TransitionApplied ? committed.TransitionTargetStateId! : state.CurrentStateId,
+                    StateVersion = committed.TransitionApplied ? checked(state.StateVersion + 1) : state.StateVersion,
+                    EnteredAt = committed.TransitionApplied ? commit.CompletedAt : state.EnteredAt };
+                return committed.ResultRef;
+            }
+            finally { Release(); }
+        }
+        finally
+        {
+            await Acquire();
+            state = state with { ActiveReview = null };
+            Release();
+        }
+    }
+
+    [WorkflowUpdate]
     public async Task<SessionSnapshot> ImportIdleAsync(ArtifactRef importRef)
     {
         await Workflow.WaitConditionAsync(() => ready);
@@ -152,7 +214,7 @@ public sealed class SessionWorkflowV1
         try
         {
             if (state.ImportedManifest == importRef) return state.Snapshot();
-            if (state.AdmissionWatermark != 0 || state.HistoryCount != 0 || state.ActiveBatch is not null || state.Buffers.Count != 0 || state.Queue.Count != 0
+            if (state.AdmissionWatermark != 0 || state.HistoryCount != 0 || state.ActiveBatch is not null || state.ActiveReview is not null || state.Buffers.Count != 0 || state.Queue.Count != 0
                 || importRef.Scope.InstallationId != state.InstallationId || importRef.Scope.Session != state.Session)
                 throw Failure("session-not-empty-for-import");
             var restored = await Workflow.ExecuteActivityAsync((SessionActivities a) => a.ImportIdleAsync(importRef, state.Publication), Options());

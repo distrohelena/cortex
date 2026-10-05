@@ -20,6 +20,9 @@ internal sealed class ExecutionSnapshotV1
     public Dictionary<PortRef, TypedValue> Values { get; } = [];
     public Dictionary<string, Dictionary<string, TypedValue>> Outputs { get; } = new(StringComparer.Ordinal);
     public Dictionary<string, string> References { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, string> PromptResponses { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, ParticipationReassessment> InitialInterpretations { get; } = new(StringComparer.Ordinal);
+    public string? InitialGraphCursor { get; set; }
     public JsonElement TrustedEvidence { get; set; } = JsonSerializer.SerializeToElement(new { });
     public bool SendAttempted { get; set; }
     public ConfirmedSend? ConfirmedSend { get; set; }
@@ -37,7 +40,8 @@ internal static class ExecutionSnapshotCodec
         ArtifactRef BatchRef, string StateId, long StateVersion, SessionEntryKind EntryKind, string? Cursor,
         long Ordinal, ExecutionStatus Status, IReadOnlyList<TypedStep> Steps, IReadOnlyList<PortWire> Values,
         IReadOnlyList<ValueWire> TypedValues, Dictionary<string, Dictionary<string, int>> Outputs, Dictionary<string, string> References,
-        JsonElement TrustedEvidence, bool SendAttempted, ConfirmedSend? ConfirmedSend, string? TargetStateId, FeedbackRequestV1? PendingFeedback);
+        JsonElement TrustedEvidence, bool SendAttempted, ConfirmedSend? ConfirmedSend, string? TargetStateId, FeedbackRequestV1? PendingFeedback,
+        Dictionary<string, string>? PromptResponses = null, Dictionary<string, ParticipationReassessment>? InitialInterpretations = null, string? InitialGraphCursor = null);
 
     internal static JsonElement Encode(ExecutionSnapshotV1 state)
     {
@@ -57,7 +61,9 @@ internal static class ExecutionSnapshotCodec
             state.BatchRef, state.StateId, state.StateVersion, state.EntryKind, state.Cursor, state.Ordinal, state.Status,
             state.Steps.ToArray(), values, table, outputs,
             state.References.OrderBy(x => x.Key, StringComparer.Ordinal).ToDictionary(x => x.Key, x => x.Value),
-            state.TrustedEvidence.Clone(), state.SendAttempted, state.ConfirmedSend, state.TargetStateId, state.PendingFeedback), Options);
+            state.TrustedEvidence.Clone(), state.SendAttempted, state.ConfirmedSend, state.TargetStateId, state.PendingFeedback,
+            state.PromptResponses.OrderBy(p => p.Key, StringComparer.Ordinal).ToDictionary(p => p.Key, p => p.Value),
+            state.InitialInterpretations.OrderBy(p => p.Key, StringComparer.Ordinal).ToDictionary(p => p.Key, p => p.Value), state.InitialGraphCursor), Options);
     }
 
     internal static ExecutionSnapshotV1 Decode(JsonElement value, ArtifactScope expectedScope)
@@ -76,6 +82,9 @@ internal static class ExecutionSnapshotCodec
             foreach (var port in wire.Values) state.Values.Add(new(port.NodeId, port.Port), ValueAt(port.ValueId));
             foreach (var output in wire.Outputs) state.Outputs.Add(output.Key, output.Value.ToDictionary(p => p.Key, p => ValueAt(p.Value)));
             foreach (var reference in wire.References) state.References.Add(reference.Key, reference.Value);
+            foreach (var response in wire.PromptResponses ?? []) state.PromptResponses.Add(response.Key, response.Value);
+            foreach (var interpretation in wire.InitialInterpretations ?? []) state.InitialInterpretations.Add(interpretation.Key, interpretation.Value);
+            state.InitialGraphCursor = wire.InitialGraphCursor;
             Validate(state);
             return state;
         }

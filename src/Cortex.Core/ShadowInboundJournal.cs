@@ -81,10 +81,13 @@ public sealed class ShadowInboundJournal : IDisposable
     private readonly ShadowSessionBinding binding;
     private Entry header;
     private readonly Dictionary<string, string> states = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Entry> completionReceipts = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, CanonicalShadowInbound> originals = new(StringComparer.Ordinal);
     private readonly Dictionary<long, string> sequences = new();
     private readonly HashSet<string> currentRunInputs = new(StringComparer.Ordinal);
     private long cursor;
     private bool reconciliation;
+    private bool quarantined;
     private bool disposed;
     public bool ReconciliationRequired { get { lock (gate) return reconciliation; } }
     public bool RequiresRuntimeRestore { get; }
@@ -187,6 +190,40 @@ public sealed class ShadowInboundJournal : IDisposable
     public void Completed(string providerId, string batch, string execution, bool success) =>
         Transition(providerId, success ? "completed" : "execution_failed", null, batch, execution);
 
+    public void CompletedOnce(string providerId, string batch, string execution, bool success)
+    {
+        lock (gate)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            if (completionReceipts.TryGetValue(InputRef(providerId), out var receipt))
+            {
+                if (receipt.Batch != batch || receipt.Execution != execution || receipt.Type != (success ? "completed" : "execution_failed"))
+                    throw new InvalidOperationException("Conflicting durable inbox completion.");
+                return;
+            }
+            Completed(providerId, batch, execution, success);
+        }
+    }
+
+    internal void ConfirmDurableRestore(IReadOnlyList<SessionHistoryEntry> history)
+    {
+        lock (gate)
+        {
+            if (quarantined || currentRunInputs.Any(id => states[id] == "observed"))
+                throw new InvalidOperationException("Unadmitted or quarantined inbox requires explicit reconciliation.");
+            foreach (var id in currentRunInputs.Where(id => states[id] == "admitted"))
+            {
+                var original = originals[id]; var normalized = ShadowInboundCanonicalizer.Normalize(original);
+                var committed = history.SingleOrDefault(h => h.ProviderMessageId == normalized.ProviderMessageId);
+                if (committed is null || committed.ChannelId != normalized.ChannelId || committed.AccountId != normalized.AccountId
+                    || committed.NativeConversationId != normalized.NativeConversationId || committed.EntryKind != normalized.EntryKind
+                    || !JsonElement.DeepEquals(committed.Message, normalized.Message))
+                    throw new InvalidOperationException("Durable backend does not prove the original inbox admission.");
+            }
+            reconciliation = false;
+        }
+    }
+
     private void Transition(string providerId, string state, long? watermark, string? batch, string? execution)
     {
         lock (gate)
@@ -220,25 +257,26 @@ public sealed class ShadowInboundJournal : IDisposable
                 throw new InvalidDataException("Invalid non-resumable shadow boundary.");
             foreach (var id in states.Where(pair => pair.Value is "observed" or "admitted").Select(pair => pair.Key).ToArray()) states[id] = "abandoned";
             header = entry with { Type = "shadow-inbox:v1" };
-            cursor = entry.Sequence; sequences.Clear(); currentRunInputs.Clear(); reconciliation = false;
+            cursor = entry.Sequence; sequences.Clear(); currentRunInputs.Clear(); reconciliation = false; quarantined = false;
             return;
         }
         if (entry.Binding != header.Binding || entry.Revision != header.Revision || entry.Epoch != header.Epoch || entry.InputRef is null)
             throw new InvalidDataException("Invalid inbox binding.");
-        if (entry.Type == "quarantined") { reconciliation = true; return; }
+        if (entry.Type == "quarantined") { reconciliation = true; quarantined = true; return; }
         if (entry.Type is "observed" or "self" or "duplicate" or "ignored")
         {
             if (entry.Sequence != cursor + 1 || entry.Input is null || !binding.Accepts(entry.Input) || InputRef(entry.Input.Message.ProviderMessageId) != entry.InputRef)
                 throw new InvalidDataException("Invalid inbox order or identity.");
             cursor = entry.Sequence; sequences.Add(cursor, entry.InputRef);
             if (entry.Type != "duplicate") states.Add(entry.InputRef, entry.Type);
-            if (entry.Type == "observed") currentRunInputs.Add(entry.InputRef);
+            if (entry.Type == "observed") { currentRunInputs.Add(entry.InputRef); originals[entry.InputRef] = entry.Input; }
         }
         else if (entry.Type is "admitted" or "completed" or "execution_failed")
         {
             if (!states.TryGetValue(entry.InputRef, out var previous) || (entry.Type == "admitted" ? previous != "observed" : previous != "admitted"))
                 throw new InvalidDataException("Invalid durable inbox transition.");
             states[entry.InputRef] = entry.Type;
+            if (entry.Type is "completed" or "execution_failed") completionReceipts[entry.InputRef] = entry;
         }
         else throw new InvalidDataException("Unknown inbox state.");
     }
