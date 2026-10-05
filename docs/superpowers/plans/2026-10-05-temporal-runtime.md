@@ -1,4 +1,4 @@
-﻿# Temporal Runtime Implementation Plan
+# Temporal Runtime Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans for the recommended inline execution, or superpowers:subagent-driven-development only if the user chooses delegation. Execute task-by-task; steps use checkbox (`- [ ]`) syntax. No independent review is authorized by this plan.
 
@@ -257,11 +257,11 @@ Initialize/Recover/ValidateFeedback/ResolveFeedback usam Artifact; a espera huma
 Todos os timeouts sao finitos e positivos. Workflow nunca recebe ExecutionHostBinding.
 `TemporalRuntimeWorker.RunAsync(CancellationToken stopWorker)` registra Activities/Workflows e executa ate shutdown; token de stop nao cancela Workflows.
 
-- [ ] Escrever `CoreHasNoTemporalReference`, `OptionsRequireExplicitNamespaceQueuesAndStore`, `PaidAndSendEffectsHaveOneAttempt`, `ArtifactEffectsUseFiveAttemptsWithOneToThirtySecondsBackoff`, `ActivityPassesHostScopeAndCancellation`. Esperar que policies expressem o limite configurado pelo host, sem endpoints Cloud implicitos.
-- [ ] Rodar `dotnet test tests/Cortex.Temporal.Tests/Cortex.Temporal.Tests.csproj --filter "FullyQualifiedName~ActivityPolicyTests|FullyQualifiedName~ExecutionActivityTests"`; inicialmente projeto/APIs inexistentes falham. Preparar restore do SDK somente nesta etapa de implementacao.
-- [ ] Criar os projetos net10.0, warnings-as-errors e mesmas versoes xUnit do Core. Implementar bridge pequeno: sem logar payload privado e sem capturar servicos no Workflow. Ao adicionar solution entries, conservar o diff preexistente de Personas.
-- [ ] Repetir filtro e `node --test tests/architecture/temporal-module.test.mjs`; esperar regras de dependencia e policy passando.
-- [ ] Commit apenas dos arquivos da tarefa: `feat(temporal): add host-bound activities and worker configuration`; nao incluir as alteracoes anteriores da solution no commit.
+- [x] Escrever `CoreHasNoTemporalReference`, `OptionsRequireExplicitNamespaceQueuesAndStore`, `PaidAndSendEffectsHaveOneAttempt`, `ArtifactEffectsUseFiveAttemptsWithOneToThirtySecondsBackoff`, `ActivityPassesHostScopeAndCancellation`. Esperar que policies expressem o limite configurado pelo host, sem endpoints Cloud implicitos.
+- [x] Rodar `dotnet test tests/Cortex.Temporal.Tests/Cortex.Temporal.Tests.csproj --filter "FullyQualifiedName~ActivityPolicyTests|FullyQualifiedName~ExecutionActivityTests"`; inicialmente projeto/APIs inexistentes falham. Preparar restore do SDK somente nesta etapa de implementacao.
+- [x] Criar os projetos net10.0, warnings-as-errors e mesmas versoes xUnit do Core. Implementar bridge pequeno: sem logar payload privado e sem capturar servicos no Workflow. Ao adicionar solution entries, conservar o diff preexistente de Personas.
+- [x] Repetir filtro e `node --test tests/architecture/temporal-module.test.mjs`; esperar regras de dependencia e policy passando.
+- [x] Commit apenas dos arquivos da tarefa: `feat(temporal): add host-bound activities and worker configuration`; nao incluir as alteracoes anteriores da solution no commit.
 
 ## Tarefa 8: Workflow de execucao e feedback humano duravel
 
@@ -277,11 +277,11 @@ input contem ExecutionStart e metadados de politica de Activities, sem dados pri
 `[WorkflowUpdate] Task CancelAsync(string operationId)`.
 `TemporalFeedbackClient.SubmitAsync(FeedbackSubmission submission, CancellationToken token): Task<FeedbackReceipt>` obtÃ©m handle pelo ID estavel da execucao e usa UpdateId=OperationId.
 
-- [ ] Escrever `WaitingHasNoLongRunningActivity`, `WorkerRestartThenFeedbackKeepsExecutionIdAndPreviousOutputs`, `DuplicateFeedbackReturnsOriginalReceipt`, `ConflictingLateWrongScopeAndWrongDigestFail`, `TimeoutAndFeedbackResolveOnlyOnce`, `CancelDoesNotTakeThenOrTimeout`, `UnauthorizedFeedbackLeavesRequestPending`. Antes da resposta, downstream prompt calls=0; depois, upstream calls=1 e downstream calls=1; uma sessao de controle conclui durante a espera.
-- [ ] Rodar `dotnet test tests/Cortex.Temporal.Tests/Cortex.Temporal.Tests.csproj --filter "FullyQualifiedName~FeedbackWorkflowTests|FullyQualifiedName~FeedbackRestartTests"`; confirmar falta do Workflow. Preparar binario do test server em cache permitido; falha de disponibilidade e reportada, nao convertida em teste skip bem-sucedido.
-- [ ] Implementar main loop de descritores; para feedback usar `Workflow.WaitConditionAsync` e timer do SDK. Update validator puro verifica shape/identidade/digest/idempotencia. Handler primeiro chama ValidateFeedback Activity sem marcar resolucao; apos await, revalida pedido ativo/digest/timeout e aceita atomicamente a primeira resolucao valida. Texto vem por ref persistida pelo host. Persistir resultado via ResolveFeedback Activity, que revalida autorizacao atual antes de publicar. Consultas sao puras. Shutdown do worker nao chama CancelAsync.
-- [ ] Rodar time skipping para timeout e servidor persistente com dois workers sucessivos para restart; servidor permanece vivo entre workers. Confirmar que a resposta com timeout do cliente pode ser consultada/repetida com a mesma chave.
-- [ ] Commit: `feat(temporal): wait durably for authenticated human feedback`.
+- [x] Escrever `WaitingHasNoLongRunningActivity`, `WorkerRestartThenFeedbackKeepsExecutionIdAndPreviousOutputs`, `DuplicateFeedbackReturnsOriginalReceipt`, `ConflictingLateWrongScopeAndWrongDigestFail`, `TimeoutAndFeedbackResolveOnlyOnce`, `CancelDoesNotTakeThenOrTimeout`, `UnauthorizedFeedbackLeavesRequestPending`. Antes da resposta, downstream prompt calls=0; depois, upstream calls=1 e downstream calls=1; uma sessao de controle conclui durante a espera.
+- [x] Rodar `dotnet test tests/Cortex.Temporal.Tests/Cortex.Temporal.Tests.csproj --filter "FullyQualifiedName~FeedbackWorkflowTests|FullyQualifiedName~FeedbackRestartTests"`; confirmar falta do Workflow. Preparar binario do test server em cache permitido; falha de disponibilidade e reportada, nao convertida em teste skip bem-sucedido.
+- [x] Implementar main loop de descritores; para feedback usar `Workflow.WaitConditionAsync` e timer do SDK. Update validator puro verifica shape/identidade/digest/idempotencia. Handler primeiro chama ValidateFeedback Activity sem marcar resolucao; apos await, revalida pedido ativo/digest/timeout e aceita atomicamente a primeira resolucao valida. Texto vem por ref persistida pelo host. Persistir resultado via ResolveFeedback Activity, que revalida autorizacao atual antes de publicar. Consultas sao puras. Shutdown do worker nao chama CancelAsync.
+- [x] Rodar time skipping para timeout e servidor persistente com dois workers sucessivos para restart; servidor permanece vivo entre workers. Confirmar que a resposta com timeout do cliente pode ser consultada/repetida com a mesma chave.
+- [x] Commit: `feat(temporal): wait durably for authenticated human feedback`.
 
 ## Tarefa 9: Coordenador duravel de sessao, batching e rotacao
 
