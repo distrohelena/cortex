@@ -161,6 +161,23 @@ internal sealed class OutboundJournal : IDisposable
     internal bool IsIndeterminate(string sessionRef, string attemptRef) =>
         Attempts(sessionRef).Contains(attemptRef) && Latest(attemptRef) == "indeterminate";
 
+    internal ShadowSendResult? RecoverExecution(string sessionRef, string executionId)
+    {
+        var executionRef = ShadowOutboundHost.Hash(sessionRef + "\n" + executionId);
+        var latest = entries.LastOrDefault(e => e.SessionRef == sessionRef && e.ExecutionRef == executionRef);
+        if (latest is null) return null;
+        var reservation = entries.First(e => e.AttemptRef == latest.AttemptRef);
+        var sent = entries.LastOrDefault(e => e.AttemptRef == latest.AttemptRef && e.Status == "sent");
+        return latest.Status switch
+        {
+            "sent" or "history_committed" => new("sent", "recovered_provider_receipt", latest.AttemptRef, null, sent!.ProviderMessageId,
+                new(reservation.SpeakerName!, reservation.SpeakerStableId!)) { ReplyToMessageId = reservation.ReplyToMessageId },
+            "pending" or "indeterminate" => new("indeterminate", "reconciliation_required", latest.AttemptRef),
+            "shadowed" => new("shadowed", "recovered_shadow_receipt", latest.AttemptRef),
+            _ => new("failed", "recovered_" + latest.Status, latest.AttemptRef)
+        };
+    }
+
     // Provider accepted, speech not yet in local history: everything needed to complete it once, without resending.
     internal IReadOnlyList<RecoverableSend> RecoverableSends(string sessionRef) =>
         Attempts(sessionRef).Where(attempt => Latest(attempt) == "sent").Select(attempt =>

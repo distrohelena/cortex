@@ -38,6 +38,7 @@ public sealed class ExecutionSnapshotCodecTests
         Assert.Same(FlowDomain.Memory, Assert.IsType<ArrayType>(restored.Values[new("memory", "items")].Type).ElementType);
         Assert.Equal("trusted", restored.Values[new("memory", "items")].Value[0].GetProperty("_memory").GetString());
         Assert.Equal("ref1", restored.References["stableId:person"]);
+        Assert.Same(restored.Values[new("prompt", "answer")], restored.Outputs["prompt"]["answer"]);
         Assert.Equal("next", restored.Cursor);
         Assert.Equal(3, restored.StateVersion);
         Assert.Single(restored.Steps);

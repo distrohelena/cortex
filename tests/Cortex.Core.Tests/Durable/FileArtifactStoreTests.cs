@@ -6,6 +6,17 @@ namespace Cortex.Core.Tests.Durable;
 
 public sealed class FileArtifactStoreTests
 {
+    [Theory]
+    [InlineData("{ \"text\": \"Não + <🌱>\" }")]
+    [InlineData("{\n  \"text\": \"a\"\n}")]
+    public async Task SerializerNormalizationDoesNotInvalidateDigest(string payload)
+    {
+        using var directory = new ArtifactDirectory();
+        ArtifactRef reference;
+        await using (var store = directory.Open()) reference = await store.PutOnceAsync(DurableIdentityTests.Scope, "unicode", ExecutionSnapshotCodecTests.Json(payload), TestContext.Current.CancellationToken);
+        await using var reopened = directory.Open();
+        Assert.Equal(ExecutionSnapshotCodecTests.Json(payload).GetProperty("text").GetString(), (await reopened.ReadAsync(reference, TestContext.Current.CancellationToken)).GetProperty("text").GetString());
+    }
     [Fact]
     public async Task ReopenReturnsIdenticalArtifact()
     {

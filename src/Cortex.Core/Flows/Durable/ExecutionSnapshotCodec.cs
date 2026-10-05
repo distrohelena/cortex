@@ -31,22 +31,30 @@ internal static class ExecutionSnapshotCodec
     private static readonly JsonSerializerOptions Options = new() { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow };
     private sealed record TypeWire(JsonElement Schema, string? Domain, TypeWire? Element, TypeWire? Inner, Dictionary<string, TypeWire>? Fields);
     private sealed record ValueWire(TypeWire Type, JsonElement Value);
-    private sealed record PortWire(string NodeId, string Port, ValueWire Value);
+    private sealed record PortWire(string NodeId, string Port, int ValueId);
     private sealed record SnapshotWire(int Version, ArtifactScope Scope, string BatchId, ArtifactRef ProjectRef,
         ArtifactRef BatchRef, string StateId, long StateVersion, SessionEntryKind EntryKind, string? Cursor,
         long Ordinal, ExecutionStatus Status, IReadOnlyList<TypedStep> Steps, IReadOnlyList<PortWire> Values,
-        Dictionary<string, Dictionary<string, ValueWire>> Outputs, Dictionary<string, string> References,
+        IReadOnlyList<ValueWire> TypedValues, Dictionary<string, Dictionary<string, int>> Outputs, Dictionary<string, string> References,
         JsonElement TrustedEvidence, bool SendAttempted, ConfirmedSend? ConfirmedSend, string? TargetStateId);
 
     internal static JsonElement Encode(ExecutionSnapshotV1 state)
     {
         Validate(state);
+        var ids = new Dictionary<TypedValue, int>(ReferenceEqualityComparer.Instance);
+        var table = new List<ValueWire>();
+        int ValueId(TypedValue value)
+        {
+            if (ids.TryGetValue(value, out var id)) return id;
+            id = table.Count; ids.Add(value, id); table.Add(EncodeValue(value)); return id;
+        }
+        var values = state.Values.OrderBy(x => x.Key.NodeId, StringComparer.Ordinal).ThenBy(x => x.Key.Port, StringComparer.Ordinal)
+            .Select(x => new PortWire(x.Key.NodeId, x.Key.Port, ValueId(x.Value))).ToArray();
+        var outputs = state.Outputs.OrderBy(x => x.Key, StringComparer.Ordinal).ToDictionary(x => x.Key,
+            x => x.Value.OrderBy(p => p.Key, StringComparer.Ordinal).ToDictionary(p => p.Key, p => ValueId(p.Value)));
         return JsonSerializer.SerializeToElement(new SnapshotWire(1, state.Scope, state.BatchId, state.ProjectRef,
             state.BatchRef, state.StateId, state.StateVersion, state.EntryKind, state.Cursor, state.Ordinal, state.Status,
-            state.Steps.ToArray(), state.Values.OrderBy(x => x.Key.NodeId, StringComparer.Ordinal).ThenBy(x => x.Key.Port, StringComparer.Ordinal)
-                .Select(x => new PortWire(x.Key.NodeId, x.Key.Port, EncodeValue(x.Value))).ToArray(),
-            state.Outputs.OrderBy(x => x.Key, StringComparer.Ordinal).ToDictionary(x => x.Key,
-                x => x.Value.OrderBy(p => p.Key, StringComparer.Ordinal).ToDictionary(p => p.Key, p => EncodeValue(p.Value))),
+            state.Steps.ToArray(), values, table, outputs,
             state.References.OrderBy(x => x.Key, StringComparer.Ordinal).ToDictionary(x => x.Key, x => x.Value),
             state.TrustedEvidence.Clone(), state.SendAttempted, state.ConfirmedSend, state.TargetStateId), Options);
     }
@@ -62,8 +70,10 @@ internal static class ExecutionSnapshotCodec
                 Cursor = wire.Cursor, Ordinal = wire.Ordinal, Status = wire.Status, TrustedEvidence = wire.TrustedEvidence.Clone(),
                 SendAttempted = wire.SendAttempted, ConfirmedSend = wire.ConfirmedSend, TargetStateId = wire.TargetStateId };
             state.Steps.AddRange(wire.Steps);
-            foreach (var port in wire.Values) state.Values.Add(new(port.NodeId, port.Port), DecodeValue(port.Value));
-            foreach (var output in wire.Outputs) state.Outputs.Add(output.Key, output.Value.ToDictionary(p => p.Key, p => DecodeValue(p.Value)));
+            var table = wire.TypedValues.Select(DecodeValue).ToArray();
+            TypedValue ValueAt(int id) => id >= 0 && id < table.Length ? table[id] : throw new InvalidDataException("Invalid typed value reference.");
+            foreach (var port in wire.Values) state.Values.Add(new(port.NodeId, port.Port), ValueAt(port.ValueId));
+            foreach (var output in wire.Outputs) state.Outputs.Add(output.Key, output.Value.ToDictionary(p => p.Key, p => ValueAt(p.Value)));
             foreach (var reference in wire.References) state.References.Add(reference.Key, reference.Value);
             Validate(state);
             return state;

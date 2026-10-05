@@ -11,6 +11,7 @@ public sealed class Boundary
     internal Boundary(MemoryItem source, string hash, BoundaryAdmissionResult admitted)
     {
         OriginalText = source.Content;
+        Admission = admitted;
         TopicEvidence = admitted.Topic!.Value.Extract(source.Content);
         ConstraintEvidence = admitted.Constraint!.Value.Extract(source.Content);
         NormativeClauseSpan = admitted.NormativeClause!.Value;
@@ -27,6 +28,7 @@ public sealed class Boundary
     internal BoundarySourceSpan NormativeClauseSpan { get; }
     internal BoundarySource Source { get; }
     internal BoundaryCompilation Compilation { get; }
+    internal BoundaryAdmissionResult Admission { get; }
 }
 
 internal sealed record BoundarySource(string MemoryId, string SourceHash, string ConversationNamespace,

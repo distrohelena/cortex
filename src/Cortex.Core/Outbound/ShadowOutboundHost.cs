@@ -4,6 +4,7 @@ using System.Text.Json;
 using Cortex.Core.Conversations;
 using Cortex.Core.Flows;
 using Cortex.Core.Flows.Sessions;
+using Cortex.Core.Flows.Durable;
 
 namespace Cortex.Core.Outbound;
 
@@ -158,8 +159,33 @@ public sealed class ShadowOutboundHost : IDisposable
     internal OutboundExecution Begin(JsonElement project, string executionId, SessionKey session, SessionEntryKind kind,
         IEnumerable<string> inboundIds, IEnumerable<string>? replyTargetIds = null, bool shadowOnly = false,
         Action? validateCurrentContext = null) =>
-        new(this, bindings, Fingerprint(project) == projectHash, executionId, session, kind, inboundIds.ToArray(),
+        new(this, bindings, Fingerprint(project) == projectHash, Fingerprint(project), executionId, session, kind, inboundIds.ToArray(),
             replyTargetIds?.ToHashSet(StringComparer.Ordinal) ?? [], shadowOnly, validateCurrentContext);
+
+    internal OutboundExecution RestoreExecution(ExecutionHostBinding binding, OutboundExecutionEvidence evidence,
+        IReadOnlyDictionary<PortRef, TypedValue> values)
+    {
+        if (evidence.Version != 1 || binding.OutboundHost != this || binding.Scope.Session != evidence.Session
+            || binding.Scope.ExecutionId != evidence.ExecutionId || Fingerprint(binding.Project) != evidence.ProjectFingerprint
+            || Hash(JsonSerializer.Serialize(bindings)) != evidence.RolesFingerprint || evidence.Attempts < 0)
+            throw new InvalidDataException("Outbound evidence does not match the current host binding.");
+        var execution = Begin(binding.Project, evidence.ExecutionId, evidence.Session, evidence.Kind,
+            evidence.InboundIds, evidence.ReplyTargetIds, evidence.ShadowOnly, binding.ValidateCurrentContext);
+        execution.RestoreEvidence(evidence, values);
+        _ = RecoverExecutionSend(execution);
+        return execution;
+    }
+
+    internal ShadowSendResult? RecoverExecutionSend(OutboundExecution execution)
+    {
+        lock (gate)
+        {
+            ObjectDisposedException.ThrowIf(disposed, this);
+            var recovered = journal.RecoverExecution(execution.SessionRef, execution.ExecutionId);
+            if (recovered is not null) execution.Recovered(recovered);
+            return recovered;
+        }
+    }
 
     internal async Task<ShadowSendResult> GuardAsync(OutboundExecution execution, bool provenance, string? enforcementRevision, string text, CancellationToken cancellationToken)
     {
@@ -353,6 +379,7 @@ internal sealed class OutboundExecution
 {
     private readonly ShadowOutboundHost host;
     private readonly OutboundBindings bindings;
+    private readonly string projectFingerprint;
     private TypedValue? recall;
     private TypedValue? compiled;
     private TypedValue? current;
@@ -379,16 +406,42 @@ internal sealed class OutboundExecution
     internal bool SupportsReplySelection => bindings.ReplyTargetPorts.Count > 0;
     internal bool ReplySelectionValid { get; private set; } = true;
     internal string? ReplyToMessageId { get; private set; }
-    internal OutboundExecution(ShadowOutboundHost host, OutboundBindings bindings, bool projectAuthorized,
+    internal OutboundExecution(ShadowOutboundHost host, OutboundBindings bindings, bool projectAuthorized, string projectFingerprint,
         string executionId, SessionKey session, SessionEntryKind kind, string[] inboundIds, HashSet<string> replyTargetIds,
         bool shadowOnly, Action? validateCurrentContext = null)
     {
         this.host = host; this.bindings = bindings; ProjectAuthorized = projectAuthorized;
+        this.projectFingerprint = projectFingerprint;
         ShadowOnly = shadowOnly;
         ExecutionId = executionId; Session = session; Kind = kind; InboundIds = inboundIds;
         this.replyTargetIds = replyTargetIds;
         this.validateCurrentContext = validateCurrentContext;
         SessionRef = ShadowOutboundHost.Hash(JsonSerializer.Serialize(session));
+    }
+    internal OutboundExecutionEvidence CaptureEvidence(IReadOnlyDictionary<PortRef, TypedValue> values)
+    {
+        PortRef? Key(TypedValue? value) => value is null ? null : values.FirstOrDefault(x => ReferenceEquals(x.Value, value)).Key
+            ?? throw new InvalidDataException("Outbound provenance is absent from the checkpoint.");
+        return new(1, projectFingerprint, ShadowOutboundHost.Hash(JsonSerializer.Serialize(bindings)), ExecutionId,
+            Session, Kind, InboundIds.ToArray(), replyTargetIds.Order(StringComparer.Ordinal).ToArray(), ShadowOnly,
+            Key(recall), Key(compiled), Key(current), Key(approved), revision, attempts, AttemptRef, ProviderMessageId,
+            ReplySelectionValid, ReplyToMessageId, generationRef, boundarySetRef, receiptAccount);
+    }
+    internal void RestoreEvidence(OutboundExecutionEvidence evidence, IReadOnlyDictionary<PortRef, TypedValue> values)
+    {
+        TypedValue? Value(PortRef? key) => key is null ? null : values.TryGetValue(key, out var value) ? value
+            : throw new InvalidDataException("Missing outbound provenance value.");
+        recall = Value(evidence.Recall); compiled = Value(evidence.Compiled); current = Value(evidence.Current); approved = Value(evidence.Approved);
+        revision = evidence.EnforcementRevision; attempts = evidence.Attempts; AttemptRef = evidence.AttemptRef;
+        ProviderMessageId = evidence.ProviderMessageId; ReplySelectionValid = evidence.ReplySelectionValid;
+        ReplyToMessageId = evidence.ReplyToMessageId; generationRef = evidence.GenerationRef; boundarySetRef = evidence.BoundarySetRef;
+        receiptAccount = evidence.ReceiptAccount;
+    }
+    internal void Recovered(ShadowSendResult result)
+    {
+        attempts = Math.Max(attempts, 1);
+        AttemptRef = result.JournalRef;
+        ProviderMessageId = result.ProviderMessageId;
     }
     internal bool ContextStillValid()
     {

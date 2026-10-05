@@ -14,6 +14,59 @@ internal sealed class BoundaryExecutionRegistry(string conversationNamespace, Ti
     private readonly Dictionary<string, (Boundary Boundary, JsonElement Visual)> boundaries = new(StringComparer.Ordinal);
     internal int PublishedBoundaryCount => boundaries.Count;
 
+    internal BoundaryExecutionEvidence CaptureEvidence() => new(1, conversationNamespace,
+        memories.OrderBy(x => x.Key, StringComparer.Ordinal).Select(x => new MemoryExecutionEvidence(x.Key, x.Value.Snapshot, x.Value.Visual.Clone())).ToArray(),
+        boundaries.OrderBy(x => x.Key, StringComparer.Ordinal).Select(x => new CompiledBoundaryEvidence(x.Key,
+            memories.Values.First(m => SourceHash(m.Snapshot) == x.Value.Boundary.Source.SourceHash).Snapshot,
+            x.Value.Boundary.Source.SourceHash, x.Value.Boundary.Admission, x.Value.Visual.Clone())).ToArray());
+
+    // Caller must read this evidence from an integrity-checked private artifact, never from client/model JSON.
+    internal static BoundaryExecutionRegistry RestoreEvidence(string conversationNamespace, BoundaryExecutionEvidence evidence,
+        DateTimeOffset now, TimeProvider? clock = null)
+    {
+        if (evidence.Version != 1 || evidence.ConversationNamespace != conversationNamespace) throw Failure("", "source-namespace-mismatch");
+        var registry = new BoundaryExecutionRegistry(conversationNamespace, clock);
+        foreach (var entry in evidence.Memories)
+        {
+            CheckHandle(entry.Handle);
+            var snapshot = entry.Snapshot;
+            if (snapshot.ConversationNamespace != conversationNamespace) throw Failure(snapshot.Id, "source-namespace-mismatch");
+            ValidateActive(snapshot.Id, snapshot.ValidAt, snapshot.InvalidAt, snapshot.ExpiredAt, now);
+            foreach (var person in snapshot.Subjects)
+            {
+                var expected = MemoryIdentity.Person(conversationNamespace, person.ActorStableId, person.DisplayName);
+                if (person.ParticipantUuid != expected.ParticipantUuid || person.ActorStableId != expected.ActorStableId)
+                    throw Failure(snapshot.Id, "source-subject-not-canonical");
+            }
+            var visual = JsonNode.Parse(MemoryValues.Serialize([snapshot])[0].GetRawText())!;
+            visual["_memory"] = entry.Handle;
+            if (!JsonElement.DeepEquals(JsonSerializer.SerializeToElement(visual), entry.Visual)) throw Failure(snapshot.Id, "untrusted-memory-value");
+            registry.memories.Add(entry.Handle, (snapshot, entry.Visual.Clone()));
+        }
+        foreach (var entry in evidence.Boundaries)
+        {
+            CheckHandle(entry.Handle);
+            var source = entry.Source;
+            var matching = registry.memories.Values.FirstOrDefault(x => SourceHash(x.Snapshot) == entry.SourceHash);
+            if (matching.Snapshot is null || SourceHash(source) != entry.SourceHash) throw Failure(source.Id, "untrusted-boundary-source");
+            _ = registry.ResolveMemory(matching.Visual, now);
+            var admitted = BoundaryAdmission.Analyze(source.Content);
+            if (admitted.Status != "compiled" || admitted != entry.Admission) throw Failure(source.Id, "untrusted-boundary-admission");
+            var boundary = new Boundary(source, entry.SourceHash, admitted);
+            var visual = JsonSerializer.SerializeToElement(new { status = boundary.Status, kind = boundary.Kind,
+                originalText = boundary.OriginalText, topicEvidence = boundary.TopicEvidence,
+                constraintEvidence = boundary.ConstraintEvidence, _boundary = entry.Handle });
+            if (!JsonElement.DeepEquals(visual, entry.Visual)) throw Failure(source.Id, "untrusted-boundary-value");
+            registry.boundaries.Add(entry.Handle, (boundary, entry.Visual.Clone()));
+        }
+        return registry;
+    }
+    private static string SourceHash(MemoryItem source) => Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(source))));
+    private static void CheckHandle(string handle)
+    {
+        if (handle.Length != 64 || handle.Any(c => !char.IsAsciiHexDigit(c))) throw Failure("", "untrusted-evidence-handle");
+    }
+
     internal JsonElement RegisterMemories(IReadOnlyList<MemoryItem> items)
     {
         var output = new List<JsonElement>();

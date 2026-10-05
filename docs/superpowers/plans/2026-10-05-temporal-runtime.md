@@ -150,8 +150,8 @@ testar em `tests/Cortex.Core.Tests/Durable/TrustedEvidenceTests.cs`, `OutboundEv
 
 **Interfaces:** APIs internas `BoundaryExecutionEvidence CaptureEvidence()` e
 `BoundaryExecutionRegistry RestoreEvidence(string conversationNamespace, BoundaryExecutionEvidence evidence, DateTimeOffset now)`;
-`OutboundExecutionEvidence CaptureEvidence()` e
-`OutboundExecution RestoreExecution(ExecutionHostBinding binding, OutboundExecutionEvidence evidence)`.
+`OutboundExecutionEvidence CaptureEvidence(IReadOnlyDictionary<PortRef, TypedValue> values)` e
+`OutboundExecution RestoreExecution(ExecutionHostBinding binding, OutboundExecutionEvidence evidence, IReadOnlyDictionary<PortRef, TypedValue> values)`.
 Criar `ExecutionHostBinding` em `Flows/Durable/ExecutionHostBinding.cs`: sessao/revisao,
 `ISessionFlowCompletionFactory`, `IMemoryReader`, `ShadowOutboundHost?`, `TimeProvider`,
 timeouts de node por StepEffect e callbacks `SessionInstructionOutput`/`SessionNodeVisit` existentes.
@@ -160,11 +160,11 @@ ausencia rejeita; verifica atestado privado da resposta e direitos atuais. Actor
 nao constitui prova de autenticacao.
 Binding e objeto somente do host, nunca serializado. Evidencia contem snapshots/visuais e handles originais, namespace e fatos de geracao/enforcement/recibo; nao concede autoridade por si.
 
-- [ ] Escrever `MemoryAndBoundaryHandlesSurviveRegistryRecreation`, `ForgedVisualForeignNamespaceAndExpiredSourceFail`, `RevokedHostDoesNotRegainSendingAuthority`. `ReceiptWithoutNodeCheckpointRecoversSameProviderId` deve produzir um unico PendingSpeechCommit; `IndeterminateAttemptNeverCallsTransportAgain` deve manter calls=1 depois de recriar host e tentar recuperar.
-- [ ] Rodar `dotnet test tests/Cortex.Core.Tests/Cortex.Core.Tests.csproj --filter "FullyQualifiedName~TrustedEvidenceTests|FullyQualifiedName~OutboundEvidenceRecoveryTests"`; confirmar falhas ligadas a evidencia ausente.
-- [ ] Implementar captura/restauracao apenas no caminho interno confiavel ligado ao store das tarefas 1/2. Revalidar digest, scope, original visual, sujeito canonico e validade. Restaurar journal a partir dos estados existentes, preservando tentativa/ExecutionId e status indeterminado.
-- [ ] Rodar o filtro e `dotnet test tests/Cortex.Core.Tests/Cortex.Core.Tests.csproj --filter "FullyQualifiedName~Boundaries|FullyQualifiedName~Outbound"`; esperar paridade dos controles existentes, sem transporte real.
-- [ ] Commit: `feat(core): restore trusted execution evidence without reissuing effects`.
+- [x] Escrever `MemoryAndBoundaryHandlesSurviveRegistryRecreation`, `ForgedVisualForeignNamespaceAndExpiredSourceFail`, `RevokedHostDoesNotRegainSendingAuthority`. `ReceiptWithoutNodeCheckpointRecoversSameProviderId` deve produzir um unico PendingSpeechCommit; `IndeterminateAttemptNeverCallsTransportAgain` deve manter calls=1 depois de recriar host e tentar recuperar.
+- [x] Rodar `dotnet test tests/Cortex.Core.Tests/Cortex.Core.Tests.csproj --filter "FullyQualifiedName~TrustedEvidenceTests|FullyQualifiedName~OutboundEvidenceRecoveryTests"`; confirmar falhas ligadas a evidencia ausente.
+- [x] Implementar captura/restauracao apenas no caminho interno confiavel ligado ao store das tarefas 1/2. Revalidar digest, scope, original visual, sujeito canonico e validade. Restaurar journal a partir dos estados existentes, preservando tentativa/ExecutionId e status indeterminado.
+- [x] Rodar o filtro e `dotnet test tests/Cortex.Core.Tests/Cortex.Core.Tests.csproj --filter "FullyQualifiedName~Boundaries|FullyQualifiedName~Outbound"`; esperar paridade dos controles existentes, sem transporte real.
+- [x] Commit: `feat(core): restore trusted execution evidence without reissuing effects`.
 
 ## Tarefa 4: Kernel incremental compartilhado com o runner local
 

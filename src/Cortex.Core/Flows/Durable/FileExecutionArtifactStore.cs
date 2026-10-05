@@ -125,7 +125,7 @@ public sealed class FileExecutionArtifactStore : IExecutionArtifactStore, IAsync
     private string ArtifactPath(ArtifactScope scope, string key) => Path.Combine(directory,
         ScopeHash(scope) + "_" + DurableIdentity.Hash("key", [key]) + ".json");
     private static string ScopeHash(ArtifactScope scope) => DurableIdentity.Hash("scope", DurableIdentity.ScopeParts(scope));
-    private static string Digest(JsonElement payload) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(payload.GetRawText())));
+    private static string Digest(JsonElement payload) => Convert.ToHexStringLower(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(payload, Options)));
     private static Envelope ReadEnvelope(string path)
     {
         try
