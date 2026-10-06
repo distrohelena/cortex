@@ -7,7 +7,7 @@ public static class TakeCandidates
     public const int MaxCandidates = 32;
     public static IReadOnlyList<TakeCandidate> Build(TranscriptResult transcript)
     {
-        if (transcript.Segments is null || transcript.Segments.Count > 512) throw new InvalidDataException("Use uma transcrição com até 512 segmentos neste recorte.");
+        if (transcript.Segments is null || transcript.Segments.Count > 512) throw new InvalidDataException("Use a transcript with at most 512 segments in this slice.");
         var candidates = new List<TakeCandidate>();
         var parts = new List<string>(); var ids = new List<int>();
         double start = 0, end = 0, previousEnd = 0;
@@ -16,13 +16,13 @@ public static class TakeCandidates
             if (parts.Count == 0) return;
             candidates.Add(new("take-" + (candidates.Count + 1).ToString("D4"), new(start, end, ids.ToArray()), string.Join(" ", parts)));
             parts.Clear(); ids.Clear();
-            if (candidates.Count > MaxCandidates) throw new InvalidDataException("A transcrição gera mais de 32 candidatos; reduza o trecho antes de avaliar.");
+            if (candidates.Count > MaxCandidates) throw new InvalidDataException("The transcript produces more than 32 candidates; use a shorter section before evaluating.");
         }
         for (var index = 0; index < transcript.Segments.Count; index++)
         {
             var segment = transcript.Segments[index];
             if (segment is null || segment.Text is null || !double.IsFinite(segment.Start) || !double.IsFinite(segment.End) || segment.Start < previousEnd || segment.End <= segment.Start)
-                throw new InvalidDataException("Segmentos precisam de texto e tempos crescentes válidos.");
+                throw new InvalidDataException("Segments require text and valid increasing timestamps.");
             previousEnd = segment.End;
             var speech = Regex.Replace(segment.Text, @"\[[^\]]{1,64}\]", " ").Trim();
             if (!Regex.IsMatch(speech, @"[\p{L}\p{N}]")) { Flush(); continue; }

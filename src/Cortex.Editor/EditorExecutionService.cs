@@ -31,7 +31,7 @@ public sealed class EditorExecutionService(IReadOnlyList<FlowNodeHandler> handle
     public EditorValidation Validate(JsonElement graph, string? entryId)
     {
         var entry = SelectEntry(graph, entryId);
-        if (entry is null) return new(false, null, [new("graph", "entry", "Selecione uma entrada disponível. Confira os plugins nas Configurações.")]);
+        if (entry is null) return new(false, null, [new("graph", "entry", "Select an available entry node. Check the plugins in Settings.")]);
         try { _ = TypedFlowCompiler.Compile(graph, entry, handlers); return new(true, entry, []); }
         catch (TypedFlowException error) { return new(false, entry, error.Issues); }
     }
@@ -41,7 +41,7 @@ public sealed class EditorExecutionService(IReadOnlyList<FlowNodeHandler> handle
         await _mutations.WaitAsync(token);
         try
         {
-            if (Busy) throw new InvalidOperationException("Aguarde ou cancele a execução antes de alterar o graph ou as settings.");
+            if (Busy) throw new InvalidOperationException("Wait for the run to finish or cancel it before changing the graph or settings.");
             await mutation();
         }
         finally { _mutations.Release(); }
@@ -51,7 +51,7 @@ public sealed class EditorExecutionService(IReadOnlyList<FlowNodeHandler> handle
         await _mutations.WaitAsync(token);
         try
         {
-            if (Busy) throw new InvalidOperationException("Já existe uma execução em andamento.");
+            if (Busy) throw new InvalidOperationException("A run is already in progress.");
             var validation = Validate(graph, entryId);
             if (!validation.Success) throw new TypedFlowException(validation.Issues);
             var flow = TypedFlowCompiler.Compile(graph.Clone(), validation.EntryId!, handlers);
@@ -81,7 +81,7 @@ public sealed class EditorExecutionService(IReadOnlyList<FlowNodeHandler> handle
             }, CortexSettingsStore.JsonOptions);
             lock (_sync) _snapshot = _snapshot with { State = result.Success ? "completed" : "failed", Result = output };
         }
-        catch (OperationCanceledException) { lock (_sync) _snapshot = _snapshot with { State = "cancelled", Error = "Execução cancelada." }; }
+        catch (OperationCanceledException) { lock (_sync) _snapshot = _snapshot with { State = "cancelled", Error = "Run cancelled." }; }
         catch (Exception error) when (error is not OutOfMemoryException)
         { lock (_sync) _snapshot = _snapshot with { State = "failed", Error = error.Message }; }
         finally { lock (_sync) _busy = false; }

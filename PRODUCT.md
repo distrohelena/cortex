@@ -29,7 +29,7 @@ Windows local, .NET 10, biblioteca Cortex.Core e componente de canvas TypeScript
 
 ## Brand Commitments
 
-Nome Cortex. Linguagem clara em português. Nomes dos três nodes seguem o graph já executado. O canvas existente é a referência visual; não foi solicitada uma nova identidade visual.
+Nome Cortex. Interface, nomes dos nodes, campos e metadados gerados em inglês. A transcrição preserva o idioma do vídeo. O canvas existente é a referência visual; não foi solicitada uma nova identidade visual.
 
 ## Evidence on Hand
 

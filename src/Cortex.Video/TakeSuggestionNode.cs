@@ -21,10 +21,10 @@ public static class TakeSuggestionNode
         new NodeDefinition("suggestTakes", 1, FlowEffect.Model,
             dataInputs: [new("transcript", VideoNodes.TranscriptType, Required: true)], dataOutputs: [new("editPlan", EditPlanType)],
             controlInputs: [new("exec")], controlOutputs: [new("then")],
-            configFields: [new("goal", Text, Required: true) { Label = "Objetivo editorial" }]) { DisplayName = "Sugerir Takes" },
+            configFields: [new("goal", Text, Required: true) { Label = "Editorial goal" }]) { DisplayName = "Suggest Takes" },
         async (config, inputs, token) =>
         {
-            var transcript = inputs["transcript"].Value.Deserialize<TranscriptResult>(VideoNodes.JsonOptions) ?? throw new InvalidDataException("Transcrição indisponível.");
+            var transcript = inputs["transcript"].Value.Deserialize<TranscriptResult>(VideoNodes.JsonOptions) ?? throw new InvalidDataException("Transcript unavailable.");
             var plan = await suggester.SuggestAsync(transcript, config.GetProperty("goal").GetString()!, token);
             return new Dictionary<string, JsonElement> { ["editPlan"] = JsonSerializer.SerializeToElement(plan, VideoNodes.JsonOptions) };
         });

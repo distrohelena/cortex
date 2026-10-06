@@ -23,7 +23,7 @@ O script `start-cortex-editor.ps1` abre o navegador local. `-NoOpen` permite ini
 
 ## Plugins
 
-Em Configurações → Plugins, escolha o plugin e configure suas opções. A tela mostra o estado ativo neste início e avisa quando uma configuração salva exige reiniciar.
+Em Settings → Plugins, escolha o plugin e configure suas opções. A tela mostra o estado ativo neste início e avisa quando uma configuração salva exige reiniciar.
 
 O editor e os consumidores não referenciam `Cortex.Video` estaticamente. Quando desativado, o loader não abre sua DLL nem resolve/constrói seu tipo. Um manifesto JSON oferece nome/descrição/campos de configuração sem carregar código. Ao habilitar e reiniciar, o loader usa `AssemblyLoadContext`/`AssemblyDependencyResolver`, compartilhando os contratos da instância de `Cortex.Core` do host. [Referência oficial .NET](https://learn.microsoft.com/en-us/dotnet/core/tutorials/creating-app-with-plugin-support).
 
@@ -53,7 +53,7 @@ Caminhos relativos de um manifesto são resolvidos a partir dele. Caminhos de fe
 
 ## Usar o editor
 
-Abra um graph v3 ou adicione nodes do catálogo. Configure suas entradas, conecte fios de dados e de execução, valide e execute. A seleção de um node mostra suas propriedades e outputs tipados; objetos são apresentados por campos e listas de objetos como tabelas, com o schema disponível para inspeção. Enquadrar ajusta o canvas; pan/zoom e arraste usam o componente existente.
+Abra um graph v3 ou adicione nodes do catálogo. Configure suas entradas, conecte fios de dados e de execução, valide e execute. A seleção de um node mostra suas propriedades e outputs tipados; objetos são apresentados por campos e listas de objetos como tabelas, com o schema disponível para inspeção. Fit ajusta o canvas; pan/zoom e arraste usam o componente existente.
 
 Um graph com nodes indisponíveis continua visível e preservado. A execução é bloqueada até os plugins necessários estarem ativos. O editor preserva campos/metadata desconhecidos do documento e permite salvar o arquivo aberto ou baixar um JSON quando o arquivo foi importado pelo navegador.
 

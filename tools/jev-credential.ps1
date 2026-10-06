@@ -9,7 +9,7 @@ function Invoke-WithJevCredential {
         $env:TYPESAFE_API_KEY = [Runtime.InteropServices.Marshal]::PtrToStringUni($taskPointer)
         [Runtime.InteropServices.Marshal]::ZeroFreeGlobalAllocUnicode($taskPointer)
         $taskPointer = [IntPtr]::Zero
-        if ([string]::IsNullOrWhiteSpace($env:TYPESAFE_API_KEY)) { throw 'Credencial Jev indisponível.' }
+        if ([string]::IsNullOrWhiteSpace($env:TYPESAFE_API_KEY)) { throw 'Jev credential unavailable.' }
         & $Action
     } finally {
         if ($taskPointer -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeGlobalAllocUnicode($taskPointer) }

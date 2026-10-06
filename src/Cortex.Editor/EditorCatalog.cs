@@ -17,8 +17,8 @@ public static class EditorCatalog
         fields = handler.Definition.ConfigFields.Select(field => new { name = field.Name, label = field.Label ?? Title(field.Name), required = field.Required, schema = field.Type.ToJsonSchema() }),
         ports = handler.Definition.DataInputs.Select(port => new { id = port.Name, label = port.Name, type = port.Type.Kind, direction = "in" })
             .Concat(handler.Definition.DataOutputs.Select(port => new { id = port.Name, label = port.Name, type = port.Type.Kind, direction = "out" })),
-        executionPorts = handler.Definition.ControlInputs.Select(port => new { id = port.Name, label = "Executar", direction = "in" })
-            .Concat(handler.Definition.ControlOutputs.Select(port => new { id = port.Name, label = "Próximo", direction = "out" }))
+        executionPorts = handler.Definition.ControlInputs.Select(port => new { id = port.Name, label = "Run", direction = "in" })
+            .Concat(handler.Definition.ControlOutputs.Select(port => new { id = port.Name, label = "Next", direction = "out" }))
     }).ToArray();
 
     public static Dictionary<string, object> Descriptions(JsonElement graph, IReadOnlyList<FlowNodeHandler> handlers)
@@ -35,9 +35,9 @@ public static class EditorCatalog
             var controls = graph.TryGetProperty("controlEdges", out var ce) ? ce.EnumerateArray().ToArray() : [];
             object[] Ports(JsonElement[] connections) => connections.SelectMany(edge => new[] { "source", "target" }
                 .Where(end => edge.GetProperty(end).GetString() == id)
-                .Select(end => (object)new { id = edge.GetProperty(end + "Port").GetString(), label = edge.GetProperty(end + "Port").GetString(), type = "indisponível", direction = end == "source" ? "out" : "in" }))
+                .Select(end => (object)new { id = edge.GetProperty(end + "Port").GetString(), label = edge.GetProperty(end + "Port").GetString(), type = "unavailable", direction = end == "source" ? "out" : "in" }))
                 .DistinctBy(port => JsonSerializer.Serialize(port)).ToArray();
-            return (object)new { kind, title = Title(kind), className = "unavailable", preview = "Node indisponível · confira os plugins", fields = Array.Empty<object>(), ports = Ports(edges), executionPorts = Ports(controls) };
+            return (object)new { kind, title = Title(kind), className = "unavailable", preview = "Node unavailable · check plugins", fields = Array.Empty<object>(), ports = Ports(edges), executionPorts = Ports(controls) };
         });
     }
 }

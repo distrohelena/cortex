@@ -12,7 +12,7 @@ public sealed class EditorGraphStore
     public async Task OpenFileAsync(string path, string? entryId, CancellationToken token)
     {
         var full = Path.GetFullPath(path);
-        if (new FileInfo(full).Length > 4194304) throw new InvalidDataException("Graph excede 4 MiB.");
+        if (new FileInfo(full).Length > 4194304) throw new InvalidDataException("The graph exceeds 4 MiB.");
         using var source = JsonDocument.Parse(await File.ReadAllTextAsync(full, token));
         Replace(source.RootElement, entryId);
         FilePath = full;
@@ -25,23 +25,23 @@ public sealed class EditorGraphStore
             !graph.TryGetProperty("nodes", out var nodes) || nodes.ValueKind != JsonValueKind.Array || nodes.GetArrayLength() > 64 ||
             !graph.TryGetProperty("edges", out var edges) || edges.ValueKind != JsonValueKind.Array || edges.GetArrayLength() > 128 ||
             graph.TryGetProperty("controlEdges", out var controls) && (controls.ValueKind != JsonValueKind.Array || controls.GetArrayLength() > 128))
-            throw new InvalidDataException("Use um graph v3 com até 64 nodes e 128 fios de cada tipo.");
+            throw new InvalidDataException("Use a v3 graph with at most 64 nodes and 128 wires of each type.");
         var ids = new HashSet<string>(StringComparer.Ordinal);
         foreach (var node in nodes.EnumerateArray())
             if (node.ValueKind != JsonValueKind.Object || !node.TryGetProperty("id", out var id) || id.ValueKind != JsonValueKind.String ||
                 string.IsNullOrWhiteSpace(id.GetString()) || !ids.Add(id.GetString()!) ||
                 !node.TryGetProperty("kind", out var kind) || kind.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(kind.GetString()))
-                throw new InvalidDataException("Nodes precisam de IDs únicos e kinds preenchidos.");
+                throw new InvalidDataException("Nodes require unique IDs and nonempty kinds.");
         foreach (var edge in edges.EnumerateArray().Concat(graph.TryGetProperty("controlEdges", out var wires) ? wires.EnumerateArray() : []))
             foreach (var field in new[] { "source", "target", "sourcePort", "targetPort" })
                 if (edge.ValueKind != JsonValueKind.Object || !edge.TryGetProperty(field, out var value) || value.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(value.GetString()))
-                    throw new InvalidDataException("Fios precisam de nodes e portas preenchidos.");
+                    throw new InvalidDataException("Wires require nonempty node and port IDs.");
         Graph = graph.Clone();
         EntryId = entryId;
     }
     public async Task SaveAsync(CancellationToken token)
     {
-        if (FilePath is null) throw new InvalidOperationException("Este graph deve ser salvo como download.");
+        if (FilePath is null) throw new InvalidOperationException("Save this graph by downloading it.");
         var temporary = FilePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
         try
         {

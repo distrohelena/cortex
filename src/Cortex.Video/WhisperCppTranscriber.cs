@@ -12,8 +12,8 @@ public sealed class WhisperCppTranscriber(TranscriptionTools tools, Action<strin
 {
     public async Task<TranscriptResult> TranscribeAsync(string videoPath, CancellationToken token)
     {
-        if (!File.Exists(tools.WhisperExecutable)) throw new InvalidDataException("whisper-cli não encontrado: " + tools.WhisperExecutable);
-        if (!File.Exists(tools.ModelFile)) throw new InvalidDataException("Modelo Whisper não encontrado: " + tools.ModelFile);
+        if (!File.Exists(tools.WhisperExecutable)) throw new InvalidDataException("whisper-cli not found: " + tools.WhisperExecutable);
+        if (!File.Exists(tools.ModelFile)) throw new InvalidDataException("Whisper model not found: " + tools.ModelFile);
         var directory = Path.Combine(Path.GetTempPath(), "cortex-video-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         using var deadline = CancellationTokenSource.CreateLinkedTokenSource(token);
@@ -26,7 +26,7 @@ public sealed class WhisperCppTranscriber(TranscriptionTools tools, Action<strin
             using (var media = JsonDocument.Parse(probe))
             {
                 var streams = media.RootElement.GetProperty("streams").EnumerateArray().Select(s => s.GetProperty("codec_type").GetString()).ToArray();
-                if (!streams.Contains("video") || !streams.Contains("audio")) throw new InvalidDataException("O arquivo precisa conter vídeo e áudio.");
+                if (!streams.Contains("video") || !streams.Contains("audio")) throw new InvalidDataException("The file must contain both video and audio.");
             }
             var audio = Path.Combine(directory, "audio.wav");
             await RunAsync(tools.FfmpegExecutable,
@@ -35,17 +35,17 @@ public sealed class WhisperCppTranscriber(TranscriptionTools tools, Action<strin
             // GPU is enabled by default in whisper.cpp; do not translate Portuguese into English.
             await RunAsync(Path.GetFullPath(tools.WhisperExecutable),
                 ["-m", Path.GetFullPath(tools.ModelFile), "-f", audio, "-l", "pt", "-oj", "-of", output], deadline.Token);
-            if (!File.Exists(output + ".json")) throw new InvalidDataException("whisper-cli não produziu o JSON esperado.");
+            if (!File.Exists(output + ".json")) throw new InvalidDataException("whisper-cli did not produce the expected JSON.");
             using var raw = JsonDocument.Parse(await File.ReadAllTextAsync(output + ".json", deadline.Token));
             return ParseTranscript(raw.RootElement);
         }
         catch (OperationCanceledException) when (!token.IsCancellationRequested)
         {
-            throw new InvalidDataException("A transcrição excedeu o limite de duas horas.");
+            throw new InvalidDataException("Transcription exceeded the two-hour limit.");
         }
         catch (Exception error) when (error is JsonException or KeyNotFoundException or FormatException)
         {
-            throw new InvalidDataException("Saída de mídia/transcrição inválida.", error);
+            throw new InvalidDataException("Invalid media or transcription output.", error);
         }
         finally { Directory.Delete(directory, recursive: true); }
     }
@@ -53,7 +53,7 @@ public sealed class WhisperCppTranscriber(TranscriptionTools tools, Action<strin
     public static TranscriptResult ParseTranscript(JsonElement raw)
     {
         if (!raw.TryGetProperty("transcription", out var items) || items.ValueKind != JsonValueKind.Array)
-            throw new InvalidDataException("JSON Whisper sem lista transcription.");
+            throw new InvalidDataException("Whisper JSON has no transcription array.");
         var segments = new List<TranscriptSegment>();
         double previousStart = 0;
         foreach (var item in items.EnumerateArray())
@@ -62,11 +62,11 @@ public sealed class WhisperCppTranscriber(TranscriptionTools tools, Action<strin
                 !offsets.TryGetProperty("from", out var from) || !from.TryGetDouble(out var startMs) ||
                 !offsets.TryGetProperty("to", out var to) || !to.TryGetDouble(out var endMs) ||
                 !item.TryGetProperty("text", out var text) || text.ValueKind != JsonValueKind.String)
-                throw new InvalidDataException("Segmento Whisper inválido.");
+                throw new InvalidDataException("Invalid Whisper segment.");
             var start = startMs / 1000;
             var end = endMs / 1000;
             if (!double.IsFinite(start) || !double.IsFinite(end) || start < previousStart || start < 0 || end < start)
-                throw new InvalidDataException("Timestamps Whisper inválidos.");
+                throw new InvalidDataException("Invalid Whisper timestamps.");
             previousStart = start;
             segments.Add(new(start, end, text.GetString()!.Trim()));
         }
@@ -86,7 +86,7 @@ public sealed class WhisperCppTranscriber(TranscriptionTools tools, Action<strin
         try { process.Start(); }
         catch (Exception error) when (error is Win32Exception or FileNotFoundException)
         {
-            throw new InvalidDataException("Não foi possível iniciar a ferramenta: " + executable, error);
+            throw new InvalidDataException("Could not start tool: " + executable, error);
         }
         var stdout = process.StandardOutput.ReadToEndAsync();
         var stderr = process.StandardError.ReadToEndAsync();
@@ -100,7 +100,7 @@ public sealed class WhisperCppTranscriber(TranscriptionTools tools, Action<strin
         }
         var details = await stderr;
         if (!string.IsNullOrWhiteSpace(details)) diagnostic?.Invoke(details.Trim());
-        if (process.ExitCode != 0) throw new InvalidDataException($"{Path.GetFileName(executable)} falhou (exit {process.ExitCode}): {details.Trim()}");
+        if (process.ExitCode != 0) throw new InvalidDataException($"{Path.GetFileName(executable)} failed (exit {process.ExitCode}): {details.Trim()}");
         return await stdout;
     }
 }

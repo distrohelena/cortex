@@ -12,7 +12,7 @@ for (var i = 0; i < args.Length; i++)
     if (args[i] is "--no-open" or "--diagnostics") { flags.Add(args[i]); continue; }
     if (args[i] == "--help") { Console.WriteLine("Cortex Editor: --graph <json> --entry <id> --settings <json> --installation <pasta> --port <n> --no-open --diagnostics"); return; }
     if (args[i] is not ("--graph" or "--entry" or "--settings" or "--installation" or "--port") || i + 1 >= args.Length || !arguments.TryAdd(args[i], args[++i]))
-        throw new ArgumentException("Argumento inválido ou duplicado.");
+        throw new ArgumentException("Invalid or duplicate argument.");
 }
 var options = new EditorLaunchOptions(arguments.GetValueOrDefault("--graph"), arguments.GetValueOrDefault("--entry"), arguments.GetValueOrDefault("--settings"),
     arguments.GetValueOrDefault("--installation"), int.Parse(arguments.GetValueOrDefault("--port", "0")), !flags.Contains("--no-open"), flags.Contains("--diagnostics"));

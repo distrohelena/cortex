@@ -27,12 +27,12 @@ public static class VideoNodes
         {
         new(new NodeDefinition("videoFile", 1, FlowEffect.Pure,
             dataOutputs: [new("video", VideoType)], controlOutputs: [new("then")],
-            configFields: [new("path", new StringType(), Required: true) { Label = "Caminho do vídeo" }]),
+            configFields: [new("path", new StringType(), Required: true) { Label = "Video path" }]),
             (config, _, token) =>
             {
                 token.ThrowIfCancellationRequested();
                 var path = Path.GetFullPath(config.GetProperty("path").GetString()!);
-                if (!File.Exists(path)) throw new InvalidDataException("Vídeo não encontrado: " + path);
+                if (!File.Exists(path)) throw new InvalidDataException("Video not found: " + path);
                 return Task.FromResult(Output("video", JsonSerializer.SerializeToElement(new { path })));
             }, isEntry: true),
         new(new NodeDefinition("transcribe", 1, FlowEffect.Model,

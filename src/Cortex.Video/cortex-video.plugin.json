@@ -1,16 +1,16 @@
 {
   "id": "video",
-  "displayName": "Vídeo",
-  "description": "Vídeo, transcrição local e sugestões de takes por texto com Jev.",
+  "displayName": "Video",
+  "description": "Video, local transcription and transcript-based take suggestions with Jev.",
   "assemblyPath": "Cortex.Video.dll",
   "entryType": "Cortex.Video.VideoNodePlugin",
   "contractVersion": 1,
   "configurationFields": [
-    { "name": "whisperExecutable", "label": "Executável do whisper.cpp", "defaultValue": "", "required": true },
-    { "name": "modelFile", "label": "Modelo Whisper multilíngue", "defaultValue": "", "required": true },
-    { "name": "ffmpegExecutable", "label": "Executável do ffmpeg", "defaultValue": "ffmpeg" },
-    { "name": "ffprobeExecutable", "label": "Executável do ffprobe", "defaultValue": "ffprobe" },
-    { "name": "jevEndpoint", "label": "Endpoint Jev", "defaultValue": "https://api.typesafe.ai/v1/systemone" },
-    { "name": "jevCredentialVariable", "label": "Variável de ambiente da credencial Jev", "defaultValue": "TYPESAFE_API_KEY" }
+    { "name": "whisperExecutable", "label": "whisper.cpp executable", "defaultValue": "", "required": true },
+    { "name": "modelFile", "label": "Multilingual Whisper model", "defaultValue": "", "required": true },
+    { "name": "ffmpegExecutable", "label": "ffmpeg executable", "defaultValue": "ffmpeg" },
+    { "name": "ffprobeExecutable", "label": "ffprobe executable", "defaultValue": "ffprobe" },
+    { "name": "jevEndpoint", "label": "Jev endpoint", "defaultValue": "https://api.typesafe.ai/v1/systemone" },
+    { "name": "jevCredentialVariable", "label": "Jev credential environment variable", "defaultValue": "TYPESAFE_API_KEY" }
   ]
 }

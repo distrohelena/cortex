@@ -12,7 +12,7 @@ public sealed class VideoNodePlugin : IFlowNodePlugin
         string Text(string name, string fallback = "")
         {
             if (!context.Configuration.TryGetProperty(name, out var value)) return fallback;
-            return value.ValueKind == JsonValueKind.String ? value.GetString()! : throw new InvalidDataException("Opção de vídeo inválida: " + name);
+            return value.ValueKind == JsonValueKind.String ? value.GetString()! : throw new InvalidDataException("Invalid video option: " + name);
         }
         var tools = new TranscriptionTools(
             NodePluginContext.ResolvePath(Text("whisperExecutable"), context.ConfigurationDirectory),

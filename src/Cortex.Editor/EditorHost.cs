@@ -29,7 +29,7 @@ public static class EditorHost
     {
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         { ContentRootPath = AppContext.BaseDirectory, WebRootPath = Path.Combine(AppContext.BaseDirectory, "wwwroot"), Args = [] });
-        if (options.Port is < 0 or > 65535) throw new ArgumentException("Porta inválida.");
+        if (options.Port is < 0 or > 65535) throw new ArgumentException("Invalid port.");
         builder.WebHost.ConfigureKestrel(server => server.Listen(IPAddress.Loopback, options.Port));
         if (options.Diagnostics) builder.Logging.ClearProviders();
         builder.Services.ConfigureHttpJsonOptions(json =>
@@ -42,7 +42,7 @@ public static class EditorHost
         string? startupError = null;
         try { manifests = NodePluginManifest.ReadDirectory(manifestDirectory); }
         catch (Exception error) when (error is IOException or System.Text.Json.JsonException or InvalidDataException or UnauthorizedAccessException)
-        { manifests = []; startupError = "Não foi possível ler os manifestos: " + error.Message; }
+        { manifests = []; startupError = "Could not read plugin manifests: " + error.Message; }
         var settings = read.Settings.WithInstalled(manifests);
         var diagnostic = new ConcurrentQueue<string>();
         var plugins = NodePluginLoader.Load(settings, manifests, store.DirectoryPath, line =>
@@ -71,7 +71,7 @@ public static class EditorHost
             { context.Response.StatusCode = 403; return; }
             try { await next(context); }
             catch (Cortex.Core.Flows.TypedFlowException error)
-            { context.Response.StatusCode = 400; await context.Response.WriteAsJsonAsync(new { error = "Graph inválido.", issues = error.Issues }); }
+            { context.Response.StatusCode = 400; await context.Response.WriteAsJsonAsync(new { error = "Invalid graph.", issues = error.Issues }); }
             catch (Exception error) when (error is InvalidDataException or System.Text.Json.JsonException or KeyNotFoundException or ArgumentException or IOException or UnauthorizedAccessException or InvalidOperationException)
             { context.Response.StatusCode = error is InvalidOperationException ? 409 : 400; await context.Response.WriteAsJsonAsync(new { error = error.Message }); }
         });

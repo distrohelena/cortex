@@ -1,9 +1,9 @@
-# Sugerir Takes
+# Suggest Takes
 
-O plugin opcional `Cortex.Video` oferece o node `suggestTakes`, exibido como **Sugerir Takes** no editor. Ele usa os mesmos tipos, catálogo, compilador e runner dos demais nodes. A DLL e sua dependência `Cortex.Inference` pertencem ao pacote opcional; o host e os consumidores não referenciam o plugin estaticamente.
+O plugin opcional `Cortex.Video` oferece o node `suggestTakes`, exibido como **Suggest Takes** no editor. Ele usa os mesmos tipos, catálogo, compilador e runner dos demais nodes. A DLL e sua dependência `Cortex.Inference` pertencem ao pacote opcional; o host e os consumidores não referenciam o plugin estaticamente.
 
 ```text
-Video File → Transcribe → Transcript → Sugerir Takes
+Video File → Transcribe → Transcript → Suggest Takes
 ```
 
 O graph original de três nodes continua funcionando. Para acrescentar a análise no Depois do Slogan:
@@ -13,7 +13,7 @@ cd C:/dev/depois-do-slogan
 ./tools/open-editor.ps1 -Video 'C:/caminho/video.mp4' -Goal 'Ensinar o procedimento de forma clara e direta' -CredentialFile 'C:/caminho/protegido/jev.txt'
 ```
 
-O objetivo pode ser editado nas propriedades do node. **Exportar JSON**, no inspector de qualquer output, salva seu valor tipado. O CLI do consumidor também grava `edit-plan.json` junto dos demais artefatos.
+O objetivo pode ser editado nas propriedades do node. **Export JSON**, no inspector de qualquer output, salva seu valor tipado. O CLI do consumidor também grava `edit-plan.json` junto dos demais artefatos.
 
 ## Entrada, análise e output
 
