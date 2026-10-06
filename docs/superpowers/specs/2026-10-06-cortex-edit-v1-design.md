@@ -67,7 +67,7 @@ Visual intent preserves the supplied asset/speaker/graphic/title-card directives
 
 The plan contains `media` snapshots and one result for every authored beat, in the same order. It references the script rather than rewriting it. Changes to dialogue/order belong in the script; choices of takes can be edited in the plan.
 
-Beat status distinguishes `matched`, `needs_recording`, `needs_media`, `needs_alignment`, `needs_review`, `blocked` and `stale`. Per-role decisions keep audio and visual requirements separate. `matched` means eligible media was found, not human approval or proof of unmeasured quality. A proposed selection records `selected_candidate_id`, who selected it, and its review status. Human overrides retain their provenance rather than rewriting the model's scores.
+Beat status distinguishes `matched`, `needs_recording`, `needs_media`, `needs_alignment`, `needs_review`, `blocked` and `stale`. Per-role decisions keep audio and visual requirements separate. An audio match does not clear a pending required visual/alignment requirement: the beat keeps the relevant pending status and lists all pending requirements. `matched` means eligible media was found, not human approval or proof of unmeasured quality. A proposed selection records `selected_candidate_id`, who selected it, and its review status. Human overrides retain their provenance rather than rewriting the model's scores.
 
 A candidate records:
 

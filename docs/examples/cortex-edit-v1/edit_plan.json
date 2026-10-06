@@ -157,7 +157,7 @@
     {
       "beat_id": "three_concepts",
       "visual": {
-        "status": "matched",
+        "status": "needs_alignment",
         "intent": {
           "type": "speaker_with_overlay",
           "speaker": "helena"
@@ -174,7 +174,7 @@
           }
         ]
       },
-      "status": "matched",
+      "status": "needs_alignment",
       "audio": {
         "status": "matched"
       },
