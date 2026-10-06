@@ -8,6 +8,7 @@ public sealed record EditorGraphRequest(JsonElement Graph, string? EntryId = nul
 public sealed record UseStepRequest(Dictionary<string, Dictionary<string, JsonElement>>? Parameters = null);
 
 public sealed record UseReviewRequest(Dictionary<string,JsonElement> Outputs);
+public sealed record UseToolRequest(Dictionary<string,JsonElement>? Parameters = null);
 
 public static class EditorEndpoints
 {
@@ -19,6 +20,7 @@ public static class EditorEndpoints
             catalog = EditorCatalog.Available(runtime.Plugins.Handlers, runtime.Plugins.LibrariesByKind), descriptions = EditorCatalog.Descriptions(runtime.Graph.Graph, runtime.Plugins.Handlers, runtime.Plugins.LibrariesByKind),
             runtime.SettingsError, runtime.StartupError, runtime.PendingRestart, busy = runtime.Use?.Busy ?? runtime.Execution.Busy,
             useMode = runtime.UseMode, usageFields = runtime.Use?.Fields, reviewOutputs = runtime.Use?.ReviewOutputs, modelChoices = runtime.Use?.Models, runState = runtime.Use?.Snapshot(),
+            tools = runtime.Use?.Tools, toolRuns = runtime.Use?.ToolRuns,
             plugins = runtime.Plugins.Reports
         });
         app.MapPost("/api/use/step", async (UseStepRequest request, CancellationToken token) =>
@@ -27,6 +29,11 @@ public static class EditorEndpoints
         { await runtime.Use!.ReviewAsync(request.Outputs, token); return runtime.Use.Snapshot(); });
         app.MapPost("/api/use/reset", async (CancellationToken token) =>
         { await runtime.Use!.ResetAsync(token); return runtime.Use.Snapshot(); });
+        app.MapPost("/api/use/tools/{id}", async (string id, UseToolRequest request, CancellationToken token) =>
+        { var use=runtime.Use!; await use.RunToolAsync(id,request.Parameters??[],token); return use.ToolSnapshot(id); });
+        app.MapGet("/api/use/tools/{id}", (string id) => runtime.Use!.ToolSnapshot(id));
+        app.MapGet("/api/use/tools/{id}/artifact", (string id) =>
+        { var artifact=runtime.Use!.ToolArtifact(id); return artifact is null ? Results.NotFound() : Results.File(artifact.Path,artifact.ContentType,enableRangeProcessing:true); });
         app.MapGet("/api/settings", () => new { settings = runtime.SavedSettings, manifests = runtime.Manifests, reports = runtime.Plugins.Reports, settingsPath = runtime.SettingsStore.FilePath, runtime.SettingsError, runtime.PendingRestart });
         app.MapPut("/api/settings", async (CortexEditorSettings settings, CancellationToken token) =>
         {

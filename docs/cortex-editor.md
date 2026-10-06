@@ -63,6 +63,14 @@ O host escuta somente em loopback; a sessão é inicializada pelo URL local aber
 
 ## Abrir por um consumidor
 
+### Ferramentas durante uma revisão
+
+Um template pode declarar `usage.tools` para executar uma entrada auxiliar enquanto a revisão principal está pausada. Cada ferramenta declara `entryId`, `afterNode` e os nomes de `parameters` liberados pelo autor do graph. A execução usa `EditorExecutionService` e o mesmo compilador/runner dos demais graphs; não avança a execução principal nem repete inferências anteriores.
+
+`POST /api/use/tools/{id}` inicia a entrada com os parâmetros permitidos; `GET` no mesmo endereço retorna seu estado. Enquanto uma ferramenta está executando, outras mutações da sessão são bloqueadas. Cancelar também cancela a ferramenta; reiniciar a sessão limpa seus resultados de execução.
+
+Para um MP4 gerado, `artifactPort` declara o output com `path`, e `artifactDirectorySetting` aponta para uma configuração de diretório que não pode ser exposta nos parâmetros da ferramenta. `GET /api/use/tools/{id}/artifact` exige o token da sessão e serve somente o arquivo de uma execução concluída, dentro do diretório declarado, sem links simbólicos e com suporte a ranges. A UI do consumidor pode buscar esse arquivo com autenticação e usar um URL de Blob no player, sem colocar o token na URL do vídeo.
+
 ### Acesso por túnel HTTPS
 
 Em modo de uso (`--use`), `--public-origin https://<host>` permite um endereço externo específico. O servidor continua escutando somente em loopback. O túnel deve preservar o header Host; o host público e a origem dos comandos precisam corresponder ao endereço configurado. Headers `X-Forwarded-*` não concedem acesso.

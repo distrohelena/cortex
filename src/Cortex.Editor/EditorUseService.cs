@@ -11,6 +11,7 @@ public sealed class EditorUseService : IDisposable
     private readonly IReadOnlyList<FlowNodeHandler> _handlers;
     private readonly ConcurrentQueue<string> _diagnostic;
     private readonly SemaphoreSlim _gate=new(1,1);
+    private readonly EditorUseTools _tools;
     private readonly object _sync=new();
     private TypedFlowExecution? _execution;
     private CancellationTokenSource? _cancellation;
@@ -22,7 +23,7 @@ public sealed class EditorUseService : IDisposable
     public IReadOnlyDictionary<string,string[]> ReviewOutputs {get;}
     public EditorUseService(JsonElement template,string entry,IReadOnlyList<FlowNodeHandler> handlers,ConcurrentQueue<string>? diagnostic=null)
     {
-        _template=template.Clone();_entry=entry;_handlers=handlers;_diagnostic=diagnostic??new();
+        _template=template.Clone();_entry=entry;_handlers=handlers;_diagnostic=diagnostic??new();_tools=new(template,handlers);
         var fields=new Dictionary<string,string[]>(StringComparer.Ordinal);var models=new Dictionary<string,string[]>(StringComparer.Ordinal);
         if(template.TryGetProperty("usage",out var usage))
         {
@@ -56,7 +57,23 @@ public sealed class EditorUseService : IDisposable
         Fields=fields;Models=models;ReviewOutputs=review;_snapshot=new(null,"idle",null,null,[],entry);
     }
     public string EntryId => _entry;
-    public bool Busy {get{lock(_sync)return _busy;}}
+    public bool Busy {get{lock(_sync)return _busy||_tools.Busy;}}
+    public IReadOnlyDictionary<string,UseToolDefinition> Tools => _tools.Definitions;
+    public IReadOnlyDictionary<string,EditorRunSnapshot> ToolRuns => _tools.Snapshots;
+    public EditorRunSnapshot ToolSnapshot(string id) => _tools.Snapshot(id);
+    public Task WaitToolAsync(string id,CancellationToken token) => _tools.WaitAsync(id,token);
+    public EditorArtifact? ToolArtifact(string id) => _tools.Artifact(id);
+    public async Task RunToolAsync(string id,Dictionary<string,JsonElement> parameters,CancellationToken token)
+    {
+        await _gate.WaitAsync(token);
+        try
+        {
+            if(Busy||_snapshot.State!="paused"||_snapshot.Result is null)throw new InvalidOperationException("Run a tool while reviewing a completed step.");
+            var node=_snapshot.Result.Value.GetProperty("steps").EnumerateArray().Last().GetProperty("nodeId").GetString()!;
+            await _tools.StartAsync(id,node,parameters,token);
+        }
+        finally{_gate.Release();}
+    }
     public EditorRunSnapshot Snapshot(){lock(_sync)return _snapshot with{Diagnostics=_diagnostic.ToArray()};}
     public async Task AdvanceAsync(Dictionary<string,Dictionary<string,JsonElement>> parameters,CancellationToken token)
     {
@@ -129,10 +146,10 @@ public sealed class EditorUseService : IDisposable
     public async Task ResetAsync(CancellationToken token)
     {
         await _gate.WaitAsync(token);
-        try{if(Busy)throw new InvalidOperationException("Cancel the running step before starting over.");_execution=null;_diagnostic.Clear();lock(_sync)_snapshot=new(null,"idle",null,null,[],_entry);}
+        try{if(Busy)throw new InvalidOperationException("Cancel the running step before starting over.");_execution=null;_tools.Reset();_diagnostic.Clear();lock(_sync)_snapshot=new(null,"idle",null,null,[],_entry);}
         finally{_gate.Release();}
     }
-    public void Cancel(){lock(_sync)_cancellation?.Cancel();}
+    public void Cancel(){lock(_sync)_cancellation?.Cancel();_tools.Cancel();}
     public Task WaitAsync(CancellationToken token){lock(_sync)return _task.WaitAsync(token);}
-    public void Dispose(){Cancel();_cancellation?.Dispose();}
+    public void Dispose(){Cancel();_cancellation?.Dispose();_tools.Dispose();}
 }
