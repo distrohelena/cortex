@@ -35,7 +35,7 @@
 
 **Files:**
 - Create `src/Cortex.Video/Editing/EditingDocumentKinds.cs`, `EditingJson.cs`, `EditingDocumentModels.cs`, `EditingIntentModels.cs`, `EditingResolutionModels.cs`, `EditingSchemas.cs`.
-- Create four `src/Cortex.Video/Editing/Schemas/*.schema.json` resources matching the four schema IDs.
+- Create `src/Cortex.Video/Editing/Schemas/cortex.edit.v1.schema.json`, `cortex.edit.plan.v1.schema.json`, `cortex.edit.recording_tasks.v1.schema.json`, `cortex.edit.resolved.v1.schema.json` resources.
 - Modify `src/Cortex.Video/Cortex.Video.csproj` to embed/copy those schema files, without new package/project dependencies.
 - Test `tests/Cortex.Video.Tests/EditingSerializationTests.cs` and `EditingSchemaTests.cs`.
 
@@ -50,7 +50,7 @@
 - [ ] Add rejection tests for unknown schema IDs, ambiguous/duplicate JSON property names and invalid scalar types; preserve extension data only in explicitly open annotation/recipe/evidence fields.
 - [ ] Run `dotnet test tests/Cortex.Video.Tests/Cortex.Video.Tests.csproj --filter "FullyQualifiedName~EditingSerializationTests|FullyQualifiedName~EditingSchemaTests"`; observe the missing API/failing assertions.
 - [ ] Implement the listed models/serializer and four portable schemas. Keep audio/visual discriminant fields explicit; no opaque catch-all replacement for the whole document. Publish strict portable shape for known semantic fields and open shape only for annotations/declared extension payloads.
-- [ ] Validate fixture shapes against the portable schemas with an available standards validator; use an isolated test dependency/tool if needed, not a new runtime schema framework. Record the tool/version. Check malformed variants against both schema and the C# structural checks.
+- [ ] Validate fixture shapes and schema syntax using the already available Python `jsonschema` 4.26.0 `Draft202012Validator`; record results under this plan's ignored workspace. No install or runtime dependency is needed. Check malformed variants against both that schema validator and the C# structural checks.
 - [ ] Run the scoped tests to green and commit only the owned contracts/schemas/tests.
 
 ## Task 2: Editorial and cross-document validation
