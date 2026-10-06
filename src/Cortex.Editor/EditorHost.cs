@@ -5,7 +5,7 @@ using Cortex.Core.Plugins;
 namespace Cortex.Editor;
 
 public sealed record EditorLaunchOptions(string? GraphPath = null, string? EntryId = null, string? SettingsPath = null,
-    string? InstallationDirectory = null, int Port = 0, bool OpenBrowser = true, bool Diagnostics = false, bool UseMode = false, string? ApplicationRoot = null);
+    string? InstallationDirectory = null, int Port = 0, bool OpenBrowser = true, bool Diagnostics = false, bool UseMode = false, string? ApplicationRoot = null, string? PublicOrigin = null);
 
 public sealed class EditorRuntime
 {
@@ -29,6 +29,8 @@ public static class EditorHost
 {
     public static async Task<WebApplication> BuildAsync(EditorLaunchOptions options, CancellationToken token = default)
     {
+        if (options.PublicOrigin is not null && !options.UseMode) throw new ArgumentException("Public access requires a locked graph in Use mode.");
+        var editorSession = new EditorSession(options.PublicOrigin);
         if(options.ApplicationRoot is not null && (!options.UseMode || !File.Exists(Path.Combine(Path.GetFullPath(options.ApplicationRoot), "index.html")))) throw new InvalidDataException("A consumer application requires Use mode and an index.html in its own web root.");
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
         { ContentRootPath = AppContext.BaseDirectory, WebRootPath = options.ApplicationRoot is null ? Path.Combine(AppContext.BaseDirectory, "wwwroot") : Path.GetFullPath(options.ApplicationRoot), Args = [] });
@@ -68,7 +70,7 @@ public static class EditorHost
             Plugins = plugins, Execution = new(plugins.Handlers, diagnostic), UseMode = options.UseMode, Use = use
         };
         builder.Services.AddSingleton(runtime);
-        builder.Services.AddSingleton<EditorSession>();
+        builder.Services.AddSingleton(editorSession);
         var app = builder.Build();
         var session = app.Services.GetRequiredService<EditorSession>();
         app.Use(async (context, next) =>

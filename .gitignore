@@ -36,6 +36,7 @@ backups/
 src/Filomena.App/Playground/flow-graph/
 
 # Local work areas
+.local/
 .worktrees/
 .tmp-*/
 

@@ -137,7 +137,31 @@ public sealed class EditorApiTests
         }
     }
 
-    private static async Task<(WebApplication App, HttpClient Client, EditorRuntime Runtime)> StartAsync(bool enabled, bool wait = false, bool useMode = false, bool application = false)
+    [Fact]
+    public async Task PublicTunnelRequiresLockedUseModeAndKeepsSessionAuthentication()
+    {
+        const string origin = "https://slogan.ngrok-free.dev";
+        await Assert.ThrowsAsync<ArgumentException>(() => EditorHost.BuildAsync(new(PublicOrigin: origin), TestContext.Current.CancellationToken));
+        var (app, client, _) = await StartAsync(true, useMode: true, application: true, publicOrigin: origin);
+        await using (app)
+        using (client)
+        {
+            client.DefaultRequestHeaders.Host = "slogan.ngrok-free.dev";
+            client.DefaultRequestHeaders.Remove("Origin");
+            client.DefaultRequestHeaders.Add("Origin", origin);
+            (await client.GetAsync("api/state", TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+            (await client.PostAsync("api/use/reset", null, TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+            Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsync("api/graph/save", null, TestContext.Current.CancellationToken)).StatusCode);
+            client.DefaultRequestHeaders.Remove("Origin");
+            client.DefaultRequestHeaders.Add("Origin", "https://foreign.invalid");
+            Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsync("api/use/reset", null, TestContext.Current.CancellationToken)).StatusCode);
+            client.DefaultRequestHeaders.Remove("X-Cortex-Session");
+            Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("api/state", TestContext.Current.CancellationToken)).StatusCode);
+            await app.StopAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    private static async Task<(WebApplication App, HttpClient Client, EditorRuntime Runtime)> StartAsync(bool enabled, bool wait = false, bool useMode = false, bool application = false, string? publicOrigin = null)
     {
         var root = Path.Combine(Path.GetTempPath(), "cortex-api-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(root, "plugins"));
@@ -153,7 +177,7 @@ public sealed class EditorApiTests
         if (useMode) await File.WriteAllTextAsync(graphPath, EditorRuntimeTests.Graph("fixture").GetRawText(), TestContext.Current.CancellationToken);
         var applicationRoot=Path.Combine(root,"application");
         if(application){Directory.CreateDirectory(applicationRoot);await File.WriteAllTextAsync(Path.Combine(applicationRoot,"index.html"),"<html><body>Consumer-owned UI</body></html>",TestContext.Current.CancellationToken);}
-        var app = await EditorHost.BuildAsync(new(GraphPath: useMode ? graphPath : null, EntryId: useMode ? "input" : null, SettingsPath: store.FilePath, InstallationDirectory: root, OpenBrowser: false, UseMode: useMode, ApplicationRoot: application?applicationRoot:null), TestContext.Current.CancellationToken);
+        var app = await EditorHost.BuildAsync(new(GraphPath: useMode ? graphPath : null, EntryId: useMode ? "input" : null, SettingsPath: store.FilePath, InstallationDirectory: root, OpenBrowser: false, UseMode: useMode, ApplicationRoot: application?applicationRoot:null, PublicOrigin: publicOrigin), TestContext.Current.CancellationToken);
         await app.StartAsync(TestContext.Current.CancellationToken);
         var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
         var client = new HttpClient { BaseAddress = new Uri(address) };

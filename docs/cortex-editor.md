@@ -63,6 +63,14 @@ O host escuta somente em loopback; a sessão é inicializada pelo URL local aber
 
 ## Abrir por um consumidor
 
+### Acesso por túnel HTTPS
+
+Em modo de uso (`--use`), `--public-origin https://<host>` permite um endereço externo específico. O servidor continua escutando somente em loopback. O túnel deve preservar o header Host; o host público e a origem dos comandos precisam corresponder ao endereço configurado. Headers `X-Forwarded-*` não concedem acesso.
+
+As APIs continuam exigindo o token efêmero `X-Cortex-Session`. Para abrir a UI no navegador externo, use o endereço HTTPS com o fragmento `/#session=<token>` do bootstrap desta instância. Reiniciar o host troca o token. Não coloque esse link em arquivos versionados. O modo de edição não aceita `--public-origin`.
+
+O launcher PowerShell aceita `-PublicOrigin` junto de `-Use` e, para uma UI do consumidor, `-ApplicationRoot`. Configure apenas um destino por endereço público para evitar que o túnel envie comandos a outro aplicativo.
+
 O SDK expõe `CortexEditorLauncher.Open(graphPath, entryId)`. O consumidor passa seu arquivo e encontra a instalação/perfil compartilhados. Nenhuma classe de vídeo precisa ser referenciada ou implementada no consumidor.
 
 ```powershell
