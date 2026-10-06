@@ -12,7 +12,7 @@ public sealed class VideoPluginTests
         var plugin = new VideoNodePlugin();
         var handlers = plugin.CreateHandlers(new(JsonSerializer.SerializeToElement(new
         { whisperExecutable = "missing-whisper.exe", modelFile = "missing-model.bin" }), Path.GetTempPath()));
-        Assert.Equal(new[] { "videoFile", "transcribe", "transcript", "suggestTakes" }, handlers.Select(handler => handler.Definition.Kind));
+        Assert.Equal(new[] { "videoFile", "transcribe", "transcript", "suggestTakes", "renderCuts" }, handlers.Select(handler => handler.Definition.Kind));
         Assert.True(handlers[0].IsEntry);
         Assert.Equal(1, plugin.ContractVersion);
     }

@@ -14,8 +14,8 @@ public sealed class FlowNodeHandler
     {
         ArgumentNullException.ThrowIfNull(definition);
         ArgumentNullException.ThrowIfNull(execute);
-        if (definition.BlockVersion != 1 || definition.Effect is not (FlowEffect.Pure or FlowEffect.Model))
-            throw new ArgumentException("Host nodes in the local runner support block version 1 and Pure/Model effects.", nameof(definition));
+        if (definition.BlockVersion != 1 || definition.Effect is not (FlowEffect.Pure or FlowEffect.Model or FlowEffect.WriteState))
+            throw new ArgumentException("Host nodes in the local runner support block version 1 and Pure/Model/WriteState effects.", nameof(definition));
         if (definition.ControlOutputs.Any(port => port.Name != "then") ||
             (isEntry ? definition.ControlInputs.Count != 0 || definition.DataInputs.Count != 0
                 : definition.ControlInputs.Count != 1 || definition.ControlInputs[0].Name != "exec"))

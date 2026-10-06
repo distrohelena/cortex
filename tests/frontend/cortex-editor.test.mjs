@@ -44,3 +44,16 @@ test('result preview preserves literal text and source values',()=>{
  assert.equal(model.preview('a'),text);
  assert.equal(model.runState.result.outputs.a.value.value,text);
 });
+
+test('optional settings stay omitted when adding a node or clearing a field',()=>{
+ const model=new EditorModel({graph:{version:3,nodes:[],edges:[],controlEdges:[]},catalog:[],descriptions:{}},async()=>({}));
+ const required={name:'outputDirectory',required:true,schema:{type:'string'}};
+ const optional={name:'editPlanFile',required:false,schema:{type:'string'}};
+ const node=model.addNode({kind:'renderCuts',fields:[required,optional]});
+ assert.deepEqual(node.settings,{outputDirectory:''});
+ model.editField(node.id,required,'C:/output');
+ model.editField(node.id,optional,'C:/plan.json');
+ assert.equal(node.settings.editPlanFile,'C:/plan.json');
+ model.editField(node.id,optional,'');
+ assert.deepEqual(node.settings,{outputDirectory:'C:/output'});
+});

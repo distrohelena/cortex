@@ -20,11 +20,16 @@ internal static class FlowExecutionKernel
             snapshot.Values[new(flow.EntryId, "message")] = new(FlowDomain.Message, message.Clone());
         return new(snapshot, runtimeOutputs);
     }
-    internal static StepEffect Effect(TypedNode node) => node.HostEffect is FlowEffect.Model ? StepEffect.Inference : node.Source.Kind switch
+    internal static StepEffect Effect(TypedNode node) => node.HostEffect switch
     {
-        "prompt" => StepEffect.Inference, "memory" => StepEffect.Memory,
-        "interpretBoundaries" => StepEffect.Boundary, "send" => StepEffect.Send,
-        "humanFeedback" => StepEffect.Feedback, _ => StepEffect.Pure
+        FlowEffect.Model => StepEffect.Inference,
+        FlowEffect.WriteState => StepEffect.Artifact,
+        _ => node.Source.Kind switch
+        {
+            "prompt" => StepEffect.Inference, "memory" => StepEffect.Memory,
+            "interpretBoundaries" => StepEffect.Boundary, "send" => StepEffect.Send,
+            "humanFeedback" => StepEffect.Feedback, _ => StepEffect.Pure
+        }
     };
     internal static async Task<KernelStepResult> AdvanceAsync(TypedFlow flow, FlowExecutionState state,
         FlowExecutionServices services, CancellationToken token)

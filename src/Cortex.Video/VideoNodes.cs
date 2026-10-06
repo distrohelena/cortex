@@ -21,7 +21,7 @@ public static class VideoNodes
         })), true)
     });
 
-    public static FlowNodeHandler[] CreateHandlers(IVideoTranscriber transcriber, ITakeSuggester? takes = null)
+    public static FlowNodeHandler[] CreateHandlers(IVideoTranscriber transcriber, ITakeSuggester? takes = null, IVideoCutRenderer? renderer = null)
     {
         var handlers = new List<FlowNodeHandler>
         {
@@ -49,6 +49,7 @@ public static class VideoNodes
             (_, inputs, _) => Task.FromResult(Output("transcript", inputs["transcript"].Value)))
         };
         if (takes is not null) handlers.Add(TakeSuggestionNode.Create(takes));
+        if (renderer is not null) handlers.Add(RenderCutsNode.Create(renderer));
         return handlers.ToArray();
     }
 

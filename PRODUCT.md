@@ -23,7 +23,8 @@ Windows local, .NET 10, biblioteca Cortex.Core e componente de canvas TypeScript
 - DLLs de plugins desativadas não são carregadas por padrão. Mudanças de carregamento exigem reiniciar o editor neste recorte.
 - O primeiro plugin fornece Video File → Transcribe → Transcript para um único vídeo, com transcrição local em português e GPU quando disponível.
 - O canvas, tipos, compilador e runner existentes são reutilizados. A interface deriva nodes e propriedades de metadados.
-- Não há lotes, cortes, agentes, cache de transcrição, edição automática ou integração com editores de vídeo neste recorte.
+- O plugin de vídeo também oferece Suggest Takes e Render Cuts: seleção textual pelo Jev e renderização local dos intervalos de um JSON editável para MP4 com áudio.
+- Não há lotes, agentes, cache de transcrição, editor automático ou integração com editores externos neste recorte.
 - Mídia, modelos, configurações e resultados locais permanecem privados e fora do Git.
 - Controles devem ser acessíveis por teclado, estados de erro devem indicar recuperação e outputs são dados reais.
 

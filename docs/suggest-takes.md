@@ -38,7 +38,7 @@ Repetições textuais exatas são agrupadas localmente. Para outras falas, pelo 
 
 Dentro de cada grupo, a maior avaliação textual escolhe a tentativa sugerida; empate favorece a primeira no vídeo. Conteúdo com nota de pelo menos 2 mantém essa tentativa na proposta. Os candidatos mantidos preservam a ordem original. Esses critérios são sugestões editáveis, não decisões finais de corte.
 
-`proposedTimeline` descreve a proposta original. Editar manualmente `keep` ou intervalos não recalcula esse campo; um futuro consumidor deve validar e reconstruir a timeline ao usar o JSON modificado.
+`proposedTimeline` descreve a proposta original. Editar manualmente `keep` ou intervalos não recalcula esse campo. O node [Render Cuts](render-cuts.md) valida os intervalos e reconstrói a timeline a partir dos candidatos ao renderizar o JSON modificado.
 
 ## Configuração e limites
 
