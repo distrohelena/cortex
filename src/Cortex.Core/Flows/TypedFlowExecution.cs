@@ -32,6 +32,24 @@ public sealed class TypedFlowExecution
         }
         finally{_advance.Release();}
     }
+    public TypedRunResult AmendLastOutputs(IReadOnlyDictionary<string,JsonElement> outputs)
+    {
+        if(!_advance.Wait(0))throw new InvalidOperationException("A node is running.");
+        try
+        {
+            var snapshot=_state.Snapshot;
+            if(snapshot.Status!=ExecutionStatus.Ready||snapshot.Steps.Count==0)throw new InvalidOperationException("Review outputs while paused between nodes.");
+            var id=snapshot.Steps[^1].NodeId;var node=_flow.Nodes[id];
+            if(FlowExecutionKernel.Effect(node) is not (StepEffect.Pure or StepEffect.Inference))throw new InvalidOperationException("Published side effects cannot be edited as draft outputs.");
+            if(!outputs.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(node.Outputs.Select(p=>p.Id)))throw new InvalidDataException("Review must retain the declared output ports.");
+            var updated=new Dictionary<string,TypedValue>(StringComparer.Ordinal);
+            foreach(var port in node.Outputs){FlowDomain.Check(outputs[port.Id],port.Type);updated[port.Id]=new(port.Type,outputs[port.Id].Clone());}
+            snapshot.Outputs[id]=updated;
+            foreach(var(port,value)in updated)snapshot.Values[new(id,port)]=value;
+            return new(true,snapshot.Steps.ToArray(),snapshot.Outputs.ToDictionary(p=>p.Key,p=>new Dictionary<string,TypedValue>(p.Value)),snapshot.TargetStateId,snapshot.ConfirmedSend);
+        }
+        finally{_advance.Release();}
+    }
     private sealed class NoCompletion:IFlowCompletion
     {public Task<string> CompleteAsync(FlowCompletionRequest request,CancellationToken token)=>throw new InvalidDataException("Configure a model provider for built-in prompt nodes.");}
 }

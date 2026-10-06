@@ -19,6 +19,7 @@ public sealed class EditorUseService : IDisposable
     private bool _busy;
     public IReadOnlyDictionary<string,string[]> Fields {get;}
     public IReadOnlyDictionary<string,string[]> Models {get;}
+    public IReadOnlyDictionary<string,string[]> ReviewOutputs {get;}
     public EditorUseService(JsonElement template,string entry,IReadOnlyList<FlowNodeHandler> handlers,ConcurrentQueue<string>? diagnostic=null)
     {
         _template=template.Clone();_entry=entry;_handlers=handlers;_diagnostic=diagnostic??new();
@@ -42,7 +43,17 @@ public sealed class EditorUseService : IDisposable
                 models.Add(item.Name,values);
             }
         }
-        Fields=fields;Models=models;_snapshot=new(null,"idle",null,null,[],entry);
+        var review=new Dictionary<string,string[]>(StringComparer.Ordinal);
+        if(template.TryGetProperty("usage",out var reviewUsage)&&reviewUsage.TryGetProperty("reviewOutputs",out var configuredReview))foreach(var item in configuredReview.EnumerateObject())
+        {
+            var node=template.GetProperty("nodes").EnumerateArray().SingleOrDefault(n=>n.GetProperty("id").GetString()==item.Name);
+            if(node.ValueKind!=JsonValueKind.Object)throw new InvalidDataException("Unknown review node.");
+            var definition=handlers.Single(h=>h.Definition.Kind==node.GetProperty("kind").GetString()).Definition;
+            var ports=item.Value.EnumerateArray().Select(v=>v.GetString()!).ToArray();
+            if(ports.Any(p=>!definition.DataOutputs.Any(o=>o.Name==p)))throw new InvalidDataException("Unknown review output.");
+            review.Add(item.Name,ports);
+        }
+        Fields=fields;Models=models;ReviewOutputs=review;_snapshot=new(null,"idle",null,null,[],entry);
     }
     public string EntryId => _entry;
     public bool Busy {get{lock(_sync)return _busy;}}
@@ -99,6 +110,21 @@ public sealed class EditorUseService : IDisposable
         catch(OperationCanceledException){lock(_sync)_snapshot=_snapshot with{State="cancelled",Error="Step cancelled.",NextNodeId=null};}
         catch(Exception error)when(error is not OutOfMemoryException){lock(_sync)_snapshot=_snapshot with{State="failed",Error=error.Message,NextNodeId=null};}
         finally{lock(_sync)_busy=false;}
+    }
+    public async Task ReviewAsync(Dictionary<string,JsonElement> outputs,CancellationToken token)
+    {
+        await _gate.WaitAsync(token);
+        try
+        {
+            if(Busy||_execution is null||_snapshot.State!="paused")throw new InvalidOperationException("Review a draft after its step has completed.");
+            var result=_snapshot.Result!.Value;var id=result.GetProperty("steps").EnumerateArray().Last().GetProperty("nodeId").GetString()!;
+            if(!ReviewOutputs.TryGetValue(id,out var allowed)||outputs.Keys.Any(p=>!allowed.Contains(p)))throw new InvalidDataException("This output is not exposed for human review.");
+            var values=result.GetProperty("outputs").GetProperty(id).EnumerateObject().ToDictionary(p=>p.Name,p=>p.Value.GetProperty("value").Clone());
+            foreach(var(key,value)in outputs)values[key]=value.Clone();
+            var edited=_execution.AmendLastOutputs(values);
+            lock(_sync)_snapshot=_snapshot with{Result=EditorExecutionService.SerializeResult(edited)};
+        }
+        finally{_gate.Release();}
     }
     public async Task ResetAsync(CancellationToken token)
     {

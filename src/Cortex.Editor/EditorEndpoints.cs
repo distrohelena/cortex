@@ -7,6 +7,8 @@ public sealed record EditorGraphRequest(JsonElement Graph, string? EntryId = nul
 
 public sealed record UseStepRequest(Dictionary<string, Dictionary<string, JsonElement>>? Parameters = null);
 
+public sealed record UseReviewRequest(Dictionary<string,JsonElement> Outputs);
+
 public static class EditorEndpoints
 {
     public static void Map(WebApplication app, EditorRuntime runtime)
@@ -16,11 +18,13 @@ public static class EditorEndpoints
             graph = runtime.Graph.Graph, entryId = runtime.Use?.EntryId ?? runtime.Graph.EntryId, filePath = runtime.Graph.FilePath,
             catalog = EditorCatalog.Available(runtime.Plugins.Handlers, runtime.Plugins.LibrariesByKind), descriptions = EditorCatalog.Descriptions(runtime.Graph.Graph, runtime.Plugins.Handlers, runtime.Plugins.LibrariesByKind),
             runtime.SettingsError, runtime.StartupError, runtime.PendingRestart, busy = runtime.Use?.Busy ?? runtime.Execution.Busy,
-            useMode = runtime.UseMode, usageFields = runtime.Use?.Fields, modelChoices = runtime.Use?.Models, runState = runtime.Use?.Snapshot(),
+            useMode = runtime.UseMode, usageFields = runtime.Use?.Fields, reviewOutputs = runtime.Use?.ReviewOutputs, modelChoices = runtime.Use?.Models, runState = runtime.Use?.Snapshot(),
             plugins = runtime.Plugins.Reports
         });
         app.MapPost("/api/use/step", async (UseStepRequest request, CancellationToken token) =>
         { await runtime.Use!.AdvanceAsync(request.Parameters ?? [], token); return runtime.Use.Snapshot(); });
+        app.MapPost("/api/use/review", async (UseReviewRequest request, CancellationToken token) =>
+        { await runtime.Use!.ReviewAsync(request.Outputs, token); return runtime.Use.Snapshot(); });
         app.MapPost("/api/use/reset", async (CancellationToken token) =>
         { await runtime.Use!.ResetAsync(token); return runtime.Use.Snapshot(); });
         app.MapGet("/api/settings", () => new { settings = runtime.SavedSettings, manifests = runtime.Manifests, reports = runtime.Plugins.Reports, settingsPath = runtime.SettingsStore.FilePath, runtime.SettingsError, runtime.PendingRestart });

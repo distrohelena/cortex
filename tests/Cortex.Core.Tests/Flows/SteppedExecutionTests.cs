@@ -13,11 +13,12 @@ public sealed class SteppedExecutionTests
         var session = new TypedFlowExecution(TypedFlowCompiler.Compile(graph,"a",[Handler("first",true),Handler("second",false),Handler("third",false)]));
         var first = await session.AdvanceAsync(TestContext.Current.CancellationToken);
         Assert.Equal("b", session.NextNodeId); Assert.Single(first.Steps); Assert.Equal(new[]{"first"},calls);
+        session.AmendLastOutputs(new Dictionary<string,JsonElement>{["value"]=JsonSerializer.SerializeToElement("human edit")});
         await session.AdvanceAsync(TestContext.Current.CancellationToken);
         var final = await session.AdvanceAsync(TestContext.Current.CancellationToken);
         Assert.True(session.Completed); Assert.Null(session.NextNodeId);
         Assert.Equal(new[]{"first","second","third"},calls); Assert.Single(first.Steps);
-        Assert.Equal("start-second-third",final.Outputs["c"]["value"].Value.GetString());
+        Assert.Equal("human edit-second-third",final.Outputs["c"]["value"].Value.GetString());
         await Assert.ThrowsAsync<InvalidOperationException>(()=>session.AdvanceAsync(TestContext.Current.CancellationToken));
     }
 }

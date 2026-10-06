@@ -20,3 +20,10 @@ Graph v3 can include creator-supplied `usage` metadata:
 Only real configuration fields can be exposed. Unlisted fields/nodes, disallowed model choices and parameter changes after starting are rejected. Raw graph replacement/open/save, full-run and settings routes are forbidden in Use mode. Existing session-token/same-origin rules still apply. The original template file remains unchanged.
 
 `TypedFlowExecution` is a local, one-node facade around the existing kernel. Ordinary full runs retain the default pure-node batching behavior. This facade is not a second scheduler or persistence system: progress lasts for the editor host session. Durable humanFeedback nodes still require their existing durable backend.
+
+
+## Consumer-owned application assets and review
+
+`CortexEditorLauncher.Open(..., useMode: true, applicationRoot: <consumer web root>)` serves the consumer's own `index.html` and assets through the existing local host. Cortex requires an existing index and locked Use mode. The product UI and domain presentation belong to the consumer repository; no consumer branding or video-specific screens are added to Cortex.
+
+`usage.reviewOutputs` can expose output ports of the last completed node for human review. `/api/use/review` applies allowed, type-validated edits only while paused. The existing kernel updates both its published values and downstream input values; the template graph remains unchanged. Published side-effect outputs cannot be amended through this draft-review capability.

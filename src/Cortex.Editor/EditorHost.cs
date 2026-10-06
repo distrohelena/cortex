@@ -5,7 +5,7 @@ using Cortex.Core.Plugins;
 namespace Cortex.Editor;
 
 public sealed record EditorLaunchOptions(string? GraphPath = null, string? EntryId = null, string? SettingsPath = null,
-    string? InstallationDirectory = null, int Port = 0, bool OpenBrowser = true, bool Diagnostics = false, bool UseMode = false);
+    string? InstallationDirectory = null, int Port = 0, bool OpenBrowser = true, bool Diagnostics = false, bool UseMode = false, string? ApplicationRoot = null);
 
 public sealed class EditorRuntime
 {
@@ -29,8 +29,9 @@ public static class EditorHost
 {
     public static async Task<WebApplication> BuildAsync(EditorLaunchOptions options, CancellationToken token = default)
     {
+        if(options.ApplicationRoot is not null && (!options.UseMode || !File.Exists(Path.Combine(Path.GetFullPath(options.ApplicationRoot), "index.html")))) throw new InvalidDataException("A consumer application requires Use mode and an index.html in its own web root.");
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions
-        { ContentRootPath = AppContext.BaseDirectory, WebRootPath = Path.Combine(AppContext.BaseDirectory, "wwwroot"), Args = [] });
+        { ContentRootPath = AppContext.BaseDirectory, WebRootPath = options.ApplicationRoot is null ? Path.Combine(AppContext.BaseDirectory, "wwwroot") : Path.GetFullPath(options.ApplicationRoot), Args = [] });
         if (options.Port is < 0 or > 65535) throw new ArgumentException("Invalid port.");
         builder.WebHost.ConfigureKestrel(server => server.Listen(IPAddress.Loopback, options.Port));
         if (options.Diagnostics) builder.Logging.ClearProviders();
@@ -77,7 +78,7 @@ public static class EditorHost
             if (options.UseMode && (context.Request.Path.StartsWithSegments("/api/settings") || context.Request.Method != "GET" && (context.Request.Path.StartsWithSegments("/api/graph") || context.Request.Path == "/api/run")))
             { context.Response.StatusCode = 403; await context.Response.WriteAsJsonAsync(new { error = "The graph template is locked in Use mode." }); return; }
             if (!options.UseMode && context.Request.Path.StartsWithSegments("/api/use")) { context.Response.StatusCode = 404; return; }
-            if (options.UseMode && context.Request.Path == "/") { context.Response.Redirect("/use.html"); return; }
+            if (options.UseMode && options.ApplicationRoot is null && context.Request.Path == "/") { context.Response.Redirect("/use.html"); return; }
             try { await next(context); }
             catch (Cortex.Core.Flows.TypedFlowException error)
             { context.Response.StatusCode = 400; await context.Response.WriteAsJsonAsync(new { error = "Invalid graph.", issues = error.Issues }); }

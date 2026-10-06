@@ -121,7 +121,23 @@ public sealed class EditorApiTests
         }
     }
 
-    private static async Task<(WebApplication App, HttpClient Client, EditorRuntime Runtime)> StartAsync(bool enabled, bool wait = false, bool useMode = false)
+    [Fact]
+    public async Task ApplicationRootServesConsumerOwnedPageThroughTheSameRuntime()
+    {
+        var (app,client,runtime)=await StartAsync(true,useMode:true,application:true);
+        await using(app)
+        using(client)
+        {
+            var page=await client.GetStringAsync("/",TestContext.Current.CancellationToken);
+            Assert.Contains("Consumer-owned UI",page);
+            Assert.DoesNotContain("Graph canvas",page);
+            Assert.True(runtime.UseMode);
+            Assert.Equal(HttpStatusCode.Forbidden,(await client.PostAsync("api/graph/save",null,TestContext.Current.CancellationToken)).StatusCode);
+            await app.StopAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    private static async Task<(WebApplication App, HttpClient Client, EditorRuntime Runtime)> StartAsync(bool enabled, bool wait = false, bool useMode = false, bool application = false)
     {
         var root = Path.Combine(Path.GetTempPath(), "cortex-api-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(root, "plugins"));
@@ -135,7 +151,9 @@ public sealed class EditorApiTests
         await store.SaveAsync(new() { Plugins = [new() { Id = "fixture", Enabled = enabled, Configuration = JsonSerializer.SerializeToElement(new { wait }) }] }, TestContext.Current.CancellationToken);
         var graphPath = Path.Combine(root, "graph.json");
         if (useMode) await File.WriteAllTextAsync(graphPath, EditorRuntimeTests.Graph("fixture").GetRawText(), TestContext.Current.CancellationToken);
-        var app = await EditorHost.BuildAsync(new(GraphPath: useMode ? graphPath : null, EntryId: useMode ? "input" : null, SettingsPath: store.FilePath, InstallationDirectory: root, OpenBrowser: false, UseMode: useMode), TestContext.Current.CancellationToken);
+        var applicationRoot=Path.Combine(root,"application");
+        if(application){Directory.CreateDirectory(applicationRoot);await File.WriteAllTextAsync(Path.Combine(applicationRoot,"index.html"),"<html><body>Consumer-owned UI</body></html>",TestContext.Current.CancellationToken);}
+        var app = await EditorHost.BuildAsync(new(GraphPath: useMode ? graphPath : null, EntryId: useMode ? "input" : null, SettingsPath: store.FilePath, InstallationDirectory: root, OpenBrowser: false, UseMode: useMode, ApplicationRoot: application?applicationRoot:null), TestContext.Current.CancellationToken);
         await app.StartAsync(TestContext.Current.CancellationToken);
         var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
         var client = new HttpClient { BaseAddress = new Uri(address) };
