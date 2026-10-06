@@ -21,6 +21,7 @@ public static class EditorEndpoints
         {
             await runtime.Execution.MutateAsync(async () =>
             {
+                settings.Validate();
                 // Preserve unknown/root options from the current settings if the UI omits them.
                 var missing = runtime.SavedSettings.Plugins.Where(old => settings.Plugins.All(current => current.Id != old.Id));
                 settings = settings with { Plugins = settings.Plugins.Concat(missing).ToArray(), Extra = settings.Extra ?? runtime.SavedSettings.Extra };

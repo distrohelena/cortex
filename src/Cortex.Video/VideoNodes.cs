@@ -25,7 +25,7 @@ public static class VideoNodes
     [
         new(new NodeDefinition("videoFile", 1, FlowEffect.Pure,
             dataOutputs: [new("video", VideoType)], controlOutputs: [new("then")],
-            configFields: [new("path", new StringType(), Required: true)]),
+            configFields: [new("path", new StringType(), Required: true) { Label = "Caminho do vídeo" }]),
             (config, _, token) =>
             {
                 token.ThrowIfCancellationRequested();

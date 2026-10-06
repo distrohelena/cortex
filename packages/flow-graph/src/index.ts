@@ -1,4 +1,4 @@
-import {attachCamera,screenToWorld,type Point} from './camera.js';
+import {attachCamera,screenToWorld,type Point,type Camera} from './camera.js';
 export {attachCamera,screenToWorld,zoomAt} from './camera.js';
 export type {Point,Camera} from './camera.js';
 export interface GraphNode {id:string;kind:string;x:number;y:number}
@@ -110,5 +110,5 @@ export function createFlowGraphEditor<N extends GraphNode>(options:EditorOptions
   }redrawWires();
  }
  const resize=()=>redrawWires();doc.defaultView?.addEventListener('resize',resize);
- return {render,redrawWires,clearConnection(){pending=null;},getCamera:()=>camera.get(),destroy(){if(destroyed)return;destroyed=true;dragCleanup?.();camera.destroy();doc.defaultView?.removeEventListener('resize',resize);nodes.replaceChildren();wires.replaceChildren();cards.clear();executionIcons.clear();pending=null;}};
+ return {render,redrawWires,clearConnection(){pending=null;},getCamera:()=>camera.get(),setCamera:(next:Camera)=>camera.set(next),destroy(){if(destroyed)return;destroyed=true;dragCleanup?.();camera.destroy();doc.defaultView?.removeEventListener('resize',resize);nodes.replaceChildren();wires.replaceChildren();cards.clear();executionIcons.clear();pending=null;}};
 }

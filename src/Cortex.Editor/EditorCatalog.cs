@@ -14,7 +14,7 @@ public static class EditorCatalog
     public static object[] Available(IReadOnlyList<FlowNodeHandler> handlers) => handlers.Select(handler => (object)new
     {
         kind = handler.Definition.Kind, title = Title(handler.Definition.Kind), isEntry = handler.IsEntry,
-        fields = handler.Definition.ConfigFields.Select(field => new { name = field.Name, label = Title(field.Name), required = field.Required, schema = field.Type.ToJsonSchema() }),
+        fields = handler.Definition.ConfigFields.Select(field => new { name = field.Name, label = field.Label ?? Title(field.Name), required = field.Required, schema = field.Type.ToJsonSchema() }),
         ports = handler.Definition.DataInputs.Select(port => new { id = port.Name, label = port.Name, type = port.Type.Kind, direction = "in" })
             .Concat(handler.Definition.DataOutputs.Select(port => new { id = port.Name, label = port.Name, type = port.Type.Kind, direction = "out" })),
         executionPorts = handler.Definition.ControlInputs.Select(port => new { id = port.Name, label = "Executar", direction = "in" })

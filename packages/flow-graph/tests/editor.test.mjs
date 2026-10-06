@@ -25,6 +25,19 @@ function setup(overrides={}){
   onConnect:connection=>connections.push(connection),onMove:(node,position)=>{Object.assign(node,position);moves.push(position);},onSelect:node=>selections.push(node.id),...overrides});
  editor.render();return {editor,viewport,canvas,nodes,wires,graph,connections,moves,selections};
 }
+
+test('host can frame a graph without changing node coordinates or another editor camera',()=>{
+ const a=setup(),b=setup();
+ a.editor.setCamera({x:25,y:40,zoom:.5});
+ assert.deepEqual(a.editor.getCamera(),{x:25,y:40,zoom:.5});
+ assert.deepEqual(b.editor.getCamera(),{x:0,y:0,zoom:1});
+ assert.deepEqual(a.graph.nodes[0],{id:'a',kind:'source',x:10,y:20});
+ assert.throws(()=>a.editor.setCamera({x:0,y:0,zoom:NaN}));
+ const card=a.nodes.children[0];card.fire('pointerdown',{button:0,pointerId:1,clientX:10,clientY:20});
+ card.fire('pointermove',{pointerId:1,clientX:40,clientY:50});card.fire('pointerup',{pointerId:1});
+ assert.deepEqual(a.moves,[{x:70,y:80}]);
+ a.editor.destroy();b.editor.destroy();
+});
 test('removed dynamic port leaves a visible removable dashed wire',()=>{
  const removed=[],s=setup({onDisconnect:e=>removed.push(e)});
  const edge={source:'a',sourcePort:'removed',target:'b',targetPort:'value'};

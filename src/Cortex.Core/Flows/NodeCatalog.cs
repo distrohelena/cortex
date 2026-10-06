@@ -7,7 +7,10 @@ public sealed record FlowDataPortDefinition(string Name, FlowType Type, bool Req
 
 public sealed record FlowControlPortDefinition(string Name, bool Required = false);
 
-public sealed record FlowConfigFieldDefinition(string Name, FlowType Type, bool Required = false);
+public sealed record FlowConfigFieldDefinition(string Name, FlowType Type, bool Required = false)
+{
+    public string? Label { get; init; }
+}
 
 public sealed record NodeDefinitionResolution(
     IReadOnlyList<FlowDataPortDefinition> DataInputs,

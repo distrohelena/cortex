@@ -36,5 +36,5 @@ export function attachCamera(viewport:HTMLElement,onChange:(state:Camera)=>void)
   update(zoomAt(state,{x:event.clientX-bounds.left,y:event.clientY-bounds.top},state.zoom*Math.exp(-delta*.0015)));
  },{passive:false});
  update(state);
- return {get:()=>({...state}),destroy(){for(const remove of cleanup.splice(0))remove();editingPointer=null;finish();}};
+ return {get:()=>({...state}),set(next:Camera){if(![next.x,next.y,next.zoom].every(Number.isFinite))throw new Error('Camera coordinates must be finite.');finish();update({...next,zoom:Math.max(.25,Math.min(3,next.zoom))});},destroy(){for(const remove of cleanup.splice(0))remove();editingPointer=null;finish();}};
 }

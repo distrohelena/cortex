@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 2,
+  "northStar": "A local graph editor whose operations, typed values, failures and plugin availability can be inspected directly.",
+  "breakpoints": { "compact": "540px", "stackedInspector": "820px", "denseDesktop": "1100px" },
+  "motion": { "control": "background-color 140ms ease-out, border-color 140ms ease-out", "status": "color 180ms ease-out", "reducedMotion": "transitions disabled" },
+  "rules": ["Extend the existing flow-graph canvas.", "Use metadata for node controls and plugin settings.", "Use prose for transcript strings and semantic tables for object arrays.", "Display pending restart and unavailable dependencies with text."],
+  "components": {
+    "primaryButton": { "html": "<button class=\"primary\">Executar</button>", "css": "button.primary{background:#c2a9ff;color:#1b1426;border:1px solid #c2a9ff;border-radius:6px;padding:6px 12px;min-height:34px;font:600 14px system-ui}" },
+    "input": { "html": "<label>Caminho<input type=\"text\" value=\"arquivo.json\"></label>", "css": "input{background:#171a21;color:#e7eaf2;border:1px solid #555f73;border-radius:5px;padding:8px 10px;font:14px system-ui}" }
+  }
+}
