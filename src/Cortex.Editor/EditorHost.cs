@@ -5,7 +5,7 @@ using Cortex.Core.Plugins;
 namespace Cortex.Editor;
 
 public sealed record EditorLaunchOptions(string? GraphPath = null, string? EntryId = null, string? SettingsPath = null,
-    string? InstallationDirectory = null, int Port = 0, bool OpenBrowser = true, bool Diagnostics = false);
+    string? InstallationDirectory = null, int Port = 0, bool OpenBrowser = true, bool Diagnostics = false, bool UseMode = false);
 
 public sealed class EditorRuntime
 {
@@ -16,6 +16,8 @@ public sealed class EditorRuntime
     public required IReadOnlyList<NodePluginManifest> Manifests { get; init; }
     public required LoadedNodePlugins Plugins { get; init; }
     public required EditorExecutionService Execution { get; init; }
+    public bool UseMode { get; init; }
+    public EditorUseService? Use { get; init; }
     public string? SettingsError { get; set; }
     public string? StartupError { get; set; }
     public bool PendingRestart => !System.Text.Json.JsonElement.DeepEquals(
@@ -55,11 +57,14 @@ public static class EditorHost
             try { await graph.OpenFileAsync(options.GraphPath, options.EntryId, token); }
             catch (Exception error) when (error is IOException or InvalidDataException or System.Text.Json.JsonException or UnauthorizedAccessException)
             { startupError = error.Message; }
+        var entry = new EditorExecutionService(plugins.Handlers).SelectEntry(graph.Graph, graph.EntryId);
+        if (options.UseMode && entry is null) throw new InvalidDataException("Use mode requires a graph with an available entry.");
+        var use = options.UseMode ? new EditorUseService(graph.Graph, entry!, plugins.Handlers, diagnostic) : null;
         var runtime = new EditorRuntime
         {
             Graph = graph, SettingsStore = store, SavedSettings = settings, ActiveSettings = settings,
             SettingsError = read.Error, StartupError = startupError, Manifests = manifests,
-            Plugins = plugins, Execution = new(plugins.Handlers, diagnostic)
+            Plugins = plugins, Execution = new(plugins.Handlers, diagnostic), UseMode = options.UseMode, Use = use
         };
         builder.Services.AddSingleton(runtime);
         builder.Services.AddSingleton<EditorSession>();
@@ -69,6 +74,10 @@ public static class EditorHost
         {
             if (context.Request.Path.StartsWithSegments("/api") && !session.Authorized(context))
             { context.Response.StatusCode = 403; return; }
+            if (options.UseMode && (context.Request.Path.StartsWithSegments("/api/settings") || context.Request.Method != "GET" && (context.Request.Path.StartsWithSegments("/api/graph") || context.Request.Path == "/api/run")))
+            { context.Response.StatusCode = 403; await context.Response.WriteAsJsonAsync(new { error = "The graph template is locked in Use mode." }); return; }
+            if (!options.UseMode && context.Request.Path.StartsWithSegments("/api/use")) { context.Response.StatusCode = 404; return; }
+            if (options.UseMode && context.Request.Path == "/") { context.Response.Redirect("/use.html"); return; }
             try { await next(context); }
             catch (Cortex.Core.Flows.TypedFlowException error)
             { context.Response.StatusCode = 400; await context.Response.WriteAsJsonAsync(new { error = "Invalid graph.", issues = error.Issues }); }
@@ -78,8 +87,8 @@ public static class EditorHost
         app.UseDefaultFiles();
         app.UseStaticFiles();
         EditorEndpoints.Map(app, runtime);
-        app.Lifetime.ApplicationStopping.Register(runtime.Execution.Cancel);
-        app.Lifetime.ApplicationStopped.Register(() => { runtime.Execution.Dispose(); plugins.Dispose(); });
+        app.Lifetime.ApplicationStopping.Register(() => { runtime.Execution.Cancel(); use?.Cancel(); });
+        app.Lifetime.ApplicationStopped.Register(() => { runtime.Execution.Dispose(); use?.Dispose(); plugins.Dispose(); });
         return app;
     }
 }

@@ -1,0 +1,12 @@
+﻿<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Cortex - Use graph</title><link rel="stylesheet" href="/flow-graph/editor.css"><link rel="stylesheet" href="/editor.css"><link rel="stylesheet" href="/use.css"></head>
+<body>
+<header class="toolbar"><a class="brand" href="#" aria-label="Cortex"><strong>Cortex</strong></a><span class="mode-label">Use graph</span><span id="file-name" class="file-name"></span><nav aria-label="Flow actions"><button id="fit" type="button">Fit</button><button id="reset" type="button">Start over</button><button id="next" class="primary" type="button">Continue</button><button id="cancel" hidden type="button">Cancel</button></nav></header>
+<div id="notice" class="notice" role="status" aria-live="polite">Opening the flow...</div>
+<main class="workspace use-workspace">
+<aside class="palette-panel" aria-label="Flow steps"><h2>Steps</h2><p class="muted">Complete one step at a time.</p><ol id="steps" class="use-steps"></ol><p class="template-note muted">Graph template locked. You can inspect its nodes and connections.</p></aside>
+<section id="graph-area" aria-label="Read-only graph"><div id="viewport"><div id="canvas"><svg id="wires" aria-label="Connections"></svg><div id="nodes"></div></div></div></section>
+<aside id="inspector" class="inspector" aria-label="Flow inputs and results"><div class="inspector-heading"><h2 id="selected-title">Video Brief</h2></div><p id="selection-note" class="muted"></p><form id="inputs-form"><div id="node-fields"></div></form><div id="node-outputs"></div><details class="diagnostics"><summary>Run diagnostics</summary><pre id="diagnostics"></pre></details></aside>
+</main><footer><span id="status">Ready</span><span id="progress"></span></footer><script type="module" src="/use.js"></script>
+</body></html>

@@ -1,0 +1,6 @@
+﻿export function download(value,name){const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/json'}));const link=document.createElement('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+export function renderValue(root,value,depth=0){
+ if(depth<5&&value&&typeof value==='object'&&!Array.isArray(value)){for(const [key,item]of Object.entries(value)){const group=document.createElement('div');group.className='value-group';const heading=document.createElement('h4');heading.textContent=key;group.append(heading);renderValue(group,item,depth+1);root.append(group);}return;}
+ if(depth<5&&Array.isArray(value)&&value.length&&value.every(item=>item&&typeof item==='object'&&!Array.isArray(item))){for(const [index,item]of value.entries()){const details=document.createElement('details');details.className='value-item';const summary=document.createElement('summary');summary.textContent=String(item.id??item.beat_id??`Item ${index+1}`);details.append(summary);renderValue(details,item,depth+1);root.append(details);}return;}
+ const element=document.createElement(typeof value==='string'?'p':'pre');element.className='value-text';element.textContent=typeof value==='string'?value:JSON.stringify(value,null,2);root.append(element);
+}

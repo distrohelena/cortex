@@ -5,17 +5,24 @@ namespace Cortex.Editor;
 
 public sealed record EditorGraphRequest(JsonElement Graph, string? EntryId = null);
 
+public sealed record UseStepRequest(Dictionary<string, Dictionary<string, JsonElement>>? Parameters = null);
+
 public static class EditorEndpoints
 {
     public static void Map(WebApplication app, EditorRuntime runtime)
     {
         app.MapGet("/api/state", () => new
         {
-            graph = runtime.Graph.Graph, entryId = runtime.Graph.EntryId, filePath = runtime.Graph.FilePath,
+            graph = runtime.Graph.Graph, entryId = runtime.Use?.EntryId ?? runtime.Graph.EntryId, filePath = runtime.Graph.FilePath,
             catalog = EditorCatalog.Available(runtime.Plugins.Handlers, runtime.Plugins.LibrariesByKind), descriptions = EditorCatalog.Descriptions(runtime.Graph.Graph, runtime.Plugins.Handlers, runtime.Plugins.LibrariesByKind),
-            runtime.SettingsError, runtime.StartupError, runtime.PendingRestart, busy = runtime.Execution.Busy,
+            runtime.SettingsError, runtime.StartupError, runtime.PendingRestart, busy = runtime.Use?.Busy ?? runtime.Execution.Busy,
+            useMode = runtime.UseMode, usageFields = runtime.Use?.Fields, modelChoices = runtime.Use?.Models, runState = runtime.Use?.Snapshot(),
             plugins = runtime.Plugins.Reports
         });
+        app.MapPost("/api/use/step", async (UseStepRequest request, CancellationToken token) =>
+        { await runtime.Use!.AdvanceAsync(request.Parameters ?? [], token); return runtime.Use.Snapshot(); });
+        app.MapPost("/api/use/reset", async (CancellationToken token) =>
+        { await runtime.Use!.ResetAsync(token); return runtime.Use.Snapshot(); });
         app.MapGet("/api/settings", () => new { settings = runtime.SavedSettings, manifests = runtime.Manifests, reports = runtime.Plugins.Reports, settingsPath = runtime.SettingsStore.FilePath, runtime.SettingsError, runtime.PendingRestart });
         app.MapPut("/api/settings", async (CortexEditorSettings settings, CancellationToken token) =>
         {
@@ -44,7 +51,7 @@ public static class EditorEndpoints
         app.MapPost("/api/validate", () => runtime.Execution.Validate(runtime.Graph.Graph, runtime.Graph.EntryId));
         app.MapPost("/api/run", async (CancellationToken token) =>
         { await runtime.Execution.StartAsync(runtime.Graph.Graph, runtime.Graph.EntryId, token); return runtime.Execution.Snapshot(); });
-        app.MapGet("/api/run", () => runtime.Execution.Snapshot());
-        app.MapPost("/api/run/cancel", () => { runtime.Execution.Cancel(); return runtime.Execution.Snapshot(); });
+        app.MapGet("/api/run", () => runtime.Use?.Snapshot() ?? runtime.Execution.Snapshot());
+        app.MapPost("/api/run/cancel", () => { if(runtime.Use is not null) { runtime.Use.Cancel(); return runtime.Use.Snapshot(); } runtime.Execution.Cancel(); return runtime.Execution.Snapshot(); });
     }
 }

@@ -32,16 +32,16 @@ internal static class FlowExecutionKernel
         }
     };
     internal static async Task<KernelStepResult> AdvanceAsync(TypedFlow flow, FlowExecutionState state,
-        FlowExecutionServices services, CancellationToken token)
+        FlowExecutionServices services, CancellationToken token, bool oneNode = false)
     {
         if (state.Snapshot.Status != ExecutionStatus.Ready) throw new InvalidOperationException("Execution is not ready to advance.");
         var traces = new List<TypedNodeExecutionTrace>();
-        var result = await ExecuteAdvanceAsync(flow, state, services with { Observer = trace => { traces.Add(trace); services.Observer?.Invoke(trace); } }, token);
+        var result = await ExecuteAdvanceAsync(flow, state, services with { Observer = trace => { traces.Add(trace); services.Observer?.Invoke(trace); } }, token, oneNode);
         var next = state.Snapshot.Cursor;
         return new(result, state.Snapshot.Status, next, next is null ? StepEffect.Pure : Effect(flow.Nodes[next]), traces);
     }
     private static async Task<TypedRunResult> ExecuteAdvanceAsync(TypedFlow flow, FlowExecutionState state,
-        FlowExecutionServices services, CancellationToken token)
+        FlowExecutionServices services, CancellationToken token, bool oneNode)
     {
         var snapshot = state.Snapshot;
         var steps = snapshot.Steps;
@@ -116,7 +116,7 @@ internal static class FlowExecutionKernel
             {
                 token.ThrowIfCancellationRequested();
                 var node = flow.Nodes[current];
-                if (visited > 0 && (initialEffect != StepEffect.Pure || Effect(node) != StepEffect.Pure || visited >= 64)) return Yield(current);
+                if (visited > 0 && (oneNode || initialEffect != StepEffect.Pure || Effect(node) != StepEffect.Pure || visited >= 64)) return Yield(current);
                 visited++; snapshot.Ordinal++;
                 var exit = "then";
                 nodeStartedAt = timeProvider.GetUtcNow();

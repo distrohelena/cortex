@@ -100,7 +100,28 @@ public sealed class EditorApiTests
         Assert.Equal("broken", await File.ReadAllTextAsync(path, TestContext.Current.CancellationToken));
     }
 
-    private static async Task<(WebApplication App, HttpClient Client, EditorRuntime Runtime)> StartAsync(bool enabled, bool wait = false)
+    [Fact]
+    public async Task UseModeLocksGraphAndSettingsEvenWhenRequestsBypassTheInterface()
+    {
+        var (app, client, runtime) = await StartAsync(true, useMode: true);
+        await using(app)
+        using(client)
+        {
+            var original = runtime.Graph.Graph.GetRawText();
+            Assert.Equal(HttpStatusCode.Forbidden,(await client.PutAsJsonAsync("api/graph",new EditorGraphRequest(EditorRuntimeTests.Graph("fixture")),TestContext.Current.CancellationToken)).StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden,(await client.PostAsync("api/graph/save",null,TestContext.Current.CancellationToken)).StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden,(await client.PostAsJsonAsync("api/graph/open",new EditorGraphRequest(EditorRuntimeTests.Graph("fixture")),TestContext.Current.CancellationToken)).StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden,(await client.PutAsJsonAsync("api/settings",new CortexEditorSettings(),TestContext.Current.CancellationToken)).StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden,(await client.PostAsync("api/run",null,TestContext.Current.CancellationToken)).StatusCode);
+            (await client.PostAsJsonAsync("api/use/step",new UseStepRequest(),TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+            await runtime.Use!.WaitAsync(TestContext.Current.CancellationToken);
+            Assert.Equal("completed",runtime.Use.Snapshot().State);
+            Assert.Equal(original,runtime.Graph.Graph.GetRawText());
+            await app.StopAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    private static async Task<(WebApplication App, HttpClient Client, EditorRuntime Runtime)> StartAsync(bool enabled, bool wait = false, bool useMode = false)
     {
         var root = Path.Combine(Path.GetTempPath(), "cortex-api-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(Path.Combine(root, "plugins"));
@@ -112,7 +133,9 @@ public sealed class EditorApiTests
         await File.WriteAllTextAsync(Path.Combine(root, "plugins", "fixture.plugin.json"), JsonSerializer.Serialize(manifest, CortexSettingsStore.JsonOptions), TestContext.Current.CancellationToken);
         var store = new CortexSettingsStore(Path.Combine(root, "settings.json"));
         await store.SaveAsync(new() { Plugins = [new() { Id = "fixture", Enabled = enabled, Configuration = JsonSerializer.SerializeToElement(new { wait }) }] }, TestContext.Current.CancellationToken);
-        var app = await EditorHost.BuildAsync(new(SettingsPath: store.FilePath, InstallationDirectory: root, OpenBrowser: false), TestContext.Current.CancellationToken);
+        var graphPath = Path.Combine(root, "graph.json");
+        if (useMode) await File.WriteAllTextAsync(graphPath, EditorRuntimeTests.Graph("fixture").GetRawText(), TestContext.Current.CancellationToken);
+        var app = await EditorHost.BuildAsync(new(GraphPath: useMode ? graphPath : null, EntryId: useMode ? "input" : null, SettingsPath: store.FilePath, InstallationDirectory: root, OpenBrowser: false, UseMode: useMode), TestContext.Current.CancellationToken);
         await app.StartAsync(TestContext.Current.CancellationToken);
         var address = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single();
         var client = new HttpClient { BaseAddress = new Uri(address) };

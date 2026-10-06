@@ -6,7 +6,7 @@ using Cortex.Core.Plugins;
 namespace Cortex.Editor;
 
 public sealed record EditorValidation(bool Success, string? EntryId, IReadOnlyList<TypedFlowIssue> Issues);
-public sealed record EditorRunSnapshot(string? Id, string State, JsonElement? Result, string? Error, IReadOnlyList<string> Diagnostics);
+public sealed record EditorRunSnapshot(string? Id, string State, JsonElement? Result, string? Error, IReadOnlyList<string> Diagnostics, string? NextNodeId = null);
 
 public sealed class EditorExecutionService(IReadOnlyList<FlowNodeHandler> handlers, ConcurrentQueue<string>? diagnostic = null) : IDisposable
 {
@@ -73,12 +73,7 @@ public sealed class EditorExecutionService(IReadOnlyList<FlowNodeHandler> handle
         try
         {
             var result = await TypedFlowRunner.RunAsync(flow, token);
-            var output = JsonSerializer.SerializeToElement(new
-            {
-                result.Success, result.Steps,
-                outputs = result.Outputs.ToDictionary(node => node.Key, node => node.Value.ToDictionary(port => port.Key,
-                    port => new { schema = port.Value.Type.ToJsonSchema(), value = port.Value.Value }))
-            }, CortexSettingsStore.JsonOptions);
+            var output = SerializeResult(result);
             lock (_sync) _snapshot = _snapshot with { State = result.Success ? "completed" : "failed", Result = output };
         }
         catch (OperationCanceledException) { lock (_sync) _snapshot = _snapshot with { State = "cancelled", Error = "Run cancelled." }; }
@@ -86,6 +81,13 @@ public sealed class EditorExecutionService(IReadOnlyList<FlowNodeHandler> handle
         { lock (_sync) _snapshot = _snapshot with { State = "failed", Error = error.Message }; }
         finally { lock (_sync) _busy = false; }
     }
+    internal static JsonElement SerializeResult(TypedRunResult result) => JsonSerializer.SerializeToElement(new
+            {
+                result.Success, result.Steps,
+                outputs = result.Outputs.ToDictionary(node => node.Key, node => node.Value.ToDictionary(port => port.Key,
+                    port => new { schema = port.Value.Type.ToJsonSchema(), value = port.Value.Value }))
+            }, CortexSettingsStore.JsonOptions);
+
     public void Cancel() { lock (_sync) _cancellation?.Cancel(); }
     public Task WaitAsync(CancellationToken token) { lock (_sync) return _task.WaitAsync(token); }
     public void Dispose() { Cancel(); _cancellation?.Dispose(); }
