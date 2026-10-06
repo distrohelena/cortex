@@ -50,6 +50,7 @@ public sealed record NodeDefinition
     }
 
     public string Kind { get; }
+    public string? DisplayName { get; init; }
     public int BlockVersion { get; }
     public FlowEffect Effect { get; }
     public IReadOnlyList<FlowDataPortDefinition> DataInputs { get; }

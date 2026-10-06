@@ -19,6 +19,7 @@ public sealed class VideoNodePlugin : IFlowNodePlugin
             NodePluginContext.ResolvePath(Text("modelFile"), context.ConfigurationDirectory),
             NodePluginContext.ResolvePath(Text("ffmpegExecutable", "ffmpeg"), context.ConfigurationDirectory, true),
             NodePluginContext.ResolvePath(Text("ffprobeExecutable", "ffprobe"), context.ConfigurationDirectory, true));
-        return VideoNodes.CreateHandlers(new WhisperCppTranscriber(tools, context.Diagnostic));
+        return VideoNodes.CreateHandlers(new WhisperCppTranscriber(tools, context.Diagnostic),
+            new ConfiguredJevTakeSuggester(Text("jevEndpoint", "https://api.typesafe.ai/v1/systemone"), Text("jevCredentialVariable", "TYPESAFE_API_KEY")));
     }
 }

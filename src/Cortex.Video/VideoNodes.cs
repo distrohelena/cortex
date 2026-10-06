@@ -21,8 +21,10 @@ public static class VideoNodes
         })), true)
     });
 
-    public static FlowNodeHandler[] CreateHandlers(IVideoTranscriber transcriber) =>
-    [
+    public static FlowNodeHandler[] CreateHandlers(IVideoTranscriber transcriber, ITakeSuggester? takes = null)
+    {
+        var handlers = new List<FlowNodeHandler>
+        {
         new(new NodeDefinition("videoFile", 1, FlowEffect.Pure,
             dataOutputs: [new("video", VideoType)], controlOutputs: [new("then")],
             configFields: [new("path", new StringType(), Required: true) { Label = "Caminho do vídeo" }]),
@@ -43,9 +45,12 @@ public static class VideoNodes
             }),
         new(new NodeDefinition("transcript", 1, FlowEffect.Pure,
             dataInputs: [new("transcript", TranscriptType, Required: true)], dataOutputs: [new("transcript", TranscriptType)],
-            controlInputs: [new("exec")]),
+            controlInputs: [new("exec")], controlOutputs: [new("then")]),
             (_, inputs, _) => Task.FromResult(Output("transcript", inputs["transcript"].Value)))
-    ];
+        };
+        if (takes is not null) handlers.Add(TakeSuggestionNode.Create(takes));
+        return handlers.ToArray();
+    }
 
     private static IReadOnlyDictionary<string, JsonElement> Output(string port, JsonElement value) =>
         new Dictionary<string, JsonElement> { [port] = value };

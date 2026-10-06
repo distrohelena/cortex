@@ -17,7 +17,7 @@ public sealed class ColdPluginTests
         var pluginDirectory = Path.Combine(root, "plugins", "video");
         Directory.CreateDirectory(pluginDirectory);
         var repository = FindRepository();
-        foreach (var file in new[] { "Cortex.Video.dll", "Cortex.Video.deps.json", "cortex-video.plugin.json" })
+        foreach (var file in new[] { "Cortex.Video.dll", "Cortex.Video.deps.json", "Cortex.Inference.dll", "cortex-video.plugin.json" })
             File.Copy(Path.Combine(repository, "src", "Cortex.Video", "bin", "Debug", "net10.0", file), Path.Combine(pluginDirectory, file));
         var settings = new CortexSettingsStore(Path.Combine(root, "settings.json"));
         if (writeSettings) await settings.SaveAsync(new() { Plugins = [new() { Id = "video", Enabled = enabled }] }, TestContext.Current.CancellationToken);
@@ -32,6 +32,7 @@ public sealed class ColdPluginTests
         using var report = JsonDocument.Parse(await stdout);
         var assemblies = report.RootElement.GetProperty("loadedAssemblies").EnumerateArray().Select(a => a.GetString()).ToArray();
         Assert.Equal(enabled, assemblies.Contains("Cortex.Video"));
+        if (!enabled) Assert.DoesNotContain("Cortex.Inference", assemblies);
         Assert.Equal(enabled, report.RootElement.GetProperty("reports")[0].GetProperty("loaded").GetBoolean());
     }
 

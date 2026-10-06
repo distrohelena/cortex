@@ -11,7 +11,7 @@ if ($LASTEXITCODE -ne 0) { throw 'Falha ao publicar o editor.' }
 if ($LASTEXITCODE -ne 0) { throw 'Falha ao compilar o plugin de vídeo.' }
 $taskPlugin = Join-Path $taskInstall 'plugins/video'
 New-Item -ItemType Directory -Force -Path $taskPlugin | Out-Null
-foreach ($taskFile in @('Cortex.Video.dll', 'Cortex.Video.deps.json', 'cortex-video.plugin.json')) {
+foreach ($taskFile in @('Cortex.Video.dll', 'Cortex.Video.deps.json', 'Cortex.Inference.dll', 'cortex-video.plugin.json')) {
     Copy-Item -LiteralPath (Join-Path $taskRoot "src/Cortex.Video/bin/Release/net10.0/$taskFile") -Destination (Join-Path $taskPlugin $taskFile)
 }
 $taskUtf8 = New-Object System.Text.UTF8Encoding($false)

@@ -1,7 +1,7 @@
 {
   "id": "video",
   "displayName": "Vídeo",
-  "description": "Arquivo de vídeo, transcrição local em português e transcript tipado.",
+  "description": "Vídeo, transcrição local e sugestões de takes por texto com Jev.",
   "assemblyPath": "Cortex.Video.dll",
   "entryType": "Cortex.Video.VideoNodePlugin",
   "contractVersion": 1,
@@ -9,6 +9,8 @@
     { "name": "whisperExecutable", "label": "Executável do whisper.cpp", "defaultValue": "", "required": true },
     { "name": "modelFile", "label": "Modelo Whisper multilíngue", "defaultValue": "", "required": true },
     { "name": "ffmpegExecutable", "label": "Executável do ffmpeg", "defaultValue": "ffmpeg" },
-    { "name": "ffprobeExecutable", "label": "Executável do ffprobe", "defaultValue": "ffprobe" }
+    { "name": "ffprobeExecutable", "label": "Executável do ffprobe", "defaultValue": "ffprobe" },
+    { "name": "jevEndpoint", "label": "Endpoint Jev", "defaultValue": "https://api.typesafe.ai/v1/systemone" },
+    { "name": "jevCredentialVariable", "label": "Variável de ambiente da credencial Jev", "defaultValue": "TYPESAFE_API_KEY" }
   ]
 }

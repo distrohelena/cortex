@@ -1,4 +1,4 @@
-param([string]$Graph, [string]$Entry, [string]$Settings, [int]$Port = 0, [switch]$NoOpen)
+param([string]$Graph, [string]$Entry, [string]$Settings, [int]$Port = 0, [switch]$NoOpen, [string]$CredentialFile)
 $ErrorActionPreference = 'Stop'
 $taskProfile = Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'Cortex/editor'
 $taskInstallation = Get-Content -LiteralPath (Join-Path $taskProfile 'installation.json') -Raw | ConvertFrom-Json
@@ -8,5 +8,8 @@ if ($Entry) { $taskArguments += @('--entry', $Entry) }
 if ($Settings) { $taskArguments += @('--settings', [System.IO.Path]::GetFullPath($Settings)) }
 if ($Port) { $taskArguments += @('--port', [string]$Port) }
 if ($NoOpen) { $taskArguments += '--no-open' }
-& dotnet @taskArguments
+if ($CredentialFile) {
+    . (Join-Path $PSScriptRoot 'jev-credential.ps1')
+    Invoke-WithJevCredential -CredentialFile $CredentialFile -Action { & dotnet @taskArguments }
+} else { & dotnet @taskArguments }
 exit $LASTEXITCODE
