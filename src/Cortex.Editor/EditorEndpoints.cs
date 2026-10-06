@@ -12,7 +12,7 @@ public static class EditorEndpoints
         app.MapGet("/api/state", () => new
         {
             graph = runtime.Graph.Graph, entryId = runtime.Graph.EntryId, filePath = runtime.Graph.FilePath,
-            catalog = EditorCatalog.Available(runtime.Plugins.Handlers), descriptions = EditorCatalog.Descriptions(runtime.Graph.Graph, runtime.Plugins.Handlers),
+            catalog = EditorCatalog.Available(runtime.Plugins.Handlers, runtime.Plugins.LibrariesByKind), descriptions = EditorCatalog.Descriptions(runtime.Graph.Graph, runtime.Plugins.Handlers, runtime.Plugins.LibrariesByKind),
             runtime.SettingsError, runtime.StartupError, runtime.PendingRestart, busy = runtime.Execution.Busy,
             plugins = runtime.Plugins.Reports
         });

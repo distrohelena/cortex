@@ -14,6 +14,23 @@ namespace Cortex.Editor.Tests;
 public sealed class EditorApiTests
 {
     [Fact]
+    public async Task CatalogAndNodeDescriptionIdentifyTheirPluginLibrary()
+    {
+        var (app, client, _) = await StartAsync(true);
+        await using (app)
+        using (client)
+        {
+            (await client.PostAsJsonAsync("api/graph/open", new EditorGraphRequest(EditorRuntimeTests.Graph("fixture")), TestContext.Current.CancellationToken)).EnsureSuccessStatusCode();
+            using var state = await client.GetFromJsonAsync<JsonDocument>("api/state", TestContext.Current.CancellationToken);
+            var library = state!.RootElement.GetProperty("catalog")[0].GetProperty("library");
+            Assert.Equal("fixture", library.GetProperty("id").GetString());
+            Assert.Equal("Fixture", library.GetProperty("displayName").GetString());
+            Assert.True(JsonElement.DeepEquals(library, state.RootElement.GetProperty("descriptions").GetProperty("input").GetProperty("library")));
+            await app.StopAsync(TestContext.Current.CancellationToken);
+        }
+    }
+
+    [Fact]
     public async Task SessionAndSameOriginAreRequired()
     {
         var (app, client, _) = await StartAsync(false);

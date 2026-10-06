@@ -13,6 +13,7 @@ public sealed class NodePluginLoaderTests
         using var runtime = NodePluginLoader.Load(new() { Plugins = [new() { Id = "fixture" }] },
             [Manifest() with { AssemblyPath = "missing.dll", EntryType = "No.Such.Type" }], Path.GetTempPath());
         Assert.Empty(runtime.Handlers);
+        Assert.Empty(runtime.LibrariesByKind);
         Assert.Null(runtime.Reports.Single().Error);
         Assert.False(runtime.Reports.Single().Loaded);
     }
@@ -24,6 +25,7 @@ public sealed class NodePluginLoaderTests
         Assert.True(runtime.Reports.Single().Loaded, runtime.Reports.Single().Error);
         var handler = Assert.Single(runtime.Handlers);
         Assert.Equal(typeof(FlowNodeHandler), handler.GetType());
+        Assert.Equal(new NodeLibrary("fixture", "Fixture"), runtime.LibrariesByKind[handler.Definition.Kind]);
         var graph = JsonSerializer.SerializeToElement(new { version = 3, nodes = new[] { new { id = "input", kind = "fixture" } }, edges = Array.Empty<object>() });
         var result = await TypedFlowRunner.RunAsync(TypedFlowCompiler.Compile(graph, "input", runtime.Handlers), TestContext.Current.CancellationToken);
         Assert.True(result.Success);
@@ -57,6 +59,7 @@ public sealed class NodePluginLoaderTests
         using var duplicate = NodePluginLoader.Load(Enabled("fixture", "second"), [Manifest(), Manifest() with { Id = "second" }], Path.GetTempPath());
         Assert.Single(duplicate.Handlers);
         Assert.NotNull(duplicate.Reports.Single(report => report.Id == "second").Error);
+        Assert.Equal(new NodeLibrary("fixture", "Fixture"), duplicate.LibrariesByKind["fixture"]);
     }
 
     private static CortexEditorSettings Enabled(params string[] ids) => new() { Plugins = ids.Select(id => new NodePluginSetting { Id = id, Enabled = true }).ToArray() };

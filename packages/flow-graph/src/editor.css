@@ -9,6 +9,7 @@
 .fg-viewport .node.selected{border-color:var(--accent,#c2a9ff);box-shadow:0 0 0 2px #c2a9ff25}
 .fg-viewport .node-titlebar{display:flex;align-items:center;gap:8px;padding:10px;border-bottom:1px solid #ffffff12;font-weight:650}
 .fg-viewport .node-title{flex:1;min-width:0;overflow-wrap:anywhere}
+.fg-viewport .node-badge{display:table;max-width:100%;margin-top:5px;padding:1px 6px;border:1px solid #555f73;border-radius:4px;color:var(--muted,#b1b9c9);font-size:11px;line-height:16px;font-weight:500;overflow-wrap:anywhere}
 .fg-viewport .execution-ports{display:flex;flex-direction:column;gap:5px}
 .fg-viewport button.port{font:12px system-ui;padding:3px 6px;color:inherit;background:#222630;border:1px solid #414756;border-radius:12px}
 .fg-viewport button.exec-port{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:26px;border-radius:4px;min-width:25px;line-height:20px;color:#fff;border-color:#aeb4c1}

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Cortex.Core.Flows;
+using Cortex.Core.Plugins;
 
 namespace Cortex.Editor;
 
@@ -11,9 +12,10 @@ public static class EditorCatalog
         var words = Regex.Replace(kind, "([a-z0-9])([A-Z])", "$1 $2");
         return words.Length == 0 ? "Node" : char.ToUpperInvariant(words[0]) + words[1..];
     }
-    public static object[] Available(IReadOnlyList<FlowNodeHandler> handlers) => handlers.Select(handler => (object)new
+    public static object[] Available(IReadOnlyList<FlowNodeHandler> handlers, IReadOnlyDictionary<string, NodeLibrary>? libraries = null) => handlers.Select(handler => (object)new
     {
         kind = handler.Definition.Kind, title = handler.Definition.DisplayName ?? Title(handler.Definition.Kind), isEntry = handler.IsEntry,
+        library = libraries?.GetValueOrDefault(handler.Definition.Kind),
         fields = handler.Definition.ConfigFields.Select(field => new { name = field.Name, label = field.Label ?? Title(field.Name), required = field.Required, schema = field.Type.ToJsonSchema() }),
         ports = handler.Definition.DataInputs.Select(port => new { id = port.Name, label = port.Name, type = port.Type.Kind, direction = "in" })
             .Concat(handler.Definition.DataOutputs.Select(port => new { id = port.Name, label = port.Name, type = port.Type.Kind, direction = "out" })),
@@ -21,7 +23,7 @@ public static class EditorCatalog
             .Concat(handler.Definition.ControlOutputs.Select(port => new { id = port.Name, label = "Next", direction = "out" }))
     }).ToArray();
 
-    public static Dictionary<string, object> Descriptions(JsonElement graph, IReadOnlyList<FlowNodeHandler> handlers)
+    public static Dictionary<string, object> Descriptions(JsonElement graph, IReadOnlyList<FlowNodeHandler> handlers, IReadOnlyDictionary<string, NodeLibrary>? libraries = null)
     {
         var available = handlers.Select(handler => handler.Definition.Kind).ToHashSet(StringComparer.Ordinal);
         return graph.GetProperty("nodes").EnumerateArray().ToDictionary(node => node.GetProperty("id").GetString()!, node =>
@@ -29,7 +31,7 @@ public static class EditorCatalog
             var id = node.GetProperty("id").GetString()!;
             var kind = node.GetProperty("kind").GetString()!;
             var known = available.Contains(kind);
-            var palette = Available(handlers);
+            var palette = Available(handlers, libraries);
             if (known) return palette[handlers.Select(handler => handler.Definition.Kind).ToList().IndexOf(kind)];
             var edges = graph.GetProperty("edges").EnumerateArray().ToArray();
             var controls = graph.TryGetProperty("controlEdges", out var ce) ? ce.EnumerateArray().ToArray() : [];

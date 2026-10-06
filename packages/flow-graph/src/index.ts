@@ -7,7 +7,7 @@ export interface GraphDocument<N extends GraphNode=GraphNode> {nodes:N[];edges:G
 export type WireKind='data'|'execution';
 export interface Connection extends GraphEdge {kind:WireKind;sourcePort:string;targetPort:string}
 export interface PortView {id:string;direction:'in'|'out';label:string;type?:string;typeLabel?:string;title?:string;interactive?:boolean}
-export interface NodeView {title:string;className?:string;portsClassName?:string;preview?:string;ports:PortView[];executionPorts:PortView[]}
+export interface NodeView {title:string;badge?:string;className?:string;portsClassName?:string;preview?:string;ports:PortView[];executionPorts:PortView[]}
 export interface EditorOptions<N extends GraphNode> {
  viewport:HTMLElement;canvas:HTMLElement;nodes:HTMLElement;wires:SVGElement;
  getGraph:()=>GraphDocument<N>;describeNode:(node:N)=>NodeView;
@@ -90,6 +90,7 @@ export function createFlowGraphEditor<N extends GraphNode>(options:EditorOptions
   for(const node of graph.nodes){
    const view=options.describeNode(node),card=doc.createElement('article');card.className=`node ${view.className??''}${node.id===options.getSelectedId?.()?' selected':''}`;card.style.left=node.x+'px';card.style.top=node.y+'px';
    const heading=doc.createElement('header');heading.className='node-titlebar';const title=doc.createElement('span');title.className='node-title';title.textContent=view.title;title.tabIndex=0;title.setAttribute('role','button');
+   if(view.badge){const badge=doc.createElement('span');badge.className='node-badge';badge.textContent=view.badge;badge.title=`Library: ${view.badge}`;title.append(badge);title.setAttribute('aria-label',`${view.title}, ${view.badge} library`);}
    const controls=(direction:'in'|'out')=>{const group=doc.createElement('span');group.className=`execution-ports ${direction}`;const ports=view.executionPorts.filter(p=>p.direction===direction);for(const port of ports)group.append(portButton(node,port,'execution',ports.length>1));return group;};
    heading.append(controls('in'),title,controls('out'));card.append(heading);
    const ports=doc.createElement('div');ports.className=`ports ${view.portsClassName??'typed-ports'}`;for(const port of view.ports)ports.append(portButton(node,port,'data'));card.append(ports);

@@ -1,17 +1,21 @@
 using System.Reflection;
+using System.Collections.ObjectModel;
 using Cortex.Core.Flows;
 
 namespace Cortex.Core.Plugins;
+
+public sealed record NodeLibrary(string Id, string DisplayName);
 
 public sealed record PluginLoadReport(string Id, bool Enabled, bool Loaded, string? Error);
 
 public sealed class LoadedNodePlugins : IDisposable
 {
     private readonly List<NodePluginLoadContext> _contexts;
-    internal LoadedNodePlugins(IReadOnlyList<FlowNodeHandler> handlers, IReadOnlyList<PluginLoadReport> reports, List<NodePluginLoadContext> contexts)
-    { Handlers = handlers; Reports = reports; _contexts = contexts; }
+    internal LoadedNodePlugins(IReadOnlyList<FlowNodeHandler> handlers, IReadOnlyList<PluginLoadReport> reports, IReadOnlyDictionary<string, NodeLibrary> librariesByKind, List<NodePluginLoadContext> contexts)
+    { Handlers = handlers; Reports = reports; LibrariesByKind = librariesByKind; _contexts = contexts; }
     public IReadOnlyList<FlowNodeHandler> Handlers { get; private set; }
     public IReadOnlyList<PluginLoadReport> Reports { get; }
+    public IReadOnlyDictionary<string, NodeLibrary> LibrariesByKind { get; }
     public void Dispose()
     {
         Handlers = [];
@@ -28,6 +32,7 @@ public static class NodePluginLoader
         settings.Validate();
         var handlers = new List<FlowNodeHandler>();
         var reports = new List<PluginLoadReport>();
+        var libraries = new Dictionary<string, NodeLibrary>(StringComparer.Ordinal);
         var contexts = new List<NodePluginLoadContext>();
         var ids = new HashSet<string>(StringComparer.Ordinal);
         foreach (var manifest in manifests)
@@ -53,6 +58,8 @@ public static class NodePluginLoader
                     added.Any(handler => handlers.Any(existing => existing.Definition.Kind == handler.Definition.Kind)))
                     throw new InvalidDataException("O plugin contém kinds duplicados ou reservados pelo Cortex.");
                 handlers.AddRange(added);
+                var library = new NodeLibrary(manifest.Id, string.IsNullOrWhiteSpace(manifest.DisplayName) ? manifest.Id : manifest.DisplayName);
+                foreach (var handler in added) libraries.Add(handler.Definition.Kind, library);
                 contexts.Add(context);
                 context = null;
                 reports.Add(new(manifest.Id, true, true, null));
@@ -63,6 +70,6 @@ public static class NodePluginLoader
         }
         foreach (var setting in settings.Plugins.Where(setting => !ids.Contains(setting.Id)))
             reports.Add(new(setting.Id, setting.Enabled, false, setting.Enabled ? "Plugin não instalado." : null));
-        return new(handlers.AsReadOnly(), reports.AsReadOnly(), contexts);
+        return new(handlers.AsReadOnly(), reports.AsReadOnly(), new ReadOnlyDictionary<string, NodeLibrary>(libraries), contexts);
     }
 }

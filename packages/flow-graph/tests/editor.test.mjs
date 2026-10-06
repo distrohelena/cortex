@@ -38,6 +38,16 @@ test('host can frame a graph without changing node coordinates or another editor
  assert.deepEqual(a.moves,[{x:70,y:80}]);
  a.editor.destroy();b.editor.destroy();
 });
+test('optional host badge identifies a node without changing selection or unlabelled nodes',()=>{
+ const s=setup({describeNode:node=>({title:node.kind,badge:node.id==='a'?'Video':undefined,ports:[],executionPorts:[]})});
+ const title=s.nodes.children[0].children[0].children[1];
+ const badge=title.children.find(child=>child.className==='node-badge');
+ assert.equal(badge.textContent,'Video');
+ assert.equal(title.attrs['aria-label'],'source, Video library');
+ assert.equal(s.nodes.children[1].children[0].children[1].children.length,0);
+ title.fire('keydown',{key:'Enter'});assert.deepEqual(s.selections,['a']);
+ s.editor.destroy();
+});
 test('removed dynamic port leaves a visible removable dashed wire',()=>{
  const removed=[],s=setup({onDisconnect:e=>removed.push(e)});
  const edge={source:'a',sourcePort:'removed',target:'b',targetPort:'value'};
