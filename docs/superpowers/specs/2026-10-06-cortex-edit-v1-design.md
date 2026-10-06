@@ -1,6 +1,6 @@
 # Cortex edit v1 — editorial document contract
 
-Status: **approved on 2026-10-06; implementation plan awaiting review**. This document defines the first contract increment. It does not implement media discovery, matching, pickup ingestion, a new interface, or Resolve export.
+Status: **approved on 2026-10-06; contracts/validation/Edit Script increment implemented**. This document defines the first contract increment. It does not implement media discovery, matching, pickup ingestion, a new interface, or Resolve export.
 
 ## Purpose and scope
 

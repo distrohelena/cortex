@@ -115,6 +115,11 @@ public static class EditingContractValidator
             if (visual.Type == VisualKind.Asset && (visual.Source is null || !sources.Contains(visual.Source))) Add(issues, "edit.reference_unknown", path + "/visual/source", "The asset source does not exist.");
             if (visual.Type is VisualKind.Speaker or VisualKind.SpeakerWithOverlay) Text(visual.Speaker, path + "/visual/speaker", issues);
             Positive(visual.DurationSec, path + "/visual/duration_sec", issues);
+            if (visual.Focus is { } focus)
+            {
+                if (focus.Type != "crop_zoom" || string.IsNullOrWhiteSpace(focus.TargetText)) Add(issues, "edit.focus_invalid", path + "/visual/focus", "Use crop_zoom with a nonempty text target.");
+                if (focus.SourceRectPixels is { } rect && (!double.IsFinite(rect.X) || !double.IsFinite(rect.Y) || rect.X < 0 || rect.Y < 0 || !double.IsFinite(rect.Width) || !double.IsFinite(rect.Height) || rect.Width <= 0 || rect.Height <= 0)) Add(issues, "edit.focus_invalid", path + "/visual/focus/source_rect_pixels", "Pixel bounds must be finite and positive within their coordinate space.");
+            }
             if ((visual.Enter is not null && visual.Enter != "cut") || (visual.Exit is not null && visual.Exit != "cut")) Add(issues, "edit.transition", path + "/visual", "This version supports explicit cut transitions.");
         }
     }
@@ -154,6 +159,7 @@ public static class EditingContractValidator
     {
         if (match.ValueKind != JsonValueKind.Object) { Add(issues, "edit.match_evidence", path, "Match evidence must be an object."); return; }
         if (!Property(match, "mode", out var mode) || mode.ValueKind != JsonValueKind.String || mode.GetString() is not ("exact" or "semantic" or "intent")) Add(issues, "edit.match_evidence", path + "/mode", "Use a known match mode.");
+        if (!Property(match, "method", out var method) || method.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(method.GetString())) Add(issues, "edit.match_evidence", path + "/method", "Measured match evidence needs an evaluation method.");
         foreach (var name in new[] { "semantic_score", "take_score" })
             if (Property(match, name, out var score) && score.ValueKind != JsonValueKind.Null && (score.ValueKind != JsonValueKind.Number || !score.TryGetDouble(out var value) || !double.IsFinite(value) || value < 0 || value > 1))
                 Add(issues, "edit.score_range", path + "/" + name, "Scores must be finite values from 0 to 1, or an explicit unmeasured null.");
@@ -195,9 +201,14 @@ public static class EditingContractValidator
                 Match(candidate.Match, path + "/candidates/" + candidate.Id + "/match", intent?.Audio.Selection, issues);
                 if (intent?.Audio.Selection?.MaxDurationSec is { } maximum && candidate.SourceOut - candidate.SourceIn > maximum) Add(issues, "edit.clip_too_long", path + "/candidates", "The candidate exceeds the authored maximum duration.");
                 if (intent?.Audio.Search?.Speaker is { } speaker && candidate.Speaker != speaker) Add(issues, "edit.speaker_mismatch", path + "/candidates", "The declared speaker does not match the request.");
+                if (intent?.Audio.Search is { } search)
+                {
+                    if (!Property(candidate.Match, "mode", out var mode) || mode.ValueKind != JsonValueKind.String || mode.GetString() != JsonNamingPolicy.SnakeCaseLower.ConvertName(search.Match.ToString())) Add(issues, "edit.match_mode", path + "/candidates", "Evidence must use the authored matching mode.");
+                    if (search.Match == MatchMode.Exact && !(" " + Normalize(candidate.Transcript) + " ").Contains(" " + Normalize(search.Text ?? "") + " ", StringComparison.Ordinal)) Add(issues, "edit.exact_wording", path + "/candidates", "An exact request requires its words in order, not a paraphrase.");
+                }
             }
             if (beat.SelectedCandidateId is not null && !beat.Candidates.Any(candidate => candidate.Id == beat.SelectedCandidateId)) Add(issues, "edit.reference_unknown", path + "/selected_candidate_id", "The selected candidate must belong to this beat.");
-            if (beat.Visual.Requirements?.Any(requirement => Property(requirement, "status", out var status) && status.GetString() == "needs_alignment") == true && (beat.Status == DecisionStatus.Matched || beat.Visual.Status == DecisionStatus.Matched)) Add(issues, "edit.pending_alignment", path, "An audio match cannot clear required visual alignment.");
+            if (beat.Visual.Requirements?.Any(requirement => Property(requirement, "status", out var status) && status.ValueKind == JsonValueKind.String && status.GetString() == "needs_alignment") == true && (beat.Status == DecisionStatus.Matched || beat.Visual.Status == DecisionStatus.Matched)) Add(issues, "edit.pending_alignment", path, "An audio match cannot clear required visual alignment.");
             if (beat.Audio.Status == DecisionStatus.NeedsRecording)
             {
                 Text(beat.Audio.RecordingTaskId, path + "/audio/recording_task_id", issues);
@@ -218,13 +229,17 @@ public static class EditingContractValidator
             var beat = context?.Script.Beats.FirstOrDefault(item => item.Id == task.BeatId);
             if (context is not null && beat is null) Add(issues, "edit.reference_unknown", path + "/beat_id", "The authored beat does not exist.");
             if (string.IsNullOrWhiteSpace(task.Script) && string.IsNullOrWhiteSpace(task.Brief)) Add(issues, "edit.recording_brief", path, "Recording needs a script or brief.");
+            if (!Property(task.Match, "mode", out var taskMode) || taskMode.ValueKind != JsonValueKind.String ||
+                (taskMode.GetString() == "exact" ? !Property(task.Match, "requested_text", out var query) || query.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(query.GetString()) :
+                    taskMode.GetString() is not ("semantic" or "intent") || !Property(task.Match, "requested_meaning", out var meaning) || meaning.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(meaning.GetString())))
+                Add(issues, "edit.search_query", path + "/match", "Recording tasks need their authored text/meaning matching requirement.");
             Positive(task.TargetDurationSec, path + "/target_duration_sec", issues);
             if (task.Reason == RecordingReason.NoSuitableClipFound && task.Status != TaskStatus.Resolved && context?.Plan is { } plan)
             {
                 var observation = plan.Beats.FirstOrDefault(item => item.BeatId == task.BeatId)?.Audio.Search;
                 if (observation?.Status != "completed" || observation.Outcome != "no_suitable_clip_found") Add(issues, "edit.search_not_completed", path + "/reason", "Only a successfully completed unsuccessful search can request this recording.");
             }
-            if (task.Reason == RecordingReason.ScriptRequiresExactWording && (!Property(task.Match, "mode", out var mode) || mode.GetString() != "exact")) Add(issues, "edit.recording_exact", path + "/match", "The exact-wording task must require exact matching.");
+            if (task.Reason == RecordingReason.ScriptRequiresExactWording && (!Property(task.Match, "mode", out var mode) || mode.ValueKind != JsonValueKind.String || mode.GetString() != "exact")) Add(issues, "edit.recording_exact", path + "/match", "The exact-wording task must require exact matching.");
             if (task.Status == TaskStatus.Resolved)
             {
                 if (task.ResolvedBy is null) Add(issues, "edit.pending_recording", path + "/resolved_by", "A resolved recording needs accepted pickup evidence.");
@@ -232,6 +247,8 @@ public static class EditingContractValidator
                 {
                     Interval(task.ResolvedBy.MediaId, task.ResolvedBy.SourceIn, task.ResolvedBy.SourceOut, media, path + "/resolved_by", issues);
                     if (task.ResolvedBy.Selection.ReviewStatus != ReviewStatus.Accepted) Add(issues, "edit.pickup_not_accepted", path + "/resolved_by", "Submitting a pickup is not accepting it.");
+                    Match(task.ResolvedBy.Match, path + "/resolved_by/match", null, issues);
+                    if (media.TryGetValue(task.ResolvedBy.MediaId, out var snapshot) && (snapshot.SourceId != task.ResolvedBy.SourceId || snapshot.Path != task.ResolvedBy.Path)) Add(issues, "edit.reference_unknown", path + "/resolved_by", "Pickup identity must match its current media snapshot.");
                     if (task.Reason == RecordingReason.ScriptRequiresExactWording && Normalize(task.Script ?? "") != Normalize(task.ResolvedBy.Transcript)) Add(issues, "edit.recording_exact", path + "/resolved_by/transcript", "The pickup does not preserve the requested wording.");
                 }
             }

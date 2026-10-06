@@ -10,6 +10,7 @@ internal static class EditingReferenceValidation
         Text(document.ProjectId, "/project_id", issues); Text(document.ResolutionId, "/resolution_id", issues);
         Check(document.ScriptRef, context?.ScriptReference, context, "/script_ref", true, issues);
         if (context is null) { Add(issues, "edit.context_required", "/script_ref", "Supply the authored script and input fingerprints to validate generated documents."); return; }
+        if (context.ScriptReference is null) Add(issues, "edit.context_required", "/script_ref", "The actual current script fingerprint is required.");
         if (document.ProjectId != context.Script.Project.Id || document.ScriptRef.Revision != context.Script.Revision) Add(issues, "edit.reference_stale", "/script_ref", "The project or authored revision differs from this resolution.");
         if (document is ResolvedEditPlanDocument resolved)
         {

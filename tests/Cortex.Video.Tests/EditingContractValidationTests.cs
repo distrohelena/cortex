@@ -85,6 +85,32 @@ public sealed class EditingContractValidationTests
         Assert.DoesNotContain(EditingContractValidator.Validate(Parse(value), context), issue => issue.Code is "edit.score_unmeasured" or "edit.score_weighted");
     }
 
+    [Fact]
+    public void ExactEvidenceAndFocusRequestsCannotContradictTheirIntent()
+    {
+        var script = Node("script.json");
+        script["beats"]![1]!["audio"]!["search"] = JsonNode.Parse("{\"speaker\":\"helena\",\"match\":\"exact\",\"text\":\"Uma frase completamente diferente.\"}");
+        var plan = Node("edit_plan.json"); plan["beats"]![1]!["candidates"]![0]!["match"]!["mode"] = "exact";
+        var context = EditingBundleValidationTests.Context("edit_plan.json") with { Script = (EditScriptDocument)Parse(script) };
+        Assert.Contains(EditingContractValidator.Validate(Parse(plan), context), issue => issue.Code == "edit.exact_wording");
+        script["beats"]![0]!["visual"]!["focus"]!["type"] = "invented_effect";
+        Assert.Contains(EditingContractValidator.Validate(Parse(script)), issue => issue.Code == "edit.focus_invalid");
+    }
+
+    [Fact]
+    public void NullSemanticCollectionMembersFailWhileAnnotationNullsRemainAllowed()
+    {
+        var script = Node("script.json"); script["beats"]![0] = null;
+        Assert.Throws<InvalidDataException>(() => Parse(script));
+    }
+
+    [Fact]
+    public void MalformedExtensionEvidenceReturnsAnIssueInsteadOfCrashing()
+    {
+        var plan = Node("edit_plan.json"); plan["beats"]![1]!["candidates"]![0]!["match"]!["mode"] = 3;
+        Assert.Contains(EditingContractValidator.Validate(Parse(plan), EditingBundleValidationTests.Context("edit_plan.json")), issue => issue.Code == "edit.match_evidence");
+    }
+
     [Theory]
     [InlineData("gap", "edit.timeline_gap")]
     [InlineData("missing", "edit.beat_order")]

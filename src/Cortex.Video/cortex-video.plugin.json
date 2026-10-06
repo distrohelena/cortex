@@ -1,7 +1,7 @@
 {
   "id": "video",
   "displayName": "Video",
-  "description": "Video, local transcription, take suggestions with Jev and local cut rendering.",
+  "description": "Editorial scripts, video, local transcription, take suggestions with Jev and local cut rendering.",
   "assemblyPath": "Cortex.Video.dll",
   "entryType": "Cortex.Video.VideoNodePlugin",
   "contractVersion": 1,

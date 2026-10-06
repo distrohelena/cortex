@@ -1,6 +1,6 @@
 # Cortex Editorial Contracts Implementation Plan
 
-> **For agentic workers:** Use superpowers:executing-plans for inline execution after plan review. No subagents or independent review are authorized. Steps use checkbox (`- [ ]`) tracking.
+> **For agentic workers:** Use superpowers:executing-plans for inline execution after plan review. No subagents or independent review are authorized. Steps use checkbox (`- [x]`) tracking.
 
 **Goal:** Implement the approved editorial JSON contracts and load an authored script through one Edit Script node in the existing optional Video plugin.
 
@@ -46,12 +46,12 @@
 - Four root records: `EditScriptDocument`, `EditPlanDocument`, `RecordingTasksDocument`, `ResolvedEditPlanDocument`, sharing an `EditingDocument` base. Typed headers/references, intent/source/beat/recording and candidate/timeline models use the approved fixture fields. `metadata`, procedural `recipe` and explicitly extensible requirement/evidence payloads may retain JSON data; do not silently discard it.
 - `EditingSchemas.Get(string schemaId) -> JsonElement` exposes the embedded portable schema. The resources constrain discriminants, field types, required shape and scalar bounds; arithmetic, media references and cross-file checks belong to task 2.
 
-- [ ] Write failing round-trip tests for all six committed fixture snapshots; assert schema/project IDs, seven ordered beats, authored accents, null `take_score`, nested metadata and pickup source ranges survive.
-- [ ] Add rejection tests for unknown schema IDs, ambiguous/duplicate JSON property names and invalid scalar types; preserve extension data only in explicitly open annotation/recipe/evidence fields.
-- [ ] Run `dotnet test tests/Cortex.Video.Tests/Cortex.Video.Tests.csproj --filter "FullyQualifiedName~EditingSerializationTests|FullyQualifiedName~EditingSchemaTests"`; observe the missing API/failing assertions.
-- [ ] Implement the listed models/serializer and four portable schemas. Keep audio/visual discriminant fields explicit; no opaque catch-all replacement for the whole document. Publish strict portable shape for known semantic fields and open shape only for annotations/declared extension payloads.
-- [ ] Validate fixture shapes and schema syntax using the already available Python `jsonschema` 4.26.0 `Draft202012Validator`; record results under this plan's ignored workspace. No install or runtime dependency is needed. Check malformed variants against both that schema validator and the C# structural checks.
-- [ ] Run the scoped tests to green and commit only the owned contracts/schemas/tests.
+- [x] Write failing round-trip tests for all six committed fixture snapshots; assert schema/project IDs, seven ordered beats, authored accents, null `take_score`, nested metadata and pickup source ranges survive.
+- [x] Add rejection tests for unknown schema IDs, ambiguous/duplicate JSON property names and invalid scalar types; preserve extension data only in explicitly open annotation/recipe/evidence fields.
+- [x] Run `dotnet test tests/Cortex.Video.Tests/Cortex.Video.Tests.csproj --filter "FullyQualifiedName~EditingSerializationTests|FullyQualifiedName~EditingSchemaTests"`; observe the missing API/failing assertions.
+- [x] Implement the listed models/serializer and four portable schemas. Keep audio/visual discriminant fields explicit; no opaque catch-all replacement for the whole document. Publish strict portable shape for known semantic fields and open shape only for annotations/declared extension payloads.
+- [x] Validate fixture shapes and schema syntax using the already available Python `jsonschema` 4.26.0 `Draft202012Validator`; record results under this plan's ignored workspace. No install or runtime dependency is needed. Check malformed variants against both that schema validator and the C# structural checks.
+- [x] Run the scoped tests to green and commit only the owned contracts/schemas/tests.
 
 ## Task 2: Editorial and cross-document validation
 
@@ -65,13 +65,13 @@
 - `EditingValidationContext` supplies the authored script, current script reference, optional current plan/task documents and their actual byte digests, plus caller-supplied media fingerprints. It does not discover/probe media or call a provider.
 - Reference/timeline helpers are implementation details of the same validator, not a separate execution engine.
 
-- [ ] Write failing script tests: duplicate/missing source or beat IDs, unknown asset/source references, inconsistent format/aspect ratio, exact matching without `search.text`, semantic/intent without `search.meaning`, incompatible audio fields, silent beat without display duration, invalid/nonfinite weights and durations. Assert pointer/code, not just an exception.
-- [ ] Write pending-plan/task tests: every authored beat remains in order; selected IDs exist in that beat's candidates; ranges fit the referenced media; required recording IDs resolve; incomplete plans reject global timeline fields; failed/unavailable search cannot be represented as `no_suitable_clip_found`; missing alignment cannot be cleared by an audio-only match.
-- [ ] Write metric tests: unavailable positive-weight metrics require null `take_score`; no renormalized fabricated full score; known values remain finite/in range. Zero-weight unavailable metrics do not impose an evaluation requirement.
-- [ ] Write resolved tests: pending recordings/alignment or missing/duplicated/reordered beats reject completeness; moving ranges have positive in-bounds duration; images reject source timecodes; contiguous timeline durations match their chosen clip/display durations; linked speaker audio/video stay synchronized; authored target duration does not cause implicit padding/truncation.
-- [ ] Write bundle tests using the actual fixture byte digests: later plan/tasks/resolved IDs agree; the earlier snapshot is rejected when mixed with the later one; changing whitespace/selection/media fingerprint makes an existing derived result stale even with the same script revision. Metadata alone cannot turn fictional/missing media into verified measurements.
-- [ ] Run the new test classes and observe red; implement the validation rules with existing FlowIssue conventions.
-- [ ] Run the task 1–2 test classes to green and commit the validator/context/tests. Update fixture wording only if review uncovers a contract contradiction; preserve the approved semantics.
+- [x] Write failing script tests: duplicate/missing source or beat IDs, unknown asset/source references, inconsistent format/aspect ratio, exact matching without `search.text`, semantic/intent without `search.meaning`, incompatible audio fields, silent beat without display duration, invalid/nonfinite weights and durations. Assert pointer/code, not just an exception.
+- [x] Write pending-plan/task tests: every authored beat remains in order; selected IDs exist in that beat's candidates; ranges fit the referenced media; required recording IDs resolve; incomplete plans reject global timeline fields; failed/unavailable search cannot be represented as `no_suitable_clip_found`; missing alignment cannot be cleared by an audio-only match.
+- [x] Write metric tests: unavailable positive-weight metrics require null `take_score`; no renormalized fabricated full score; known values remain finite/in range. Zero-weight unavailable metrics do not impose an evaluation requirement.
+- [x] Write resolved tests: pending recordings/alignment or missing/duplicated/reordered beats reject completeness; moving ranges have positive in-bounds duration; images reject source timecodes; contiguous timeline durations match their chosen clip/display durations; linked speaker audio/video stay synchronized; authored target duration does not cause implicit padding/truncation.
+- [x] Write bundle tests using the actual fixture byte digests: later plan/tasks/resolved IDs agree; the earlier snapshot is rejected when mixed with the later one; changing whitespace/selection/media fingerprint makes an existing derived result stale even with the same script revision. Metadata alone cannot turn fictional/missing media into verified measurements.
+- [x] Run the new test classes and observe red; implement the validation rules with existing FlowIssue conventions.
+- [x] Run the task 1–2 test classes to green and commit the validator/context/tests. Update fixture wording only if review uncovers a contract contradiction; preserve the approved semantics.
 
 ## Task 3: Edit Script node, packaging and real editor inspection
 
@@ -88,16 +88,16 @@
 - Outputs: `script` is a concretely typed execution projection containing the complete semantic intent; `scriptJson` preserves the complete original JSON including arbitrary annotation metadata; `scriptRef` contains path/revision/hash. Annotations are deliberately kept in the lossless original rather than extending Core with an arbitrary-JSON flow type. Document this distinction and preserve all authored semantic fields in the projection.
 - `EditingFlowTypes.Script` / `ScriptReference` use the existing flow types. Discriminant/cross-field strictness stays in the media-domain validator; no new Core union/any type is introduced.
 
-- [ ] Write failing reader/node tests: real committed script fixture loads and exposes all seven beats and semantic/intent/exact modes; missing raw media does not prevent intent loading; Unicode/space/BOM paths retain content and byte hash; malformed/oversized/wrong-version/generated-plan inputs fail before publishing outputs; cancellation does not publish partial results.
-- [ ] Test lossless arbitrary metadata in `scriptJson`, semantic projection in `script`, correct `scriptRef`, and the existing kernel compiling/running a one-node entry graph without Whisper/Jev/FFmpeg or credentials.
-- [ ] Test registration exposes Edit Script plus the five current Video nodes without starting tools; disabled plugin keeps its DLL/dependencies unloaded. Legacy three-node and saved-cut graphs still compile/run.
-- [ ] Run the tests to observe red, then implement reader/types/node/registration and package the portable schemas with the optional plugin.
-- [ ] Run `dotnet test tests/Cortex.Video.Tests/Cortex.Video.Tests.csproj`, `dotnet test tests/Cortex.Editor.Tests/Cortex.Editor.Tests.csproj`, and the Depois do Slogan contract tests. Broaden only on a new failure or relevant production change.
-- [ ] Install a fresh generation preserving shared settings. Open a one-node graph pointing to the authored fixture; validate/run, inspect typed intent and raw JSON/reference outputs in the existing editor. Label examples as illustrative; do not claim media was found or recordings resolved.
-- [ ] Commit owned changes, report tests/current capabilities and stop at this increment.
+- [x] Write failing reader/node tests: real committed script fixture loads and exposes all seven beats and semantic/intent/exact modes; missing raw media does not prevent intent loading; Unicode/space/BOM paths retain content and byte hash; malformed/oversized/wrong-version/generated-plan inputs fail before publishing outputs; cancellation does not publish partial results.
+- [x] Test lossless arbitrary metadata in `scriptJson`, semantic projection in `script`, correct `scriptRef`, and the existing kernel compiling/running a one-node entry graph without Whisper/Jev/FFmpeg or credentials.
+- [x] Test registration exposes Edit Script plus the five current Video nodes without starting tools; disabled plugin keeps its DLL/dependencies unloaded. Legacy three-node and saved-cut graphs still compile/run.
+- [x] Run the tests to observe red, then implement reader/types/node/registration and package the portable schemas with the optional plugin.
+- [x] Run `dotnet test tests/Cortex.Video.Tests/Cortex.Video.Tests.csproj`, `dotnet test tests/Cortex.Editor.Tests/Cortex.Editor.Tests.csproj`, and the Depois do Slogan contract tests. Broaden only on a new failure or relevant production change.
+- [x] Install a fresh generation preserving shared settings. Open a one-node graph pointing to the authored fixture; validate/run, inspect typed intent and raw JSON/reference outputs in the existing editor. Label examples as illustrative; do not claim media was found or recordings resolved.
+- [x] Commit owned changes, report tests/current capabilities and stop at this increment.
 
 ## Completion and execution review
 
 This plan ships the standard's storage/validation and an input node. It does not implement the central media resolver yet. The next increment requires real footage with one matching beat and one genuine missing line before expanding its scope.
 
-Execution remains inline in the current checkout under the user's existing preference. A fresh independent review requires the user's separate approval and is not started by this plan. Review this plan before production implementation.
+Execution remains inline in the current checkout under the user's existing preference. A fresh independent review requires the user's separate approval and is not started by this plan. Plan approved; the scoped increment is implemented and verified. Video83, Editor12 and consumer6 tests passed; portable schemas validated with jsonschema4.26.0, and Edit Script ran in the installed editor with seven beats and no external tools.

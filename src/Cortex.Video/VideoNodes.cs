@@ -50,6 +50,7 @@ public static class VideoNodes
         };
         if (takes is not null) handlers.Add(TakeSuggestionNode.Create(takes));
         if (renderer is not null) handlers.Add(RenderCutsNode.Create(renderer));
+        handlers.Add(Editing.EditScriptNode.Create());
         return handlers.ToArray();
     }
 

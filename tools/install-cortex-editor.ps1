@@ -14,6 +14,9 @@ New-Item -ItemType Directory -Force -Path $taskPlugin | Out-Null
 foreach ($taskFile in @('Cortex.Video.dll', 'Cortex.Video.deps.json', 'Cortex.Inference.dll', 'cortex-video.plugin.json')) {
     Copy-Item -LiteralPath (Join-Path $taskRoot "src/Cortex.Video/bin/Release/net10.0/$taskFile") -Destination (Join-Path $taskPlugin $taskFile)
 }
+$taskSchemas = Join-Path $taskPlugin 'schemas'
+New-Item -ItemType Directory -Force -Path $taskSchemas | Out-Null
+Get-ChildItem -LiteralPath (Join-Path $taskRoot 'src/Cortex.Video/bin/Release/net10.0/Editing/Schemas') -Filter '*.schema.json' -File | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $taskSchemas }
 $taskUtf8 = New-Object System.Text.UTF8Encoding($false)
 function Write-AtomicJson([string]$Path, $Value) {
     $taskTemporary = $Path + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'

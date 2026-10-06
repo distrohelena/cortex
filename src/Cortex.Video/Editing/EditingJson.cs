@@ -21,6 +21,7 @@ public static class EditingJson
         try
         {
             RejectDuplicates(value);
+            RejectNullCollectionMembers(value);
             var type = value.GetProperty("schema").GetString() switch
             {
                 EditingDocumentKinds.Script => typeof(EditScriptDocument),
@@ -49,6 +50,22 @@ public static class EditingJson
             }
         }
         else if (value.ValueKind == JsonValueKind.Array) foreach (var item in value.EnumerateArray()) RejectDuplicates(item);
+    }
+
+    private static void RejectNullCollectionMembers(JsonElement value)
+    {
+        if (value.ValueKind != JsonValueKind.Object) return;
+        foreach (var property in value.EnumerateObject())
+        {
+            if (property.Name is "metadata" or "recipe" or "match") continue;
+            if (property.Value.ValueKind == JsonValueKind.Array)
+                foreach (var item in property.Value.EnumerateArray())
+                {
+                    if (item.ValueKind == JsonValueKind.Null) throw new InvalidDataException("Null member in semantic collection: " + property.Name);
+                    RejectNullCollectionMembers(item);
+                }
+            else RejectNullCollectionMembers(property.Value);
+        }
     }
 }
 
