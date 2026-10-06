@@ -73,4 +73,4 @@ public enum BindingKind { None, Clip, Image, Graphic, TitleCard }
 public enum MediaKind { Video, Image }
 public enum TimingGranularity { Segment, Word, Frame }
 public enum ProjectFormat { Vertical, Horizontal, Square }
-public enum RecordingReason { NoSuitableClipFound, ScriptRequiresExactWording }
+public enum RecordingReason { NoSuitableClipFound, ScriptRequiresExactWording, ScriptRequestsRecording }

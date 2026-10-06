@@ -378,7 +378,8 @@
           "type": "string",
           "enum": [
             "no_suitable_clip_found",
-            "script_requires_exact_wording"
+            "script_requires_exact_wording",
+        "script_requests_recording"
           ]
         },
         "script": {

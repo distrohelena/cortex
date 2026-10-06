@@ -5,6 +5,12 @@ if (-not $ProfileDirectory) { $ProfileDirectory = Join-Path ([Environment]::GetF
 $taskProfile = [System.IO.Path]::GetFullPath($ProfileDirectory)
 $taskGeneration = 'install-' + [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss') + '-' + [Guid]::NewGuid().ToString('N').Substring(0, 8)
 $taskInstall = Join-Path $taskProfile $taskGeneration
+$taskPreviousDescriptor = Join-Path $taskProfile 'installation.json'
+$taskPreviousPluginDirectory = $null
+if (Test-Path -LiteralPath $taskPreviousDescriptor) {
+    $taskPreviousInstallation = Get-Content -LiteralPath $taskPreviousDescriptor -Raw | ConvertFrom-Json
+    if ($taskPreviousInstallation.schemaVersion -eq 1) { $taskPreviousPluginDirectory = $taskPreviousInstallation.pluginDirectory }
+}
 & dotnet publish (Join-Path $taskRoot 'src/Cortex.Editor/Cortex.Editor.csproj') -c Release -o $taskInstall
 if ($LASTEXITCODE -ne 0) { throw 'Falha ao publicar o editor.' }
 & dotnet build (Join-Path $taskRoot 'src/Cortex.Video/Cortex.Video.csproj') -c Release
@@ -17,6 +23,14 @@ foreach ($taskFile in @('Cortex.Video.dll', 'Cortex.Video.deps.json', 'Cortex.In
 $taskSchemas = Join-Path $taskPlugin 'schemas'
 New-Item -ItemType Directory -Force -Path $taskSchemas | Out-Null
 Get-ChildItem -LiteralPath (Join-Path $taskRoot 'src/Cortex.Video/bin/Release/net10.0/Editing/Schemas') -Filter '*.schema.json' -File | ForEach-Object { Copy-Item -LiteralPath $_.FullName -Destination $taskSchemas }
+# Preserve installed optional libraries when publishing a new editor generation.
+if ($taskPreviousPluginDirectory -and (Test-Path -LiteralPath $taskPreviousPluginDirectory)) {
+    foreach ($taskPackage in Get-ChildItem -LiteralPath $taskPreviousPluginDirectory) {
+        if ($taskPackage.Name -eq 'video') { continue }
+        if ($taskPackage.PSIsContainer -and -not (Get-ChildItem -LiteralPath $taskPackage.FullName -Filter '*.plugin.json' -Recurse -File | Select-Object -First 1)) { continue }
+        Copy-Item -LiteralPath $taskPackage.FullName -Destination (Join-Path $taskInstall ('plugins/' + $taskPackage.Name)) -Recurse
+    }
+}
 $taskUtf8 = New-Object System.Text.UTF8Encoding($false)
 function Write-AtomicJson([string]$Path, $Value) {
     $taskTemporary = $Path + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'

@@ -4,7 +4,7 @@ using Cortex.Core.Flows;
 
 namespace Cortex.Video.Editing;
 
-public static class EditingFlowTypes
+public static partial class EditingFlowTypes
 {
     public static ObjectType Script { get; } = CreateScript();
     public static ObjectType ScriptReference { get; } = new(new Dictionary<string, FlowField>

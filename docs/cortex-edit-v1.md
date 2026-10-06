@@ -32,4 +32,11 @@ Validation preserves ordered required beats, distinguishes pending recordings/al
 
 The [seven-beat example](examples/cortex-edit-v1/script.json) and [other fixture snapshots](examples/cortex-edit-v1/README.md) are illustrative: their scores, media and alignment are fictional. Loading them in the editor demonstrates the document contract, not media discovery.
 
-The existing **Suggest Takes** and **Render Cuts** still use their one-video `TakeEditPlan`. This increment supplies contracts, validation and an intent-input node. Matching real footage against beats, generating recording tasks, accepting pickups and adapting a resolved edit to a renderer remain subsequent nodes.
+The existing **Suggest Takes** and **Render Cuts** still use their one-video `TakeEditPlan`. This increment supplies contracts, validation and an intent-input node. The single-video Resolve Clips increment accepts video/transcript wires and a script file/source ID. It preserves segment timing, uses local exact matching and the existing Jev decision transport for semantic/intent matching, and emits plan/tasks with pending review. Unsupported source coverage and alignment remain pending; provider failures do not become missing-clip recording tasks. Pickup acceptance and renderer adaptation remain subsequent nodes. The transport is covered with fixtures; no private footage was searched in this increment.
+
+
+## Initial recording requests
+
+`script_requests_recording` identifies an author-requested recording before any media search. It is distinct from `no_suitable_clip_found`, which requires completed search evidence, and `script_requires_exact_wording`, which requires an exact authored script.
+
+The consumer-owned `DepoisDoSlogan.CortexPlugin` reuses these models and existing `FlowNodeHandler`/`IFlowCompletion` contracts for `Video Brief -> Draft Script -> Recording Plan`. It creates `cortex.edit.v1` intent and an initial recording-task bundle. The generation nodes live in the optional **Depois do Slogan** library, not in the generic Cortex runtime. The generated plan is editable editorial intent; scene duration targets are estimates, and no resolved timeline is produced. See the consumer README for installation and execution.
