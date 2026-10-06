@@ -7,6 +7,17 @@ namespace Cortex.Editor.Tests;
 public sealed class EditorRuntimeTests
 {
     [Fact]
+    public void MalformedEnvelopeReportsDataErrorWithoutReplacingGraph()
+    {
+        var store = new EditorGraphStore();
+        var original = Graph("unavailable");
+        store.Open(original, "input");
+        var malformed = JsonSerializer.SerializeToElement(new { version = "3", nodes = Array.Empty<object>(), edges = Array.Empty<object>() });
+        Assert.Throws<InvalidDataException>(() => store.Replace(malformed, null));
+        Assert.True(JsonElement.DeepEquals(original, store.Graph));
+    }
+
+    [Fact]
     public async Task UnavailableNodesAndEdgesSurviveOpenAndSave()
     {
         var path = Path.Combine(Path.GetTempPath(), "cortex-graph-" + Guid.NewGuid() + ".json");

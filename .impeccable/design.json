@@ -1,11 +1,25 @@
 {
   "schemaVersion": 2,
-  "northStar": "A local graph editor whose operations, typed values, failures and plugin availability can be inspected directly.",
-  "breakpoints": { "compact": "540px", "stackedInspector": "820px", "denseDesktop": "1100px" },
-  "motion": { "control": "background-color 140ms ease-out, border-color 140ms ease-out", "status": "color 180ms ease-out", "reducedMotion": "transitions disabled" },
-  "rules": ["Extend the existing flow-graph canvas.", "Use metadata for node controls and plugin settings.", "Use prose for transcript strings and semantic tables for object arrays.", "Display pending restart and unavailable dependencies with text."],
-  "components": {
-    "primaryButton": { "html": "<button class=\"primary\">Executar</button>", "css": "button.primary{background:#c2a9ff;color:#1b1426;border:1px solid #c2a9ff;border-radius:6px;padding:6px 12px;min-height:34px;font:600 14px system-ui}" },
-    "input": { "html": "<label>Caminho<input type=\"text\" value=\"arquivo.json\"></label>", "css": "input{background:#171a21;color:#e7eaf2;border:1px solid #555f73;border-radius:5px;padding:8px 10px;font:14px system-ui}" }
+  "generatedAt": "2026-10-06T00:40:00Z",
+  "title": "Design System: Cortex Editor",
+  "extensions": {
+    "colorMeta": { "primary": { "role": "primary", "displayName": "Canvas lavender" } },
+    "motion": [
+      { "name": "control", "value": "background-color 140ms ease-out, border-color 140ms ease-out", "purpose": "Control interaction state, honoring reduced motion." },
+      { "name": "status", "value": "color 180ms ease-out", "purpose": "Actual node status changes." }
+    ],
+    "breakpoints": [ { "name": "compact", "value": "540px" }, { "name": "stackedInspector", "value": "820px" }, { "name": "denseDesktop", "value": "1100px" } ]
+  },
+  "components": [
+    { "name": "Primary Button", "kind": "button", "refersTo": "button-primary", "description": "Execute or save the active operation.", "html": "<button class=\"primary\">Executar</button>", "css": "button.primary{background:#c2a9ff;color:#1b1426;border:1px solid #c2a9ff;border-radius:6px;padding:6px 12px;min-height:34px;font:600 14px system-ui}" },
+    { "name": "Input", "kind": "input", "description": "Plugin or node parameter.", "html": "<label>Caminho<input type=\"text\" value=\"arquivo.json\"></label>", "css": "input{background:#171a21;color:#e7eaf2;border:1px solid #555f73;border-radius:5px;padding:8px 10px;font:14px system-ui}" }
+  ],
+  "narrative": {
+    "northStar": "A local graph editor whose operations, typed values, failures and plugin availability can be inspected directly.",
+    "overview": "Operational extension of the incumbent reusable canvas, with metadata-driven controls and actual results.",
+    "keyCharacteristics": ["Shared local settings", "Optional DLL nodes", "Typed value inspection"],
+    "rules": [ { "name": "Incumbent Canvas", "body": "Extend the existing flow-graph canvas.", "section": "layout" }, { "name": "Data First", "body": "Use prose for transcript strings and semantic tables for object arrays.", "section": "typography" } ],
+    "dos": ["State pending restart and unavailable dependencies with text.", "Render user/plugin/output content as text."],
+    "donts": ["Invent execution progress or outputs.", "Hardcode video node semantics in the editor."]
   }
 }

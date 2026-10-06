@@ -41,6 +41,8 @@ and host authority make the relationships between those options explicit.
 | Module | Responsibility |
 | --- | --- |
 | [`Cortex.Core`](src/Cortex.Core) | Graph contracts, compilation, typed execution, sessions, and host authority. |
+| [`Cortex.Editor`](src/Cortex.Editor) | Local editor, shared JSON settings, plugin catalog, and typed result inspection. |
+| [`Cortex.Video`](src/Cortex.Video) | Optional DLL providing a video input, local transcription, and typed transcript. |
 | [`Cortex.Inference`](src/Cortex.Inference) | Model provider adapters, structured completion, and validated fallback. |
 | [`Cortex.Memory`](src/Cortex.Memory) | Memory read adapters and response validation. |
 | [`Cortex.OpenClaw`](src/Cortex.OpenClaw) | Optional transport and host integration. |
@@ -52,6 +54,11 @@ The editor exposes the graph visually; the host supplies its node definitions,
 validation, persistence, and execution. Applications compose the Cortex modules
 they need. Filomena is one consumer, maintained in the independent sibling
 Filo repository.
+
+The [standalone editor](docs/cortex-editor.md) opens consumer graphs using a shared
+local profile. Plugins are loaded from DLLs only when enabled; Video is disabled
+by default. The separate Depois do Slogan consumer opens the same editor and
+settings without owning its node implementations.
 
 ## Local development
 

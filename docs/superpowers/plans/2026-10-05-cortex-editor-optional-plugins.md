@@ -1,6 +1,6 @@
 # Cortex Editor and Optional DLL Plugins Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Execution stays inline in the current checkouts; no subagents or independent review are authorized.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking. Execution stays inline in the current checkouts; no subagents or independent review are authorized.
 
 **Goal:** Ship a Cortex-owned editor that opens the Depois do Slogan graph using shared local JSON settings and dynamically loads the optional video DLL only when enabled.
 
@@ -58,11 +58,11 @@
 - `CortexEditorSettings`: schema version `1`, plugin entries with ID/enabled/configuration. Missing known entries are disabled; unknown entries are retained.
 - `CortexSettingsStore.DefaultPath`; `ReadAsync(CancellationToken)` returns parsed settings or an explicit error with original content; `SaveAsync(CortexEditorSettings, CancellationToken)` validates and atomically replaces the file. Resolve relative manifest paths against manifest location and relative configured tool paths against settings location.
 
-- [ ] Write tests: `DefaultPathDoesNotDependOnWorkingDirectory`, `NewProfileDisablesInstalledVideo`, `UnknownPluginConfigurationSurvivesSave`, `CorruptJsonIsReportedAndNotOverwrittenByRead`, `RelativePathsUseConfigurationDirectory`.
-- [ ] Run `dotnet test tests/Cortex.Core.Tests/Cortex.Core.Tests.csproj --filter FullyQualifiedName~CortexSettingsStoreTests`; verify failure for the missing behavior.
-- [ ] Implement the interfaces and store. Use a same-directory temporary file + atomic replacement. A user-requested repair save preserves the corrupt original as a private backup before replacement; never repair during read.
-- [ ] Run the targeted tests; expect zero failures and unchanged corrupt source after read.
-- [ ] Commit only the owned Core files/tests: `feat(plugins): define shared local settings and node plugin contract`.
+- [x] Write tests: `DefaultPathDoesNotDependOnWorkingDirectory`, `NewProfileDisablesInstalledVideo`, `UnknownPluginConfigurationSurvivesSave`, `CorruptJsonIsReportedAndNotOverwrittenByRead`, `RelativePathsUseConfigurationDirectory`.
+- [x] Run `dotnet test tests/Cortex.Core.Tests/Cortex.Core.Tests.csproj --filter FullyQualifiedName~CortexSettingsStoreTests`; verify failure for the missing behavior.
+- [x] Implement the interfaces and store. Use a same-directory temporary file + atomic replacement. A user-requested repair save preserves the corrupt original as a private backup before replacement; never repair during read.
+- [x] Run the targeted tests; expect zero failures and unchanged corrupt source after read.
+- [x] Commit only the owned Core files/tests: `feat(plugins): define shared local settings and node plugin contract`.
 
 ## Task 2: Disabled-by-default DLL Loading
 
@@ -74,11 +74,11 @@
 - Load reports contain ID, enabled/loaded state and error; exceptions for one plugin do not erase another plugin's handlers.
 - `NodePluginLoadContext` uses `AssemblyDependencyResolver`, shares the already-loaded Core contract assembly and framework assemblies, and resolves other dependencies from the plugin installation. Restart is the user-visible unloading boundary.
 
-- [ ] Write tests: `DisabledMissingDllIsNeverOpened`, `EnabledFixtureReturnsHandlersAssignableToHostCore`, `UnsupportedContractIsReported`, `DuplicateKindsAreRejected`, `OneBrokenPluginDoesNotRemoveAnother`. Fixture outputs a literal through a real registered handler; Core tests must not reference its types statically.
-- [ ] Build the fixture as a test artifact with `ReferenceOutputAssembly=false`; run loader tests and verify red.
-- [ ] Implement loading strictly inside the enabled branch, validate interface/version/kind collisions, and report missing file, bad image/type/dependency errors. Copy fixture DLL/deps to a test-only installation folder; no fixture dependency in production.
-- [ ] Run the targeted tests; execute the fixture graph with `TypedFlowRunner` and assert its typed output.
-- [ ] Commit: `feat(plugins): load enabled DLL nodes through shared Cortex contracts`.
+- [x] Write tests: `DisabledMissingDllIsNeverOpened`, `EnabledFixtureReturnsHandlersAssignableToHostCore`, `UnsupportedContractIsReported`, `DuplicateKindsAreRejected`, `OneBrokenPluginDoesNotRemoveAnother`. Fixture outputs a literal through a real registered handler; Core tests must not reference its types statically.
+- [x] Build the fixture as a test artifact with `ReferenceOutputAssembly=false`; run loader tests and verify red.
+- [x] Implement loading strictly inside the enabled branch, validate interface/version/kind collisions, and report missing file, bad image/type/dependency errors. Copy fixture DLL/deps to a test-only installation folder; no fixture dependency in production.
+- [x] Run the targeted tests; execute the fixture graph with `TypedFlowRunner` and assert its typed output.
+- [x] Commit: `feat(plugins): load enabled DLL nodes through shared Cortex contracts`.
 
 ## Task 3: Move the Three Media Nodes into Cortex.Video
 
@@ -90,11 +90,11 @@
 - Move `TranscriptResult`, `TranscriptSegment`, `IVideoTranscriber`, `TranscriptionTools`, `WhisperCppTranscriber` from the consumer and keep `TranscribeAsync(string, CancellationToken)`/`ParseTranscript(JsonElement)` behavior.
 - Manifest configuration fields: `whisperExecutable`, `modelFile`, `ffmpegExecutable`, `ffprobeExecutable`. Paths/configuration bind without probing or executing the tools at plugin creation.
 
-- [ ] Move/adapt the existing six behavioral tests to `Cortex.Video.Tests`; add `RegisteringVideoNodesDoesNotRequireToolFilesOrStartProcesses`. Architecture test rejects Video references from Core/Editor/consumer production projects.
-- [ ] Run `dotnet test tests/Cortex.Video.Tests/Cortex.Video.Tests.csproj`; verify the new registration behavior fails before implementing it.
-- [ ] Implement plugin and metadata with no eager filesystem/tool/model initialization. Keep timestamps in seconds and validate invalid/unordered offsets. Preserve process argument-list handling and cancellation of the process tree.
-- [ ] Run plugin tests and `node --test tests/architecture/optional-video-plugin.test.mjs`; expect all green. Load the actual Video DLL through task 2 and compile the existing saved graph without invoking Whisper.
-- [ ] Stage solution additions independently of existing Personas changes; commit: `feat(video): ship the existing media nodes as an optional DLL plugin`.
+- [x] Move/adapt the existing six behavioral tests to `Cortex.Video.Tests`; add `RegisteringVideoNodesDoesNotRequireToolFilesOrStartProcesses`. Architecture test rejects Video references from Core/Editor/consumer production projects.
+- [x] Run `dotnet test tests/Cortex.Video.Tests/Cortex.Video.Tests.csproj`; verify the new registration behavior fails before implementing it.
+- [x] Implement plugin and metadata with no eager filesystem/tool/model initialization. Keep timestamps in seconds and validate invalid/unordered offsets. Preserve process argument-list handling and cancellation of the process tree.
+- [x] Run plugin tests and `node --test tests/architecture/optional-video-plugin.test.mjs`; expect all green. Load the actual Video DLL through task 2 and compile the existing saved graph without invoking Whisper.
+- [x] Stage solution additions independently of existing Personas changes; commit: `feat(video): ship the existing media nodes as an optional DLL plugin`.
 
 ## Task 4: Local Editor Host, Catalog and Run Lifecycle
 
@@ -109,11 +109,11 @@
 - APIs: `GET /api/state`, `GET /api/settings`, `PUT /api/settings`, `POST /api/graph/open`, `PUT /api/graph`, `POST /api/validate`, `POST /api/run`, `POST /api/run/cancel`, `GET /api/run`, `POST /api/graph/save`.
 - Session bootstrap uses a per-process nonce in the initial URL fragment; browser requests carry a session header. Mutations also require same Origin. Do not persist nonce in settings/files.
 
-- [ ] Write unit tests for unavailable-node preservation, snapshot/result isolation, cancellation/failure releasing busy state, and run/edit/settings exclusion. Write API tests for missing session, foreign Origin, valid session and cancellation; mark socket tests `Category=LocalSocket` and use fresh temporary profiles/ephemeral ports.
-- [ ] Run targeted unit/API tests; verify red. API tests create their own host and never stop an existing editor/Playground.
-- [ ] Implement backend using the shared store/loader/runner. On corrupt settings, show the original error with plugins disabled and allow explicit repair; do not overwrite on startup. Saving settings records pending-restart state, while the current handler snapshot stays unchanged.
-- [ ] Run `dotnet test tests/Cortex.Editor.Tests/Cortex.Editor.Tests.csproj --filter Category!=LocalSocket`, then explicitly run `--filter Category=LocalSocket`; expect all green. Diagnostics mode reports actual loaded assembly names for a new process without starting any media tool.
-- [ ] Commit: `feat(editor): host generic graphs with shared settings and local execution`.
+- [x] Write unit tests for unavailable-node preservation, snapshot/result isolation, cancellation/failure releasing busy state, and run/edit/settings exclusion. Write API tests for missing session, foreign Origin, valid session and cancellation; mark socket tests `Category=LocalSocket` and use fresh temporary profiles/ephemeral ports.
+- [x] Run targeted unit/API tests; verify red. API tests create their own host and never stop an existing editor/Playground.
+- [x] Implement backend using the shared store/loader/runner. On corrupt settings, show the original error with plugins disabled and allow explicit repair; do not overwrite on startup. Saving settings records pending-restart state, while the current handler snapshot stays unchanged.
+- [x] Run `dotnet test tests/Cortex.Editor.Tests/Cortex.Editor.Tests.csproj --filter Category!=LocalSocket`, then explicitly run `--filter Category=LocalSocket`; expect all green. Diagnostics mode reports actual loaded assembly names for a new process without starting any media tool.
+- [x] Commit: `feat(editor): host generic graphs with shared settings and local execution`.
 
 ## Task 5: Cortex-owned Editor UI
 
@@ -121,12 +121,12 @@
 
 **Interfaces:** Consumes task 4's JSON APIs and existing `createFlowGraphEditor` callbacks. Keep request/session handling in one helper and graph editing in one state owner; server is authoritative for validation/execution.
 
-- [ ] Record confirmed product truth from the approved brief; inherit the existing canvas's visual identity. Read Impeccable craft-floor immediately before UI edits. Scope is Operate: open graph → inspect/edit parameters → validate/run → inspect result, plus Plugins settings.
-- [ ] Write meaningful frontend tests: unavailable graph survives round trip; pending-restart display reflects saved/current state; no graph/settings mutation while busy; text-like HTML in transcript/labels remains text; failed validation never invokes run; cancel keeps result status accurate.
-- [ ] Run `node --test tests/frontend/cortex-editor.test.mjs`; verify red before behavior implementation.
-- [ ] Build the complete screen: top file/run/settings actions, available-node palette, reusable canvas, selected-node config fields and output/diagnostic inspector. Render plugin names/options from metadata; no `videoFile`/`transcribe`/`transcript` special cases in editor code. Empty/unavailable states point to Configurações → Plugins. Settings show saved versus active state and restart instructions.
-- [ ] Link/copy existing built flow-graph assets through the Editor build/publish process; run frontend/editor tests. Inspect desktop and compact viewport in one round, fix functional/layout/accessibility defects together, then confirm once. No unrelated visual redesign or extra agent workflow.
-- [ ] Commit: `feat(editor): add the standalone graph and plugin settings interface`.
+- [x] Record confirmed product truth from the approved brief; inherit the existing canvas's visual identity. Read Impeccable craft-floor immediately before UI edits. Scope is Operate: open graph → inspect/edit parameters → validate/run → inspect result, plus Plugins settings.
+- [x] Write meaningful frontend tests: unavailable graph survives round trip; pending-restart display reflects saved/current state; no graph/settings mutation while busy; text-like HTML in transcript/labels remains text; failed validation never invokes run; cancel keeps result status accurate.
+- [x] Run `node --test tests/frontend/cortex-editor.test.mjs`; verify red before behavior implementation.
+- [x] Build the complete screen: top file/run/settings actions, available-node palette, reusable canvas, selected-node config fields and output/diagnostic inspector. Render plugin names/options from metadata; no `videoFile`/`transcribe`/`transcript` special cases in editor code. Empty/unavailable states point to Configurações → Plugins. Settings show saved versus active state and restart instructions.
+- [x] Link/copy existing built flow-graph assets through the Editor build/publish process; run frontend/editor tests. Inspect desktop and compact viewport in one round, fix functional/layout/accessibility defects together, then confirm once. No unrelated visual redesign or extra agent workflow.
+- [x] Commit: `feat(editor): add the standalone graph and plugin settings interface`.
 
 ## Task 6: Shared Installation and Consumer Opening
 
@@ -138,23 +138,29 @@
 - `install-cortex-editor.ps1` publishes Editor, builds/installs Video DLL/deps/manifest separately and records installation metadata. Fresh profile remains disabled. It preserves existing settings; demonstration activation is a separate explicit operation.
 - Depois do Slogan keeps graph composition; `--editor`/`tools/open-editor.ps1` opens its graph through the common launcher. CLI uses the common settings/loader instead of local handlers. Existing explicit tool flags may override enabled plugin options in memory; they do not silently enable disabled plugins.
 
-- [ ] Write tests: launch arguments preserve spaces/Portuguese characters; changing cwd retains shared installation/profile; consumer graph keeps exactly three nodes and both wire kinds; disabled module blocks consumer execution; enabled fixture/plugin runs via the common contract.
-- [ ] Run targeted launcher/consumer tests; verify red.
-- [ ] Implement installation and migration. Move media behavior tests into the plugin rather than keeping duplicated node implementations. Keep consumer CLI outputs (`graph.json`, `run.json`, `transcript.json`, diagnostics) local and compatible.
-- [ ] Run `dotnet test C:/dev/depois-do-slogan/DepoisDoSlogan.slnx` and launcher tests. Verify Editor/consumer deps and project references contain no static Video reference. Use command-local `git -c safe.directory=C:/dev/depois-do-slogan` for that checkout; do not change ownership/ACL/global Git configuration.
-- [ ] Commit owned files in each repository: `feat(editor): install and launch the shared Cortex editor` / `refactor: open and execute the graph through shared Cortex plugins`.
+- [x] Write tests: launch arguments preserve spaces/Portuguese characters; changing cwd retains shared installation/profile; consumer graph keeps exactly three nodes and both wire kinds; disabled module blocks consumer execution; enabled fixture/plugin runs via the common contract.
+- [x] Run targeted launcher/consumer tests; verify red.
+- [x] Implement installation and migration. Move media behavior tests into the plugin rather than keeping duplicated node implementations. Keep consumer CLI outputs (`graph.json`, `run.json`, `transcript.json`, diagnostics) local and compatible.
+- [x] Run `dotnet test C:/dev/depois-do-slogan/DepoisDoSlogan.slnx` and launcher tests. Verify Editor/consumer deps and project references contain no static Video reference. Use command-local `git -c safe.directory=C:/dev/depois-do-slogan` for that checkout; do not change ownership/ACL/global Git configuration.
+- [x] Commit owned files in each repository: `feat(editor): install and launch the shared Cortex editor` / `refactor: open and execute the graph through shared Cortex plugins`.
 
 ## Task 7: Cold Loading, Real Video and Final Acceptance
 
 **Files:** Cold-process integration tests, owned docs/README and private verification artifacts only.
 
-- [ ] Add cold-process tests with Video installed: diagnostics show no `Cortex.Video` assembly for default/disabled settings and show it only for enabled settings. Reopen saved graph after disable/restart and assert byte-equivalent nodes/settings/edges remain. Test corruption reporting without replacing settings; test one successful profile reopen from another cwd.
-- [ ] Run cold tests in fresh processes and explicitly run Editor LocalSocket acceptance. Keep diagnostics output free of session tokens/private transcripts.
-- [ ] Install the editor locally. Prepare the approved demonstration profile with Video enabled and the already-verified tools under `C:/dev/depois-do-slogan/.local/tools/`; preserve any preexisting unrelated settings. Open through the consumer and run the full 100.22-second `.local/media/commons-tutorial.webm` in the actual editor.
-- [ ] Verify completed steps `video`, `transcribe`, `transcript`, typed text/segments and backend `using CUDA0 backend` on RTX 4090. Inspect actual canvas, properties, transcript and Plugins settings; retain local screenshots/result/log paths and source/license attribution. Do not correct recognition output automatically.
-- [ ] Run `dotnet build Cortex.slnx`; offline suite `dotnet test Cortex.slnx --no-build --filter "Category!=Postgres&Category!=LocalSocket&FullyQualifiedName!~DatabaseLifecycleTests"`; consumer tests; architecture/editor/frontend Node tests. Run the existing Filo graph integration tests with `--artifacts-path` to avoid DLLs held by its open Playground. Repeat only failures or checks affected by subsequent fixes.
-- [ ] Check spec coverage, scoped diffs and no staged private assets. Commit owned docs/final fixes; verify both branches/status. Leave the requested editor available and report URL, shared settings path, results, test evidence and commit IDs. No independent review is launched without separate authorization.
+- [x] Add cold-process tests with Video installed: diagnostics show no `Cortex.Video` assembly for default/disabled settings and show it only for enabled settings. Reopen saved graph after disable/restart and assert byte-equivalent nodes/settings/edges remain. Test corruption reporting without replacing settings; test one successful profile reopen from another cwd.
+- [x] Run cold tests in fresh processes and explicitly run Editor LocalSocket acceptance. Keep diagnostics output free of session tokens/private transcripts.
+- [x] Install the editor locally. Prepare the approved demonstration profile with Video enabled and the already-verified tools under `C:/dev/depois-do-slogan/.local/tools/`; preserve any preexisting unrelated settings. Open through the consumer and run the full 100.22-second `.local/media/commons-tutorial.webm` in the actual editor.
+- [x] Verify completed steps `video`, `transcribe`, `transcript`, typed text/segments and backend `using CUDA0 backend` on RTX 4090. Inspect actual canvas, properties, transcript and Plugins settings; retain local screenshots/result/log paths and source/license attribution. Do not correct recognition output automatically.
+- [x] Run `dotnet build Cortex.slnx`; offline suite `dotnet test Cortex.slnx --no-build --filter "Category!=Postgres&Category!=LocalSocket&FullyQualifiedName!~DatabaseLifecycleTests"`; consumer tests; architecture/editor/frontend Node tests. Run the existing Filo graph integration tests with `--artifacts-path` to avoid DLLs held by its open Playground. Repeat only failures or checks affected by subsequent fixes.
+- [x] Check spec coverage, scoped diffs and no staged private assets. Commit owned docs/final fixes; verify both branches/status. Leave the requested editor available and report URL, shared settings path, results, test evidence and commit IDs. No independent review is launched without separate authorization.
 
 ## Handoff
 
 Execution method already established: implement inline, preserving the current checkouts and unrelated work, with scoped main commits. This plan requires user review before implementation under `writing-plans`; it does not authorize additional agents or a fresh independent-review session.
+
+## Completion evidence
+
+Executed inline. Core settings/loader 12 tests and launcher2; Video8; Editor offline8 (including3 cold-process cases) and explicit LocalSocket4; consumer4; JS architecture/editor/frontend138; Filo graph integrations7 passed. Solution build had zero warnings/errors. Full offline Cortex suite passed with the existing10 live skips; the extra default-profile cold case passed in the subsequent scoped Editor run. Actual editor UI and shared consumer CLI completed the full public video with CUDA/23 segments. Desktop+compact/settings screenshots, execution logs and private results remain local. No independent-review session was launched.
+
+Consumer commit eb0600b removes its node/transcriber implementation. Local shared installation and profile are under LocalAppData/Cortex/editor. The final editor was opened through the consumer from C:/dev, with a browser session and the prepared profile. Existing Filo/Temporal services and unrelated Personas work were preserved.

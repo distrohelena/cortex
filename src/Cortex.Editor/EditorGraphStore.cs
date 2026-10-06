@@ -21,7 +21,7 @@ public sealed class EditorGraphStore
     public void Replace(JsonElement graph, string? entryId)
     {
         if (graph.GetRawText().Length > 4194304 || graph.ValueKind != JsonValueKind.Object ||
-            !graph.TryGetProperty("version", out var version) || !version.TryGetInt32(out var number) || number != 3 ||
+            !graph.TryGetProperty("version", out var version) || version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var number) || number != 3 ||
             !graph.TryGetProperty("nodes", out var nodes) || nodes.ValueKind != JsonValueKind.Array || nodes.GetArrayLength() > 64 ||
             !graph.TryGetProperty("edges", out var edges) || edges.ValueKind != JsonValueKind.Array || edges.GetArrayLength() > 128 ||
             graph.TryGetProperty("controlEdges", out var controls) && (controls.ValueKind != JsonValueKind.Array || controls.GetArrayLength() > 128))
