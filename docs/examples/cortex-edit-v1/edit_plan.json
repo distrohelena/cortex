@@ -1,0 +1,377 @@
+{
+  "schema": "cortex.edit.plan.v1",
+  "metadata": {
+    "example": true,
+    "description": "Illustrative contract fixtures; media files, measurements and scores are fictional."
+  },
+  "project_id": "depois-do-slogan-001",
+  "script_ref": {
+    "path": "script.json",
+    "revision": 1,
+    "sha256": "2a35eebd1c64bf34a41acecad40a635b3aac736b709e9b31fe3fe031495f87bc"
+  },
+  "resolution_id": "example_before_pickups",
+  "status": "incomplete",
+  "media": [
+    {
+      "id": "take_03",
+      "source_id": "helena_raw",
+      "path": "./raw/helena/helena_take_03.mp4",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "type": "video",
+      "width": 1080,
+      "height": 1920,
+      "duration_sec": 80,
+      "fps": "30/1",
+      "speaker": "helena"
+    },
+    {
+      "id": "take_05",
+      "source_id": "helena_raw",
+      "path": "./raw/helena/helena_take_05.mp4",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "type": "video",
+      "width": 1080,
+      "height": 1920,
+      "duration_sec": 62,
+      "fps": "30/1",
+      "speaker": "helena"
+    },
+    {
+      "id": "take_07",
+      "source_id": "helena_raw",
+      "path": "./raw/helena/helena_take_07.mp4",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "type": "video",
+      "width": 1080,
+      "height": 1920,
+      "duration_sec": 120,
+      "fps": "30/1",
+      "speaker": "helena"
+    },
+    {
+      "id": "post_image",
+      "source_id": "post_original",
+      "path": "./assets/post.jpg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "type": "image",
+      "width": 1080,
+      "height": 1350
+    }
+  ],
+  "beats": [
+    {
+      "beat_id": "hook",
+      "visual": {
+        "status": "matched",
+        "intent": {
+          "type": "asset",
+          "source": "post_original",
+          "enter": "cut",
+          "exit": "cut",
+          "duration_sec": 3,
+          "focus": {
+            "type": "crop_zoom",
+            "target_text": "Ela luta pela libertação das drogas"
+          }
+        },
+        "media_id": "post_image",
+        "resolved_focus": {
+          "type": "crop_zoom",
+          "target_text": "Ela luta pela libertação das drogas",
+          "source_rect_pixels": {
+            "x": 60,
+            "y": 210,
+            "width": 940,
+            "height": 140
+          }
+        }
+      },
+      "status": "matched",
+      "audio": {
+        "status": "intentional_none"
+      },
+      "candidates": []
+    },
+    {
+      "beat_id": "intro",
+      "visual": {
+        "status": "matched",
+        "intent": {
+          "type": "speaker",
+          "speaker": "helena",
+          "enter": "cut",
+          "exit": "cut"
+        }
+      },
+      "status": "matched",
+      "audio": {
+        "status": "matched"
+      },
+      "selected_candidate_id": "intro_take03",
+      "selection": {
+        "by": "resolver",
+        "review_status": "pending"
+      },
+      "candidates": [
+        {
+          "id": "intro_take03",
+          "media_id": "take_03",
+          "source_in": 42.18,
+          "source_out": 47.58,
+          "transcript": "Esse post apareceu pra mim ontem e eu queria começar justamente por essa frase aqui.",
+          "speaker": "helena",
+          "timing_granularity": "segment",
+          "match": {
+            "mode": "semantic",
+            "requested_meaning": "Esse post apareceu pra mim e eu quero começar por essa frase.",
+            "semantic_score": 0.94,
+            "take_score": null,
+            "evaluated_metrics": {
+              "semantic_match": 0.94,
+              "brevity": 0.2286
+            },
+            "unavailable_metrics": [
+              "delivery",
+              "audio_quality",
+              "visual_quality",
+              "continuity"
+            ],
+            "basis": "transcript_only",
+            "method": "illustrative_fixture",
+            "unavailable_preferences": [
+              "clear_audio",
+              "natural_delivery",
+              "eye_contact",
+              "low_background_noise"
+            ],
+            "evaluated_preferences": {
+              "complete_sentence": true
+            }
+          },
+          "rank": 1,
+          "reason": "Recommended for semantic relevance in this illustrative text-only example; audiovisual quality has not been evaluated."
+        }
+      ]
+    },
+    {
+      "beat_id": "three_concepts",
+      "visual": {
+        "status": "matched",
+        "intent": {
+          "type": "speaker_with_overlay",
+          "speaker": "helena"
+        },
+        "requirements": [
+          {
+            "type": "spoken_phrase_alignment",
+            "status": "needs_alignment",
+            "phrases": [
+              "legalização",
+              "descriminalização",
+              "redução de danos"
+            ]
+          }
+        ]
+      },
+      "status": "matched",
+      "audio": {
+        "status": "matched"
+      },
+      "selected_candidate_id": "concepts_take03",
+      "selection": {
+        "by": "resolver",
+        "review_status": "pending"
+      },
+      "candidates": [
+        {
+          "id": "concepts_take03",
+          "media_id": "take_03",
+          "source_in": 50,
+          "source_out": 58.1,
+          "transcript": "Liberar as drogas mistura legalização, descriminalização e redução de danos.",
+          "speaker": "helena",
+          "timing_granularity": "segment",
+          "match": {
+            "mode": "semantic",
+            "requested_meaning": "Liberar as drogas mistura legalização, descriminalização e redução de danos.",
+            "semantic_score": 0.96,
+            "take_score": null,
+            "evaluated_metrics": {
+              "semantic_match": 0.96
+            },
+            "unavailable_metrics": [
+              "delivery",
+              "audio_quality",
+              "visual_quality",
+              "continuity"
+            ],
+            "basis": "transcript_only",
+            "method": "illustrative_fixture"
+          },
+          "rank": 1,
+          "reason": "Recommended for semantic relevance in this illustrative text-only example; audiovisual quality has not been evaluated."
+        }
+      ]
+    },
+    {
+      "beat_id": "difference",
+      "visual": {
+        "status": "matched",
+        "intent": {
+          "type": "graphic"
+        }
+      },
+      "status": "needs_recording",
+      "audio": {
+        "status": "needs_recording",
+        "recording_task_id": "record_difference",
+        "search": {
+          "status": "completed",
+          "outcome": "no_suitable_clip_found",
+          "method": "illustrative_fixture"
+        }
+      },
+      "candidates": []
+    },
+    {
+      "beat_id": "question",
+      "visual": {
+        "status": "matched",
+        "intent": {
+          "type": "asset",
+          "source": "post_original"
+        },
+        "media_id": "post_image"
+      },
+      "status": "matched",
+      "audio": {
+        "status": "matched"
+      },
+      "selected_candidate_id": "question_take05",
+      "selection": {
+        "by": "resolver",
+        "review_status": "pending"
+      },
+      "candidates": [
+        {
+          "id": "question_take05",
+          "media_id": "take_05",
+          "source_in": 12,
+          "source_out": 16.2,
+          "transcript": "Então qual dessas políticas esse post está criticando?",
+          "speaker": "helena",
+          "timing_granularity": "segment",
+          "match": {
+            "mode": "semantic",
+            "requested_meaning": "Qual dessas políticas esse post está criticando?",
+            "semantic_score": 0.93,
+            "take_score": null,
+            "evaluated_metrics": {
+              "semantic_match": 0.93
+            },
+            "unavailable_metrics": [
+              "delivery",
+              "audio_quality",
+              "visual_quality",
+              "continuity"
+            ],
+            "basis": "transcript_only",
+            "method": "illustrative_fixture"
+          },
+          "rank": 1,
+          "reason": "Recommended for semantic relevance in this illustrative text-only example; audiovisual quality has not been evaluated."
+        }
+      ]
+    },
+    {
+      "beat_id": "conclusion",
+      "visual": {
+        "status": "matched",
+        "intent": {
+          "type": "speaker",
+          "speaker": "helena"
+        }
+      },
+      "status": "matched",
+      "audio": {
+        "status": "matched"
+      },
+      "selected_candidate_id": "conclusion_take07",
+      "selection": {
+        "by": "resolver",
+        "review_status": "pending"
+      },
+      "candidates": [
+        {
+          "id": "conclusion_take07",
+          "media_id": "take_07",
+          "source_in": 72,
+          "source_out": 79,
+          "transcript": "Você pode ser contra tudo isso, mas a discussão precisa ser sobre a política real e não sobre o slogan.",
+          "speaker": "helena",
+          "timing_granularity": "segment",
+          "match": {
+            "mode": "semantic",
+            "requested_meaning": "Você pode ser contra todas essas políticas, mas a discussão precisa ser sobre a política real e não sobre o slogan.",
+            "semantic_score": 0.91,
+            "take_score": null,
+            "evaluated_metrics": {
+              "semantic_match": 0.91
+            },
+            "unavailable_metrics": [
+              "delivery",
+              "audio_quality",
+              "visual_quality",
+              "continuity"
+            ],
+            "basis": "transcript_only",
+            "method": "illustrative_fixture"
+          },
+          "rank": 1,
+          "reason": "Recommended for semantic relevance in this illustrative text-only example; audiovisual quality has not been evaluated."
+        }
+      ]
+    },
+    {
+      "beat_id": "outro",
+      "visual": {
+        "status": "matched",
+        "intent": {
+          "type": "title_card"
+        }
+      },
+      "status": "needs_recording",
+      "audio": {
+        "status": "needs_recording",
+        "recording_task_id": "record_outro"
+      },
+      "candidates": []
+    }
+  ],
+  "unresolved_requirements": [
+    {
+      "beat_id": "difference",
+      "kind": "recording",
+      "task_id": "record_difference"
+    },
+    {
+      "beat_id": "outro",
+      "kind": "recording",
+      "task_id": "record_outro"
+    },
+    {
+      "beat_id": "three_concepts",
+      "kind": "spoken_phrase_alignment"
+    },
+    {
+      "kind": "selection_review",
+      "beat_ids": [
+        "intro",
+        "three_concepts",
+        "question",
+        "conclusion"
+      ]
+    }
+  ]
+}

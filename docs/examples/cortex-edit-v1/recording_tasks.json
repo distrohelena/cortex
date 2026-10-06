@@ -1,0 +1,52 @@
+{
+  "schema": "cortex.edit.recording_tasks.v1",
+  "metadata": {
+    "example": true,
+    "description": "Illustrative contract fixtures; media files, measurements and scores are fictional."
+  },
+  "project_id": "depois-do-slogan-001",
+  "script_ref": {
+    "path": "script.json",
+    "revision": 1,
+    "sha256": "2a35eebd1c64bf34a41acecad40a635b3aac736b709e9b31fe3fe031495f87bc"
+  },
+  "resolution_id": "example_before_pickups",
+  "recording_tasks": [
+    {
+      "id": "record_difference",
+      "beat_id": "difference",
+      "reason": "no_suitable_clip_found",
+      "script": "Legalizar é uma coisa. Deixar de prender alguém por portar droga para uso pessoal é outra. E tratar dependência como questão de saúde pública é outra.",
+      "match": {
+        "mode": "semantic",
+        "requested_meaning": "Legalizar, descriminalizar porte para uso pessoal e tratar dependência como saúde pública são políticas diferentes."
+      },
+      "target_duration_sec": 8,
+      "recording": {
+        "speaker": "helena",
+        "framing": "medium_closeup",
+        "orientation": "vertical",
+        "delivery": "calm_explanatory"
+      },
+      "status": "needs_recording"
+    },
+    {
+      "id": "record_outro",
+      "beat_id": "outro",
+      "reason": "script_requires_exact_wording",
+      "script": "Porque depois do slogan, ainda tem a política.",
+      "match": {
+        "mode": "exact",
+        "requested_text": "Porque depois do slogan, ainda tem a política."
+      },
+      "target_duration_sec": 3,
+      "recording": {
+        "speaker": "helena",
+        "framing": "closeup",
+        "orientation": "vertical",
+        "delivery": "short_confident"
+      },
+      "status": "needs_recording"
+    }
+  ]
+}

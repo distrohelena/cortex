@@ -1,0 +1,249 @@
+{
+  "schema": "cortex.edit.v1",
+  "revision": 1,
+  "metadata": {
+    "example": true,
+    "description": "Illustrative contract fixtures; media files, measurements and scores are fictional."
+  },
+  "project": {
+    "id": "depois-do-slogan-001",
+    "title": "A esquerda quer liberar as drogas?",
+    "format": "vertical",
+    "aspect_ratio": "9:16",
+    "target_duration_sec": 45,
+    "recording_defaults": {
+      "speaker": "helena",
+      "framing": "medium_closeup",
+      "orientation": "vertical",
+      "delivery": "calm_explanatory"
+    }
+  },
+  "sources": [
+    {
+      "id": "helena_raw",
+      "type": "video_pool",
+      "speaker": "helena",
+      "path": "./raw/helena/",
+      "transcription": true
+    },
+    {
+      "id": "post_original",
+      "type": "image",
+      "path": "./assets/post.jpg"
+    }
+  ],
+  "beats": [
+    {
+      "id": "hook",
+      "purpose": "Apresentar a afirmação que será analisada.",
+      "audio": {
+        "type": "none"
+      },
+      "visual": {
+        "type": "asset",
+        "source": "post_original",
+        "enter": "cut",
+        "exit": "cut",
+        "duration_sec": 3,
+        "focus": {
+          "type": "crop_zoom",
+          "target_text": "Ela luta pela libertação das drogas"
+        }
+      },
+      "overlay": {
+        "text": "Tá. O que isso quer dizer?",
+        "style": "headline"
+      }
+    },
+    {
+      "id": "intro",
+      "purpose": "Helena introduz a frase do post.",
+      "audio": {
+        "type": "find_clip",
+        "search": {
+          "speaker": "helena",
+          "meaning": "Esse post apareceu pra mim e eu quero começar por essa frase.",
+          "match": "semantic"
+        },
+        "selection": {
+          "strategy": "best_take",
+          "max_duration_sec": 7,
+          "prefer": [
+            "complete_sentence",
+            "clear_audio",
+            "natural_delivery",
+            "eye_contact",
+            "low_background_noise"
+          ],
+          "score": {
+            "semantic_match": 0.35,
+            "delivery": 0.25,
+            "audio_quality": 0.15,
+            "visual_quality": 0.1,
+            "brevity": 0.1,
+            "continuity": 0.05
+          }
+        },
+        "fallback": {
+          "type": "record"
+        }
+      },
+      "visual": {
+        "type": "speaker",
+        "speaker": "helena",
+        "enter": "cut",
+        "exit": "cut"
+      }
+    },
+    {
+      "id": "three_concepts",
+      "purpose": "Separar três conceitos que o slogan mistura.",
+      "audio": {
+        "type": "find_clip",
+        "search": {
+          "speaker": "helena",
+          "meaning": "Liberar as drogas mistura legalização, descriminalização e redução de danos.",
+          "match": "semantic"
+        },
+        "selection": {
+          "strategy": "best_take",
+          "max_duration_sec": 9
+        },
+        "fallback": {
+          "type": "record",
+          "script": "Porque 'liberar as drogas' pode estar misturando pelo menos três coisas completamente diferentes."
+        }
+      },
+      "visual": {
+        "type": "speaker_with_overlay",
+        "speaker": "helena"
+      },
+      "overlays": [
+        {
+          "text": "LEGALIZAÇÃO",
+          "trigger": {
+            "spoken_phrase": "legalização"
+          }
+        },
+        {
+          "text": "DESCRIMINALIZAÇÃO",
+          "trigger": {
+            "spoken_phrase": "descriminalização"
+          }
+        },
+        {
+          "text": "REDUÇÃO DE DANOS",
+          "trigger": {
+            "spoken_phrase": "redução de danos"
+          }
+        }
+      ]
+    },
+    {
+      "id": "difference",
+      "purpose": "Explicar que os três conceitos não são equivalentes.",
+      "audio": {
+        "type": "find_clip",
+        "search": {
+          "speaker": "helena",
+          "meaning": "Legalizar, descriminalizar porte para uso pessoal e tratar dependência como saúde pública são políticas diferentes.",
+          "match": "semantic"
+        },
+        "selection": {
+          "strategy": "best_take"
+        },
+        "fallback": {
+          "type": "record",
+          "script": "Legalizar é uma coisa. Deixar de prender alguém por portar droga para uso pessoal é outra. E tratar dependência como questão de saúde pública é outra.",
+          "target_duration_sec": 8
+        }
+      },
+      "visual": {
+        "type": "graphic"
+      },
+      "overlay": {
+        "text": "LEGALIZAR ≠ DESCRIMINALIZAR ≠ TRATAR",
+        "style": "comparison"
+      }
+    },
+    {
+      "id": "question",
+      "audio": {
+        "type": "find_clip",
+        "search": {
+          "speaker": "helena",
+          "meaning": "Qual dessas políticas esse post está criticando?",
+          "match": "semantic"
+        },
+        "selection": {
+          "strategy": "best_take"
+        },
+        "fallback": {
+          "type": "record",
+          "script": "Então qual dessas políticas esse post está criticando?"
+        }
+      },
+      "visual": {
+        "type": "asset",
+        "source": "post_original"
+      },
+      "overlays": [
+        {
+          "text": "QUAL LEI?"
+        },
+        {
+          "text": "QUAL PROPOSTA?"
+        },
+        {
+          "text": "QUAL VOTAÇÃO?"
+        },
+        {
+          "text": "O POST NÃO DIZ."
+        }
+      ]
+    },
+    {
+      "id": "conclusion",
+      "audio": {
+        "type": "find_clip",
+        "search": {
+          "speaker": "helena",
+          "meaning": "Você pode ser contra todas essas políticas, mas a discussão precisa ser sobre a política real e não sobre o slogan.",
+          "match": "semantic"
+        },
+        "selection": {
+          "strategy": "best_take"
+        },
+        "fallback": {
+          "type": "record",
+          "script": "Talvez você seja contra todas elas. Beleza. Mas aí a discussão é sobre a política de verdade — não sobre a palavra 'liberação'."
+        }
+      },
+      "visual": {
+        "type": "speaker",
+        "speaker": "helena"
+      }
+    },
+    {
+      "id": "outro",
+      "audio": {
+        "type": "record",
+        "script": "Porque depois do slogan, ainda tem a política.",
+        "require_exact_wording": true,
+        "recording": {
+          "speaker": "helena",
+          "framing": "closeup",
+          "orientation": "vertical",
+          "delivery": "short_confident"
+        },
+        "target_duration_sec": 3
+      },
+      "visual": {
+        "type": "title_card"
+      },
+      "overlay": {
+        "text": "DEPOIS DO SLOGAN"
+      }
+    }
+  ]
+}

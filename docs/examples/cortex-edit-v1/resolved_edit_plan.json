@@ -1,0 +1,455 @@
+{
+  "schema": "cortex.edit.resolved.v1",
+  "metadata": {
+    "example": true,
+    "description": "Illustrative contract fixtures; media files, measurements and scores are fictional."
+  },
+  "project_id": "depois-do-slogan-001",
+  "script_ref": {
+    "path": "script.json",
+    "revision": 1,
+    "sha256": "2a35eebd1c64bf34a41acecad40a635b3aac736b709e9b31fe3fe031495f87bc"
+  },
+  "resolution_id": "example_after_pickups",
+  "status": "resolved",
+  "timebase": "seconds",
+  "review_status": "accepted",
+  "media": [
+    {
+      "id": "take_03",
+      "source_id": "helena_raw",
+      "path": "./raw/helena/helena_take_03.mp4",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "type": "video",
+      "width": 1080,
+      "height": 1920,
+      "duration_sec": 80,
+      "fps": "30/1",
+      "speaker": "helena"
+    },
+    {
+      "id": "take_05",
+      "source_id": "helena_raw",
+      "path": "./raw/helena/helena_take_05.mp4",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "type": "video",
+      "width": 1080,
+      "height": 1920,
+      "duration_sec": 62,
+      "fps": "30/1",
+      "speaker": "helena"
+    },
+    {
+      "id": "take_07",
+      "source_id": "helena_raw",
+      "path": "./raw/helena/helena_take_07.mp4",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "type": "video",
+      "width": 1080,
+      "height": 1920,
+      "duration_sec": 120,
+      "fps": "30/1",
+      "speaker": "helena"
+    },
+    {
+      "id": "post_image",
+      "source_id": "post_original",
+      "path": "./assets/post.jpg",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "type": "image",
+      "width": 1080,
+      "height": 1350
+    },
+    {
+      "id": "pickup_difference",
+      "source_id": "helena_raw",
+      "path": "./raw/helena/pickup_2026-10-06_002.mp4",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "type": "video",
+      "width": 1080,
+      "height": 1920,
+      "duration_sec": 20,
+      "fps": "30/1",
+      "speaker": "helena"
+    },
+    {
+      "id": "pickup_outro",
+      "source_id": "helena_raw",
+      "path": "./raw/helena/pickup_2026-10-06_003.mp4",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "type": "video",
+      "width": 1080,
+      "height": 1920,
+      "duration_sec": 8,
+      "fps": "30/1",
+      "speaker": "helena"
+    }
+  ],
+  "timeline": [
+    {
+      "beat_id": "hook",
+      "start": 0,
+      "end": 3,
+      "audio": {
+        "kind": "none"
+      },
+      "video": {
+        "kind": "image",
+        "media_id": "post_image",
+        "focus": {
+          "type": "crop_zoom",
+          "target_text": "Ela luta pela libertação das drogas",
+          "source_rect_pixels": {
+            "x": 60,
+            "y": 210,
+            "width": 940,
+            "height": 140
+          }
+        }
+      },
+      "enter": "cut",
+      "exit": "cut",
+      "overlays": [
+        {
+          "text": "Tá. O que isso quer dizer?",
+          "style": "headline"
+        }
+      ]
+    },
+    {
+      "beat_id": "intro",
+      "start": 3,
+      "end": 8.4,
+      "audio": {
+        "kind": "clip",
+        "media_id": "take_03",
+        "source_in": 42.18,
+        "source_out": 47.58
+      },
+      "video": {
+        "kind": "clip",
+        "media_id": "take_03",
+        "source_in": 42.18,
+        "source_out": 47.58
+      },
+      "enter": "cut",
+      "exit": "cut",
+      "match": {
+        "mode": "semantic",
+        "requested_meaning": "Esse post apareceu pra mim e eu quero começar por essa frase.",
+        "semantic_score": 0.94,
+        "take_score": null,
+        "evaluated_metrics": {
+          "semantic_match": 0.94,
+          "brevity": 0.2286
+        },
+        "unavailable_metrics": [
+          "delivery",
+          "audio_quality",
+          "visual_quality",
+          "continuity"
+        ],
+        "basis": "transcript_only",
+        "method": "illustrative_fixture",
+        "unavailable_preferences": [
+          "clear_audio",
+          "natural_delivery",
+          "eye_contact",
+          "low_background_noise"
+        ],
+        "evaluated_preferences": {
+          "complete_sentence": true
+        }
+      }
+    },
+    {
+      "beat_id": "three_concepts",
+      "start": 8.4,
+      "end": 16.5,
+      "audio": {
+        "kind": "clip",
+        "media_id": "take_03",
+        "source_in": 50,
+        "source_out": 58.1
+      },
+      "video": {
+        "kind": "clip",
+        "media_id": "take_03",
+        "source_in": 50,
+        "source_out": 58.1
+      },
+      "enter": "cut",
+      "exit": "cut",
+      "match": {
+        "mode": "semantic",
+        "requested_meaning": "Liberar as drogas mistura legalização, descriminalização e redução de danos.",
+        "semantic_score": 0.96,
+        "take_score": null,
+        "evaluated_metrics": {
+          "semantic_match": 0.96
+        },
+        "unavailable_metrics": [
+          "delivery",
+          "audio_quality",
+          "visual_quality",
+          "continuity"
+        ],
+        "basis": "transcript_only",
+        "method": "illustrative_fixture"
+      },
+      "overlays": [
+        {
+          "text": "LEGALIZAÇÃO",
+          "trigger": {
+            "spoken_phrase": "legalização",
+            "resolved": {
+              "offset_sec": 2.1,
+              "timing_granularity": "word",
+              "method": "illustrative_alignment_fixture"
+            }
+          }
+        },
+        {
+          "text": "DESCRIMINALIZAÇÃO",
+          "trigger": {
+            "spoken_phrase": "descriminalização",
+            "resolved": {
+              "offset_sec": 3.6,
+              "timing_granularity": "word",
+              "method": "illustrative_alignment_fixture"
+            }
+          }
+        },
+        {
+          "text": "REDUÇÃO DE DANOS",
+          "trigger": {
+            "spoken_phrase": "redução de danos",
+            "resolved": {
+              "offset_sec": 5.2,
+              "timing_granularity": "word",
+              "method": "illustrative_alignment_fixture"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "beat_id": "difference",
+      "start": 16.5,
+      "end": 25.12,
+      "audio": {
+        "kind": "clip",
+        "media_id": "pickup_difference",
+        "source_in": 4.21,
+        "source_out": 12.83
+      },
+      "video": {
+        "kind": "graphic",
+        "recipe": {
+          "overlays": [
+            {
+              "text": "LEGALIZAR ≠ DESCRIMINALIZAR ≠ TRATAR",
+              "style": "comparison"
+            }
+          ]
+        }
+      },
+      "enter": "cut",
+      "exit": "cut",
+      "match": {
+        "mode": "semantic",
+        "semantic_score": 0.97,
+        "basis": "transcript_only",
+        "method": "illustrative_fixture"
+      }
+    },
+    {
+      "beat_id": "question",
+      "start": 25.12,
+      "end": 29.32,
+      "audio": {
+        "kind": "clip",
+        "media_id": "take_05",
+        "source_in": 12,
+        "source_out": 16.2
+      },
+      "video": {
+        "kind": "image",
+        "media_id": "post_image"
+      },
+      "enter": "cut",
+      "exit": "cut",
+      "match": {
+        "mode": "semantic",
+        "requested_meaning": "Qual dessas políticas esse post está criticando?",
+        "semantic_score": 0.93,
+        "take_score": null,
+        "evaluated_metrics": {
+          "semantic_match": 0.93
+        },
+        "unavailable_metrics": [
+          "delivery",
+          "audio_quality",
+          "visual_quality",
+          "continuity"
+        ],
+        "basis": "transcript_only",
+        "method": "illustrative_fixture"
+      },
+      "overlays": [
+        {
+          "text": "QUAL LEI?"
+        },
+        {
+          "text": "QUAL PROPOSTA?"
+        },
+        {
+          "text": "QUAL VOTAÇÃO?"
+        },
+        {
+          "text": "O POST NÃO DIZ."
+        }
+      ]
+    },
+    {
+      "beat_id": "conclusion",
+      "start": 29.32,
+      "end": 36.32,
+      "audio": {
+        "kind": "clip",
+        "media_id": "take_07",
+        "source_in": 72,
+        "source_out": 79
+      },
+      "video": {
+        "kind": "clip",
+        "media_id": "take_07",
+        "source_in": 72,
+        "source_out": 79
+      },
+      "enter": "cut",
+      "exit": "cut",
+      "match": {
+        "mode": "semantic",
+        "requested_meaning": "Você pode ser contra todas essas políticas, mas a discussão precisa ser sobre a política real e não sobre o slogan.",
+        "semantic_score": 0.91,
+        "take_score": null,
+        "evaluated_metrics": {
+          "semantic_match": 0.91
+        },
+        "unavailable_metrics": [
+          "delivery",
+          "audio_quality",
+          "visual_quality",
+          "continuity"
+        ],
+        "basis": "transcript_only",
+        "method": "illustrative_fixture"
+      }
+    },
+    {
+      "beat_id": "outro",
+      "start": 36.32,
+      "end": 39.32,
+      "audio": {
+        "kind": "clip",
+        "media_id": "pickup_outro",
+        "source_in": 2,
+        "source_out": 5
+      },
+      "video": {
+        "kind": "title_card",
+        "recipe": {
+          "overlays": [
+            {
+              "text": "DEPOIS DO SLOGAN"
+            }
+          ]
+        }
+      },
+      "enter": "cut",
+      "exit": "cut",
+      "match": {
+        "mode": "exact",
+        "exact_wording_match": true,
+        "method": "illustrative_fixture"
+      }
+    }
+  ],
+  "duration_sec": 39.32,
+  "target_duration_sec": 45,
+  "render_requirements": [
+    "multiple_media",
+    "image",
+    "graphic",
+    "title_card",
+    "crop_zoom",
+    "text_overlay",
+    "spoken_phrase_alignment",
+    "cut",
+    "aspect_9_16"
+  ],
+  "recording_task_resolutions": [
+    {
+      "recording_task": "record_difference",
+      "status": "resolved",
+      "resolved_by": {
+        "media_id": "pickup_difference",
+        "source_id": "helena_raw",
+        "path": "./raw/helena/pickup_2026-10-06_002.mp4",
+        "source_in": 4.21,
+        "source_out": 12.83,
+        "transcript": "Legalizar é uma coisa. Deixar de prender alguém por portar droga para uso pessoal é outra. E tratar dependência como questão de saúde pública é outra.",
+        "timing_granularity": "segment",
+        "match": {
+          "mode": "semantic",
+          "semantic_score": 0.97,
+          "basis": "transcript_only",
+          "method": "illustrative_fixture"
+        },
+        "selection": {
+          "by": "human",
+          "review_status": "accepted"
+        }
+      }
+    },
+    {
+      "recording_task": "record_outro",
+      "status": "resolved",
+      "resolved_by": {
+        "media_id": "pickup_outro",
+        "source_id": "helena_raw",
+        "path": "./raw/helena/pickup_2026-10-06_003.mp4",
+        "source_in": 2,
+        "source_out": 5,
+        "transcript": "Porque depois do slogan, ainda tem a política.",
+        "timing_granularity": "segment",
+        "match": {
+          "mode": "exact",
+          "exact_wording_match": true,
+          "method": "illustrative_fixture"
+        },
+        "selection": {
+          "by": "human",
+          "review_status": "accepted"
+        }
+      }
+    }
+  ],
+  "notices": [
+    {
+      "code": "below_target_duration",
+      "message": "Resolved speech and authored visual duration total 39.32 seconds; no padding or omitted beats were added to reach the 45-second editorial goal."
+    }
+  ],
+  "edit_plan_ref": {
+    "path": "after-pickups/edit_plan.json",
+    "resolution_id": "example_after_pickups",
+    "sha256": "f95bf02c8931d992160a51302ae2392f6f858f9f85e5ec80499befd92abee784"
+  },
+  "recording_tasks_ref": {
+    "path": "after-pickups/recording_tasks.json",
+    "resolution_id": "example_after_pickups",
+    "sha256": "5d391ee58e3321e41a86ecca9fb0cd08323a2235dabf342a4ab6f056fa1b82a8"
+  }
+}
