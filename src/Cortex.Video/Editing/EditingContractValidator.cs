@@ -12,10 +12,11 @@ public static class EditingContractValidator
     public static IReadOnlyList<FlowIssue> Validate(EditingDocument document, EditingValidationContext? context = null)
     {
         var issues = new List<FlowIssue>();
-        var expected = document switch { EditScriptDocument => EditingDocumentKinds.Script, EditPlanDocument => EditingDocumentKinds.Plan,
+        var expected = document switch { EditScriptDocument => EditingDocumentKinds.Script, EditorialDecisionPlanDocument => EditingDocumentKinds.Decisions, EditPlanDocument => EditingDocumentKinds.Plan,
             RecordingTasksDocument => EditingDocumentKinds.Tasks, ResolvedEditPlanDocument => EditingDocumentKinds.Resolved, _ => "" };
         if (document.Schema != expected) Add(issues, "edit.schema", "/schema", "The document type and schema identifier must agree.");
         if (document.Metadata is { } metadata && metadata.ValueKind != JsonValueKind.Object) Add(issues, "edit.metadata", "/metadata", "Metadata must be an object.");
+        if (document is EditorialDecisionPlanDocument decisions) issues.AddRange(EditorialDecisionValidation.Validate(decisions, context?.Script));
         if (document is EditScriptDocument script) ValidateScript(script, issues);
         if (document is GeneratedEditingDocument generated) EditingReferenceValidation.Validate(generated, context, issues);
         if (document is EditPlanDocument plan) ValidatePlan(plan, context, issues);

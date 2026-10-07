@@ -25,6 +25,7 @@ public static class EditingJson
             var type = value.GetProperty("schema").GetString() switch
             {
                 EditingDocumentKinds.Script => typeof(EditScriptDocument),
+                EditingDocumentKinds.Decisions => typeof(EditorialDecisionPlanDocument),
                 EditingDocumentKinds.Plan => typeof(EditPlanDocument),
                 EditingDocumentKinds.Tasks => typeof(RecordingTasksDocument),
                 EditingDocumentKinds.Resolved => typeof(ResolvedEditPlanDocument),

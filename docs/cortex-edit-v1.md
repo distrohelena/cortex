@@ -40,3 +40,11 @@ The existing **Suggest Takes** and **Render Cuts** still use their one-video `Ta
 `script_requests_recording` identifies an author-requested recording before any media search. It is distinct from `no_suitable_clip_found`, which requires completed search evidence, and `script_requires_exact_wording`, which requires an exact authored script.
 
 The consumer-owned `DepoisDoSlogan.CortexPlugin` reuses these models and existing `FlowNodeHandler`/`IFlowCompletion` contracts for `Video Brief -> Draft Script -> Recording Plan`. It creates `cortex.edit.v1` intent and an initial recording-task bundle. The generation nodes live in the optional **Depois do Slogan** library, not in the generic Cortex runtime. The generated plan is editable editorial intent; scene duration targets are estimates, and no resolved timeline is produced. See the consumer README for installation and execution.
+
+## Editorial decision plans
+
+`cortex.edit.decisions.v1` adds a proposal for every script beat before recordings are selected. The Video library supplies strict models, schema validation, human overrides, review states, focus resolution and image-motion rendering. Proposals bind the current script fingerprint; source images bind their own SHA-256 and natural dimensions. Human overrides survive compatible replanning and become explicit conflicts if a scene's role changes.
+
+The initial image catalog supports cut/fade entrance, none/zoom motion, linear/ease-in-out curves and center/point/text-region focus. Text-region motion requires a region resolved on the current image. Caption and overlay layers remain separate from image transforms. The existing four document types and one-video cut renderer remain compatible.
+
+Depois do Slogan's initial draft node now returns script plus decisions in one model call; partial planning failure keeps the valid script editable. Subsequent model replanning uses the product's existing cost-confirmation flow. The stored plan and its revisions can be exported with the authored script.

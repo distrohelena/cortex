@@ -1,0 +1,26 @@
+using System.Diagnostics;
+using System.Globalization;
+using System.Security.Cryptography;
+namespace Cortex.Video.Editing;
+public sealed record ImageMotionRenderRequest(string ImagePath,string AssetsRoot,string OutputDirectory,CompiledImageMotion Motion,int Width,int Height,string Fit="contain",string BackgroundColor="#F7F5FA");
+public sealed record ImageMotionFrames(string Pattern,int FrameCount,int Width,int Height,bool Still);
+public interface IImageMotionRenderer{Task<ImageMotionFrames> RenderAsync(ImageMotionRenderRequest request,CancellationToken token);}
+public sealed class FfmpegImageMotionRenderer(string ffmpegExecutable):IImageMotionRenderer
+{
+    private static string Number(double value)=>value.ToString("0.#########",CultureInfo.InvariantCulture);
+    private static void Safe(string root,string path){var relative=Path.GetRelativePath(Path.GetFullPath(root),Path.GetFullPath(path));if(Path.IsPathRooted(relative)||relative==".."||relative.StartsWith(".."+Path.DirectorySeparatorChar,StringComparison.Ordinal))throw new InvalidDataException("Motion path escaped its owned root.");for(var p=Path.GetFullPath(path);p is not null;p=Path.GetDirectoryName(p)){if((File.Exists(p)||Directory.Exists(p))&&(File.GetAttributes(p)&FileAttributes.ReparsePoint)!=0)throw new InvalidDataException("Motion paths cannot follow reparse points.");if(string.Equals(p,Path.GetFullPath(root),OperatingSystem.IsWindows()?StringComparison.OrdinalIgnoreCase:StringComparison.Ordinal))break;}}
+    public async Task<ImageMotionFrames> RenderAsync(ImageMotionRenderRequest request,CancellationToken token)
+    {
+        Safe(request.AssetsRoot,request.ImagePath);Safe(request.AssetsRoot,request.OutputDirectory);if(request.Width is <2 or >4096||request.Height is <2 or >4096||request.Fit is not("contain" or "cover")||!System.Text.RegularExpressions.Regex.IsMatch(request.BackgroundColor,"^#[0-9a-fA-F]{6}$"))throw new InvalidDataException("Invalid motion output geometry.");
+        await using(var stream=File.OpenRead(request.ImagePath)){if(stream.Length>32*1024*1024)throw new InvalidDataException("Motion image exceeds 32 MiB.");var hash=Convert.ToHexStringLower(await SHA256.HashDataAsync(stream,token));if(hash!=request.Motion.Image.Sha256)throw new InvalidDataException("Motion image changed after focus resolution.");}
+        Directory.CreateDirectory(request.OutputDirectory);var compiled=request.Motion;var recipe=compiled.Recipe;var motion=recipe.Motion;var still=motion.Type=="none"&&recipe.Entry.Type=="cut";var count=still?1:compiled.FrameCount;
+        var u=$"min(1,max(0,(on/{compiled.Fps}-{Number(motion.StartSec)})/{Number(motion.DurationSec)}))";var easing=motion.Easing=="ease_in_out"?$"({u})*({u})*(3-2*({u}))":u;var zoom=motion.Type=="zoom"?$"{Number(motion.FromScale)}+({Number(motion.ToScale-motion.FromScale)})*({easing})":"1";
+        var fitScale=request.Fit=="cover"?Math.Max((double)request.Width/compiled.Image.Width,(double)request.Height/compiled.Image.Height):Math.Min((double)request.Width/compiled.Image.Width,(double)request.Height/compiled.Image.Height);
+        var focusX=(compiled.FocusX*compiled.Image.Width*fitScale+(request.Width-compiled.Image.Width*fitScale)/2)/request.Width;var focusY=(compiled.FocusY*compiled.Image.Height*fitScale+(request.Height-compiled.Image.Height*fitScale)/2)/request.Height;
+        var fit=request.Fit=="cover"?$"scale={request.Width}:{request.Height}:force_original_aspect_ratio=increase,crop={request.Width}:{request.Height},format=rgba":$"scale={request.Width}:{request.Height}:force_original_aspect_ratio=decrease,format=rgba,pad={request.Width}:{request.Height}:(ow-iw)/2:(oh-ih)/2:color=0x{request.BackgroundColor[1..]}";
+        var filter=$"{fit},scale=iw*2:ih*2,zoompan=z='{zoom}':x='max(0,min(iw-iw/zoom,iw*{Number(focusX)}-iw/zoom/2))':y='max(0,min(ih-ih/zoom,ih*{Number(focusY)}-ih/zoom/2))':d={count}:s={request.Width}x{request.Height}:fps={compiled.Fps},format=rgba";
+        if(recipe.Entry.Type=="fade"&&recipe.Entry.DurationSec>0)filter+=$",fade=t=in:st=0:d={Number(recipe.Entry.DurationSec)}:alpha=1";
+        var pattern=Path.Combine(request.OutputDirectory,"frame-%06d.png");var info=new ProcessStartInfo(ffmpegExecutable){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};foreach(var a in new[]{"-hide_banner","-loglevel","error","-nostdin","-n","-i",request.ImagePath,"-vf",filter,"-frames:v",count.ToString(CultureInfo.InvariantCulture),"-start_number","0","-threads","1",pattern})info.ArgumentList.Add(a);
+        using var process=Process.Start(info)??throw new IOException("Could not start motion renderer.");var output=process.StandardOutput.ReadToEndAsync(token);var error=process.StandardError.ReadToEndAsync(token);try{await process.WaitForExitAsync(token);}catch{if(!process.HasExited)process.Kill(true);await process.WaitForExitAsync(CancellationToken.None);throw;}await output;var errors=await error;if(process.ExitCode!=0)throw new InvalidDataException("Image motion rendering failed: "+errors[..Math.Min(errors.Length,2048)]);if(Directory.EnumerateFiles(request.OutputDirectory,"frame-*.png").Count()!=count)throw new InvalidDataException("Image motion frame count differs from the plan.");return new(pattern,count,request.Width,request.Height,still);
+    }
+}

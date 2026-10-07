@@ -1,0 +1,295 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "type": "string",
+      "const": "cortex.edit.decisions.v1"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "plan_id": {
+      "type": "string"
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "script_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "integer"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ]
+    },
+    "context_fingerprint": {
+      "type": "string"
+    },
+    "review_status": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "accepted",
+        "rejected"
+      ]
+    },
+    "scenes": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 32,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "beat_id": {
+            "type": "string"
+          },
+          "identity_fingerprint": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 800
+          },
+          "origin": {
+            "type": "string",
+            "enum": [
+              "cortex",
+              "human",
+              "inherited"
+            ]
+          },
+          "proposal": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "material_key": {
+                "type": "string"
+              },
+              "presentation": {
+                "type": "string",
+                "enum": [
+                  "full_frame",
+                  "inset",
+                  "side_by_side"
+                ]
+              },
+              "fit": {
+                "type": "string",
+                "enum": [
+                  "contain",
+                  "cover"
+                ]
+              },
+              "duration_sec": {
+                "type": "number",
+                "exclusiveMinimum": 0,
+                "maximum": 600
+              },
+              "entry": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "cut",
+                      "fade"
+                    ]
+                  },
+                  "duration_sec": {
+                    "type": "number",
+                    "minimum": 0
+                  }
+                },
+                "required": [
+                  "type",
+                  "duration_sec"
+                ]
+              },
+              "motion": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "none",
+                      "zoom"
+                    ]
+                  },
+                  "start_sec": {
+                    "type": "number",
+                    "minimum": 0
+                  },
+                  "duration_sec": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "from_scale": {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 2.5
+                  },
+                  "to_scale": {
+                    "type": "number",
+                    "minimum": 1,
+                    "maximum": 2.5
+                  },
+                  "easing": {
+                    "type": "string",
+                    "enum": [
+                      "linear",
+                      "ease_in_out"
+                    ]
+                  },
+                  "focus": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "type": {
+                        "enum": [
+                          "center",
+                          "point",
+                          "text_region"
+                        ],
+                        "type": "string"
+                      },
+                      "text": {
+                        "type": "string"
+                      },
+                      "x": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "y": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      }
+                    },
+                    "required": [
+                      "type",
+                      "x",
+                      "y"
+                    ]
+                  }
+                },
+                "required": [
+                  "type",
+                  "start_sec",
+                  "duration_sec",
+                  "from_scale",
+                  "to_scale",
+                  "easing",
+                  "focus"
+                ]
+              },
+              "reference_width": {
+                "type": "integer",
+                "minimum": 256,
+                "maximum": 1024,
+                "multipleOf": 16
+              },
+              "reference_height": {
+                "type": "integer",
+                "minimum": 256,
+                "maximum": 1024,
+                "multipleOf": 16
+              },
+              "composition": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2400
+              },
+              "text_bindings": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "presentation",
+              "fit",
+              "duration_sec",
+              "entry",
+              "motion",
+              "reference_width",
+              "reference_height",
+              "composition",
+              "text_bindings"
+            ]
+          },
+          "overrides": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "value": {}
+              },
+              "required": [
+                "path",
+                "value"
+              ]
+            }
+          },
+          "review_status": {
+            "type": "string",
+            "enum": [
+              "pending",
+              "accepted",
+              "rejected"
+            ]
+          },
+          "conflict": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "beat_id",
+          "identity_fingerprint",
+          "reason",
+          "origin",
+          "proposal",
+          "overrides",
+          "review_status",
+          "conflict"
+        ]
+      }
+    },
+    "metadata": {
+      "type": "object"
+    }
+  },
+  "required": [
+    "schema",
+    "project_id",
+    "plan_id",
+    "revision",
+    "script_ref",
+    "context_fingerprint",
+    "review_status",
+    "scenes"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema"
+}
