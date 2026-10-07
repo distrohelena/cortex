@@ -12,10 +12,18 @@ internal static class FlowExecutionKernel
         IReadOnlyDictionary<string, IReadOnlyDictionary<string, TypedValue>>? runtimeOutputs)
     {
         DurableIdentity.Validate(identity.Scope);
-        var snapshot = new ExecutionSnapshotV1 { Scope = identity.Scope, BatchId = identity.BatchId,
-            ProjectRef = identity.ProjectRef, BatchRef = identity.BatchRef, StateId = identity.StateId,
-            StateVersion = identity.StateVersion, EntryKind = identity.EntryKind, Cursor = flow.EntryId,
-            Status = ExecutionStatus.Ready };
+        var snapshot = new ExecutionSnapshotV1
+        {
+            Scope = identity.Scope,
+            BatchId = identity.BatchId,
+            ProjectRef = identity.ProjectRef,
+            BatchRef = identity.BatchRef,
+            StateId = identity.StateId,
+            StateVersion = identity.StateVersion,
+            EntryKind = identity.EntryKind,
+            Cursor = flow.EntryId,
+            Status = ExecutionStatus.Ready
+        };
         if (flow.Nodes[flow.EntryId].Source.Kind is "dm" or "group")
             snapshot.Values[new(flow.EntryId, "message")] = new(FlowDomain.Message, message.Clone());
         return new(snapshot, runtimeOutputs);
@@ -26,9 +34,12 @@ internal static class FlowExecutionKernel
         FlowEffect.WriteState => StepEffect.Artifact,
         _ => node.Source.Kind switch
         {
-            "prompt" => StepEffect.Inference, "memory" => StepEffect.Memory,
-            "interpretBoundaries" => StepEffect.Boundary, "send" => StepEffect.Send,
-            "humanFeedback" => StepEffect.Feedback, _ => StepEffect.Pure
+            "prompt" => StepEffect.Inference,
+            "memory" => StepEffect.Memory,
+            "interpretBoundaries" => StepEffect.Boundary,
+            "send" => StepEffect.Send,
+            "humanFeedback" => StepEffect.Feedback,
+            _ => StepEffect.Pure
         }
     };
     internal static async Task<KernelStepResult> AdvanceAsync(TypedFlow flow, FlowExecutionState state,
@@ -201,7 +212,11 @@ internal static class FlowExecutionKernel
                     {
                         var request = new FlowCompletionRequest(current, system, JsonSerializer.SerializeToElement(inputs), schema,
                             TypedFlowRunner.OptionalText(config, "model"), TypedFlowRunner.OptionalText(config, "provider"), correction,
-                            TypedFlowRunner.OptionalText(config, "reasoningEffort"), config.TryGetProperty("maxOutputTokens", out var budget) ? budget.GetInt32() : null);
+                            TypedFlowRunner.OptionalText(config, "reasoningEffort"), config.TryGetProperty("maxOutputTokens", out var budget) ? budget.GetInt32() : null)
+                        {
+                            HostReferences = new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(
+                                references.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal))
+                        };
                         var text = await completion.CompleteAsync(request, token);
                         try { output = TypedFlowRunner.ValidateOutput(node, text, schema is not null); break; }
                         catch (Exception e) when (e is JsonException or InvalidDataException)
@@ -354,7 +369,12 @@ internal static class FlowExecutionKernel
                         ["taxonomyVersion"] = "v1",
                         ["expectedKind"] = BoundaryAdmission.Kind,
                         ["template"] = "no_teasing_about_topic:v1"
-                    } : null));
+                    } : e.Data["failureCategory"] is "read_only_model_response_rejected"
+                        ? new Dictionary<string, string>
+                        {
+                            ["failureCategory"] = "read_only_model_response_rejected",
+                            ["readOnlyModelNodeIds"] = JsonSerializer.Serialize(e.Data["readOnlyModelNodeIds"] as string[] ?? [])
+                        } : null));
             // A failure after a confirmed send does not un-send it: the speech still reaches history, without a transition.
             return Complete(false, null);
         }

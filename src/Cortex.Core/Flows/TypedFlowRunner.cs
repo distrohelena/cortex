@@ -6,7 +6,12 @@ using Cortex.Core.Outbound;
 namespace Cortex.Core.Flows;
 
 public sealed record FlowCompletionRequest(string NodeId, string System, JsonElement Inputs, JsonElement? ResponseSchema, string? Model, string? Provider, string? Correction,
-    string? ReasoningEffort = null, int? MaxOutputTokens = null);
+    string? ReasoningEffort = null, int? MaxOutputTokens = null)
+{
+    // Host-only bridge metadata. Never part of provider input or project authority.
+    [System.Text.Json.Serialization.JsonIgnore]
+    public IReadOnlyDictionary<string, string>? HostReferences { get; init; }
+}
 public interface IFlowCompletion
 {
     Task<string> CompleteAsync(FlowCompletionRequest request, CancellationToken token);

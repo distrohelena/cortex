@@ -35,7 +35,11 @@ public sealed class SystemOneClient(HttpClient http, Uri endpoint, Func<string?>
         var started = Stopwatch.GetTimestamp();
         using var response = await http.SendAsync(message, token);
         if (!response.IsSuccessStatusCode)
-            throw new HttpRequestException($"System 1 HTTP {(int)response.StatusCode}.", null, response.StatusCode);
+        {
+            var failure = new HttpRequestException($"System 1 HTTP {(int)response.StatusCode}.", null, response.StatusCode);
+            failure.Data["failureCategory"] = "read_only_model_response_rejected";
+            throw failure;
+        }
         try
         {
             using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(token));
@@ -54,12 +58,16 @@ public sealed class SystemOneClient(HttpClient http, Uri endpoint, Func<string?>
             var output = usage.GetProperty("output_tokens").GetInt32();
             if (input < 0 || output < 0) throw Invalid();
             return new(returnedModel, answers.Clone(), input, output, Stopwatch.GetElapsedTime(started))
-                { ProbabilityPolicy = probabilityPolicy.ToString() };
+            { ProbabilityPolicy = probabilityPolicy.ToString() };
         }
-        catch (Exception error) when (error is JsonException or InvalidOperationException or KeyNotFoundException or FormatException or OverflowException)
+        catch (Exception error) when (error is InvalidDataException or JsonException or InvalidOperationException or KeyNotFoundException or FormatException or OverflowException)
         {
             // Neither malformed payloads nor provider error bodies belong in normal logs.
-            throw Invalid();
+            var failure = error as InvalidDataException ?? Invalid();
+            // This adapter submits inference only, never tools or delivery. Keep
+            // configuration/credential failures above outside this response boundary.
+            failure.Data["failureCategory"] = "read_only_model_response_rejected";
+            throw failure;
         }
     }
 

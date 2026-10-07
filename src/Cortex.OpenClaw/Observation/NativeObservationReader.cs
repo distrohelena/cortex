@@ -383,6 +383,20 @@ public sealed partial class NativeObservationReader
                 && IsCurrentConversationAlias(Text(cipherKey, "remoteJid"));
             if (!hasContent && !metadataOnly && !ciphertextUnavailable) throw new NativeObservationException("unsupported_payload");
             if (metadataOnly || ciphertextUnavailable) content = JsonSerializer.SerializeToElement(new { });
+            // WAProto FutureProofMessage wrapper for documents with captions.
+            // Unwrap only the known envelope; unknown siblings or malformed nesting
+            // remain fail-closed. Never open/download the document here.
+            for (var depth = 0; content.TryGetProperty("documentWithCaptionMessage", out var documentWrapper); depth++)
+            {
+                if (depth >= 4 || documentWrapper.ValueKind != JsonValueKind.Object
+                    || content.EnumerateObject().Any(p => p.Name is not ("documentWithCaptionMessage" or "messageContextInfo" or "senderKeyDistributionMessage")
+                        || p.Value.ValueKind != JsonValueKind.Object)
+                    || documentWrapper.EnumerateObject().Any(p => p.Name != "message")
+                    || !documentWrapper.TryGetProperty("message", out var innerDocument)
+                    || innerDocument.ValueKind != JsonValueKind.Object)
+                    throw new NativeObservationException("unsupported_payload");
+                content = innerDocument;
+            }
             var text = content.TryGetProperty("conversation", out var conversation) && conversation.ValueKind == JsonValueKind.String
                 ? conversation.GetString() : content.TryGetProperty("extendedTextMessage", out var extended) ? Text(extended, "text") : null;
             foreach (var media in new[] { "imageMessage", "videoMessage", "documentMessage" })
@@ -489,7 +503,10 @@ public sealed partial class NativeObservationReader
 
     private static bool IsKnownNonText(JsonElement content)
     {
-        string[] media = ["imageMessage", "videoMessage", "audioMessage", "documentMessage", "stickerMessage", "reactionMessage"];
+        // Poll creation/votes are native control content, not conversational text.
+        // Preserve native identity/cursor, but never interpret encrypted vote data.
+        string[] media = ["imageMessage", "videoMessage", "audioMessage", "documentMessage", "stickerMessage", "reactionMessage",
+            "pollCreationMessage", "pollCreationMessageV2", "pollCreationMessageV3", "pollUpdateMessage"];
         string[] metadata = ["senderKeyDistributionMessage", "messageContextInfo"];
         return content.ValueKind == JsonValueKind.Object
             && content.EnumerateObject().Any(p => media.Contains(p.Name) && p.Value.ValueKind == JsonValueKind.Object)

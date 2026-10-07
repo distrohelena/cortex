@@ -148,6 +148,9 @@ public sealed class OptionalReplyRuntimeTests : IDisposable
                 return Task.FromResult(JsonSerializer.Serialize(request.ResponseSchema!.Value.GetProperty("properties").EnumerateObject().ToDictionary(p => p.Name, _ => "nao")));
             Input = request.Inputs.GetRawText();
             var message = request.Inputs.GetProperty("context")[0];
+            Assert.NotNull(request.HostReferences);
+            Assert.Equal(message.GetProperty("ref").GetString(), request.HostReferences["message:earlier-provider-id"]);
+            Assert.DoesNotContain("earlier-provider-id", JsonSerializer.Serialize(request));
             var target = selection switch
             {
                 "plain" => null,

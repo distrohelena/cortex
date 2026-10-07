@@ -54,7 +54,8 @@ public sealed class SystemOneClientTests
         using var http = new HttpClient(new Handler(Response.Replace("laya-rl-agent", "jev-1.13.0", StringComparison.Ordinal)
             .Replace("\"choice\":\"reply\"", "\"choice\":\"wait\"", StringComparison.Ordinal)));
         var client = new SystemOneClient(http, new("http://localhost/v1/systemone"), () => null, false, policy);
-        await Assert.ThrowsAsync<InvalidDataException>(() => client.DecideAsync("jev-1.13.0", Json("{}"), Json(Questions), TestContext.Current.CancellationToken));
+        var error = await Assert.ThrowsAsync<InvalidDataException>(() => client.DecideAsync("jev-1.13.0", Json("{}"), Json(Questions), TestContext.Current.CancellationToken));
+        Assert.Equal("read_only_model_response_rejected", error.Data["failureCategory"]);
     }
 
     [Theory]

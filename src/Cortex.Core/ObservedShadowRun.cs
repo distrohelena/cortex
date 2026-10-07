@@ -12,12 +12,14 @@ public sealed record ObservedShadowInteraction(string RunId, double DurationMill
 {
     public IReadOnlyList<PendingParticipationReview> ParticipationReviews { get; init; } = [];
     public IReadOnlyList<PendingParticipationReview> InitialInterpretations { get; init; } = [];
+    public bool FailuresHandled { get; init; }
 }
 
 public sealed class ObservedShadowRun : IAsyncDisposable
 {
     private readonly long initialTail;
     private readonly ShadowSessionBinding binding;
+    private readonly CompiledSessionFlowProject project;
     private readonly string epoch;
     private readonly ShadowInboundJournal inbox;
     private readonly ShadowOutboundHost host;
@@ -55,6 +57,7 @@ public sealed class ObservedShadowRun : IAsyncDisposable
         ArgumentNullException.ThrowIfNull(completion);
         ArgumentNullException.ThrowIfNull(memory);
         this.binding = binding;
+        this.project = SessionFlowProjectCompiler.Compile(project.Project);
         ArgumentException.ThrowIfNullOrWhiteSpace(nativeEpoch);
         if (initialTail < 0) throw new ArgumentOutOfRangeException(nameof(initialTail));
         epoch = nativeEpoch;
@@ -225,7 +228,8 @@ public sealed class ObservedShadowRun : IAsyncDisposable
 
             var outcomes = Outcomes.Skip(outcomesBefore).ToArray();
             var trace = Trace.Skip(traceBefore).ToArray();
-            if (outcomes.Any(outcome => !outcome.Success) || HasBadOutbound(trace) || OutboundMode != ceiling
+            var failuresHandled = CanContinueReadOnlyFailure(outcomes, trace);
+            if (outcomes.Any(outcome => !outcome.Success) && !failuresHandled || HasBadOutbound(trace) || OutboundMode != ceiling
                 || (ceiling == OutboundMode.Enabled && host.RequiresReconciliation(binding.Session)))
                 Stop();
             else
@@ -235,7 +239,7 @@ public sealed class ObservedShadowRun : IAsyncDisposable
             }
             using var reviewCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, participationLifetime.Token);
             var evaluated = outcomes.SelectMany(o => o.InitialInterpretations).ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
-            var initial = participationObserver is not null && initialInterpretation is not null && Volatile.Read(ref stopped) == 0
+            var initial = !failuresHandled && participationObserver is not null && initialInterpretation is not null && Volatile.Read(ref stopped) == 0
                 ? await participationObserver.ObserveNewAsync(outcomes.SelectMany(o => o.ProviderMessageIds).ToArray(),
                     (context, _) => Task.FromResult(evaluated.TryGetValue(context.Original.ProviderMessageId, out var analysis)
                         ? analysis : throw new InvalidDataException("Initial interpretation unavailable for this batch.")), reviewCancellation.Token)
@@ -243,7 +247,7 @@ public sealed class ObservedShadowRun : IAsyncDisposable
             // Reassessment is opportunistic, not an extra reply appended to a turn that
             // already spoke. Keep pending targets for later new context, without claiming
             // that a reply to another message answered them. Replay is not new context.
-            var reviews = admitted && !trace.Any(t => t.EventName == "speech-committed")
+            var reviews = !failuresHandled && admitted && !trace.Any(t => t.EventName == "speech-committed")
                 && participationObserver is not null && Volatile.Read(ref stopped) == 0
                 ? await participationObserver.ReviewPendingAsync(reassess!, reviewCancellation.Token)
                 : [];
@@ -277,7 +281,7 @@ public sealed class ObservedShadowRun : IAsyncDisposable
             if (ceiling == OutboundMode.Enabled && !continuous && liveInteractions >= liveInteractionLimit) Stop();
             return Interaction(watch, decisionsForBatch, Outcomes.Skip(outcomesBefore).ToArray(), Trace.Skip(traceBefore).ToArray())
                 with
-            { ParticipationReviews = reviews, InitialInterpretations = initial };
+            { ParticipationReviews = reviews, InitialInterpretations = initial, FailuresHandled = failuresHandled };
         }
         catch { Stop(); throw; }
         finally { serial.Release(); }
@@ -353,6 +357,41 @@ public sealed class ObservedShadowRun : IAsyncDisposable
     private bool HasBadOutbound(IEnumerable<SessionTraceEvent> trace) => trace.Any(item =>
         item.EventName == "node-outbound" &&
         (!item.MemoryMetadata?.TryGetValue("result", out var result) ?? true || result != (ceiling == OutboundMode.Shadow ? "shadowed" : "sent")));
+
+    private bool CanContinueReadOnlyFailure(IReadOnlyList<SessionFlowOutcome> outcomes, IReadOnlyList<SessionTraceEvent> trace)
+    {
+        var failures = outcomes.Where(outcome => !outcome.Success).ToArray();
+        if (!continuous || failures.Length == 0 || trace.Any(item => item.EventName is "node-outbound" or "speech-committed")) return false;
+        foreach (var outcome in failures)
+        {
+            if (outcome.TransitionApplied || outcome.TransitionTargetStateId is not null
+                || !project.States.TryGetValue(outcome.StateId, out var state)
+                || !state.Entries.TryGetValue(outcome.EntryKind, out var flow)) return false;
+            var execution = trace.Where(item => item.ExecutionId == outcome.ExecutionId).ToArray();
+            var failed = execution.Where(item => item.EventName == "node-failed").ToArray();
+            if (failed.Length != 1 || failed[0].MemoryMetadata?.GetValueOrDefault("failureCategory") != "read_only_model_response_rejected") return false;
+            var approvedNodes = new HashSet<string>(StringComparer.Ordinal);
+            if (failed[0].MemoryMetadata?.GetValueOrDefault("readOnlyModelNodeIds") is { } approved)
+            {
+                try { approvedNodes.UnionWith(System.Text.Json.JsonSerializer.Deserialize<string[]>(approved) ?? []); }
+                catch (System.Text.Json.JsonException) { return false; }
+            }
+            foreach (var started in execution.Where(item => item.EventName == "node-started"))
+            {
+                if (started.NodeId is null || !flow.Nodes.TryGetValue(started.NodeId, out var node) || node.HostEffect is not null) return false;
+                if (node.Source.Kind == "prompt")
+                {
+                    // Jev/Laya's response boundary submits decisions only. A general
+                    // generation provider may have called tools before rejecting output.
+                    if (!approvedNodes.Contains(started.NodeId)
+                        && TypedFlowRunner.OptionalText(node.Source.Config, "provider") is not ("jev" or "laya")) return false;
+                }
+                else if (node.Source.Kind is not ("dm" or "group" or "accumulate" or "history" or "memory"
+                    or "interpretBoundaries" or "property" or "count" or "switch" or "branch" or "exit")) return false;
+            }
+        }
+        return true;
+    }
 
     private ObservedShadowInteraction Interaction(Stopwatch watch, IReadOnlyList<ShadowInboundDecision> decisions,
         IReadOnlyList<SessionFlowOutcome> outcomes, IReadOnlyList<SessionTraceEvent> trace) =>

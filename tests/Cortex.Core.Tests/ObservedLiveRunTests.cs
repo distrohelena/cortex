@@ -11,6 +11,77 @@ namespace Cortex.Core.Tests;
 
 public sealed class ObservedLiveRunTests : IDisposable
 {
+    [Fact]
+    public async Task Read_only_inference_rejection_does_not_stop_next_turn_or_replay_after_restart()
+    {
+        var source = ShadowRuntimeTests.Project(false, sendExit: "sent", history: true);
+        var document = JsonNode.Parse(source.Document.GetRawText())!;
+        foreach (var state in document["states"]!.AsArray())
+            state!["graph"]!["nodes"]!.AsArray().Single(n => n!["id"]!.GetValue<string>() == "generate")!["provider"] = "jev";
+        var pin = new PinnedShadowProject(source with { Document = JsonSerializer.SerializeToElement(document) });
+        var completion = new RejectedOnceCompletion();
+        var sender = new LiveRuntimeTests.SequencedTransport();
+        ObservedLiveRun Open(long tail = 10) => new(pin, Binding, directory, Roles, completion, new ShadowRuntimeTests.Reader("empty"), "epoch", tail,
+            LiveRouteBindings.FromShadow(Binding, "opaque-route", Session.NativeConversationId, "Filomena", 1000), sender,
+            new(true, true, true, true, true, true, true), _ => Task.CompletedTask, continuousDm: true);
+        await using (var run = Open())
+        {
+            var failed = await run.AcceptAsync([Input(11, "invalid-decision")], Token);
+            Assert.False(Assert.Single(failed.Outcomes).Success);
+            Assert.True(failed.FailuresHandled);
+            Assert.False(Assert.Single(failed.Outcomes).TransitionApplied);
+            Assert.Equal(OutboundMode.Enabled, run.OutboundMode);
+            Assert.Empty(sender.Sends);
+            Assert.Single(run.History);
+            Assert.True(Assert.Single((await run.AcceptAsync([Input(12, "next-turn")], Token)).Outcomes).Success);
+            Assert.Single(sender.Sends);
+        }
+        await using var restarted = Open(12);
+        Assert.Contains(restarted.History, item => item.ProviderMessageId == "invalid-decision");
+        Assert.Equal("backlog", Assert.Single((await restarted.AcceptAsync([Input(11, "invalid-decision")], Token)).Decisions).Status);
+        Assert.Single(sender.Sends);
+        Assert.True(Assert.Single((await restarted.AcceptAsync([Input(13, "after-restart")], Token)).Outcomes).Success);
+        Assert.Equal(2, sender.Sends.Count);
+    }
+
+    [Theory]
+    [InlineData("openai", true)]
+    [InlineData("jev", false)]
+    public async Task Unproven_or_effectful_model_failure_still_blocks_run(string provider, bool tagged)
+    {
+        var source = ShadowRuntimeTests.Project(false, sendExit: "sent", history: true);
+        var document = JsonNode.Parse(source.Document.GetRawText())!;
+        foreach (var state in document["states"]!.AsArray())
+            state!["graph"]!["nodes"]!.AsArray().Single(n => n!["id"]!.GetValue<string>() == "generate")!["provider"] = provider;
+        var sender = new LiveRuntimeTests.SequencedTransport();
+        await using var run = new ObservedLiveRun(new(source with { Document = JsonSerializer.SerializeToElement(document) }), Binding,
+            directory, Roles, new RejectedOnceCompletion(tagged), new ShadowRuntimeTests.Reader("empty"), "epoch", 10,
+            LiveRouteBindings.FromShadow(Binding, "opaque-route", Session.NativeConversationId, "Filomena", 1000), sender,
+            new(true, true, true, true, true, true, true), _ => Task.CompletedTask, continuousDm: true);
+        var failed = await run.AcceptAsync([Input(11, "unproven")], Token);
+        Assert.False(failed.FailuresHandled);
+        Assert.Equal(OutboundMode.Disabled, run.OutboundMode);
+        Assert.Empty(sender.Sends);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => run.AcceptAsync([Input(12, "next")], Token));
+    }
+
+    private sealed class RejectedOnceCompletion(bool tagged = true) : Cortex.Core.Flows.IFlowCompletion
+    {
+        private bool rejected;
+        private readonly ShadowRuntimeTests.Completion inner = new("empty");
+        public Task<string> CompleteAsync(Cortex.Core.Flows.FlowCompletionRequest request, CancellationToken token)
+        {
+            if (request.NodeId == "generate" && !rejected)
+            {
+                rejected = true;
+                var error = new InvalidDataException("Invalid System 1 decision contract: choice_probability_mismatch.");
+                if (tagged) error.Data["failureCategory"] = "read_only_model_response_rejected";
+                throw error;
+            }
+            return inner.CompleteAsync(request, token);
+        }
+    }
+
     private readonly string directory = Directory.CreateTempSubdirectory("observed-live-").FullName;
     private static readonly SessionKey Session = new("runtime", "character", "whatsapp", "default", "5511944558218@s.whatsapp.net");
     private const string Peer = "whatsapp:5511944558218@s.whatsapp.net";

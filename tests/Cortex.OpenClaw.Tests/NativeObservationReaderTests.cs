@@ -663,10 +663,34 @@ public sealed class NativeObservationReaderTests
             .EnableNativeGroupParticipants());
 
     [Theory]
+    [InlineData("legenda humana", false)]
+    [InlineData(null, true)]
+    public async Task Document_with_caption_wrapper_preserves_caption_and_identity_without_executing_attachment(string? caption, bool skipped)
+    {
+        var row = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(Event()))!;
+        row["payload"]!["message"]!["message"] = JsonSerializer.SerializeToNode(new {
+            documentWithCaptionMessage = new { message = new { documentMessage = new { caption } } },
+            messageContextInfo = new { }
+        });
+        using var client = new HttpClient(new Handler(r => r.RequestUri!.AbsolutePath.EndsWith("/status") ? Status() : Batch(false, [row])));
+        var reader = new NativeObservationReader(client, new("http://127.0.0.1:12345"), "token", Binding, "source", Self, Peer);
+        var approval = await reader.PreflightAsync(TestContext.Current.CancellationToken);
+        var record = Assert.Single((await reader.PollAsync(approval, new("inbound-observation:v1", "epoch", "source", 0), TestContext.Current.CancellationToken)).Records);
+        var inbound = reader.ToInbound(record);
+        Assert.Equal("N1", inbound.Message.ProviderMessageId);
+        Assert.Equal(skipped, inbound.SkipNonText);
+        Assert.Equal(caption ?? "", inbound.Message.Message.GetProperty("texto").GetString());
+    }
+
+    [Theory]
     [InlineData("imageMessage", true)]
     [InlineData("reactionMessage", true)]
     [InlineData("stickerMessage", true)]
     [InlineData("audioMessage", true)]
+    [InlineData("pollCreationMessage", true)]
+    [InlineData("pollCreationMessageV2", true)]
+    [InlineData("pollCreationMessageV3", true)]
+    [InlineData("pollUpdateMessage", true)]
     [InlineData("futureMessage", false)]
     public async Task Known_non_text_is_explicitly_skipped_but_unknown_payload_is_not(string kind, bool supported)
     {
