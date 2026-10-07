@@ -70,7 +70,7 @@ public enum SourceKind { VideoFile, VideoPool, Image }
 public enum AudioKind { None, FindClip, Record }
 public enum VisualKind { Asset, Speaker, SpeakerWithOverlay, Graphic, TitleCard }
 public enum BindingKind { None, Clip, Image, Graphic, TitleCard }
-public enum MediaKind { Video, Image }
+public enum MediaKind { Video, Image, Audio }
 public enum TimingGranularity { Segment, Word, Frame }
 public enum ProjectFormat { Vertical, Horizontal, Square }
 public enum RecordingReason { NoSuitableClipFound, ScriptRequiresExactWording, ScriptRequestsRecording }

@@ -8,6 +8,7 @@ public sealed record EditorialDecisionPlanDocument:EditingDocument
     public required EditingDocumentReference ScriptRef{get;init;}
     public required string ContextFingerprint{get;init;}
     public ReviewStatus ReviewStatus{get;init;}=ReviewStatus.Pending;
+    public EditorialCatalogPin? Catalog{get;init;}
     public required IReadOnlyList<EditorialSceneDecision> Scenes{get;init;}
 }
 public sealed record EditorialSceneDecision
@@ -36,6 +37,7 @@ public sealed record EditorialMotion
 }
 public sealed record EditorialSceneRecipe
 {
+    public EditorialCompositionEdit? Editing{get;init;}
     public string? MaterialKey{get;init;}
     public string Presentation{get;init;}="inset";
     public string Fit{get;init;}="contain";

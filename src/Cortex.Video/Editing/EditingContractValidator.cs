@@ -12,7 +12,7 @@ public static class EditingContractValidator
     public static IReadOnlyList<FlowIssue> Validate(EditingDocument document, EditingValidationContext? context = null)
     {
         var issues = new List<FlowIssue>();
-        var expected = document switch { EditScriptDocument => EditingDocumentKinds.Script, EditorialDecisionPlanDocument => EditingDocumentKinds.Decisions, EditPlanDocument => EditingDocumentKinds.Plan,
+        var expected = document switch { EditScriptDocument => EditingDocumentKinds.Script, EditorialDecisionPlanDocument decision => decision.Schema==EditingDocumentKinds.DecisionsV2?EditingDocumentKinds.DecisionsV2:EditingDocumentKinds.Decisions, EditPlanDocument => EditingDocumentKinds.Plan,
             RecordingTasksDocument => EditingDocumentKinds.Tasks, ResolvedEditPlanDocument => EditingDocumentKinds.Resolved, _ => "" };
         if (document.Schema != expected) Add(issues, "edit.schema", "/schema", "The document type and schema identifier must agree.");
         if (document.Metadata is { } metadata && metadata.ValueKind != JsonValueKind.Object) Add(issues, "edit.metadata", "/metadata", "Metadata must be an object.");
@@ -135,10 +135,10 @@ public static class EditingContractValidator
             result.TryAdd(item.Id, item); var path = $"/media/{i}";
             LocalPath(item.Path, path + "/path", issues);
             if (!Hash(item.Sha256)) Add(issues, "edit.hash", path + "/sha256", "Use a SHA-256 hex digest.");
-            if (item.Width <= 0 || item.Height <= 0) Add(issues, "edit.media_dimensions", path, "Measured dimensions must be positive.");
-            if (item.Type == MediaKind.Video)
+            if (item.Type!=MediaKind.Audio && (item.Width <= 0 || item.Height <= 0)) Add(issues, "edit.media_dimensions", path, "Measured dimensions must be positive.");
+            if (item.Type is MediaKind.Video or MediaKind.Audio)
             {
-                if (item.DurationSec is null || item.Fps is null) Add(issues, "edit.media_properties", path, "A video needs measured duration and frame rate.");
+                if (item.DurationSec is null || item.Type==MediaKind.Video && item.Fps is null) Add(issues, "edit.media_properties", path, "A video needs measured duration and frame rate.");
                 Positive(item.DurationSec, path + "/duration_sec", issues);
                 if (item.Fps is not null && !Regex.IsMatch(item.Fps, @"^[1-9][0-9]*(/[1-9][0-9]*)?$")) Add(issues, "edit.media_properties", path + "/fps", "Use a positive frame rate.");
             }
@@ -152,7 +152,7 @@ public static class EditingContractValidator
     internal static void Interval(string mediaId, double start, double end, IReadOnlyDictionary<string, MediaSnapshot> media, string path, List<FlowIssue> issues)
     {
         if (!media.TryGetValue(mediaId, out var source)) { Add(issues, "edit.reference_unknown", path + "/media_id", "The media snapshot does not exist."); return; }
-        if (source.Type != MediaKind.Video || !double.IsFinite(start) || !double.IsFinite(end) || start < 0 || end <= start || source.DurationSec is null || end > source.DurationSec)
+        if (source.Type is not(MediaKind.Video or MediaKind.Audio) || !double.IsFinite(start) || !double.IsFinite(end) || start < 0 || end <= start || source.DurationSec is null || end > source.DurationSec)
             Add(issues, "edit.interval_invalid", path, "Moving-media intervals must be finite, positive and inside their measured source.");
     }
 

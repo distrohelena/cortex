@@ -3,11 +3,11 @@ using System.Text.Json.Nodes;
 namespace Cortex.Video.Editing;
 public static class EditorialDecisionMerge
 {
-    private static readonly HashSet<string> Paths=["presentation","fit","entry.type","entry.duration_sec","motion.type","motion.start_sec","motion.duration_sec","motion.from_scale","motion.to_scale","motion.easing","motion.focus.type","motion.focus.text","motion.focus.x","motion.focus.y","reference_width","reference_height","composition"];
+    private static readonly HashSet<string> Paths=["presentation","fit","entry.type","entry.duration_sec","motion.type","motion.start_sec","motion.duration_sec","motion.from_scale","motion.to_scale","motion.easing","motion.focus.type","motion.focus.text","motion.focus.x","motion.focus.y","reference_width","reference_height","composition","editing","editing.transform","editing.animations","editing.effects","editing.mask","editing.transition","editing.audio","editing.voice_gain","editing.voice_muted","editing.voice_envelopes"];
     private static EditorialSceneRecipe Patch(EditorialSceneRecipe recipe,EditorialFieldPatch patch)
     {
         if(!Paths.Contains(patch.Path))throw new InvalidDataException("Unknown editable decision field.");var node=JsonSerializer.SerializeToNode(recipe,EditingJson.Options)!;var parts=patch.Path.Split('.');var current=node;
-        foreach(var part in parts[..^1])current=current[part]??throw new InvalidDataException("Incomplete decision field.");current[parts[^1]]=JsonNode.Parse(patch.Value.GetRawText());
+        foreach(var part in parts[..^1]) {if(part=="editing" && current[part] is null)current[part]=JsonSerializer.SerializeToNode(new EditorialCompositionEdit(),EditingJson.Options);current=current[part]??throw new InvalidDataException("Incomplete decision field.");}current[parts[^1]]=JsonNode.Parse(patch.Value.GetRawText());
         return node.Deserialize<EditorialSceneRecipe>(EditingJson.Options)??throw new InvalidDataException("Invalid decision recipe.");
     }
     public static EditorialDecisionPlanDocument Effective(EditorialDecisionPlanDocument plan)=>plan with{Scenes=plan.Scenes.Select(s=>{
@@ -31,7 +31,7 @@ public static class EditorialDecisionMerge
     }
     public static EditorialDecisionPlanDocument Replan(EditorialDecisionPlanDocument previous,EditorialDecisionPlanDocument proposal,EditScriptDocument script)
     {
-        var old=previous.Scenes.ToDictionary(s=>s.BeatId);return proposal with{PlanId=previous.PlanId,Revision=previous.Revision+1,Scenes=proposal.Scenes.Select(s=>!old.TryGetValue(s.BeatId,out var prior)?s:s with{Overrides=prior.Overrides,Conflict=prior.Overrides.Count>0&&prior.IdentityFingerprint!=s.IdentityFingerprint}).ToArray(),Metadata=JsonSerializer.SerializeToElement(new{orphaned=previous.Scenes.Where(s=>!proposal.Scenes.Any(n=>n.BeatId==s.BeatId)&&s.Overrides.Count>0).ToArray()},EditingJson.Options)};
+        var old=previous.Scenes.ToDictionary(s=>s.BeatId);return proposal with{Schema=previous.Schema,Catalog=previous.Schema==EditingDocumentKinds.DecisionsV2?(proposal.Catalog??previous.Catalog):null,PlanId=previous.PlanId,Revision=previous.Revision+1,Scenes=proposal.Scenes.Select(s=>previous.Schema==EditingDocumentKinds.Decisions?s with{Proposal=s.Proposal with{Editing=null}}:s).Select(s=>!old.TryGetValue(s.BeatId,out var prior)?s:s with{Overrides=prior.Overrides,Conflict=prior.Overrides.Count>0&&prior.IdentityFingerprint!=s.IdentityFingerprint}).ToArray(),Metadata=JsonSerializer.SerializeToElement(new{orphaned=previous.Scenes.Where(s=>!proposal.Scenes.Any(n=>n.BeatId==s.BeatId)&&s.Overrides.Count>0).ToArray()},EditingJson.Options)};
     }
 }
 public static class EditorialDecisionExport

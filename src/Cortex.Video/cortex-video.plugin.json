@@ -6,11 +6,42 @@
   "entryType": "Cortex.Video.VideoNodePlugin",
   "contractVersion": 1,
   "configurationFields": [
-    { "name": "whisperExecutable", "label": "whisper.cpp executable", "defaultValue": "", "required": true },
-    { "name": "modelFile", "label": "Multilingual Whisper model", "defaultValue": "", "required": true },
-    { "name": "ffmpegExecutable", "label": "ffmpeg executable", "defaultValue": "ffmpeg" },
-    { "name": "ffprobeExecutable", "label": "ffprobe executable", "defaultValue": "ffprobe" },
-    { "name": "jevEndpoint", "label": "Jev endpoint", "defaultValue": "https://api.typesafe.ai/v1/systemone" },
-    { "name": "jevCredentialVariable", "label": "Jev credential environment variable", "defaultValue": "TYPESAFE_API_KEY" }
+    {
+      "name": "whisperExecutable",
+      "label": "whisper.cpp executable",
+      "defaultValue": "",
+      "required": true
+    },
+    {
+      "name": "modelFile",
+      "label": "Multilingual Whisper model",
+      "defaultValue": "",
+      "required": true
+    },
+    {
+      "name": "ffmpegExecutable",
+      "label": "ffmpeg executable",
+      "defaultValue": "ffmpeg"
+    },
+    {
+      "name": "ffprobeExecutable",
+      "label": "ffprobe executable",
+      "defaultValue": "ffprobe"
+    },
+    {
+      "name": "jevEndpoint",
+      "label": "Jev endpoint",
+      "defaultValue": "https://api.typesafe.ai/v1/systemone"
+    },
+    {
+      "name": "jevCredentialVariable",
+      "label": "Jev credential environment variable",
+      "defaultValue": "TYPESAFE_API_KEY"
+    },
+    {
+      "name": "helengineExecutable",
+      "label": "Helengine composition CLI",
+      "defaultValue": ""
+    }
   ]
 }

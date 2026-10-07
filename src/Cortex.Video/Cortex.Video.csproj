@@ -8,6 +8,7 @@
     <ProjectReference Include="../Cortex.Inference/Cortex.Inference.csproj" />
     <None Include="cortex-video.plugin.json" CopyToOutputDirectory="PreserveNewest" />
     <EmbeddedResource Include="Editing/Schemas/*.schema.json" />
+    <EmbeddedResource Include="Composition/Schemas/*.schema.json" />
     <None Update="Editing/Schemas/*.schema.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

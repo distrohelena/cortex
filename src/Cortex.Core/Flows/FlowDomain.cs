@@ -102,6 +102,7 @@ public static class FlowDomain
         {
             StringType => value.ValueKind == JsonValueKind.String,
             EnumType e => value.ValueKind == JsonValueKind.String && e.Values.Contains(value.GetString()),
+            IntegerType => value.ValueKind == JsonValueKind.Number && value.TryGetInt64(out _),
             NumberType => value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var n) && double.IsFinite(n),
             BooleanType => value.ValueKind is JsonValueKind.True or JsonValueKind.False,
             ArrayType => value.ValueKind == JsonValueKind.Array,

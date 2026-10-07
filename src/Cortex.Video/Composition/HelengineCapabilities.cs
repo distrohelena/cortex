@@ -1,0 +1,17 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+namespace Cortex.Video.Composition;
+/// <summary>Portable pinned engine catalog; this library has no dependency on engine or editor assemblies.</summary>
+public sealed class HelengineCapabilities {
+    public JsonElement Document {get;}
+    public string Fingerprint {get;}
+    public IReadOnlyList<string> Curves {get;}
+    private HelengineCapabilities(JsonElement document) {Document=document.Clone();Fingerprint=Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(Document.GetRawText())));Curves=Document.GetProperty("curves").EnumerateArray().Select(item=>item.GetString()!).ToArray();}
+    public static HelengineCapabilities Parse(JsonElement document) {if(document.ValueKind!=JsonValueKind.Object || document.GetProperty("schema").GetString()!="helengine.media.capabilities.v1" || document.GetProperty("composition_schema").GetString()!="helengine.media.composition.v1")throw new InvalidDataException("Unsupported engine capability schema.");var effects=document.GetProperty("effects").EnumerateArray().ToArray();if(effects.Length>256 || effects.Select(effect=>effect.GetProperty("id").GetString()+":"+effect.GetProperty("version").GetInt32()).Distinct().Count()!=effects.Length)throw new InvalidDataException("Invalid engine effect catalog.");return new(document);}
+    public bool Supports(string id,int version)=>Document.GetProperty("effects").EnumerateArray().Any(effect=>effect.GetProperty("id").GetString()==id && effect.GetProperty("version").GetInt32()==version);
+    public JsonElement Effect(string id,int version)=>Document.GetProperty("effects").EnumerateArray().FirstOrDefault(effect=>effect.GetProperty("id").GetString()==id && effect.GetProperty("version").GetInt32()==version) is var result && result.ValueKind==JsonValueKind.Object?result:throw new InvalidDataException("Unknown effect version: "+id+".v"+version);
+    public void ValidateEffect(string id,int version,IReadOnlyDictionary<string,JsonElement> parameters) {var effect=Effect(id,version);var shapes=effect.GetProperty("parameters");foreach(var pair in parameters) {if(!shapes.TryGetProperty(pair.Key,out var shape) || !Accepts(shape,pair.Value))throw new InvalidDataException("Unknown or invalid effect parameter: "+pair.Key);}}
+    public void ValidateProperty(string property,double value) {if(!Document.GetProperty("layer_properties").TryGetProperty(property,out var shape) || !Accepts(shape,JsonSerializer.SerializeToElement(value)))throw new InvalidDataException("Unknown or invalid animated property: "+property);}
+    private static bool Accepts(JsonElement shape,JsonElement value) {string? type=shape.GetProperty("type").GetString();if(type=="enum")return value.ValueKind==JsonValueKind.String && shape.GetProperty("allowed_values").EnumerateArray().Any(item=>item.GetString()==value.GetString());if(type=="color")return value.ValueKind==JsonValueKind.Array && value.GetArrayLength()==3 && value.EnumerateArray().All(item=>item.ValueKind==JsonValueKind.Number && item.TryGetDouble(out var scalar) && double.IsFinite(scalar) && scalar>=0 && scalar<=1);if(value.ValueKind!=JsonValueKind.Number || !value.TryGetDouble(out var number) || !double.IsFinite(number) || number<shape.GetProperty("minimum").GetDouble() || number>shape.GetProperty("maximum").GetDouble())return false;return type=="number" || type=="integer" && number==Math.Truncate(number);}
+}

@@ -1,0 +1,14 @@
+using System.Diagnostics;
+using System.Globalization;
+using System.Text.Json;
+namespace Cortex.Video.Composition;
+public sealed record HelengineMediaInfo(int Width,int Height,double Duration,string Fps,bool HasAudio,int RotationDegrees=0) {
+    public int DisplayWidth=>RotationDegrees is 90 or 270?Height:Width;
+    public int DisplayHeight=>RotationDegrees is 90 or 270?Width:Height;
+}
+/// <summary>Reads measured metadata only; no FFmpeg transformation, cuts or mixing occur here.</summary>
+public static class HelengineMediaProbe {
+    public static async Task<HelengineMediaInfo> ReadAsync(string path,string executable,CancellationToken token) {
+        var start=new ProcessStartInfo(executable){UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true};foreach(string arg in new[]{"-v","error","-show_entries","format=duration:stream=codec_type,width,height,r_frame_rate,duration:stream_side_data=rotation","-of","json",Path.GetFullPath(path)})start.ArgumentList.Add(arg);using var process=Process.Start(start)??throw new IOException("Could not start media metadata probe.");using var cancellation=CancellationTokenSource.CreateLinkedTokenSource(token);cancellation.CancelAfter(TimeSpan.FromSeconds(30));using var registration=cancellation.Token.Register(()=>{try{if(!process.HasExited)process.Kill(true);}catch(InvalidOperationException){}});var output=process.StandardOutput.ReadToEndAsync(cancellation.Token);var errors=process.StandardError.ReadToEndAsync(cancellation.Token);await process.WaitForExitAsync(cancellation.Token);string text=await output;string error=await errors;if(process.ExitCode!=0 || text.Length>262144)throw new InvalidDataException("Media metadata unavailable: "+error[..Math.Min(error.Length,2048)]);using var json=JsonDocument.Parse(text);var streams=json.RootElement.GetProperty("streams").EnumerateArray().ToArray();var video=streams.FirstOrDefault(stream=>stream.GetProperty("codec_type").GetString()=="video");double duration=0;if(json.RootElement.TryGetProperty("format",out var format) && format.TryGetProperty("duration",out var length))double.TryParse(length.GetString(),NumberStyles.Float,CultureInfo.InvariantCulture,out duration);int width=video.ValueKind==JsonValueKind.Object && video.TryGetProperty("width",out var w)?w.GetInt32():0;int height=video.ValueKind==JsonValueKind.Object && video.TryGetProperty("height",out var h)?h.GetInt32():0;string fps=video.ValueKind==JsonValueKind.Object && video.TryGetProperty("r_frame_rate",out var rate)?rate.GetString()!:"24/1";if(fps=="0/0")fps="24/1";int rotation=0;if(video.ValueKind==JsonValueKind.Object && video.TryGetProperty("side_data_list",out var side))foreach(var data in side.EnumerateArray())if(data.TryGetProperty("rotation",out var r))rotation=((int)Math.Round(r.GetDouble())%360+360)%360;return new(width,height,duration,fps,streams.Any(stream=>stream.GetProperty("codec_type").GetString()=="audio"),rotation);
+    }
+}

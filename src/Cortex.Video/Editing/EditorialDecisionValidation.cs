@@ -5,7 +5,7 @@ public static class EditorialDecisionValidation
     public static IReadOnlyList<FlowIssue> Validate(EditorialDecisionPlanDocument plan,EditScriptDocument? script=null)
     {
         var issues=new List<FlowIssue>();void Error(string code,string path,string text)=>issues.Add(new("edit.decisions."+code,path,text));
-        if(plan.Schema!=EditingDocumentKinds.Decisions||plan.Revision<1||string.IsNullOrWhiteSpace(plan.PlanId)||!EditingContractValidator.Hash(plan.ContextFingerprint)||!EditingContractValidator.Hash(plan.ScriptRef.Sha256))Error("header","/","Invalid decision plan header.");
+        if(plan.Schema is not(EditingDocumentKinds.Decisions or EditingDocumentKinds.DecisionsV2)||plan.Revision<1||string.IsNullOrWhiteSpace(plan.PlanId)||!EditingContractValidator.Hash(plan.ContextFingerprint)||!EditingContractValidator.Hash(plan.ScriptRef.Sha256))Error("header","/","Invalid decision plan header.");
         if(plan.Scenes is null||plan.Scenes.Count is <1 or >32){Error("scenes","/scenes","Use 1–32 complete scenes.");return issues;}
         if(plan.Scenes.Select(s=>s.BeatId).Distinct().Count()!=plan.Scenes.Count)Error("scenes","/scenes","Scene IDs must be unique.");
         if(script is not null&&(plan.ProjectId!=script.Project.Id||!plan.Scenes.Select(s=>s.BeatId).SequenceEqual(script.Beats.Select(b=>b.Id))))Error("scenes","/scenes","The plan must cover the script in order.");
@@ -26,6 +26,7 @@ public static class EditorialDecisionValidation
                 if(m.Focus.Type=="text_region"&&(m.Focus.Text is null||!((beat.Visual.Focus?.TargetText??"")+" "+(beat.Audio.Script??beat.Audio.Brief??"")+" "+(beat.Purpose??"")).Contains(m.Focus.Text,StringComparison.OrdinalIgnoreCase)))Error("focus",path,"Focus text must come from the scene.");
             }
         }
+        issues.AddRange(EditorialDecisionV2Validation.Validate(plan));
         return issues;
     }
     public static void ThrowIfInvalid(EditorialDecisionPlanDocument plan,EditScriptDocument? script=null){var issues=Validate(plan,script);if(issues.Count>0)throw new InvalidDataException(string.Join("; ",issues.Select(i=>i.Code+": "+i.Message)));}

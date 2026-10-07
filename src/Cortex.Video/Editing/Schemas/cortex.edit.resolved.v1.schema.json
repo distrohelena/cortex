@@ -287,7 +287,8 @@
           "type": "string",
           "enum": [
             "video",
-            "image"
+            "image",
+            "audio"
           ]
         },
         "width": {
