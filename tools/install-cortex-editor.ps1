@@ -31,6 +31,16 @@ if ($taskPreviousPluginDirectory -and (Test-Path -LiteralPath $taskPreviousPlugi
         Copy-Item -LiteralPath $taskPackage.FullName -Destination (Join-Path $taskInstall ('plugins/' + $taskPackage.Name)) -Recurse
     }
 }
+# Video may have an older versioned package directory rather than the literal name "video".
+# Only the copied generation is deactivated; old live installation files remain untouched.
+$taskNewPluginRoot=[IO.Path]::GetFullPath((Join-Path $taskInstall 'plugins'))
+foreach($taskOldVideoManifest in Get-ChildItem -LiteralPath $taskNewPluginRoot -Filter '*.plugin.json' -File -Recurse){
+    $taskOldDefinition=Get-Content -LiteralPath $taskOldVideoManifest.FullName -Raw | ConvertFrom-Json
+    if($taskOldDefinition.id -eq 'video' -and $taskOldVideoManifest.DirectoryName -ne $taskPlugin){
+        if(-not $taskOldVideoManifest.FullName.StartsWith($taskNewPluginRoot.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Copied plugin manifest escaped the new installation.'}
+        Move-Item -LiteralPath $taskOldVideoManifest.FullName -Destination ($taskOldVideoManifest.FullName+'.previous-'+[Guid]::NewGuid().ToString('N'))
+    }
+}
 $taskUtf8 = New-Object System.Text.UTF8Encoding($false)
 function Write-AtomicJson([string]$Path, $Value) {
     $taskTemporary = $Path + '.' + [Guid]::NewGuid().ToString('N') + '.tmp'
