@@ -214,6 +214,7 @@ internal static class FlowExecutionKernel
                             TypedFlowRunner.OptionalText(config, "model"), TypedFlowRunner.OptionalText(config, "provider"), correction,
                             TypedFlowRunner.OptionalText(config, "reasoningEffort"), config.TryGetProperty("maxOutputTokens", out var budget) ? budget.GetInt32() : null)
                         {
+                            HostExecutionId = snapshot.Scope.ExecutionId,
                             HostReferences = new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(
                                 references.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal))
                         };

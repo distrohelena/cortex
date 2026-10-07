@@ -11,6 +11,8 @@ public sealed record FlowCompletionRequest(string NodeId, string System, JsonEle
     // Host-only bridge metadata. Never part of provider input or project authority.
     [System.Text.Json.Serialization.JsonIgnore]
     public IReadOnlyDictionary<string, string>? HostReferences { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? HostExecutionId { get; init; }
 }
 public interface IFlowCompletion
 {

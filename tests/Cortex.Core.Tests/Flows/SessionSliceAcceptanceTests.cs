@@ -439,6 +439,29 @@ public sealed class SessionSliceAcceptanceTests
         Assert.Equal(["expired", "character", "current"], SessionSliceAcceptanceSupport.Texts(JsonSerializer.SerializeToElement(runtime.ReadHistory(key).Select(entry => entry.Message))));
     }
 
+    [Fact]
+    public async Task Recovery_history_age_uses_conversation_time_not_processing_delay()
+    {
+        var time = new FakeTimeProvider();
+        var key = SessionSliceAcceptanceSupport.Key("recovered-thread");
+        var completion = new RecordingCompletion(Enumerable.Repeat(SessionSliceAcceptanceSupport.Response("inativa"), 3));
+        await using var runtime = Start(time, completion, root =>
+        {
+            SessionSliceAcceptanceSupport.Configure(root, null, 1, null);
+            SessionSliceAcceptanceSupport.ConfigureHistory(root, 20, 15, 5000, true);
+        });
+        var original = time.GetUtcNow();
+        await SessionSliceAcceptanceSupport.ReceiveAsync(runtime, key, "context", SessionEntryKind.Group, "context", timestamp: original);
+        await runtime.WaitForIdleAsync(key, TestContext.Current.CancellationToken);
+        time.Advance(TimeSpan.FromHours(2));
+        await SessionSliceAcceptanceSupport.ReceiveAsync(runtime, key, "recovered", SessionEntryKind.Group, "recovered", timestamp: original.AddMinutes(2));
+        await runtime.WaitForIdleAsync(key, TestContext.Current.CancellationToken);
+        Assert.Equal(["context"], SessionSliceAcceptanceSupport.Texts(completion.Requests.Last().Inputs.GetProperty("historico")));
+        await SessionSliceAcceptanceSupport.ReceiveAsync(runtime, key, "actually-later", SessionEntryKind.Group, "later", timestamp: original.AddMinutes(40));
+        await runtime.WaitForIdleAsync(key, TestContext.Current.CancellationToken);
+        Assert.Empty(completion.Requests.Last().Inputs.GetProperty("historico").EnumerateArray());
+    }
+
     private static SessionFlowRuntime Start(TimeProvider time, IFlowCompletion completion, Action<JsonObject> configure)
     {
         var runtime = new SessionFlowRuntime(time, completion);

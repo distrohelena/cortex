@@ -149,6 +149,8 @@ public sealed class OptionalReplyRuntimeTests : IDisposable
             Input = request.Inputs.GetRawText();
             var message = request.Inputs.GetProperty("context")[0];
             Assert.NotNull(request.HostReferences);
+            Assert.NotNull(request.HostExecutionId);
+            Assert.DoesNotContain(request.HostExecutionId, JsonSerializer.Serialize(request));
             Assert.Equal(message.GetProperty("ref").GetString(), request.HostReferences["message:earlier-provider-id"]);
             Assert.DoesNotContain("earlier-provider-id", JsonSerializer.Serialize(request));
             var target = selection switch

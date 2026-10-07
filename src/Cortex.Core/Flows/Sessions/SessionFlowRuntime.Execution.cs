@@ -590,7 +590,7 @@ public sealed partial class SessionFlowRuntime
         var boundary = participationReview || mode == "through-current-batch" ? batch.HistoryWatermark : batch.Messages.Min(item => item.Watermark) - 1;
         DateTimeOffset? oldest = null;
         if (settings.TryGetProperty("maxAgeMinutes", out var age) && age.ValueKind != JsonValueKind.Null)
-            oldest = batch.ClosedAt - TimeSpan.FromMinutes(age.GetDouble());
+            oldest = batch.Messages.Max(item => item.Envelope.Timestamp) - TimeSpan.FromMinutes(age.GetDouble());
 
         // Confirmed predecessor speech past the batch watermark is part of the effective history; future inbound is not.
         var eligible = batch.History
