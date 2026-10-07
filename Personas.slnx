@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/Cortex.Personas/Cortex.Personas.csproj" />
+  <Project Path="tests/Cortex.Personas.Tests/Cortex.Personas.Tests.csproj" />
+</Solution>

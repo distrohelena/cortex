@@ -1,0 +1,136 @@
+{
+  "model": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "flux-2-klein-4b-fp8.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "encoder": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "qwen_3_4b.safetensors",
+      "type": "flux2",
+      "device": "default"
+    }
+  },
+  "vae": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "flux2-vae.safetensors"
+    }
+  },
+  "positive": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "Create a storyboard reference using visual imagery only. Create a clean vertical comparison graphic with three distinct visual panels arranged from top to bottom, each representing a different concept through simple neutral symbols: legal authorization, no criminal penalty for personal possession, and public-health treatment for dependence. Keep generous empty space in the upper 14% and lower 20%, preserve clear separation between panels, and leave the panels free of rendered words so authored overlays can be added later. No lettering, words, numbers, labels, captions, measurements, or watermarks. Authored text is added by the video editor.",
+      "clip": [
+        "encoder",
+        0
+      ]
+    }
+  },
+  "negative": {
+    "class_type": "ConditioningZeroOut",
+    "inputs": {
+      "conditioning": [
+        "positive",
+        0
+      ]
+    }
+  },
+  "latent": {
+    "class_type": "EmptyFlux2LatentImage",
+    "inputs": {
+      "width": 432,
+      "height": 768,
+      "batch_size": 1
+    }
+  },
+  "noise": {
+    "class_type": "RandomNoise",
+    "inputs": {
+      "noise_seed": 368654481948814
+    }
+  },
+  "sampler": {
+    "class_type": "KSamplerSelect",
+    "inputs": {
+      "sampler_name": "euler"
+    }
+  },
+  "schedule": {
+    "class_type": "Flux2Scheduler",
+    "inputs": {
+      "steps": 4,
+      "width": 432,
+      "height": 768
+    }
+  },
+  "guider": {
+    "class_type": "CFGGuider",
+    "inputs": {
+      "model": [
+        "model",
+        0
+      ],
+      "positive": [
+        "positive",
+        0
+      ],
+      "negative": [
+        "negative",
+        0
+      ],
+      "cfg": 1.0
+    }
+  },
+  "sample": {
+    "class_type": "SamplerCustomAdvanced",
+    "inputs": {
+      "noise": [
+        "noise",
+        0
+      ],
+      "guider": [
+        "guider",
+        0
+      ],
+      "sampler": [
+        "sampler",
+        0
+      ],
+      "sigmas": [
+        "schedule",
+        0
+      ],
+      "latent_image": [
+        "latent",
+        0
+      ]
+    }
+  },
+  "decode": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "sample",
+        0
+      ],
+      "vae": [
+        "vae",
+        0
+      ]
+    }
+  },
+  "save": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": [
+        "decode",
+        0
+      ],
+      "filename_prefix": "slogan_refs/86320cd7b2ce4beba729b16ed38655e4_4"
+    }
+  }
+}

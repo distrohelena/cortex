@@ -370,10 +370,12 @@ internal static class FlowExecutionKernel
                         ["taxonomyVersion"] = "v1",
                         ["expectedKind"] = BoundaryAdmission.Kind,
                         ["template"] = "no_teasing_about_topic:v1"
-                    } : e.Data["failureCategory"] is "read_only_model_response_rejected"
+                    } : e.Data["failureCategory"] is "read_only_model_response_rejected" or "contained_tool_completion_rejected"
                         ? new Dictionary<string, string>
                         {
-                            ["failureCategory"] = "read_only_model_response_rejected",
+                            ["failureCategory"] = (string)e.Data["failureCategory"]!,
+                            ["containedToolNodeId"] = e.Data["containedToolNodeId"] as string ?? "",
+                            ["toolFailureContainmentVersion"] = e.Data["toolFailureContainmentVersion"] as string ?? "",
                             ["readOnlyModelNodeIds"] = JsonSerializer.Serialize(e.Data["readOnlyModelNodeIds"] as string[] ?? [])
                         } : null));
             // A failure after a confirmed send does not un-send it: the speech still reaches history, without a transition.

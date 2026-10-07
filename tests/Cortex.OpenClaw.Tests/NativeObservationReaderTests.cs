@@ -684,6 +684,7 @@ public sealed class NativeObservationReaderTests
 
     [Theory]
     [InlineData("imageMessage", true)]
+    [InlineData("albumMessage", true)]
     [InlineData("reactionMessage", true)]
     [InlineData("stickerMessage", true)]
     [InlineData("audioMessage", true)]
@@ -697,6 +698,11 @@ public sealed class NativeObservationReaderTests
         var row = System.Text.Json.Nodes.JsonNode.Parse(JsonSerializer.Serialize(Event()))!;
         row["payload"]!["message"]!["message"] = new System.Text.Json.Nodes.JsonObject {
             [kind] = new System.Text.Json.Nodes.JsonObject(), ["messageContextInfo"] = new System.Text.Json.Nodes.JsonObject() };
+        if (kind == "albumMessage")
+        {
+            row["payload"]!["message"]!["message"]![kind]!["expectedImageCount"] = 2;
+            row["payload"]!["message"]!["message"]![kind]!["expectedVideoCount"] = 0;
+        }
         using var client = new HttpClient(new Handler(r => r.RequestUri!.AbsolutePath.EndsWith("/status") ? Status() : Batch(false, [row])));
         var reader = new NativeObservationReader(client, new("http://127.0.0.1:12345"), "token", Binding, "source", Self, Peer);
         var approval = await reader.PreflightAsync(TestContext.Current.CancellationToken);

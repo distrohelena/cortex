@@ -8,6 +8,7 @@
   <Project Path="src/Cortex.OpenClaw/Cortex.OpenClaw.csproj" />
   <Project Path="src/Cortex.Evaluation/Cortex.Evaluation.csproj" />
   <Project Path="src/Cortex.Evaluation.Cli/Cortex.Evaluation.Cli.csproj" />
+  <Project Path="src/Cortex.Personas/Cortex.Personas.csproj" />
   <Project Path="tests/Cortex.Core.Tests/Cortex.Core.Tests.csproj" />
   <Project Path="tests/Cortex.Video.Tests/Cortex.Video.Tests.csproj" />
   <Project Path="tests/Cortex.Editor.Tests/Cortex.Editor.Tests.csproj" />
@@ -15,4 +16,5 @@
   <Project Path="tests/Cortex.Inference.Tests/Cortex.Inference.Tests.csproj" />
   <Project Path="tests/Cortex.Evaluation.Tests/Cortex.Evaluation.Tests.csproj" />
   <Project Path="tests/Cortex.OpenClaw.Tests/Cortex.OpenClaw.Tests.csproj" />
+  <Project Path="tests/Cortex.Personas.Tests/Cortex.Personas.Tests.csproj" />
 </Solution>

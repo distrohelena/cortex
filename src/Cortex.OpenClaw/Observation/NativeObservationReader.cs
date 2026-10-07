@@ -506,7 +506,7 @@ public sealed partial class NativeObservationReader
         // Poll creation/votes are native control content, not conversational text.
         // Preserve native identity/cursor, but never interpret encrypted vote data.
         string[] media = ["imageMessage", "videoMessage", "audioMessage", "documentMessage", "stickerMessage", "reactionMessage",
-            "pollCreationMessage", "pollCreationMessageV2", "pollCreationMessageV3", "pollUpdateMessage"];
+            "pollCreationMessage", "pollCreationMessageV2", "pollCreationMessageV3", "pollUpdateMessage", "albumMessage"];
         string[] metadata = ["senderKeyDistributionMessage", "messageContextInfo"];
         return content.ValueKind == JsonValueKind.Object
             && content.EnumerateObject().Any(p => media.Contains(p.Name) && p.Value.ValueKind == JsonValueKind.Object)

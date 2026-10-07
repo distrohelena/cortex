@@ -93,8 +93,26 @@ public sealed class ShadowGraphitiProbe(IGraphitiReadClient client)
             .Concat(checks.Where(p => !CheckIds.Contains(p.Key)).Select(p => p.Value)).ToArray();
     }
 
-    public async Task<IReadOnlyList<ShadowPreflightCheck>> RunNewDmAsync(
+    public Task<IReadOnlyList<ShadowPreflightCheck>> RunNewDmAsync(
+        ShadowGraphitiNewDmProbeRequest request, CancellationToken cancellationToken) =>
+        RunScopedSubjectCoreAsync(request, requireAbsence: true, cancellationToken);
+
+    // Explicit host readiness for a scoped subject without a local seeded canary.
+    // Established RunAsync and the stricter absent-only DM contract stay unchanged.
+    public async Task<IReadOnlyList<ShadowPreflightCheck>> RunScopedSubjectAsync(
         ShadowGraphitiNewDmProbeRequest request, CancellationToken cancellationToken)
+    {
+        var checks = await RunScopedSubjectCoreAsync(request, requireAbsence: false, cancellationToken);
+        return checks.Select(check => check with
+        {
+            Id = check.Id == "graphiti_new_dm_ready" ? "graphiti_scoped_subject_ready"
+                : check.Id == "graphiti_participant_absent" ? "graphiti_scoped_subject" : check.Id,
+            Phase = check.Phase == "new_dm_read_only" ? "scoped_subject_read_only" : check.Phase,
+        }).ToArray();
+    }
+
+    private async Task<IReadOnlyList<ShadowPreflightCheck>> RunScopedSubjectCoreAsync(
+        ShadowGraphitiNewDmProbeRequest request, bool requireAbsence, CancellationToken cancellationToken)
     {
         var checks = new Dictionary<string, ShadowPreflightCheck>();
         var watch = Stopwatch.StartNew();
@@ -115,9 +133,12 @@ public sealed class ShadowGraphitiProbe(IGraphitiReadClient client)
             var exactSubjectAbsent = neighborhoodRoot.ValueKind == JsonValueKind.Object
                 && neighborhoodRoot.TryGetProperty("status", out var status)
                 && status.ValueKind == JsonValueKind.String && status.GetString() == "entity_not_found";
-            if (!exactSubjectAbsent)
+            var canonicalSubject = neighborhoodRoot.TryGetProperty("entity", out var entity)
+                ? IsPerson(entity, person, request.ConversationNamespace, requireNamespace: true)
+                : ContainsScopedPerson(neighborhoodRoot, person, request.ConversationNamespace);
+            if (!exactSubjectAbsent && (requireAbsence || !canonicalSubject))
                 throw GraphitiResponseValidation.Failure("new_dm_readiness", "exact_subject_absence_unproven");
-            Set("graphiti_participant_absent", true, "exact_subject_absent_v1");
+            Set("graphiti_participant_absent", true, exactSubjectAbsent ? "exact_subject_absent_v1" : "canonical_participant_evidence");
 
             // The negative search catches a known foreign marker crossing into this scoped DM query.
             var negative = await validating.SearchFactsAsync(request.ConversationNamespace, request.ForeignCanary, 50, cancellationToken);
@@ -184,6 +205,11 @@ public sealed class ShadowGraphitiProbe(IGraphitiReadClient client)
         }
         return value.ValueKind == JsonValueKind.Array && value.EnumerateArray().Any(v => ContainsPerson(v, person, ns));
     }
+    private static bool ContainsScopedPerson(JsonElement value, MemoryPerson person, string ns) =>
+        value.ValueKind == JsonValueKind.Object
+            ? IsPerson(value, person, ns, requireNamespace: true)
+                || value.EnumerateObject().Any(property => ContainsScopedPerson(property.Value, person, ns))
+            : value.ValueKind == JsonValueKind.Array && value.EnumerateArray().Any(item => ContainsScopedPerson(item, person, ns));
     private static bool IsPerson(JsonElement value, MemoryPerson person, string ns, bool requireNamespace) =>
         value.ValueKind == JsonValueKind.Object
         && value.TryGetProperty("uuid", out var uuid) && uuid.ValueKind == JsonValueKind.String

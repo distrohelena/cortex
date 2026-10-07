@@ -1,0 +1,116 @@
+{
+  "version": 3,
+  "usage": {
+    "title": "Recording brief",
+    "tools": {
+      "preview": {
+        "entryId": "preview",
+        "afterNode": "draft-script",
+        "parameters": [
+          "scriptJson"
+        ],
+        "artifactPort": "video",
+        "artifactDirectorySetting": "outputDirectory"
+      }
+    },
+    "reviewOutputs": {
+      "draft-script": [
+        "script",
+        "scriptJson"
+      ]
+    },
+    "fields": {
+      "brief": [
+        "title",
+        "baseText",
+        "durationMinutes",
+        "speakers",
+        "format"
+      ],
+      "draft-script": [
+        "model",
+        "feedback"
+      ]
+    },
+    "models": {
+      "draft-script": [
+        "gpt-5.6-luna",
+        "gpt-6-luna"
+      ]
+    },
+    "actions": {
+      "brief": "Continue",
+      "draft-script": "Generate script",
+      "recording-plan": "Create recording plan"
+    }
+  },
+  "nodes": [
+    {
+      "id": "brief",
+      "kind": "sloganBrief",
+      "x": 70,
+      "y": 130,
+      "settings": {
+        "title": "A esquerda quer liberar as drogas?",
+        "durationMinutes": 0.75,
+        "speakers": "helena",
+        "format": "vertical",
+        "projectId": "video-f7599ea4cdef4a56b4223ee98c821f5a",
+        "baseText": "# A esquerda quer liberar as drogas?\n\nBase editorial fornecida pela autora. Transformar em roteiro curto, preservando as distinções e o argumento abaixo.\n\nO post afirma: \"Ela luta pela libertação das drogas\". Começar mostrando a afirmação, com o texto \"Tá. O que isso quer dizer?\".\n\nHelena introduz a frase do post.\nEsse post apareceu pra mim e eu quero começar por essa frase.\n\nSeparar três conceitos que o slogan mistura.\nPorque 'liberar as drogas' pode estar misturando pelo menos três coisas completamente diferentes.\nDestaques: LEGALIZAÇÃO, DESCRIMINALIZAÇÃO, REDUÇÃO DE DANOS.\n\nExplicar que os três conceitos não são equivalentes.\nLegalizar é uma coisa. Deixar de prender alguém por portar droga para uso pessoal é outra. E tratar dependência como questão de saúde pública é outra.\nTexto visual: LEGALIZAR ≠ DESCRIMINALIZAR ≠ TRATAR.\n\nquestion\nEntão qual dessas políticas esse post está criticando?\nDestaques: QUAL LEI?, QUAL PROPOSTA?, QUAL VOTAÇÃO?, O POST NÃO DIZ..\n\nconclusion\nTalvez você seja contra todas elas. Beleza. Mas aí a discussão é sobre a política de verdade — não sobre a palavra 'liberação'.\n\noutro\nPorque depois do slogan, ainda tem a política.\nTexto visual: DEPOIS DO SLOGAN.\n\nA base distingue legalização, descriminalização e redução de danos. O fechamento preserva a frase: \"Porque depois do slogan, ainda tem a política.\".\n"
+      }
+    },
+    {
+      "id": "draft-script",
+      "kind": "draftSloganScript",
+      "x": 410,
+      "y": 130
+    },
+    {
+      "id": "recording-plan",
+      "kind": "sloganRecordingPlan",
+      "x": 750,
+      "y": 130,
+      "settings": {
+        "outputDirectory": "C:\\dev\\depois-do-slogan\\.local\\data\\library\\videos\\f7599ea4cdef4a56b4223ee98c821f5a\\generated"
+      }
+    },
+    {
+      "id": "preview",
+      "kind": "sloganScriptPreview",
+      "x": 750,
+      "y": 550,
+      "settings": {
+        "scriptJson": "{}",
+        "outputDirectory": "C:\\dev\\depois-do-slogan\\.local\\data\\library\\videos\\f7599ea4cdef4a56b4223ee98c821f5a\\generated"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "brief",
+      "sourcePort": "brief",
+      "target": "draft-script",
+      "targetPort": "brief"
+    },
+    {
+      "source": "draft-script",
+      "sourcePort": "scriptJson",
+      "target": "recording-plan",
+      "targetPort": "scriptJson"
+    }
+  ],
+  "controlEdges": [
+    {
+      "source": "brief",
+      "sourcePort": "then",
+      "target": "draft-script",
+      "targetPort": "exec"
+    },
+    {
+      "source": "draft-script",
+      "sourcePort": "then",
+      "target": "recording-plan",
+      "targetPort": "exec"
+    }
+  ]
+}

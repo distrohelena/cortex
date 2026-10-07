@@ -369,7 +369,12 @@ public sealed class ObservedShadowRun : IAsyncDisposable
                 || !state.Entries.TryGetValue(outcome.EntryKind, out var flow)) return false;
             var execution = trace.Where(item => item.ExecutionId == outcome.ExecutionId).ToArray();
             var failed = execution.Where(item => item.EventName == "node-failed").ToArray();
-            if (failed.Length != 1 || failed[0].MemoryMetadata?.GetValueOrDefault("failureCategory") != "read_only_model_response_rejected") return false;
+            if (failed.Length != 1) return false;
+            var category = failed[0].MemoryMetadata?.GetValueOrDefault("failureCategory");
+            var containedTool = category == "contained_tool_completion_rejected"
+                && failed[0].MemoryMetadata?.GetValueOrDefault("toolFailureContainmentVersion") == "scope-action-fence:v1"
+                && failed[0].MemoryMetadata?.GetValueOrDefault("containedToolNodeId") == failed[0].NodeId;
+            if (category != "read_only_model_response_rejected" && !containedTool) return false;
             var approvedNodes = new HashSet<string>(StringComparer.Ordinal);
             if (failed[0].MemoryMetadata?.GetValueOrDefault("readOnlyModelNodeIds") is { } approved)
             {
@@ -383,6 +388,8 @@ public sealed class ObservedShadowRun : IAsyncDisposable
                 {
                     // Jev/Laya's response boundary submits decisions only. A general
                     // generation provider may have called tools before rejecting output.
+                    if (containedTool && started.NodeId == failed[0].NodeId
+                        && TypedFlowRunner.OptionalText(node.Source.Config, "provider") is "openai" or "lmstudio") continue;
                     if (!approvedNodes.Contains(started.NodeId)
                         && TypedFlowRunner.OptionalText(node.Source.Config, "provider") is not ("jev" or "laya")) return false;
                 }

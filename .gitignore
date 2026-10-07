@@ -38,6 +38,7 @@ src/Filomena.App/Playground/flow-graph/
 # Local work areas
 .local/
 .worktrees/
+.tmp/
 .tmp-*/
 
 # Application files retained locally until the controlled launcher migration.

@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "nodes": [
+    {
+      "id": "plan",
+      "kind": "sloganPlanReferenceVisuals",
+      "x": 160,
+      "y": 160,
+      "settings": {
+        "contextJson": "{\u0022project\u0022:{\u0022title\u0022:\u0022A esquerda quer liberar as drogas?\u0022,\u0022format\u0022:\u0022vertical\u0022,\u0022aspectRatio\u0022:\u00229:16\u0022},\u0022assets\u0022:[{\u0022requestKey\u0022:\u0022design:graphic:difference_graphic\u0022,\u0022scenes\u0022:[{\u0022beatId\u0022:\u0022difference\u0022,\u0022purpose\u0022:\u0022Explicar que os tr\\u00EAs conceitos n\\u00E3o s\\u00E3o equivalentes.\u0022,\u0022visualType\u0022:\u0022graphic\u0022,\u0022description\u0022:\u0022\u0022,\u0022brief\u0022:\u0022\u0022,\u0022speech\u0022:\u0022Legalizar \\u00E9 uma coisa. Deixar de prender algu\\u00E9m por portar droga para uso pessoal \\u00E9 outra. E tratar depend\\u00EAncia como quest\\u00E3o de sa\\u00FAde p\\u00FAblica \\u00E9 outra.\u0022,\u0022overlay\u0022:\u0022LEGALIZAR \\u2260 DESCRIMINALIZAR \\u2260 TRATAR\u0022,\u0022focus\u0022:\u0022\u0022}]},{\u0022requestKey\u0022:\u0022design:image:post_original\u0022,\u0022scenes\u0022:[{\u0022beatId\u0022:\u0022hook\u0022,\u0022purpose\u0022:\u0022Apresentar a afirma\\u00E7\\u00E3o que ser\\u00E1 analisada.\u0022,\u0022visualType\u0022:\u0022asset\u0022,\u0022description\u0022:\u0022\u0022,\u0022brief\u0022:\u0022\u0022,\u0022speech\u0022:\u0022\u0022,\u0022overlay\u0022:\u0022T\\u00E1. O que isso quer dizer?\u0022,\u0022focus\u0022:\u0022Ela luta pela liberta\\u00E7\\u00E3o das drogas\u0022},{\u0022beatId\u0022:\u0022question\u0022,\u0022purpose\u0022:\u0022\u0022,\u0022visualType\u0022:\u0022asset\u0022,\u0022description\u0022:\u0022\u0022,\u0022brief\u0022:\u0022\u0022,\u0022speech\u0022:\u0022Ent\\u00E3o qual dessas pol\\u00EDticas esse post est\\u00E1 criticando?\u0022,\u0022overlay\u0022:\u0022\u0022,\u0022focus\u0022:\u0022\u0022}]},{\u0022requestKey\u0022:\u0022design:title_card:outro_title_card\u0022,\u0022scenes\u0022:[{\u0022beatId\u0022:\u0022outro\u0022,\u0022purpose\u0022:\u0022\u0022,\u0022visualType\u0022:\u0022title_card\u0022,\u0022description\u0022:\u0022\u0022,\u0022brief\u0022:\u0022\u0022,\u0022speech\u0022:\u0022Porque depois do slogan, ainda tem a pol\\u00EDtica.\u0022,\u0022overlay\u0022:\u0022DEPOIS DO SLOGAN\u0022,\u0022focus\u0022:\u0022\u0022}]}]}"
+      }
+    }
+  ],
+  "edges": [],
+  "controlEdges": []
+}

@@ -1,0 +1,16 @@
+{
+  "version": 3,
+  "nodes": [
+    {
+      "id": "script",
+      "kind": "editScript",
+      "x": 100,
+      "y": 140,
+      "settings": {
+        "path": "C:\\dev\\depois-do-slogan\\projects\\depois-do-slogan-001\\script.json"
+      }
+    }
+  ],
+  "edges": [],
+  "controlEdges": []
+}

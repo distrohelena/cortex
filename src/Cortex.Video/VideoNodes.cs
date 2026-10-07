@@ -10,6 +10,12 @@ public static class VideoNodes
     {
         ["path"] = new(new StringType(), true)
     });
+    public static ObjectType TranscriptWordType { get; } = new(new Dictionary<string, FlowField>
+    {
+        ["start"] = new(new NumberType(), true),
+        ["end"] = new(new NumberType(), true),
+        ["text"] = new(new StringType(), true)
+    });
     public static ObjectType TranscriptType { get; } = new(new Dictionary<string, FlowField>
     {
         ["text"] = new(new StringType(), true),
@@ -18,7 +24,9 @@ public static class VideoNodes
             ["start"] = new(new NumberType(), true),
             ["end"] = new(new NumberType(), true),
             ["text"] = new(new StringType(), true)
-        })), true)
+        })), true),
+        ["words"] = new(new ArrayType(TranscriptWordType), false),
+        ["wordTimingMethod"] = new(new NullableType(new EnumType([WhisperWordTimestamps.Method])), false)
     });
 
     public static FlowNodeHandler[] CreateHandlers(IVideoTranscriber transcriber, ITakeSuggester? takes = null, IVideoCutRenderer? renderer = null, Editing.IClipMatcher? clipMatcher = null, Editing.IVideoSnapshotReader? mediaReader = null)

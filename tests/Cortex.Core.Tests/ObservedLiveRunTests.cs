@@ -65,7 +65,34 @@ public sealed class ObservedLiveRunTests : IDisposable
         await Assert.ThrowsAsync<InvalidOperationException>(() => run.AcceptAsync([Input(12, "next")], Token));
     }
 
-    private sealed class RejectedOnceCompletion(bool tagged = true) : Cortex.Core.Flows.IFlowCompletion
+    [Theory]
+    [InlineData("scope-action-fence:v1", true)]
+    [InlineData("unsupported", false)]
+    public async Task Contained_tool_failure_keeps_conversation_only_with_supported_action_fence(string version, bool continued)
+    {
+        var sender = new LiveRuntimeTests.SequencedTransport();
+        var source = ShadowRuntimeTests.Project(false, sendExit: "sent", history: true);
+        var document = JsonNode.Parse(source.Document.GetRawText())!;
+        foreach (var state in document["states"]!.AsArray())
+            state!["graph"]!["nodes"]!.AsArray().Single(n => n!["id"]!.GetValue<string>() == "generate")!["provider"] = "openai";
+        await using var run = new ObservedLiveRun(new(source with { Document = JsonSerializer.SerializeToElement(document) }), Binding,
+            directory, Roles, new RejectedOnceCompletion(true, version), new ShadowRuntimeTests.Reader("empty"), "epoch", 10,
+            LiveRouteBindings.FromShadow(Binding, "opaque-route", Session.NativeConversationId, "Filomena", 1000), sender,
+            new(true, true, true, true, true, true, true), _ => Task.CompletedTask, continuousDm: true);
+        var failure = await run.AcceptAsync([Input(11, "tool-failed")], Token);
+        Assert.Equal(continued, failure.FailuresHandled);
+        Assert.False(Assert.Single(failure.Outcomes).Success);
+        Assert.Empty(sender.Sends);
+        if (continued)
+        {
+            Assert.Equal(OutboundMode.Enabled, run.OutboundMode);
+            Assert.True(Assert.Single((await run.AcceptAsync([Input(12, "next")], Token)).Outcomes).Success);
+            Assert.Single(sender.Sends);
+        }
+        else Assert.Equal(OutboundMode.Disabled, run.OutboundMode);
+    }
+
+    private sealed class RejectedOnceCompletion(bool tagged = true, string? toolPolicy = null) : Cortex.Core.Flows.IFlowCompletion
     {
         private bool rejected;
         private readonly ShadowRuntimeTests.Completion inner = new("empty");
@@ -75,7 +102,12 @@ public sealed class ObservedLiveRunTests : IDisposable
             {
                 rejected = true;
                 var error = new InvalidDataException("Invalid System 1 decision contract: choice_probability_mismatch.");
-                if (tagged) error.Data["failureCategory"] = "read_only_model_response_rejected";
+                if (tagged) error.Data["failureCategory"] = toolPolicy is null ? "read_only_model_response_rejected" : "contained_tool_completion_rejected";
+                if (toolPolicy is not null)
+                {
+                    error.Data["toolFailureContainmentVersion"] = toolPolicy;
+                    error.Data["containedToolNodeId"] = request.NodeId;
+                }
                 throw error;
             }
             return inner.CompleteAsync(request, token);

@@ -34,10 +34,10 @@ public sealed class WhisperCppTranscriber(TranscriptionTools tools, Action<strin
             var output = Path.Combine(directory, "whisper");
             // GPU is enabled by default in whisper.cpp; do not translate Portuguese into English.
             await RunAsync(Path.GetFullPath(tools.WhisperExecutable),
-                ["-m", Path.GetFullPath(tools.ModelFile), "-f", audio, "-l", "pt", "-oj", "-of", output], deadline.Token);
+                ["-m", Path.GetFullPath(tools.ModelFile), "-f", audio, "-l", "pt", "-ojf", "-of", output], deadline.Token);
             if (!File.Exists(output + ".json")) throw new InvalidDataException("whisper-cli did not produce the expected JSON.");
             using var raw = JsonDocument.Parse(await File.ReadAllTextAsync(output + ".json", deadline.Token));
-            return ParseTranscript(raw.RootElement);
+            return ParseTranscript(raw.RootElement) with { WordTimingMethod = WhisperWordTimestamps.Method };
         }
         catch (OperationCanceledException) when (!token.IsCancellationRequested)
         {
@@ -55,6 +55,8 @@ public sealed class WhisperCppTranscriber(TranscriptionTools tools, Action<strin
         if (!raw.TryGetProperty("transcription", out var items) || items.ValueKind != JsonValueKind.Array)
             throw new InvalidDataException("Whisper JSON has no transcription array.");
         var segments = new List<TranscriptSegment>();
+        var words = new List<TranscriptWord>();
+        var hasTokenData = false;
         double previousStart = 0;
         foreach (var item in items.EnumerateArray())
         {
@@ -68,9 +70,18 @@ public sealed class WhisperCppTranscriber(TranscriptionTools tools, Action<strin
             if (!double.IsFinite(start) || !double.IsFinite(end) || start < previousStart || start < 0 || end < start)
                 throw new InvalidDataException("Invalid Whisper timestamps.");
             previousStart = start;
-            segments.Add(new(start, end, text.GetString()!.Trim()));
+            var segment = new TranscriptSegment(start, end, text.GetString()!.Trim());
+            segments.Add(segment);
+            if (item.TryGetProperty("tokens", out var tokens))
+            {
+                hasTokenData = true;
+                words.AddRange(WhisperWordTimestamps.Read(tokens, segment));
+            }
         }
-        return new(string.Join(" ", segments.Select(s => s.Text).Where(s => s.Length > 0)), segments);
+        return new(string.Join(" ", segments.Select(s => s.Text).Where(s => s.Length > 0)), segments)
+        {
+            Words = words, WordTimingMethod = hasTokenData ? WhisperWordTimestamps.Method : null
+        };
     }
 
     private async Task<string> RunAsync(string executable, string[] arguments, CancellationToken token)

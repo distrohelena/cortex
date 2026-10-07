@@ -1,0 +1,40 @@
+{
+  "version": 3,
+  "nodes": [
+    {
+      "id": "video",
+      "kind": "videoFile",
+      "x": 70,
+      "y": 130,
+      "settings": {
+        "path": "C:\\dev\\depois-do-slogan\\.local\\data\\library\\videos\\f7599ea4cdef4a56b4223ee98c821f5a\\ingested\\gravacao.mp4"
+      }
+    },
+    {
+      "id": "render-cuts",
+      "kind": "renderCuts",
+      "x": 410,
+      "y": 130,
+      "settings": {
+        "editPlanFile": "C:\\dev\\depois-do-slogan\\.local\\data\\library\\videos\\f7599ea4cdef4a56b4223ee98c821f5a\\generated\\edit-plan.json",
+        "outputDirectory": "C:\\dev\\depois-do-slogan\\.local\\data\\library\\videos\\f7599ea4cdef4a56b4223ee98c821f5a\\generated"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "video",
+      "sourcePort": "video",
+      "target": "render-cuts",
+      "targetPort": "video"
+    }
+  ],
+  "controlEdges": [
+    {
+      "source": "video",
+      "sourcePort": "then",
+      "target": "render-cuts",
+      "targetPort": "exec"
+    }
+  ]
+}

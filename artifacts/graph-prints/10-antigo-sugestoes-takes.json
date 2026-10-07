@@ -1,0 +1,75 @@
+{
+  "version": 3,
+  "nodes": [
+    {
+      "id": "video",
+      "kind": "videoFile",
+      "x": 70,
+      "y": 130,
+      "settings": {
+        "path": "C:\\dev\\depois-do-slogan\\.local\\media\\commons-tutorial.webm"
+      }
+    },
+    {
+      "id": "transcribe",
+      "kind": "transcribe",
+      "x": 410,
+      "y": 130
+    },
+    {
+      "id": "transcript",
+      "kind": "transcript",
+      "x": 750,
+      "y": 130
+    },
+    {
+      "id": "suggest-takes",
+      "kind": "suggestTakes",
+      "x": 1090,
+      "y": 130,
+      "settings": {
+        "goal": "Ensinar como recortar imagens no Wikimedia Commons de forma clara e direta."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source": "video",
+      "sourcePort": "video",
+      "target": "transcribe",
+      "targetPort": "video"
+    },
+    {
+      "source": "transcribe",
+      "sourcePort": "transcript",
+      "target": "transcript",
+      "targetPort": "transcript"
+    },
+    {
+      "source": "transcript",
+      "sourcePort": "transcript",
+      "target": "suggest-takes",
+      "targetPort": "transcript"
+    }
+  ],
+  "controlEdges": [
+    {
+      "source": "video",
+      "sourcePort": "then",
+      "target": "transcribe",
+      "targetPort": "exec"
+    },
+    {
+      "source": "transcribe",
+      "sourcePort": "then",
+      "target": "transcript",
+      "targetPort": "exec"
+    },
+    {
+      "source": "transcript",
+      "sourcePort": "then",
+      "target": "suggest-takes",
+      "targetPort": "exec"
+    }
+  ]
+}
