@@ -363,6 +363,11 @@
                       },
                       "parameters": {
                         "type": "object"
+                      },
+                      "audio_fade_sec": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 2
                       }
                     }
                   },

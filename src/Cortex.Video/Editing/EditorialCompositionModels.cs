@@ -22,6 +22,8 @@ public sealed record EditorialSceneTransition {
     public int EffectVersion {get;init;}=1;
     public double DurationSec {get;init;}=.5;
     public IReadOnlyDictionary<string,JsonElement> Parameters {get;init;}=new Dictionary<string,JsonElement>();
+    /// <summary>Seconds of equal-power voice fade on both sides of the cut; zero keeps the hard audio cut.</summary>
+    public double AudioFadeSec {get;init;}
 }
 public sealed record EditorialAudioEdit {
     public required string MediaId {get;init;}
