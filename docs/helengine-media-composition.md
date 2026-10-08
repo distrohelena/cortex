@@ -20,11 +20,14 @@ dotnet helengine.vfx.cli.dll composition frame --input composition.json --assets
 
 Initial output is SDR RGBA8; MP4 H.264/AAC flattens alpha in the engine, MOV ProRes4444/float PCM preserves it. Mixing is stereo, normally48kHz, with explicit gain/mute and linear/equal-power envelopes, no automatic normalization. Output blocks are bounded to32768 sample frames; export streams one video frame and2048 PCM frames with backpressure. Composition/frame/export use the same evaluator and GPU compositor. A picture transition does not imply an audio fade or shorten the timeline. Video endpoints require real source handles through the entire overlap.
 
-All media paths are relative to the host-owned root and SHA256 pinned. Fonts used by product previews are staged with their hashes. Caption words are actual supplied alignments; planning previews may use explicit estimated caption cue timing. Missing source/focus and stale catalog decisions remain pending. Native backward audio reads restart the resampler from source origin for reproducibility, which can cost seek time on long footage.
+All media paths are relative to the host-owned root and SHA256 pinned. Fonts used by product previews are staged with their hashes. Caption words are actual supplied alignments; planning previews may use explicit estimated caption cue timing. Missing source and unmarked focus remain pending, as do transitions, effects and animations the installed catalog no longer accepts. Native backward audio reads restart the resampler from source origin for reproducibility, which can cost seek time on long footage.
 
-Editorial `cortex.edit.decisions.v2` remains the AI proposal and reference-image plan; since the `helengine.video` edit format (below) the stored video edit is the source of truth for editing. Decisions v2 is additive: catalog pin, transforms/keyframes, registered effects, masks, transitions and audio. V1 remains readable and is not automatically converted; an explicit advanced manual edit upgrades it. Human overrides survive replanning. Final compilation requires current resolved speech and intervals. When the script file has different whitespace/newlines than canonical semantic JSON, pass `LoadedEditScript.Reference` to the compiler overload as the actual current byte fingerprint. The host must validate current edit-plan/recording-task references before final compilation.
+Editing lives in the `helengine.video` edit (below), which is also the only render path. The earlier
+`cortex.edit.decisions.v1/v2` plans are no longer written or compiled: `HelengineCompositionCompiler` and the
+`cortex.edit.resolved.v1` timeline were removed. Cortex keeps the decisions models, schemas, merge and validation only so
+Flux Studio can migrate videos planned before the change; they go in a later cleanup together with the stored tables.
 
-Flux Studio (here for the Depois do Slogan channel project) renders available selected recordings and owned images; absent recordings stay silent. Optional audio material uploads accept up to128MiB and use the existing authenticated project access. Rendering/manual editing do not invoke a model; drafting/replanning keep existing spending confirmations. A completed preview is published only after transactional comparison of script/version, editorial plan/focus, selected recording state and media byte hashes. Stale completion is discarded and reported as requiring a new preview. Old saved previews default to `has_audio=false`.
+Flux Studio (here for the Depois do Slogan channel project) renders available selected recordings and owned images; absent recordings stay silent. Optional audio material uploads accept up to128MiB and use the existing authenticated project access. Rendering/manual editing do not invoke a model; drafting/replanning keep existing spending confirmations. A completed preview is published only after transactional comparison of script/version, video edit revision, marked focus, selected recording state and media byte hashes. Stale completion is discarded and reported as requiring a new preview. Old saved previews default to `has_audio=false`.
 
 Validation rejects unknown versions/parameters, source/hash/path changes, invalid intervals and cyclic/shared group ownership before source/GPU allocation. A failed/canceled encoder never publishes a final output or receipt. Package generations and old plugin DLL directories are retained so existing processes are not overwritten.
 
@@ -58,10 +61,32 @@ the AI proposes again. Spec: `helengine/docs/superpowers/specs/2026-10-08-heleng
 
 ## Flux Studio editing flow
 
-Flux Studio stores one video edit per video (`video_edits` plus `video_edit_versions`). Every read and render composes a fresh
-edit from the script, takes, images, caption style and the AI proposal (plugin node `sloganVideoEditCompose`) and applies the
-stored human locks (`SloganVideoEditMerge`); the first read migrates old editorial-plan human overrides into locks.
-`GET/PATCH /api/videos/{id}/video-edit` read the edit and lock (object value) or unlock (`null`) whole objects: `take`,
-`duration`, `entry`, `voice`, `layer:<id>`, `motion:<id>`, `overlay:<id>`, `track:<id>`, `caption:<scene>:<cue>`. Render
-manifests carry the stored edit (up to 16 MiB) and each render writes `video-edit.json` beside `composition.json`. The plugin
-option `editFormat` (`video` by default, `legacy`) can switch back to the previous composition builder while edits are checked.
+Flux Studio stores one video edit per video (`video_edits` plus `video_edit_versions`); it is the editing source of truth
+and the only render path. Every read and render composes a fresh host edit from the script, takes, images and caption style
+(plugin node `sloganVideoEditCompose`) and applies the stored objects marked `"by":"human"` or `"by":"ai"`
+(`SloganVideoEditMerge`); previews and final renders compile it with `VideoEditCompiler`. The AI proposal lives in the stored
+edit: `VideoEditPlanner` returns one item per scene (entry, visual layout/fit/motion, transform, animations, effects, voice,
+overlay timing, image brief) in the `helengine.video` vocabulary, mapped to `by:"ai"` objects and validated by the engine
+compiler. The draft call and scene replanning (`replanSloganEditing`, with `VideoSceneFacts` of the composed edit in the
+model input) store a new revision built as fresh ← AI items ← stored human locks; unrequested scenes keep their AI objects.
+Reasons and image briefs go to `video_edit_notes`, which feed the reference visual plan.
+
+The Roteiro scene panel (`scene-edit.mjs`) reads `GET /api/videos/{id}/video-edit`: the edit and its revision, the engine
+catalog, owned audio and image material, the AI reason per scene and the last planning error (`video_edit_notes`), the
+marked focus regions and, for scenes whose picture zoom targets a phrase (`zoom_to_focus` with a `text_region` focus), the
+current image to mark it on. `PATCH` locks (object value) or unlocks (`null`) whole objects: `take`, `duration`, `entry`,
+`voice`, `layer:<id>`, `motion:<id>`, `overlay:<id>`, `track:<id>`, `caption:<scene>:<cue>`. `POST …/video-edit/replan`
+(`{revision, beats}`, a paid call behind the existing spending confirmation) asks the AI for new proposals for those scenes.
+`PUT …/video-edit/focus/{beat}` (`{revision, mediaId, mediaHash, region}`) stores the region in `editorial_focus`, bound to
+the image hash and stamped with the edit revision; a mark is forgotten when the scene's zoom phrase changes (AI replan or a
+human motion patch) and ignored when the image changes. `GET …/video-edit/export` returns script, edit and notes
+(`slogan.video-edit-project.v1`). All of them are owner-only, revision-checked (409 when the edit moved) and CSRF-protected.
+
+Render manifests carry the stored edit (up to 16 MiB) and each render writes `video-edit.json` beside `composition.json`.
+Before a final render, the pending list validates the stored edit against the installed catalog and names the scenes whose
+transition, effect or animation the engine would reject. Preview and final-render staleness include the edit revision.
+
+Migration: the `editorial_decisions` tables are read-only. On the first read of a video whose stored edit has no AI
+objects, a stored decisions plan (carried over in memory when it was made for an older script) is handed to
+`sloganVideoEditCompose` as `decisionsJson`: its AI scenes become `by:"ai"` objects, its human overrides become locks and its
+reasons and image briefs become notes.

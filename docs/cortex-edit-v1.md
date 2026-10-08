@@ -20,15 +20,18 @@ Set **Script file** to the local JSON path. Files must be UTF-8, with an optiona
 | Editorial intent | `cortex.edit.v1` |
 | Candidate decisions and pending requirements | `cortex.edit.plan.v1` |
 | Recording tasks | `cortex.edit.recording_tasks.v1` |
-| Complete derived timeline | `cortex.edit.resolved.v1` |
+| Editorial decisions (read-only, see below) | `cortex.edit.decisions.v1`, `cortex.edit.decisions.v2` |
+
+The complete derived timeline (`cortex.edit.resolved.v1`) was removed with the decisions compiler: renders now go
+through the `helengine.video.edit.v1` document, so no producer or consumer of a resolved timeline remained.
 
 Portable JSON Schema 2020-12 files are embedded in `Cortex.Video.dll`, copied beside its build output under `Editing/Schemas`, and installed under `plugins/video/schemas`. They describe field types, discriminants and structural constraints. The C# media-domain validator checks relationships and arithmetic that portable schemas cannot express on their own.
 
-`EditingJson.Parse` / `Serialize` dispatch and round-trip the four document models with snake_case fields, explicit enum codes, preserved extension evidence/annotations and null unmeasured quality values. Unknown fields outside declared extension data, duplicate JSON properties and invalid scalar types fail explicitly.
+`EditingJson.Parse` / `Serialize` dispatch and round-trip the document models with snake_case fields, explicit enum codes, preserved extension evidence/annotations and null unmeasured quality values. Unknown fields outside declared extension data, duplicate JSON properties and invalid scalar types fail explicitly.
 
-`EditingContractValidator.Validate` returns existing `FlowIssue` values with English codes/messages and JSON-pointer paths. Generated documents require an `EditingValidationContext` with the authored script and its actual fingerprint. Complete timelines also require their current plan/tasks and byte references. Caller-supplied media fingerprints are compared when available; structural validation does not prove a media file was analysed or a quality metric was measured.
+`EditingContractValidator.Validate` returns existing `FlowIssue` values with English codes/messages and JSON-pointer paths. Generated documents require an `EditingValidationContext` with the authored script and its actual fingerprint. Caller-supplied media fingerprints are compared when available; structural validation does not prove a media file was analysed or a quality metric was measured.
 
-Validation preserves ordered required beats, distinguishes pending recordings/alignment, checks concrete media intervals and audio/video synchronization, and rejects stale or mixed resolution snapshots. A failed provider search is not a recording requirement. Missing positive-weight quality metrics cannot become a fabricated full `take_score`. Intent validation permits declarations of future/nonexistent recordings.
+Validation preserves ordered required beats, distinguishes pending recordings/alignment, checks concrete media intervals, and rejects stale or mixed resolution snapshots. A failed provider search is not a recording requirement. Missing positive-weight quality metrics cannot become a fabricated full `take_score`. Intent validation permits declarations of future/nonexistent recordings.
 
 The [seven-beat example](examples/cortex-edit-v1/script.json) and [other fixture snapshots](examples/cortex-edit-v1/README.md) are illustrative: their scores, media and alignment are fictional. Loading them in the editor demonstrates the document contract, not media discovery.
 
@@ -45,6 +48,11 @@ The consumer-owned `DepoisDoSlogan.CortexPlugin` reuses these models and existin
 
 `cortex.edit.decisions.v1` adds a proposal for every script beat before recordings are selected. The Video library supplies strict models, schema validation, human overrides, review states, focus resolution and image-motion rendering. Proposals bind the current script fingerprint; source images bind their own SHA-256 and natural dimensions. Human overrides survive compatible replanning and become explicit conflicts if a scene's role changes.
 
-The initial image catalog supports cut/fade entrance, none/zoom motion, linear/ease-in-out curves and center/point/text-region focus. Text-region motion requires a region resolved on the current image. Caption and overlay layers remain separate from image transforms. The existing four document types and one-video cut renderer remain compatible.
+The initial image catalog supports cut/fade entrance, none/zoom motion, linear/ease-in-out curves and center/point/text-region focus. Text-region motion requires a region resolved on the current image. Caption and overlay layers remain separate from image transforms.
 
-Depois do Slogan's initial draft node now returns script plus decisions in one model call; partial planning failure keeps the valid script editable. Subsequent model replanning uses the product's existing cost-confirmation flow. The stored plan and its revisions can be exported with the authored script.
+Depois do Slogan no longer writes decision plans: its AI proposes edits in the `helengine.video` vocabulary and stores
+them in the video edit (see `helengine-media-composition.md`). The decisions models, schemas, merge and validation stay
+because Flux Studio reads plans stored before that change to migrate those videos into the video edit once. Nothing in
+Cortex compiles decisions any more (`HelengineCompositionCompiler` was removed); `EditorialCompositionCatalogValidation`,
+`EditorialDecisionFlowTypes`, `EditorialDecisionCompiler`, the ffmpeg image-motion renderer and `EditorialDecisionExport`
+have no caller outside tests and go with the decisions types in a later cleanup.
