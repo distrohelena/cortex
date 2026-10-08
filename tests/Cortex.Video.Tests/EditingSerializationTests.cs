@@ -7,7 +7,7 @@ namespace Cortex.Video.Tests;
 
 public sealed class EditingSerializationTests
 {
-    public static IEnumerable<object[]> Fixtures => new[] { "script.json", "edit_plan.json", "recording_tasks.json", "resolved_edit_plan.json", "after-pickups/edit_plan.json", "after-pickups/recording_tasks.json" }.Select(path => new object[] { path });
+    public static IEnumerable<object[]> Fixtures => new[] { "script.json", "edit_plan.json", "recording_tasks.json", "after-pickups/edit_plan.json", "after-pickups/recording_tasks.json" }.Select(path => new object[] { path });
 
     [Theory, MemberData(nameof(Fixtures))]
     public void AllDocumentsRoundTripWithoutDroppingIntentOrEvidence(string name)

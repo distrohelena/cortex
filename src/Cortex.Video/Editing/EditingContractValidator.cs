@@ -13,7 +13,7 @@ public static class EditingContractValidator
     {
         var issues = new List<FlowIssue>();
         var expected = document switch { EditScriptDocument => EditingDocumentKinds.Script, EditorialDecisionPlanDocument decision => decision.Schema==EditingDocumentKinds.DecisionsV2?EditingDocumentKinds.DecisionsV2:EditingDocumentKinds.Decisions, EditPlanDocument => EditingDocumentKinds.Plan,
-            RecordingTasksDocument => EditingDocumentKinds.Tasks, ResolvedEditPlanDocument => EditingDocumentKinds.Resolved, _ => "" };
+            RecordingTasksDocument => EditingDocumentKinds.Tasks, _ => "" };
         if (document.Schema != expected) Add(issues, "edit.schema", "/schema", "The document type and schema identifier must agree.");
         if (document.Metadata is { } metadata && metadata.ValueKind != JsonValueKind.Object) Add(issues, "edit.metadata", "/metadata", "Metadata must be an object.");
         if (document is EditorialDecisionPlanDocument decisions) issues.AddRange(EditorialDecisionValidation.Validate(decisions, context?.Script));
@@ -21,7 +21,6 @@ public static class EditingContractValidator
         if (document is GeneratedEditingDocument generated) EditingReferenceValidation.Validate(generated, context, issues);
         if (document is EditPlanDocument plan) ValidatePlan(plan, context, issues);
         if (document is RecordingTasksDocument tasks) ValidateTasks(tasks, context, issues);
-        if (document is ResolvedEditPlanDocument resolved) EditingTimelineValidation.Validate(resolved, context, issues);
         return issues;
     }
 

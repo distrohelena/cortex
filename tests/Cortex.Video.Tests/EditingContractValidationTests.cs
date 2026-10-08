@@ -111,26 +111,6 @@ public sealed class EditingContractValidationTests
         Assert.Contains(EditingContractValidator.Validate(Parse(plan), EditingBundleValidationTests.Context("edit_plan.json")), issue => issue.Code == "edit.match_evidence");
     }
 
-    [Theory]
-    [InlineData("gap", "edit.timeline_gap")]
-    [InlineData("missing", "edit.beat_order")]
-    [InlineData("image_clock", "edit.binding_fields")]
-    [InlineData("sync", "edit.av_sync")]
-    [InlineData("duration", "edit.timeline_duration")]
-    public void ResolvedEditsMustBeCompleteAndUseRealMediaClocks(string mutation, string code)
-    {
-        var value = Node("resolved_edit_plan.json");
-        switch (mutation)
-        {
-            case "gap": value["timeline"]![1]!["start"] = 4; break;
-            case "missing": value["timeline"]!.AsArray().RemoveAt(6); break;
-            case "image_clock": value["timeline"]![0]!["video"]!["source_in"] = 0; break;
-            case "sync": value["timeline"]![1]!["video"]!["source_in"] = 41; break;
-            case "duration": value["duration_sec"] = 45; break;
-        }
-        Assert.Contains(EditingContractValidator.Validate(Parse(value), EditingBundleValidationTests.Context("resolved_edit_plan.json")), issue => issue.Code == code);
-    }
-
     internal static JsonNode Node(string name) => JsonNode.Parse(EditingSerializationTests.Fixture(name).GetRawText())!;
     internal static EditingDocument Parse(JsonNode value) => EditingJson.Parse(JsonSerializer.SerializeToElement(value));
 }

@@ -9,7 +9,6 @@ public sealed class EditingSchemaTests
     [InlineData("cortex.edit.v1")]
     [InlineData("cortex.edit.plan.v1")]
     [InlineData("cortex.edit.recording_tasks.v1")]
-    [InlineData("cortex.edit.resolved.v1")]
     public void PortableSchemasAreEmbeddedVersionedAndClosedAtTheirRoot(string id)
     {
         var schema = EditingSchemas.Get(id);

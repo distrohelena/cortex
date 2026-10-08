@@ -28,7 +28,6 @@ public static class EditingJson
                 EditingDocumentKinds.Decisions or EditingDocumentKinds.DecisionsV2 => typeof(EditorialDecisionPlanDocument),
                 EditingDocumentKinds.Plan => typeof(EditPlanDocument),
                 EditingDocumentKinds.Tasks => typeof(RecordingTasksDocument),
-                EditingDocumentKinds.Resolved => typeof(ResolvedEditPlanDocument),
                 _ => throw new InvalidDataException("Unsupported editorial document schema.")
             };
             return (EditingDocument)(value.Deserialize(type, Options) ?? throw new InvalidDataException("Editorial document is empty."));

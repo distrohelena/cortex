@@ -84,27 +84,4 @@ public sealed record PickupResolution
     public required JsonElement Match { get; init; }
     public required SelectionProvenance Selection { get; init; }
 }
-public sealed record RecordingTaskResolution(string RecordingTask, TaskStatus Status, PickupResolution ResolvedBy);
 
-public sealed record TimelineItem
-{
-    public required string BeatId { get; init; }
-    public required double Start { get; init; }
-    public required double End { get; init; }
-    public required MediaBinding Audio { get; init; }
-    public required MediaBinding Video { get; init; }
-    public required string Enter { get; init; }
-    public required string Exit { get; init; }
-    public JsonElement? Match { get; init; }
-    public IReadOnlyList<EditOverlay>? Overlays { get; init; }
-}
-
-public sealed record MediaBinding
-{
-    public required BindingKind Kind { get; init; }
-    public string? MediaId { get; init; }
-    public double? SourceIn { get; init; }
-    public double? SourceOut { get; init; }
-    public EditFocus? Focus { get; init; }
-    public JsonElement? Recipe { get; init; }
-}

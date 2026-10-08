@@ -12,12 +12,6 @@ internal static class EditingReferenceValidation
         if (context is null) { Add(issues, "edit.context_required", "/script_ref", "Supply the authored script and input fingerprints to validate generated documents."); return; }
         if (context.ScriptReference is null) Add(issues, "edit.context_required", "/script_ref", "The actual current script fingerprint is required.");
         if (document.ProjectId != context.Script.Project.Id || document.ScriptRef.Revision != context.Script.Revision) Add(issues, "edit.reference_stale", "/script_ref", "The project or authored revision differs from this resolution.");
-        if (document is ResolvedEditPlanDocument resolved)
-        {
-            Check(resolved.EditPlanRef, context.PlanReference, context, "/edit_plan_ref", false, issues);
-            Check(resolved.RecordingTasksRef, context.TasksReference, context, "/recording_tasks_ref", false, issues);
-            if (context.Plan is null || context.Tasks is null || context.PlanReference is null || context.TasksReference is null) Add(issues, "edit.context_required", "/timeline", "A complete timeline requires its current plan and recording-task inputs.");
-        }
         foreach (var input in new GeneratedEditingDocument?[] { context.Plan, context.Tasks })
             if (input is not null && (input.ResolutionId != document.ResolutionId || input.ProjectId != document.ProjectId || input.ScriptRef.Sha256 != document.ScriptRef.Sha256)) Add(issues, "edit.resolution_mismatch", "/resolution_id", "Do not mix project/input snapshots from different resolution passes.");
     }
