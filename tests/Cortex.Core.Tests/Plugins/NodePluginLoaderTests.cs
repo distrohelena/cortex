@@ -8,6 +8,17 @@ namespace Cortex.Core.Tests.Plugins;
 public sealed class NodePluginLoaderTests
 {
     [Fact]
+    public void FrameworkAssembliesAreSharedButPackagedSystemAssembliesLoadFromThePlugin()
+    {
+        Assert.True(NodePluginLoadContext.IsPlatform("System.Runtime"));
+        Assert.True(NodePluginLoadContext.IsPlatform("System.Text.Json"));
+        Assert.True(NodePluginLoadContext.IsPlatform("netstandard"));
+        // A Windows-only package a plugin ships next to its DLL (helengine caption measuring uses it).
+        Assert.False(NodePluginLoadContext.IsPlatform("System.Drawing.Common"));
+        Assert.False(NodePluginLoadContext.IsPlatform("helengine.video"));
+    }
+
+    [Fact]
     public void DisabledMissingDllIsNeverOpened()
     {
         using var runtime = NodePluginLoader.Load(new() { Plugins = [new() { Id = "fixture" }] },
