@@ -74,7 +74,7 @@ public sealed class EditorRuntimeTests
 
     internal static JsonElement Graph(string kind) => JsonSerializer.SerializeToElement(new
     {
-        version = 3, nodes = new[] { new { id = "input", kind, x = 30, y = 40, settings = new { original = "<img src=x onerror=alert(1)>" } } },
+        version = 4, nodes = new[] { new { id = "input", kind, x = 30, y = 40, settings = new { original = "<img src=x onerror=alert(1)>" } } },
         edges = Array.Empty<object>(), controlEdges = Array.Empty<object>()
     });
     private static FlowNodeHandler Handler(Func<CancellationToken, Task<string>> execute) => new(new NodeDefinition("fixture", 1, FlowEffect.Pure,

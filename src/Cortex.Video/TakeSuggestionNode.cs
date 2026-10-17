@@ -17,11 +17,13 @@ public static class TakeSuggestionNode
         ("repeatEvidence", new ArrayType(Object(("firstId", Text), ("secondId", Text), ("sameSpeech", new BooleanType()), ("probability", Number)))),
         ("proposedTimeline", new ArrayType(Object(("candidateId", Text), ("sourceStart", Number), ("sourceEnd", Number), ("start", Number), ("end", Number)))));
 
-    public static FlowNodeHandler Create(ITakeSuggester suggester) => new(
-        new NodeDefinition("suggestTakes", 1, FlowEffect.Model,
+    public static NodeDefinition Definition() => new("suggestTakes", 1, FlowEffect.Model,
             dataInputs: [new("transcript", VideoNodes.TranscriptType, Required: true)], dataOutputs: [new("editPlan", EditPlanType)],
             controlInputs: [new("exec")], controlOutputs: [new("then")],
-            configFields: [new("goal", Text, Required: true) { Label = "Editorial goal" }]) { DisplayName = "Suggest Takes" },
+            configFields: [new("goal", Text, Required: true) { Label = "Editorial goal" }]) { DisplayName = "Suggest Takes" };
+
+    public static FlowNodeHandler Create(ITakeSuggester suggester) => new(
+        Definition(),
         async (config, inputs, token) =>
         {
             var transcript = inputs["transcript"].Value.Deserialize<TranscriptResult>(VideoNodes.JsonOptions) ?? throw new InvalidDataException("Transcript unavailable.");

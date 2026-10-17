@@ -89,7 +89,7 @@ public sealed class TranscriptionTests
 
     private static JsonElement Graph(string videoPath) => JsonSerializer.SerializeToElement(new
     {
-        version = 3,
+        version = 4,
         nodes = new object[]
         {
             new { id = "video", kind = "videoFile", x = 70, y = 130, settings = new { path = videoPath } },

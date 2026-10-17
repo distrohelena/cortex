@@ -252,4 +252,70 @@ public sealed class FlowTypeTests
 
         Assert.Equal("type.kind_unsupported", exception.Issue.Code);
     }
+    [Fact]
+    public void TypedDictionarySchemaAndPortableTypePreserveNestedValues()
+    {
+        var valueType = new NullableType(new ArrayType(new ObjectType(new Dictionary<string, FlowField>
+        {
+            ["count"] = new(new IntegerType(), true),
+        })));
+        var type = new DictionaryType(valueType);
+        var schema = type.ToJsonSchema();
+        Assert.Equal("object", schema.GetProperty("type").GetString());
+        Assert.Equal("array", schema.GetProperty("additionalProperties").GetProperty("type").EnumerateArray().First(item => item.GetString() != "null").GetString());
+        Assert.Equal(schema.GetRawText(), FlowType.ParseJsonSchema(schema).ToJsonSchema().GetRawText());
+        Assert.Equal(schema.GetRawText(), FlowType.ParsePortable(type.ToPortable()).ToJsonSchema().GetRawText());
+
+        using var portable = JsonDocument.Parse("""{"kind":"dictionary","valueType":{"kind":"nullable","innerType":{"kind":"integer"}}}""");
+        Assert.Equal(new DictionaryType(new NullableType(new IntegerType())), FlowType.ParsePortable(portable.RootElement));
+    }
+
+    [Fact]
+    public void TypedDictionaryValidationAndPropertyProjectionPreserveKeys()
+    {
+        var type = new DictionaryType(new IntegerType());
+        using var empty = JsonDocument.Parse("{}");
+        FlowDomain.Check(empty.RootElement, type);
+        using var value = JsonDocument.Parse("""{"Model A":8192,"gpt-6.1-sol":4096}""");
+        FlowDomain.Check(value.RootElement, type);
+        Assert.Equal("8192", FlowDomain.Project(value.RootElement, type, ["Model A"]).GetRawText());
+        using var invalid = JsonDocument.Parse("""{"bad":"8192"}""");
+        Assert.Throws<InvalidDataException>(() => { FlowDomain.Check(invalid.RootElement, type); });
+        Assert.Throws<InvalidDataException>(() => { _ = FlowDomain.Project(value.RootElement, type, ["missing"]); });
+        using var duplicate = JsonDocument.Parse("""{"model":1,"model":2}""");
+        Assert.Throws<InvalidDataException>(() => { FlowDomain.Check(duplicate.RootElement, type); });
+    }
+
+    [Fact]
+    public void DictionaryCompatibilityIsRecursiveAndDoesNotImplyObjectCompatibility()
+    {
+        Assert.True(new DictionaryType(new IntegerType()).IsCompatibleWith(new DictionaryType(new NumberType())));
+        Assert.False(new DictionaryType(new NumberType()).IsCompatibleWith(new DictionaryType(new IntegerType())));
+        Assert.True(new DictionaryType(new NullableType(new ArrayType(new IntegerType())))
+            .IsCompatibleWith(new DictionaryType(new NullableType(new ArrayType(new NumberType())))));
+        Assert.False(new DictionaryType(new IntegerType()).IsCompatibleWith(new ObjectType(new Dictionary<string, FlowField>())));
+    }
+
+    [Fact]
+    public void ModelProjectionRecursesThroughDictionaryValuesAndPreservesKeys()
+    {
+        var type = new DictionaryType(FlowDomain.Person);
+        using var value = JsonDocument.Parse("""{"Model A":{"nome":"Ana","stableId":"person-1"}}""");
+        var references = new Dictionary<string, string>(StringComparer.Ordinal);
+
+        var projected = FlowDomain.ForModel(value.RootElement, type, references);
+
+        Assert.Equal("Ana", projected.GetProperty("Model A").GetProperty("nome").GetString());
+        Assert.Equal("ref1", projected.GetProperty("Model A").GetProperty("ref").GetString());
+        Assert.Equal("ref1", references["stableId:person-1"]);
+    }
+
+    [Theory]
+    [InlineData("""{"type":"object","additionalProperties":true}""")]
+    [InlineData("""{"type":"object","properties":{"fixed":{"type":"string"}},"additionalProperties":{"type":"integer"}}""")]
+    public void RejectsUntypedAndMixedDictionarySchemas(string json)
+    {
+        using var schema = JsonDocument.Parse(json);
+        Assert.Throws<FlowSchemaException>(() => FlowType.ParseJsonSchema(schema.RootElement));
+    }
 }

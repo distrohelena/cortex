@@ -33,7 +33,7 @@ internal sealed class ExecutionSnapshotV1
 internal static class ExecutionSnapshotCodec
 {
     private static readonly JsonSerializerOptions Options = new() { UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow };
-    private sealed record TypeWire(JsonElement Schema, string? Domain, TypeWire? Element, TypeWire? Inner, Dictionary<string, TypeWire>? Fields);
+    private sealed record TypeWire(JsonElement Schema, string? Domain, TypeWire? Element, TypeWire? Inner, Dictionary<string, TypeWire>? Fields, TypeWire? Value);
     private sealed record ValueWire(TypeWire Type, JsonElement Value);
     private sealed record PortWire(string NodeId, string Port, int ValueId);
     private sealed record SnapshotWire(int Version, ArtifactScope Scope, string BatchId, ArtifactRef ProjectRef,
@@ -132,7 +132,8 @@ internal static class ExecutionSnapshotCodec
         Domains.FirstOrDefault(x => ReferenceEquals(type, x.Value)).Key,
         type is ArrayType array ? EncodeType(array.ElementType) : null,
         type is NullableType nullable ? EncodeType(nullable.InnerType) : null,
-        type is ObjectType obj ? obj.Fields.OrderBy(x => x.Key, StringComparer.Ordinal).ToDictionary(x => x.Key, x => EncodeType(x.Value.Type)) : null);
+        type is ObjectType obj ? obj.Fields.OrderBy(x => x.Key, StringComparer.Ordinal).ToDictionary(x => x.Key, x => EncodeType(x.Value.Type)) : null,
+        type is DictionaryType dictionary ? EncodeType(dictionary.ValueType) : null);
     private static FlowType DecodeType(TypeWire wire)
     {
         var parsed = FlowType.ParseJsonSchema(wire.Schema);
@@ -145,6 +146,7 @@ internal static class ExecutionSnapshotCodec
         {
             ArrayType when wire.Element is not null => new ArrayType(DecodeType(wire.Element)),
             NullableType when wire.Inner is not null => new NullableType(DecodeType(wire.Inner)),
+            DictionaryType when wire.Value is not null => new DictionaryType(DecodeType(wire.Value)),
             ObjectType obj when wire.Fields is not null => new ObjectType(obj.Fields.ToDictionary(x => x.Key,
                 x => new FlowField(DecodeType(wire.Fields[x.Key]), x.Value.Required))),
             _ => parsed

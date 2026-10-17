@@ -55,6 +55,8 @@ Caminhos relativos de um manifesto são resolvidos a partir dele. Caminhos de fe
 
 Abra um graph v3 ou adicione nodes do catálogo. Configure suas entradas, conecte fios de dados e de execução, valide e execute. A seleção de um node mostra suas propriedades e outputs tipados; objetos são apresentados por campos e listas de objetos como tabelas, com o schema disponível para inspeção. Fit ajusta o canvas; pan/zoom e arraste usam o componente existente.
 
+O catálogo inclui **Nota** para comentários no canvas. O campo Texto aceita várias linhas; o bloco pode ser movido, removido e salvo com o graph. Notas não têm portas nem participam da execução. No documento, usam `kind: "note"`, `settings.text` e as coordenadas `x`/`y` dos demais blocos.
+
 Um graph com nodes indisponíveis continua visível e preservado. A execução é bloqueada até os plugins necessários estarem ativos. O editor preserva campos/metadata desconhecidos do documento e permite salvar o arquivo aberto ou baixar um JSON quando o arquivo foi importado pelo navegador.
 
 Durante uma execução, mudanças de graph/settings ficam bloqueadas e Cancelar encerra a operação. A tela usa estados/resultados efetivos, não repete a inferência automaticamente e não faz cache de transcrições. Conteúdo de graph, plugin e transcript é renderizado como texto.

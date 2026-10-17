@@ -9,7 +9,7 @@
         "id": "inativa",
         "name": "Em repouso",
         "graph": {
-          "version": 3,
+          "version": 4,
           "nodes": [
             { "id": "dm-in", "kind": "dm", "x": 40, "y": 80 },
             { "id": "group-in", "kind": "group", "x": 40, "y": 220 },
@@ -97,7 +97,7 @@
         "id": "atenta",
         "name": "Observando",
         "graph": {
-          "version": 3,
+          "version": 4,
           "nodes": [
             { "id": "dm-in", "kind": "dm", "x": 40, "y": 80 },
             { "id": "group-in", "kind": "group", "x": 40, "y": 220 },
@@ -140,7 +140,7 @@
         "id": "engajada",
         "name": "Em conversa",
         "graph": {
-          "version": 3,
+          "version": 4,
           "nodes": [
             { "id": "dm-in", "kind": "dm", "x": 40, "y": 80 },
             { "id": "group-in", "kind": "group", "x": 40, "y": 220 },

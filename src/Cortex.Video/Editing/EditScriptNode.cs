@@ -5,10 +5,12 @@ namespace Cortex.Video.Editing;
 
 public static class EditScriptNode
 {
-    public static FlowNodeHandler Create() => new(
-        new NodeDefinition("editScript", 1, FlowEffect.Pure,
+    public static NodeDefinition Definition() => new("editScript", 1, FlowEffect.Pure,
             dataOutputs: [new("script", EditingFlowTypes.Script), new("scriptJson", new StringType()), new("scriptRef", EditingFlowTypes.ScriptReference)],
-            controlOutputs: [new("then")], configFields: [new("path", new StringType(), Required: true) { Label = "Script file" }]) { DisplayName = "Edit Script" },
+            controlOutputs: [new("then")], configFields: [new("path", new StringType(), Required: true) { Label = "Script file" }]) { DisplayName = "Edit Script", ExecutionMode = FlowNodeExecutionMode.Entry };
+
+    public static FlowNodeHandler Create() => new(
+        Definition(),
         async (config, _, token) =>
         {
             var source = await EditScriptReader.ReadAsync(config.GetProperty("path").GetString()!, token);
@@ -18,5 +20,5 @@ public static class EditScriptNode
                 ["scriptJson"] = JsonSerializer.SerializeToElement(source.OriginalJson),
                 ["scriptRef"] = JsonSerializer.SerializeToElement(source.Reference, EditingJson.Options)
             };
-        }, isEntry: true);
+        });
 }

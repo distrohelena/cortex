@@ -57,6 +57,15 @@ test('removed dynamic port leaves a visible removable dashed wire',()=>{
  s.wires.children[0].fire('click');assert.deepEqual(removed,[edge]);s.editor.destroy();
 });
 
+test('loaded incompatible wires are visibly diagnosed without being removed',()=>{
+ const edge={source:'a',sourcePort:'value',target:'b',targetPort:'value'};
+ const s=setup({describeNode:node=>({title:node.kind,ports:node.id==='a'?[{id:'value',direction:'out',type:'string',label:'Value'}]:[{id:'value',direction:'in',type:'object',label:'Value',diagnostic:'Incompatible saved wire.'}],executionPorts:[],wireDiagnostics:node.id==='b'?[{source:'a',sourcePort:'value',target:'b',targetPort:'value',port:'value',reason:'Incompatible saved wire.'}]:[]})});
+ s.graph.edges.push(edge);s.editor.render();
+ assert.match(s.wires.children[0].className,/invalid-wire/);
+ assert.equal(s.nodes.children[1].children[1].children.at(-1).className,'node-diagnostics');
+ assert.deepEqual(s.graph.edges,[edge]);s.editor.destroy();
+});
+
 test('generic nodes connect data and execution separately without running a workflow',()=>{
  const s=setup(),buttons=()=>s.nodes.querySelectorAll('button.port');
  buttons().find(x=>x.dataset.portId==='value'&&x.dataset.direction==='out').fire('click');
@@ -139,4 +148,56 @@ test('node drag reports coordinates; destroy releases listeners and does not aff
  a.editor.destroy();a.editor.destroy();
  a.viewport.fire('wheel',{deltaY:100,deltaMode:0,clientX:0,clientY:0});assert.equal(a.editor.getCamera().zoom,1);
  b.viewport.fire('wheel',{deltaY:100,deltaMode:0,clientX:0,clientY:0});assert.notEqual(b.editor.getCamera().zoom,1);b.editor.destroy();
+});
+
+test('semantic node shape keeps execution mode, structured types, diagnostics and navigation accessible',()=>{
+ let navigated=null;const s=setup({describeNode:node=>node.id==='a'
+  ?{title:'Pure profile',semantic:'pure',effect:'Pure',ports:[{id:'profile',direction:'out',label:'Profile',schema:{type:'array',items:{type:'object',properties:{name:{type:'string'}}}}}],executionPorts:[],navigation:'profile-graph'}
+  :{title:'Unavailable',semantic:'unavailable',diagnostics:[{port:'input',reason:'Node metadata unavailable.'}],ports:[{id:'input',direction:'in',label:'Input',type:'unresolved',unresolved:true}],executionPorts:[]},
+  onNavigate:(node,reference)=>{navigated={id:node.id,reference};}});
+ const [source,target]=s.nodes.children;assert.equal(source.dataset.semantic,'pure');assert.equal(target.dataset.semantic,'unavailable');
+ const output=s.nodes.querySelectorAll('button.port')[0];assert.match(output.textContent,/array<object/);assert.match(output.title,/properties/);
+ const before=s.editor.getCamera();const navigate=source.children[1].children.find(child=>child.className==='node-navigation').children[0];navigate.fire('click');
+ assert.deepEqual(navigated,{id:'a',reference:'profile-graph'});assert.deepEqual(s.editor.getCamera(),before);
+ assert.equal(target.children[1].children.at(-1).className,'node-diagnostics');s.editor.destroy();
+});
+
+test('typed dictionaries display their value type in the existing data port label',()=>{
+ const s=setup({describeNode:node=>({title:node.kind,ports:node.id==='a'
+  ?[{id:'budget',direction:'out',label:'Budget',schema:{type:'object',additionalProperties:{type:'integer'}}}]
+  :[],executionPorts:[]})});
+ const port=s.nodes.querySelectorAll('button.port').find(item=>item.dataset.portId==='budget');
+ assert.match(port.textContent,/dictionary<integer>/);
+ assert.match(port.attrs['aria-label'],/dictionary<integer>/);
+ s.editor.destroy();
+});
+
+test('raw JSON uses a clear type label on the existing data port',()=>{
+ const s=setup({describeNode:node=>({title:node.kind,ports:node.id==='a'
+  ?[{id:'payload',direction:'out',label:'Payload',type:'json',schema:{}}]
+  :[],executionPorts:[]})});
+ const port=s.nodes.querySelectorAll('button.port').find(item=>item.dataset.portId==='payload');
+ assert.match(port.textContent,/json/);assert.match(port.attrs['aria-label'],/json/);s.editor.destroy();
+});
+
+test('failed async connection validation reports the error and leaves graph untouched',async()=>{
+ let message='';const s=setup({onConnect:async()=>{throw new Error('Data port types are incompatible.');},onStatus:text=>message=text});
+ const buttons=()=>s.nodes.querySelectorAll('button.port');
+ buttons().find(port=>port.dataset.direction==='out').fire('click');buttons().find(port=>port.dataset.direction==='in').fire('click');
+ await Promise.resolve();assert.equal(message,'Data port types are incompatible.');assert.deepEqual(s.graph.edges,[]);
+ assert.equal(s.nodes.children[1].children[1].children.find(child=>child.className==='connection-error').attrs.role,'alert');
+ assert.equal(s.nodes.querySelectorAll('button.port').find(port=>port.dataset.direction==='in').attrs['aria-invalid'],'true');s.editor.destroy();
+});
+
+test('superseded async connection completion cannot clear a newer port alert',async()=>{
+ let settleOld;let calls=0;const s=setup({onConnect:()=>{calls++;if(calls===1)return new Promise(resolve=>{settleOld=resolve;});return Promise.reject(new Error('Newer connection was rejected.'));}});
+ const connect=()=>{const buttons=()=>s.nodes.querySelectorAll('button.port');buttons().find(port=>port.dataset.direction==='out').fire('click');buttons().find(port=>port.dataset.direction==='in').fire('click');};
+ connect();
+ // Switching state/project clears the pending connection while its host callback remains pending.
+ s.editor.clearConnection();
+ connect();await Promise.resolve();await Promise.resolve();
+ const alert=()=>s.nodes.children[1].children[1].children.find(child=>child.className==='connection-error')?.textContent;
+ assert.equal(calls,2);await new Promise(resolve=>setImmediate(resolve));assert.equal(alert(),'Newer connection was rejected.');
+ settleOld();await Promise.resolve();await Promise.resolve();
+ assert.equal(alert(),'Newer connection was rejected.');s.editor.destroy();
 });

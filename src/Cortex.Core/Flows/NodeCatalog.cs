@@ -5,12 +5,31 @@ namespace Cortex.Core.Flows;
 
 public sealed record FlowDataPortDefinition(string Name, FlowType Type, bool Required = false, bool AcceptsAny = false);
 
+public enum FlowNodeExecutionMode { Entry, Action, Pure }
+
 public sealed record FlowControlPortDefinition(string Name, bool Required = false);
 
 public sealed record FlowConfigFieldDefinition(string Name, FlowType Type, bool Required = false)
 {
     public string? Label { get; init; }
 }
+
+/// <summary>A metadata-only view of one graph node. A null port type means unresolved, never nullable.</summary>
+public sealed record FlowNodePortDescription(string Id, string Name, FlowType? Type, bool Required, JsonElement? ConstantValue = null);
+
+public sealed record FlowNodeDescription(
+    string Id,
+    string Kind,
+    string DisplayName,
+    FlowNodeExecutionMode ExecutionMode,
+    FlowEffect Effect,
+    IReadOnlyList<FlowNodePortDescription> Inputs,
+    IReadOnlyList<FlowNodePortDescription> Outputs,
+    IReadOnlyList<FlowControlPortDefinition> ControlInputs,
+    IReadOnlyList<FlowControlPortDefinition> ControlOutputs,
+    IReadOnlyList<FlowConfigFieldDefinition> Configuration,
+    IReadOnlyList<TypedFlowIssue> Diagnostics,
+    string? NavigableGraphReference = null);
 
 public sealed record NodeDefinitionResolution(
     IReadOnlyList<FlowDataPortDefinition> DataInputs,
@@ -53,6 +72,8 @@ public sealed record NodeDefinition
     public string? DisplayName { get; init; }
     public int BlockVersion { get; }
     public FlowEffect Effect { get; }
+    public string? NavigableGraphReference { get; init; }
+    public FlowNodeExecutionMode ExecutionMode { get; init; } = FlowNodeExecutionMode.Action;
     public IReadOnlyList<FlowDataPortDefinition> DataInputs { get; }
     public IReadOnlyList<FlowDataPortDefinition> DataOutputs { get; }
     public IReadOnlyList<FlowControlPortDefinition> ControlInputs { get; }
@@ -145,9 +166,9 @@ public sealed class NodeCatalog
         var success = new[] { new FlowControlPortDefinition("success", Required: true) };
         var definitions = new List<NodeDefinition>
         {
-            Definition("dm-input", FlowEffect.Pure, dataOutputs: [Port("text", text)], controlOutputs: success),
-            Definition("group-input", FlowEffect.Pure, dataOutputs: [Port("text", text)], controlOutputs: success),
-            Definition("manual-input", FlowEffect.Pure, dataOutputs: [Port("text", text)], controlOutputs: success),
+            Definition("dm-input", FlowEffect.Pure, dataOutputs: [Port("text", text)], controlOutputs: success, executionMode: FlowNodeExecutionMode.Entry),
+            Definition("group-input", FlowEffect.Pure, dataOutputs: [Port("text", text)], controlOutputs: success, executionMode: FlowNodeExecutionMode.Entry),
+            Definition("manual-input", FlowEffect.Pure, dataOutputs: [Port("text", text)], controlOutputs: success, executionMode: FlowNodeExecutionMode.Entry),
             Definition("character-dispatch", FlowEffect.Pure, dataInputs: [Port("input", any, Required: true, AcceptsAny: true)], dataOutputs: [Port("result", any, AcceptsAny: true)], controlInputs: run, controlOutputs: success, configFields: [Field("characterId", text, Required: true)]),
             Definition("context", FlowEffect.Pure, dataOutputs: [Port("text", text)], controlInputs: run, controlOutputs: success),
             Definition("burst", FlowEffect.Pure, dataInputs: [Port("text", text, AcceptsAny: true)], dataOutputs: [Port("text", text)], controlInputs: run, controlOutputs: success),
@@ -179,8 +200,9 @@ public sealed class NodeCatalog
         IEnumerable<FlowControlPortDefinition>? controlInputs = null,
         IEnumerable<FlowControlPortDefinition>? controlOutputs = null,
         IEnumerable<FlowConfigFieldDefinition>? configFields = null,
-        Func<JsonElement, NodeDefinitionResolution>? resolver = null) =>
-        new(kind, 1, effect, dataInputs, dataOutputs, controlInputs, controlOutputs, configFields, resolver);
+        Func<JsonElement, NodeDefinitionResolution>? resolver = null,
+        FlowNodeExecutionMode executionMode = FlowNodeExecutionMode.Action) =>
+        new(kind, 1, effect, dataInputs, dataOutputs, controlInputs, controlOutputs, configFields, resolver) { ExecutionMode = executionMode };
 
     private static FlowDataPortDefinition Port(string name, FlowType type, bool Required = false, bool AcceptsAny = false) =>
         new(name, type, Required, AcceptsAny);

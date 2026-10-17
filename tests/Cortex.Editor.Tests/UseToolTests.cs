@@ -20,7 +20,7 @@ public sealed class UseToolTests
                 dataOutputs: [new("video", new ObjectType(new Dictionary<string, FlowField> { ["path"] = new(new StringType(), true) }))],
                 controlOutputs: [new("then")], configFields: [new("outputDirectory", new StringType(), Required: true)]), (_, _, _) =>
                 Task.FromResult<IReadOnlyDictionary<string, JsonElement>>(new Dictionary<string, JsonElement> { ["video"] = JsonSerializer.SerializeToElement(new { path = returnedPath }) }), true);
-            var graph = JsonSerializer.SerializeToElement(new { version = 3,
+            var graph = JsonSerializer.SerializeToElement(new { version = 4,
                 usage = new { tools = new { preview = new { entryId = "p", afterNode = "p", parameters = Array.Empty<string>(), artifactPort = "video", artifactDirectorySetting = "outputDirectory" } } },
                 nodes = new[] { new { id = "p", kind = "artifact", settings = new { outputDirectory = allowed } } }, edges = Array.Empty<object>(), controlEdges = Array.Empty<object>() });
             using var tools = new EditorUseTools(graph, [handler]);
@@ -51,7 +51,7 @@ public sealed class UseToolTests
             (_, inputs, _) => Task.FromResult<IReadOnlyDictionary<string, JsonElement>>(new Dictionary<string, JsonElement> { ["value"] = inputs["value"].Value }));
         var graph = JsonSerializer.SerializeToElement(new
         {
-            version = 3,
+            version = 4,
             usage = new { reviewOutputs = new Dictionary<string, string[]> { ["a"] = ["value"] }, tools = new { preview = new { entryId = "p", afterNode = "a", parameters = new[] { "text" } } } },
             nodes = new object[] { new { id = "a", kind = "input", settings = new { text = "original" } }, new { id = "b", kind = "tail" }, new { id = "p", kind = "tool", settings = new { text = "original", @private = "locked" } } },
             edges = new[] { new { source = "a", sourcePort = "value", target = "b", targetPort = "value" } },

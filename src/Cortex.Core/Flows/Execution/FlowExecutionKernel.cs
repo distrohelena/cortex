@@ -58,6 +58,9 @@ internal static class FlowExecutionKernel
         var steps = snapshot.Steps;
         var published = snapshot.Outputs;
         var values = snapshot.Values;
+        foreach (var node in flow.Nodes.Values.Where(node => node.Source.Kind is "property" or "count" || node.HostExecutionMode == FlowNodeExecutionMode.Pure))
+            foreach (var port in node.Outputs)
+                values.Remove(new PortRef(node.Source.Id, port.Id));
         var references = snapshot.References;
         var sendAttempted = snapshot.SendAttempted;
         ConfirmedSend? confirmed = snapshot.ConfirmedSend;
@@ -74,6 +77,9 @@ internal static class FlowExecutionKernel
         var outbound = services.Outbound;
         var initialEffect = Effect(flow.Nodes[current]);
         var visited = 0;
+        Dictionary<string, Dictionary<string, TypedValue>> activationPureOutputs = new(StringComparer.Ordinal);
+        var failureNodeId = current;
+        string? failurePort = null;
         TypedRunResult Complete(bool success, string? target)
         {
             snapshot.Status = success ? ExecutionStatus.Completed : ExecutionStatus.Failed;
@@ -93,6 +99,13 @@ internal static class FlowExecutionKernel
                 return value.ValueKind == JsonValueKind.Null ? value.Clone() : SerializeInput(value, nullable.InnerType);
             if (type is ArrayType array)
                 return JsonSerializer.SerializeToElement(value.EnumerateArray().Select(item => SerializeInput(item, array.ElementType)).ToArray());
+            if (type is DictionaryType dictionary)
+            {
+                var entries = new Dictionary<string, JsonElement>(StringComparer.Ordinal);
+                foreach (var item in value.EnumerateObject())
+                    entries.Add(item.Name, SerializeInput(item.Value, dictionary.ValueType));
+                return JsonSerializer.SerializeToElement(entries);
+            }
             if (type == FlowDomain.Boundary)
             {
                 if (boundaryRegistry is null) throw new InvalidDataException("Boundary exige contexto de execução confiável.");
@@ -100,24 +113,164 @@ internal static class FlowExecutionKernel
             }
             return FlowDomain.ForModel(value, type, references);
         }
-        TypedValue Input(TypedNode node, TypedPort port)
+        async Task<Dictionary<string, TypedValue>> ExecuteHostAsync(TypedNode node, FlowNodeHandler handler,
+            Dictionary<string, TypedValue> inputs)
+        {
+            var raw = await handler.ExecuteAsync(FlowNodeHandler.Config(node.Source), inputs.AsReadOnly(), token);
+            token.ThrowIfCancellationRequested();
+            var declared = node.Outputs.ToDictionary(port => port.Id, StringComparer.Ordinal);
+            var undeclared = raw.Keys.FirstOrDefault(key => !declared.ContainsKey(key));
+            if (undeclared is not null)
+                throw new InvalidDataException("Host output port is not declared: " + undeclared);
+            foreach (var port in node.Outputs)
+                if (port.Required && !raw.ContainsKey(port.Id))
+                {
+                    failurePort = port.Id;
+                    throw new InvalidDataException("Required host output is missing: " + port.Name);
+                }
+            var outputs = new Dictionary<string, TypedValue>(StringComparer.Ordinal);
+            foreach (var (portId, value) in raw)
+            {
+                var port = declared[portId];
+                failurePort = port.Id;
+                FlowDomain.Check(value, port.Type);
+                outputs.Add(port.Id, new(port.Type, value.Clone()));
+            }
+            return outputs;
+        }
+        void StoreHostOutputs(TypedNode node, Dictionary<string, TypedValue> outputs)
+        {
+            foreach (var port in node.Outputs) values.Remove(new PortRef(node.Source.Id, port.Id));
+            published[node.Source.Id] = outputs;
+            foreach (var (port, value) in outputs) values[new(node.Source.Id, port)] = value;
+        }
+        async Task<TypedValue?> Input(TypedNode node, TypedPort port)
         {
             var edge = flow.Graph.DataEdges.SingleOrDefault(e => e.Target == new PortRef(node.Source.Id, port.Id));
-            if (edge is not null) return Resolve(edge.Source);
-            if (port.Config.ValueKind == JsonValueKind.Object && port.Config.TryGetProperty("value", out var local)) return new(port.Type, local.Clone());
-            throw new InvalidDataException("Entrada não disponível: " + port.Name);
+            if (edge is not null)
+            {
+                var value = await Resolve(edge.Source);
+                if (value is null)
+                {
+                    if (port.Required)
+                        throw new InvalidDataException("Required input '" + port.Name + "' received missing output '" + edge.Source.Port + "' from node '" + edge.Source.NodeId + "'.");
+                    return null;
+                }
+                FlowDomain.Check(value.Value, port.Type);
+                return value;
+            }
+            if (port.Config.ValueKind == JsonValueKind.Object && port.Config.TryGetProperty("value", out var local))
+            {
+                FlowDomain.Check(local, port.Type);
+                return new(port.Type, local.Clone());
+            }
+            if (!port.Required) return null;
+            throw new InvalidDataException("Input not available: " + port.Name);
         }
-        TypedValue Resolve(PortRef key)
+        async Task<TypedValue?> Resolve(PortRef key)
         {
-            if (values.TryGetValue(key, out var existing)) return existing;
+            token.ThrowIfCancellationRequested();
             var node = flow.Nodes[key.NodeId];
-            if (node.Source.Kind is not ("property" or "count")) throw new InvalidDataException("Output operacional ainda não disponível.");
-            var input = Input(node, node.Inputs.Single());
-            var projected = node.Source.Kind == "count"
-                ? FlowDomain.CountItems(input.Value, input.Type)
-                : FlowDomain.Project(input.Value, input.Type, TypedFlowCompiler.PropertyPath(node.Source.Config));
-            var value = new TypedValue(node.Outputs.Single().Type, projected);
-            values[key] = value; return value;
+            var pure = node.Source.Kind is "property" or "count" || node.HostExecutionMode == FlowNodeExecutionMode.Pure;
+            if (!pure && values.TryGetValue(key, out var existing)) return existing;
+            if (!pure)
+            {
+                if (published.TryGetValue(key.NodeId, out var completedOutputs))
+                {
+                    if (completedOutputs.ContainsKey(key.Port)) throw new InvalidDataException("Output value is unavailable after its node completed: " + key.Port);
+                    var completedPort = node.Outputs.Single(port => port.Id == key.Port);
+                    if (!completedPort.Required) return null;
+                    throw new InvalidDataException("Required output is missing after its node completed: " + completedPort.Name);
+                }
+                throw new InvalidDataException("Operational output is not available yet.");
+            }
+            if (activationPureOutputs.TryGetValue(key.NodeId, out var cached))
+            {
+                if (cached.TryGetValue(key.Port, out var cachedValue)) return cachedValue;
+                var cachedPort = node.Outputs.Single(port => port.Id == key.Port);
+                if (!cachedPort.Required) return null;
+                throw new InvalidDataException("Required pure output is missing: " + cachedPort.Name);
+            }
+
+            var previousFailureNode = failureNodeId;
+            var previousFailurePort = failurePort;
+            failureNodeId = node.Source.Id;
+            failurePort = key.Port;
+            try
+            {
+                Dictionary<string, TypedValue> outputs;
+                if (node.Source.Kind is "property" or "count")
+                {
+                    var inputPort = node.Inputs.Single();
+                    failurePort = inputPort.Id;
+                    var input = await Input(node, inputPort) ?? throw new InvalidDataException("Required input is unavailable: " + inputPort.Name);
+                    FlowDomain.Check(input.Value, inputPort.Type);
+                    var projected = node.Source.Kind == "count"
+                        ? FlowDomain.CountItems(input.Value, input.Type)
+                        : FlowDomain.Project(input.Value, input.Type, TypedFlowCompiler.PropertyPath(node.Source.Config));
+                    var outputPort = node.Outputs.Single();
+                    failurePort = outputPort.Id;
+                    FlowDomain.Check(projected, outputPort.Type);
+                    outputs = new(StringComparer.Ordinal) { [outputPort.Id] = new(outputPort.Type, projected.Clone()) };
+                }
+                else
+                {
+                    if (!flow.HostNodes.TryGetValue(node.Source.Kind, out var handler) || !handler.IsPure)
+                        throw new InvalidDataException("Pure host handler is unavailable: " + node.Source.Kind);
+                    var inputs = new Dictionary<string, TypedValue>(StringComparer.Ordinal);
+                    foreach (var port in node.Inputs)
+                    {
+                        var connected = flow.Graph.DataEdges.Any(edge => edge.Target == new PortRef(node.Source.Id, port.Id));
+                        var configured = port.Config.ValueKind == JsonValueKind.Object && port.Config.TryGetProperty("value", out _);
+                        if (!connected && !configured)
+                        {
+                            if (port.Required) throw new InvalidDataException("Required input is unavailable: " + port.Name);
+                            continue;
+                        }
+                        failurePort = port.Id;
+                        var input = await Input(node, port);
+                        if (input is null) continue;
+                        FlowDomain.Check(input.Value, port.Type);
+                        inputs.Add(port.Id, input);
+                    }
+                    failurePort = key.Port;
+                    token.ThrowIfCancellationRequested();
+                    outputs = await ExecuteHostAsync(node, handler, inputs);
+                }
+
+                activationPureOutputs.Add(node.Source.Id, outputs);
+                failureNodeId = previousFailureNode;
+                failurePort = previousFailurePort;
+                failureNodeId = node.Source.Id;
+                failurePort = key.Port;
+                if (!outputs.TryGetValue(key.Port, out var value))
+                {
+                    var outputPort = node.Outputs.Single(port => port.Id == key.Port);
+                    if (!outputPort.Required)
+                    {
+                        failureNodeId = previousFailureNode;
+                        failurePort = previousFailurePort;
+                        return null;
+                    }
+                    throw new InvalidDataException("Required pure output is missing: " + outputPort.Name);
+                }
+                failureNodeId = previousFailureNode;
+                failurePort = previousFailurePort;
+                return value;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception exception) when (exception is not (OutOfMemoryException or StackOverflowException or AccessViolationException))
+            {
+                if (failureNodeId == node.Source.Id)
+                {
+                    failureNodeId = node.Source.Id;
+                    failurePort ??= key.Port;
+                }
+                throw new InvalidDataException("Pure node '" + node.Source.Id + "' at port '" + failurePort + "': " + exception.Message, exception);
+            }
         }
         try
         {
@@ -128,6 +281,9 @@ internal static class FlowExecutionKernel
                 token.ThrowIfCancellationRequested();
                 var node = flow.Nodes[current];
                 if (visited > 0 && (oneNode || initialEffect != StepEffect.Pure || Effect(node) != StepEffect.Pure || visited >= 64)) return Yield(current);
+                activationPureOutputs = new(StringComparer.Ordinal);
+                failureNodeId = current;
+                failurePort = null;
                 visited++; snapshot.Ordinal++;
                 var exit = "then";
                 nodeStartedAt = timeProvider.GetUtcNow();
@@ -141,29 +297,23 @@ internal static class FlowExecutionKernel
                     var inputs = new Dictionary<string, TypedValue>(StringComparer.Ordinal);
                     foreach (var port in node.Inputs)
                     {
-                        if (!port.Required && !flow.Graph.DataEdges.Any(e => e.Target == new PortRef(current, port.Id))) continue;
-                        var input = Input(node, port);
+                        var connected = flow.Graph.DataEdges.Any(e => e.Target == new PortRef(current, port.Id));
+                        var configured = port.Config.ValueKind == JsonValueKind.Object && port.Config.TryGetProperty("value", out _);
+                        if (!port.Required && !connected && !configured) continue;
+                        var input = await Input(node, port);
+                        if (input is null) continue;
                         FlowDomain.Check(input.Value, port.Type);
                         inputs.Add(port.Id, input);
                     }
-                    var raw = await handler.ExecuteAsync(FlowNodeHandler.Config(node.Source), inputs.AsReadOnly(), token);
-                    if (!raw.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(node.Outputs.Select(port => port.Id)))
-                        throw new InvalidDataException("Host output ports do not match the declared ports.");
-                    var output = new Dictionary<string, TypedValue>(StringComparer.Ordinal);
-                    foreach (var port in node.Outputs)
-                    {
-                        FlowDomain.Check(raw[port.Id], port.Type);
-                        output.Add(port.Id, new(port.Type, raw[port.Id].Clone()));
-                    }
-                    published[current] = output;
-                    foreach (var (port, value) in output) values[new(current, port)] = value;
+                    var output = await ExecuteHostAsync(node, handler, inputs);
+                    StoreHostOutputs(node, output);
                 }
                 else if (node.Source.Kind == "humanFeedback")
                 {
                     snapshot.Ordinal--; // This node remains pending until a durable resolution completes it.
                     var port = node.Inputs.Single();
                     var context = flow.Graph.DataEdges.Any(e => e.Target == new PortRef(current, port.Id))
-                        ? Input(node, port).Value.GetString() : null;
+                        ? (await Input(node, port))?.Value.GetString() : null;
                     snapshot.PendingFeedback = HumanFeedbackNode.Request(new(snapshot.Scope, current, snapshot.Ordinal), HumanFeedbackNode.Read(node.Source.Config), context);
                     snapshot.Status = ExecutionStatus.WaitingForHuman;
                     snapshot.Cursor = current;
@@ -174,18 +324,21 @@ internal static class FlowExecutionKernel
                 else if (node.Source.Kind == "prompt" && BoundaryEnforcementProfile.Enabled(node.Source.Config))
                 {
                     if (boundaryRegistry is null) throw new InvalidDataException("Boundary enforcement requires trusted execution context.");
-                    TypedValue ProfileInput(string name)
+                    async Task<TypedValue> ProfileInput(string name)
                     {
                         var port = node.Inputs.Single(p => p.Name == name);
-                        var value = Input(node, port);
+                        var value = await Input(node, port) ?? throw new InvalidDataException("Required input is unavailable: " + port.Name);
                         FlowDomain.Check(value.Value, port.Type);
                         return value;
                     }
-                    var output = await BoundaryEnforcementProfile.RunAsync(node, ProfileInput("limites").Value,
-                        ProfileInput("resposta").Value.GetString()!, ProfileInput("mensagens").Value,
+                    var limits = await ProfileInput("limites");
+                    var response = await ProfileInput("resposta");
+                    var messages = await ProfileInput("mensagens");
+                    var output = await BoundaryEnforcementProfile.RunAsync(node, limits.Value,
+                        response.Value.GetString()!, messages.Value,
                         boundaryRegistry, completion, timeProvider,
                         metadata => observer?.Invoke(new(current, "boundary-policy", null, null, timeProvider.GetUtcNow(), TimeSpan.Zero, metadata)), token);
-                    outbound?.Enforced(current, ProfileInput("resposta"), ProfileInput("limites"),
+                    outbound?.Enforced(current, response, limits,
                         output["resultado"].Value.GetString() == "permitir", ShadowOutboundHost.Fingerprint(node.Source.Config));
                     if (instructionOutput is not null) await instructionOutput(current, output.AsReadOnly(), token);
                     token.ThrowIfCancellationRequested();
@@ -200,7 +353,9 @@ internal static class FlowExecutionKernel
                         var connected = flow.Graph.DataEdges.Any(e => e.Target == new PortRef(current, port.Id));
                         var configured = port.Config.ValueKind == JsonValueKind.Object && port.Config.TryGetProperty("value", out _);
                         if (!port.Required && !connected && !configured) continue;
-                        var value = Input(node, port); FlowDomain.Check(value.Value, port.Type);
+                        var value = await Input(node, port);
+                        if (value is null) continue;
+                        FlowDomain.Check(value.Value, port.Type);
                         inputs[port.Name] = SerializeInput(value.Value, port.Type);
                     }
                     var config = node.Source.Config;
@@ -241,24 +396,27 @@ internal static class FlowExecutionKernel
                 else if (node.Source.Kind == "interpretBoundaries")
                 {
                     if (boundaryRegistry is null) throw new InvalidDataException("Interpretar Limites exige contexto de execução confiável.");
-                    var output = await boundaryRegistry.CompileAsync(Input(node, node.Inputs.Single()).Value,
+                    var boundaryInput = await Input(node, node.Inputs.Single()) ?? throw new InvalidDataException("Required boundary input is unavailable.");
+                    var output = await boundaryRegistry.CompileAsync(boundaryInput.Value,
                         BoundaryCompilerSettings.Read(node.Source.Config), timeProvider.GetUtcNow(), token);
                     var value = new TypedValue(new ArrayType(FlowDomain.Boundary), output);
-                    outbound?.Compiled(current, Input(node, node.Inputs.Single()), value);
+                    outbound?.Compiled(current, boundaryInput, value);
                     published[current] = new() { ["boundaries"] = value };
                     values[new(current, "boundaries")] = value;
                 }
                 else if (node.Source.Kind == "memory")
                 {
                     if (memoryQuery is null) throw new InvalidDataException("Memória exige contexto de sessão.");
-                    TypedValue? OptionalInput(string id)
+                    async Task<TypedValue?> OptionalInput(string id)
                     {
                         var port = node.Inputs.Single(p => p.Id == id);
                         return flow.Graph.DataEdges.Any(e => e.Target == new PortRef(current, id)) ||
                             port.Config.ValueKind == JsonValueKind.Object && port.Config.TryGetProperty("value", out _)
-                            ? Input(node, port) : null;
+                            ? await Input(node, port) : null;
                     }
-                    var response = await memoryQuery(node, OptionalInput("persons")?.Value, OptionalInput("query")?.Value.GetString(), token);
+                    var persons = await OptionalInput("persons");
+                    var query = await OptionalInput("query");
+                    var response = await memoryQuery(node, persons?.Value, query?.Value.GetString(), token);
                     FlowDomain.Check(response, new ArrayType(FlowDomain.Memory));
                     var value = new TypedValue(new ArrayType(FlowDomain.Memory), response.Clone());
                     outbound?.Recall(current, value);
@@ -267,7 +425,7 @@ internal static class FlowExecutionKernel
                 }
                 else if (node.Source.Kind == "send")
                 {
-                    var candidate = Input(node, node.Inputs.Single());
+                    var candidate = await Input(node, node.Inputs.Single()) ?? throw new InvalidDataException("Required send input is unavailable.");
                     FlowDomain.Check(candidate.Value, new StringType());
                     var result = outbound is not null ? await outbound.SendAsync(candidate, token)
                         : sendAttempted ? new ShadowSendResult("blocked", "duplicate_attempt") : new ShadowSendResult("disabled", "outbound_host_unavailable");
@@ -312,7 +470,7 @@ internal static class FlowExecutionKernel
                     }
                     else
                     {
-                        var selected = Input(node, node.Inputs.Single()).Value.GetString()!;
+                        var selected = (await Input(node, node.Inputs.Single()))?.Value.GetString() ?? throw new InvalidDataException("Required exit input is unavailable.");
                         target = settings.GetProperty("stateMapping").GetProperty(selected).GetString()!;
                     }
                     var duration = timeProvider.GetElapsedTime(nodeStartedTimestamp.Value);
@@ -328,13 +486,13 @@ internal static class FlowExecutionKernel
                 }
                 else if (node.Source.Kind == "branch")
                 {
-                    var left = Input(node, node.Inputs.Single(p => p.Id == "a"));
-                    var right = Input(node, node.Inputs.Single(p => p.Id == "b"));
+                    var left = await Input(node, node.Inputs.Single(p => p.Id == "a")) ?? throw new InvalidDataException("Required branch input is unavailable.");
+                    var right = await Input(node, node.Inputs.Single(p => p.Id == "b")) ?? throw new InvalidDataException("Required branch input is unavailable.");
                     exit = TypedBranch.Compare(left, right, node.Source.Config.GetProperty("settings").GetProperty("operator").GetString()!) ? "true" : "false";
                 }
                 else if (node.Source.Kind == "switch")
                 {
-                    var value = Input(node, node.Inputs.Single()).Value.GetString();
+                    var value = (await Input(node, node.Inputs.Single()))?.Value.GetString() ?? throw new InvalidDataException("Required switch input is unavailable.");
                     var cases = node.Source.Config.GetProperty("settings").GetProperty("cases");
                     var match = cases.EnumerateArray().Where(c => c.GetProperty("value").GetString() == value).ToArray();
                     if (match.Length == 1) exit = match[0].GetProperty("id").GetString()!;
@@ -354,14 +512,16 @@ internal static class FlowExecutionKernel
         {
             snapshot.Status = ExecutionStatus.Cancelled; snapshot.Cursor = null;
             if (nodeStartedTimestamp is not null)
-                observer?.Invoke(new(current, "cancelled", null, "cancelled", timeProvider.GetUtcNow(), timeProvider.GetElapsedTime(nodeStartedTimestamp.Value)));
+                observer?.Invoke(new(failureNodeId, "cancelled", null, "cancelled", timeProvider.GetUtcNow(), timeProvider.GetElapsedTime(nodeStartedTimestamp.Value),
+                    failurePort is null ? null : new Dictionary<string, string> { ["port"] = failurePort }));
             throw;
         }
         catch (Exception e) when (e is InvalidDataException or JsonException or HttpRequestException or InvalidOperationException or BoundaryCompilationException)
         {
-            steps.Add(new(current, "failed", null, e is HttpRequestException ? "Serviço de modelo indisponível." : e.Message));
+            steps.Add(new(failureNodeId, "failed", null, e is HttpRequestException ? "Serviço de modelo indisponível." : e.Message));
             if (nodeStartedTimestamp is not null)
-                observer?.Invoke(new(current, "failed", null, e.GetType().Name, timeProvider.GetUtcNow(), timeProvider.GetElapsedTime(nodeStartedTimestamp.Value),
+                observer?.Invoke(new(failureNodeId, "failed", null, e.GetType().Name, timeProvider.GetUtcNow(), timeProvider.GetElapsedTime(nodeStartedTimestamp.Value),
+                    failurePort is not null ? new Dictionary<string, string> { ["port"] = failurePort } :
                     e is BoundaryCompilationException failure ? new Dictionary<string, string>
                     {
                         ["sourceMemoryId"] = failure.SourceMemoryId,

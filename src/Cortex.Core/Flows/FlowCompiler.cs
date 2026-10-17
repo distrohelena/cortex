@@ -938,13 +938,15 @@ public sealed class CompiledFlowType
         IEnumerable<string> values,
         IEnumerable<KeyValuePair<string, CompiledFlowField>> fields,
         CompiledFlowType? elementType,
-        CompiledFlowType? innerType)
+        CompiledFlowType? innerType,
+        CompiledFlowType? valueType)
     {
         Kind = kind;
         Values = values.ToImmutableArray();
         Fields = fields.ToFrozenDictionary(StringComparer.Ordinal);
         ElementType = elementType;
         InnerType = innerType;
+        ValueType = valueType;
     }
 
     public string Kind { get; }
@@ -952,15 +954,17 @@ public sealed class CompiledFlowType
     public IReadOnlyDictionary<string, CompiledFlowField> Fields { get; }
     public CompiledFlowType? ElementType { get; }
     public CompiledFlowType? InnerType { get; }
+    public CompiledFlowType? ValueType { get; }
 
     internal static CompiledFlowType Create(FlowType type) =>
         type switch
         {
-            EnumType enumType => new(type.Kind, enumType.Values, [], null, null),
-            ObjectType objectType => new(type.Kind, [], objectType.Fields.Select(value => new KeyValuePair<string, CompiledFlowField>(value.Key, CompiledFlowField.Create(value.Value))), null, null),
-            ArrayType arrayType => new(type.Kind, [], [], Create(arrayType.ElementType), null),
-            NullableType nullableType => new(type.Kind, [], [], null, Create(nullableType.InnerType)),
-            _ => new(type.Kind, [], [], null, null),
+            EnumType enumType => new(type.Kind, enumType.Values, [], null, null, null),
+            ObjectType objectType => new(type.Kind, [], objectType.Fields.Select(value => new KeyValuePair<string, CompiledFlowField>(value.Key, CompiledFlowField.Create(value.Value))), null, null, null),
+            ArrayType arrayType => new(type.Kind, [], [], Create(arrayType.ElementType), null, null),
+            NullableType nullableType => new(type.Kind, [], [], null, Create(nullableType.InnerType), null),
+            DictionaryType dictionaryType => new(type.Kind, [], [], null, null, Create(dictionaryType.ValueType)),
+            _ => new(type.Kind, [], [], null, null, null),
         };
 }
 

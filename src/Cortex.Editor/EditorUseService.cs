@@ -8,7 +8,8 @@ public sealed class EditorUseService : IDisposable
 {
     private readonly JsonElement _template;
     private readonly string _entry;
-    private readonly IReadOnlyList<FlowNodeHandler> _handlers;
+    private readonly IReadOnlyList<NodeDefinition> _definitions;
+    private readonly Func<IReadOnlyList<FlowNodeHandler>> _bindHandlers;
     private readonly ConcurrentQueue<string> _diagnostic;
     private readonly SemaphoreSlim _gate=new(1,1);
     private readonly EditorUseTools _tools;
@@ -21,9 +22,9 @@ public sealed class EditorUseService : IDisposable
     public IReadOnlyDictionary<string,string[]> Fields {get;}
     public IReadOnlyDictionary<string,string[]> Models {get;}
     public IReadOnlyDictionary<string,string[]> ReviewOutputs {get;}
-    public EditorUseService(JsonElement template,string entry,IReadOnlyList<FlowNodeHandler> handlers,ConcurrentQueue<string>? diagnostic=null)
+    public EditorUseService(JsonElement template,string entry,IReadOnlyList<NodeDefinition> definitions,Func<IReadOnlyList<FlowNodeHandler>> bindHandlers,ConcurrentQueue<string>? diagnostic=null)
     {
-        _template=template.Clone();_entry=entry;_handlers=handlers;_diagnostic=diagnostic??new();_tools=new(template,handlers);
+        _template=template.Clone();_entry=entry;_definitions=definitions;_bindHandlers=bindHandlers;_diagnostic=diagnostic??new();_tools=new(template,definitions,bindHandlers);
         var fields=new Dictionary<string,string[]>(StringComparer.Ordinal);var models=new Dictionary<string,string[]>(StringComparer.Ordinal);
         if(template.TryGetProperty("usage",out var usage))
         {
@@ -31,7 +32,8 @@ public sealed class EditorUseService : IDisposable
             {
                 var node=template.GetProperty("nodes").EnumerateArray().SingleOrDefault(n=>n.GetProperty("id").GetString()==item.Name);
                 if(node.ValueKind!=JsonValueKind.Object) throw new InvalidDataException("Unknown usage node: "+item.Name);
-                var definition=handlers.SingleOrDefault(h=>h.Definition.Kind==node.GetProperty("kind").GetString())?.Definition;
+                var definition=definitions.SingleOrDefault(d=>d.Kind==node.GetProperty("kind").GetString());
+                var resolved=definition?.Resolve(Settings(node));
                 var names=item.Value.EnumerateArray().Select(v=>v.GetString()!).ToArray();
                 if(names.Any(n=>definition?.ConfigFields.Any(f=>f.Name==n)!=true)) throw new InvalidDataException("Unknown usage field on "+item.Name);
                 fields.Add(item.Name,names);
@@ -49,13 +51,18 @@ public sealed class EditorUseService : IDisposable
         {
             var node=template.GetProperty("nodes").EnumerateArray().SingleOrDefault(n=>n.GetProperty("id").GetString()==item.Name);
             if(node.ValueKind!=JsonValueKind.Object)throw new InvalidDataException("Unknown review node.");
-            var definition=handlers.Single(h=>h.Definition.Kind==node.GetProperty("kind").GetString()).Definition;
+            var definition=definitions.Single(d=>d.Kind==node.GetProperty("kind").GetString());
+            var resolved=definition.Resolve(Settings(node));
             var ports=item.Value.EnumerateArray().Select(v=>v.GetString()!).ToArray();
-            if(ports.Any(p=>!definition.DataOutputs.Any(o=>o.Name==p)))throw new InvalidDataException("Unknown review output.");
+            if(ports.Any(p=>!resolved.DataOutputs.Any(o=>o.Name==p)))throw new InvalidDataException("Unknown review output.");
             review.Add(item.Name,ports);
         }
         Fields=fields;Models=models;ReviewOutputs=review;_snapshot=new(null,"idle",null,null,[],entry);
     }
+    public EditorUseService(JsonElement template,string entry,IReadOnlyList<FlowNodeHandler> handlers,ConcurrentQueue<string>? diagnostic=null)
+        : this(template,entry,handlers.Select(handler=>handler.Definition).ToArray(),()=>handlers,diagnostic) { }
+    private static JsonElement Settings(JsonElement node) => node.TryGetProperty("settings",out var settings)&&settings.ValueKind==JsonValueKind.Object
+        ? settings : JsonSerializer.SerializeToElement(new { });
     public string EntryId => _entry;
     public bool Busy {get{lock(_sync)return _busy||_tools.Busy;}}
     public IReadOnlyDictionary<string,UseToolDefinition> Tools => _tools.Definitions;
@@ -91,7 +98,7 @@ public sealed class EditorUseService : IDisposable
                     if(values is null) throw new InvalidDataException("Parameters must be an object of field values.");
                     if(!Fields.TryGetValue(nodeId,out var exposed)) throw new InvalidDataException("This node exposes no user parameters.");
                     var node=graph["nodes"]!.AsArray().Single(n=>n!["id"]!.GetValue<string>()==nodeId)!;
-                    var definition=_handlers.Single(h=>h.Definition.Kind==node["kind"]!.GetValue<string>()).Definition;
+                    var definition=_definitions.Single(d=>d.Kind==node["kind"]!.GetValue<string>());
                     node["settings"]??=new JsonObject();
                     foreach(var(name,value) in values)
                     {
@@ -103,7 +110,11 @@ public sealed class EditorUseService : IDisposable
                         node["settings"]![name]=JsonNode.Parse(value.GetRawText());
                     }
                 }
-                _execution=new(TypedFlowCompiler.Compile(JsonSerializer.SerializeToElement(graph),_entry,_handlers));
+                var candidate=JsonSerializer.SerializeToElement(graph);
+                _ = TypedFlowCompiler.Validate(candidate,_entry,_definitions);
+                var handlers=_bindHandlers();
+                EditorExecutionService.EnsureResolvedContractParity(candidate,_definitions,handlers);
+                _execution=new(TypedFlowCompiler.Compile(candidate,_entry,handlers));
                 _diagnostic.Clear();_snapshot=new(Guid.NewGuid().ToString("N"),"idle",null,null,[],_entry);
             }
             lock(_sync)

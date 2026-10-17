@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 
 namespace Cortex.Core.Flows.Sessions;
 
@@ -71,9 +71,13 @@ internal static class SessionFlowProjectCompiler
                     Issue(stateId, null, "graph", "config", "State graph is required.");
                     continue;
                 }
-                if (!graph.TryGetProperty("version", out var graphVersion) || !graphVersion.TryGetInt32(out var graphVersionNumber) || graphVersionNumber != 3)
+                int? graphVersionNumber = graph.TryGetProperty("version", out var graphVersion) && graphVersion.TryGetInt32(out var parsedGraphVersion)
+                    ? parsedGraphVersion : null;
+                if (graphVersionNumber != TypedFlowCompiler.CurrentGraphVersion)
                 {
-                    Issue(stateId, null, "graph", "version", "Executable state graphs must use version 3.");
+                    var receivedVersion = graphVersionNumber?.ToString() ?? "missing or invalid";
+                    Issue(stateId, null, "graph", "version",
+                        $"Graph version {receivedVersion} is unsupported; expected version {TypedFlowCompiler.CurrentGraphVersion}.");
                     continue;
                 }
                 if (!graph.TryGetProperty("nodes", out var nodeArray) || nodeArray.ValueKind != JsonValueKind.Array)

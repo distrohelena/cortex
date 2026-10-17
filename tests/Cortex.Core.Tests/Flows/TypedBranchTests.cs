@@ -8,7 +8,7 @@ namespace Cortex.Core.Tests.Flows;
 public sealed class TypedBranchTests
 {
     internal static JsonNode Graph() => JsonNode.Parse("""
-        {"version":3,"nodes":[
+        {"version":4,"nodes":[
           {"id":"in","kind":"dm"},
           {"id":"ai","kind":"prompt","prompt":"Observe","inputs":[],"responseFields":[{"id":"signal","name":"signal","type":"boolean"}]},
           {"id":"branch","kind":"branch","settings":{"operator":"eq","b":true}}

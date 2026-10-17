@@ -12,12 +12,14 @@ public static class RenderCutsNode
         ["timeline"] = new(TakeSuggestionNode.EditPlanType.Fields["proposedTimeline"].Type, true)
     });
 
-    public static FlowNodeHandler Create(IVideoCutRenderer renderer) => new(
-        new NodeDefinition("renderCuts", 1, FlowEffect.WriteState,
+    public static NodeDefinition Definition() => new("renderCuts", 1, FlowEffect.WriteState,
             dataInputs: [new("video", VideoNodes.VideoType, Required: true), new("editPlan", TakeSuggestionNode.EditPlanType)],
             dataOutputs: [new("video", RenderedVideoType)], controlInputs: [new("exec")], controlOutputs: [new("then")],
             configFields: [new("outputDirectory", new StringType(), Required: true) { Label = "Output directory" },
-                new("editPlanFile", new StringType()) { Label = "Edit plan file (when not connected)" }]) { DisplayName = "Render Cuts" },
+                new("editPlanFile", new StringType()) { Label = "Edit plan file (when not connected)" }]) { DisplayName = "Render Cuts" };
+
+    public static FlowNodeHandler Create(IVideoCutRenderer renderer) => new(
+        Definition(),
         async (config, inputs, token) =>
         {
             var file = config.TryGetProperty("editPlanFile", out var configured) ? configured.GetString() : null;

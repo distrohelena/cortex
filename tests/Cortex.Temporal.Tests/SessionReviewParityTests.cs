@@ -17,7 +17,7 @@ public sealed class SessionReviewParityTests
 {
     internal static SessionFlowProject Project() => new("review-project", 1, "review-revision", JsonSerializer.Deserialize<JsonElement>("""
         {"version":1,"stateScope":"session","initialStateId":"initial","states":[{"id":"initial","graph":
-        {"version":3,"nodes":[{"id":"in","kind":"dm"},
+        {"version":4,"nodes":[{"id":"in","kind":"dm"},
         {"id":"decision","kind":"prompt","prompt":"PRIVATE DECISION PROMPT","inputs":[],"outputMode":"structured","responseFields":[{"id":"respond","name":"respond","type":"boolean"}]},
         {"id":"branch","kind":"branch","settings":{"operator":"eq","b":true}},
         {"id":"generate","kind":"prompt","prompt":"PRIVATE GENERATION PROMPT","inputs":[],"outputMode":"text","responseFields":[{"id":"text","name":"text","type":"text"}]}],

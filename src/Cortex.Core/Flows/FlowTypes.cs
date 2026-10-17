@@ -12,6 +12,8 @@ public abstract record FlowType
 
     public bool IsCompatibleWith(FlowType target) => FlowTypeCompatibility.IsCompatible(this, target);
 
+    public JsonElement ToPortable() => FlowSchemaCodec.ToPortable(this);
+
     public static bool AreCompatible(FlowType source, FlowType target) => source.IsCompatibleWith(target);
 
     public static FlowType ParseJsonSchema(JsonElement schema) => FlowSchemaCodec.ParseJsonSchema(schema);
@@ -37,6 +39,11 @@ public sealed record IntegerType : FlowType
 public sealed record BooleanType : FlowType
 {
     public override string Kind => "boolean";
+}
+
+public sealed record JsonType : FlowType
+{
+    public override string Kind => "json";
 }
 
 public sealed record EnumType : FlowType
@@ -88,6 +95,14 @@ public sealed record ArrayType : FlowType
     public override string Kind => "array";
 }
 
+public sealed record DictionaryType : FlowType
+{
+    public DictionaryType(FlowType valueType) => ValueType = valueType;
+
+    public FlowType ValueType { get; }
+    public override string Kind => "dictionary";
+}
+
 public sealed record NullableType : FlowType
 {
     public NullableType(FlowType innerType) => InnerType = innerType;
@@ -111,6 +126,11 @@ internal static class FlowTypeCompatibility
 {
     public static bool IsCompatible(FlowType source, FlowType target)
     {
+        if (source is NullableType { InnerType: JsonType }) source = new JsonType();
+        if (target is NullableType { InnerType: JsonType }) target = new JsonType();
+        if (target is JsonType) return true;
+        if (source is JsonType) return target is JsonType;
+
         if (source is NullableType nullableSource)
         {
             return target is NullableType nullableTarget
@@ -133,6 +153,7 @@ internal static class FlowTypeCompatibility
             (EnumType sourceEnum, EnumType targetEnum) => sourceEnum.Values.All(targetEnum.Values.Contains),
             (EnumType, StringType) => true,
             (ArrayType sourceArray, ArrayType targetArray) => IsCompatible(sourceArray.ElementType, targetArray.ElementType),
+            (DictionaryType sourceDictionary, DictionaryType targetDictionary) => IsCompatible(sourceDictionary.ValueType, targetDictionary.ValueType),
             (ObjectType sourceObject, ObjectType targetObject) => CompatibleObjects(sourceObject, targetObject),
             _ => false,
         };
@@ -187,10 +208,68 @@ internal static class FlowSchemaCodec
         return ParseSchema(schema, 0, new SchemaBudget(), "/");
     }
 
+    public static JsonElement ToPortable(FlowType type)
+    {
+        using var stream = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(stream, WriterOptions))
+        {
+            WritePortable(writer, type, 0, new SchemaBudget());
+        }
+
+        using var document = JsonDocument.Parse(stream.ToArray());
+        return document.RootElement.Clone();
+    }
+
     public static FlowType ParsePortable(JsonElement type)
     {
         EnsureNoDuplicateProperties(type);
         return ParsePortableType(type, 0, new SchemaBudget(), "/");
+    }
+
+    private static void WritePortable(Utf8JsonWriter writer, FlowType type, int depth, SchemaBudget budget)
+    {
+        Enter(type, depth, budget, "/");
+        writer.WriteStartObject();
+        writer.WriteString("kind", type.Kind);
+        switch (type)
+        {
+            case EnumType enumType:
+                writer.WritePropertyName("values");
+                writer.WriteStartArray();
+                foreach (var value in enumType.Values) writer.WriteStringValue(value);
+                writer.WriteEndArray();
+                break;
+            case ArrayType array:
+                writer.WritePropertyName("elementType");
+                WritePortable(writer, array.ElementType, depth + 1, budget);
+                break;
+            case DictionaryType dictionary:
+                writer.WritePropertyName("valueType");
+                WritePortable(writer, dictionary.ValueType, depth + 1, budget);
+                break;
+            case NullableType nullable:
+                writer.WritePropertyName("innerType");
+                WritePortable(writer, nullable.InnerType, depth + 1, budget);
+                break;
+            case ObjectType objectType:
+                writer.WritePropertyName("fields");
+                writer.WriteStartObject();
+                foreach (var (name, field) in objectType.Fields)
+                {
+                    budget.AddField();
+                    writer.WritePropertyName(name);
+                    writer.WriteStartObject();
+                    writer.WritePropertyName("type");
+                    WritePortable(writer, field.Type, depth + 1, budget);
+                    writer.WriteBoolean("required", field.Required);
+                    writer.WriteEndObject();
+                }
+
+                writer.WriteEndObject();
+                break;
+        }
+
+        writer.WriteEndObject();
     }
 
     private static void WriteSchema(Utf8JsonWriter writer, FlowType type, int depth, SchemaBudget budget)
@@ -198,7 +277,17 @@ internal static class FlowSchemaCodec
         Enter(type, depth, budget, "/");
         switch (type)
         {
+            case JsonType:
+                writer.WriteStartObject();
+                writer.WriteEndObject();
+                return;
             case NullableType nullable:
+                if (nullable.InnerType is JsonType)
+                {
+                    writer.WriteStartObject();
+                    writer.WriteEndObject();
+                    return;
+                }
                 writer.WriteStartObject();
                 writer.WritePropertyName("type");
                 writer.WriteStartArray();
@@ -246,6 +335,13 @@ internal static class FlowSchemaCodec
                 writer.WriteString("type", "array");
                 writer.WritePropertyName("items");
                 WriteSchema(writer, array.ElementType, depth + 1, budget);
+                writer.WriteEndObject();
+                return;
+            case DictionaryType dictionary:
+                writer.WriteStartObject();
+                writer.WriteString("type", "object");
+                writer.WritePropertyName("additionalProperties");
+                WriteSchema(writer, dictionary.ValueType, depth + 1, budget);
                 writer.WriteEndObject();
                 return;
             case ObjectType objectType:
@@ -306,6 +402,11 @@ internal static class FlowSchemaCodec
             writer.WritePropertyName("items");
             WriteSchema(writer, array.ElementType, depth + 1, budget);
         }
+        else if (innerType is DictionaryType dictionary)
+        {
+            writer.WritePropertyName("additionalProperties");
+            WriteSchema(writer, dictionary.ValueType, depth + 1, budget);
+        }
         else if (innerType is EnumType enumType)
         {
             writer.WritePropertyName("enum");
@@ -329,6 +430,7 @@ internal static class FlowSchemaCodec
         }
 
         Enter(schema, depth, budget, path);
+        if (!schema.EnumerateObject().Any()) return new JsonType();
         var typeElement = Required(schema, "type", path);
         if (typeElement.ValueKind == JsonValueKind.Array)
         {
@@ -415,6 +517,9 @@ internal static class FlowSchemaCodec
         var kind = RequiredString(type, "kind", path);
         switch (kind)
         {
+            case "json":
+                EnsureOnly(properties, path, "kind");
+                return new JsonType();
             case "string":
                 EnsureOnly(properties, path, "kind");
                 return new StringType();
@@ -433,6 +538,9 @@ internal static class FlowSchemaCodec
             case "array":
                 EnsureOnly(properties, path, "kind", "elementType");
                 return new ArrayType(ParsePortableType(Required(type, "elementType", path), depth + 1, budget, Join(path, "elementType")));
+            case "dictionary":
+                EnsureOnly(properties, path, "kind", "valueType");
+                return new DictionaryType(ParsePortableType(Required(type, "valueType", path), depth + 1, budget, Join(path, "valueType")));
             case "nullable":
                 EnsureOnly(properties, path, "kind", "innerType");
                 return new NullableType(ParsePortableType(Required(type, "innerType", path), depth + 1, budget, Join(path, "innerType")));
@@ -468,18 +576,32 @@ internal static class FlowSchemaCodec
         }
     }
 
-    private static ObjectType ParseObjectSchema(JsonElement schema, int depth, SchemaBudget budget, string path)
+    private static FlowType ParseObjectSchema(JsonElement schema, int depth, SchemaBudget budget, string path)
     {
+        if (!schema.TryGetProperty("additionalProperties", out var additionalProperties))
+        {
+            throw Unsupported(Join(path, "additionalProperties"), "Object schemas must declare additionalProperties.");
+        }
+
+        if (additionalProperties.ValueKind == JsonValueKind.Object)
+        {
+            if (schema.TryGetProperty("properties", out _) || schema.TryGetProperty("required", out _))
+            {
+                throw Unsupported(path, "Mixed fixed-field and dictionary object schemas are not supported.");
+            }
+
+            return new DictionaryType(ParseSchema(additionalProperties, depth + 1, budget, Join(path, "additionalProperties")));
+        }
+
+        if (additionalProperties.ValueKind != JsonValueKind.False)
+        {
+            throw Unsupported(Join(path, "additionalProperties"), "Object schemas must be closed or declare a value schema.");
+        }
+
         var propertiesElement = Required(schema, "properties", path);
         if (propertiesElement.ValueKind != JsonValueKind.Object)
         {
             throw Unsupported(Join(path, "properties"), "Object properties must be an object.");
-        }
-
-        if (!schema.TryGetProperty("additionalProperties", out var additionalProperties) ||
-            additionalProperties.ValueKind != JsonValueKind.False)
-        {
-            throw Unsupported(Join(path, "additionalProperties"), "Object schemas must be closed.");
         }
 
         var required = new HashSet<string>(StringComparer.Ordinal);
@@ -630,7 +752,7 @@ internal static class FlowSchemaCodec
         NumberType => "number",
         IntegerType => "integer",
         BooleanType => "boolean",
-        ObjectType => "object",
+        ObjectType or DictionaryType => "object",
         ArrayType => "array",
         _ => throw Unsupported("/", "Nullable type inner kind is not supported."),
     };

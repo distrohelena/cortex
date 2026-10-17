@@ -11,37 +11,45 @@ public sealed record EditorArtifact(string Path, string ContentType);
 public sealed class EditorUseTools : IDisposable
 {
     private readonly JsonElement _template;
-    private readonly IReadOnlyList<FlowNodeHandler> _handlers;
+    private readonly IReadOnlyList<NodeDefinition> _definitions;
+    private readonly Func<IReadOnlyList<FlowNodeHandler>> _bindHandlers;
     private readonly ConcurrentDictionary<string, EditorExecutionService> _services = new(StringComparer.Ordinal);
     public IReadOnlyDictionary<string, UseToolDefinition> Definitions { get; }
     public bool Busy => _services.Values.Any(service => service.Busy);
     public IReadOnlyDictionary<string, EditorRunSnapshot> Snapshots => _services.ToDictionary(pair => pair.Key, pair => pair.Value.Snapshot());
 
-    public EditorUseTools(JsonElement template, IReadOnlyList<FlowNodeHandler> handlers)
+    public EditorUseTools(JsonElement template, IReadOnlyList<NodeDefinition> definitions, Func<IReadOnlyList<FlowNodeHandler>> bindHandlers)
     {
-        _template = template.Clone(); _handlers = handlers;
-        var definitions = new Dictionary<string, UseToolDefinition>(StringComparer.Ordinal);
+        _template = template.Clone(); _definitions = definitions; _bindHandlers = bindHandlers;
+        var definitionsMap = new Dictionary<string, UseToolDefinition>(StringComparer.Ordinal);
         if (template.TryGetProperty("usage", out var usage) && usage.TryGetProperty("tools", out var tools))
             foreach (var item in tools.EnumerateObject())
             {
                 var spec = item.Value.Deserialize<UseToolDefinition>(new JsonSerializerOptions(JsonSerializerDefaults.Web)) ?? throw new InvalidDataException("Invalid use tool.");
                 var node = Node(spec.EntryId);
-                var handler = handlers.SingleOrDefault(handler => handler.Definition.Kind == node.GetProperty("kind").GetString());
-                if (handler?.IsEntry != true || string.IsNullOrWhiteSpace(spec.AfterNode) || spec.Parameters is null || spec.Parameters.Distinct().Count() != spec.Parameters.Length || spec.Parameters.Any(name => !handler.Definition.ConfigFields.Any(field => field.Name == name)))
+                var definition = _definitions.SingleOrDefault(definition => definition.Kind == node.GetProperty("kind").GetString());
+                if (definition?.ExecutionMode != FlowNodeExecutionMode.Entry || string.IsNullOrWhiteSpace(spec.AfterNode) || spec.Parameters is null || spec.Parameters.Distinct().Count() != spec.Parameters.Length || spec.Parameters.Any(name => !definition.ConfigFields.Any(field => field.Name == name)))
                     throw new InvalidDataException("A use tool requires an available entry and declared parameters.");
                 _ = Node(spec.AfterNode);
                 if ((spec.ArtifactPort is null) != (spec.ArtifactDirectorySetting is null)) throw new InvalidDataException("Provide an artifact port and locked directory setting together.");
                 if (spec.ArtifactPort is not null)
                 {
-                    var port = handler.Definition.DataOutputs.SingleOrDefault(port => port.Name == spec.ArtifactPort);
-                    if (handler.Definition.Effect != FlowEffect.WriteState || port?.Type is not ObjectType output || !output.Fields.TryGetValue("path", out var path) || path.Type is not StringType ||
+                    var resolution = definition.Resolve(Settings(node));
+                    var port = resolution.DataOutputs.SingleOrDefault(port => port.Name == spec.ArtifactPort);
+                    if (definition.Effect != FlowEffect.WriteState || port?.Type is not ObjectType output || !output.Fields.TryGetValue("path", out var path) || path.Type is not StringType ||
                         spec.Parameters.Contains(spec.ArtifactDirectorySetting!) || !node.GetProperty("settings").TryGetProperty(spec.ArtifactDirectorySetting!, out var directory) || directory.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(directory.GetString()))
                         throw new InvalidDataException("Tool artifacts require a generated path and a locked output directory.");
                 }
-                definitions.Add(item.Name, spec); _services[item.Name] = new(handlers);
+                definitionsMap.Add(item.Name, spec); _services[item.Name] = new(_definitions, _bindHandlers);
             }
-        Definitions = definitions;
+        Definitions = definitionsMap;
     }
+
+    public EditorUseTools(JsonElement template, IReadOnlyList<FlowNodeHandler> handlers)
+        : this(template, handlers.Select(handler => handler.Definition).ToArray(), () => handlers) { }
+
+    private static JsonElement Settings(JsonElement node) => node.TryGetProperty("settings", out var settings) && settings.ValueKind == JsonValueKind.Object
+        ? settings : JsonSerializer.SerializeToElement(new { });
 
     private JsonElement Node(string id) => _template.GetProperty("nodes").EnumerateArray().SingleOrDefault(node => node.GetProperty("id").GetString() == id) is var result && result.ValueKind == JsonValueKind.Object
         ? result : throw new InvalidDataException("Unknown use-tool node.");
@@ -54,7 +62,7 @@ public sealed class EditorUseTools : IDisposable
         if (completedNode != spec.AfterNode) throw new InvalidOperationException("This tool is unavailable at this review stage.");
         var graph = JsonNode.Parse(_template.GetRawText())!;
         var node = graph["nodes"]!.AsArray().Single(node => node!["id"]!.GetValue<string>() == spec.EntryId)!;
-        var definition = _handlers.Single(handler => handler.Definition.Kind == node["kind"]!.GetValue<string>()).Definition;
+        var definition = _definitions.Single(definition => definition.Kind == node["kind"]!.GetValue<string>());
         node["settings"] ??= new JsonObject();
         foreach (var (name, value) in parameters)
         {
@@ -85,6 +93,6 @@ public sealed class EditorUseTools : IDisposable
         return null;
     }
     public void Cancel() { foreach (var service in _services.Values) service.Cancel(); }
-    public void Reset() { foreach (var id in Definitions.Keys) { var old = _services[id]; _services[id] = new(_handlers); old.Dispose(); } }
+    public void Reset() { foreach (var id in Definitions.Keys) { var old = _services[id]; _services[id] = new(_definitions, _bindHandlers); old.Dispose(); } }
     public void Dispose() { foreach (var service in _services.Values) service.Dispose(); }
 }

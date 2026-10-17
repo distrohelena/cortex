@@ -10,7 +10,7 @@ public sealed class HostFlowNodeTests
 {
     private static readonly JsonElement Graph = JsonSerializer.SerializeToElement(new
     {
-        version = 3,
+        version = 4,
         nodes = new[] { new { id = "file", kind = "file" }, new { id = "result", kind = "result" } },
         edges = new[] { new { source = "file", sourcePort = "path", target = "result", targetPort = "path" } },
         controlEdges = new[] { new { source = "file", sourcePort = "then", target = "result", targetPort = "exec" } }
@@ -70,7 +70,7 @@ public sealed class HostFlowNodeTests
     {
         var graph = JsonSerializer.SerializeToElement(new
         {
-            version = 3, nodes = Graph.GetProperty("nodes"), edges = Graph.GetProperty("edges"), controlEdges = Array.Empty<object>()
+            version = 4, nodes = Graph.GetProperty("nodes"), edges = Graph.GetProperty("edges"), controlEdges = Array.Empty<object>()
         });
         Assert.Throws<TypedFlowException>(() => TypedFlowCompiler.Compile(graph, "file", Handlers([])));
     }

@@ -11,7 +11,7 @@ public sealed class BoundaryNodeTests
     {
         var graph = JsonSerializer.SerializeToElement(new
         {
-            version = 3,
+            version = 4,
             nodes = new object[]
             {
                 new { id = "in", kind = "dm" },

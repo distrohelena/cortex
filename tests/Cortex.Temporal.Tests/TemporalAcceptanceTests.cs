@@ -18,14 +18,14 @@ public sealed class TemporalAcceptanceTests
     private static CancellationToken Token => TestContext.Current.CancellationToken;
     private static SessionFlowProject Project() => new("acceptance", 1, "acceptance-v1", JsonSerializer.Deserialize<JsonElement>("""
         {"version":1,"stateScope":"session","initialStateId":"initial","states":[{"id":"initial","graph":{
-        "version":3,"nodes":[{"id":"in","kind":"dm"},
+        "version":4,"nodes":[{"id":"in","kind":"dm"},
         {"id":"upstream","kind":"prompt","prompt":"SECRET-UPSTREAM-PROMPT","inputs":[],"outputMode":"text","responseFields":[{"id":"text","name":"text","type":"text"}]},
         {"id":"human","kind":"humanFeedback","settings":{"question":"SECRET-HUMAN-QUESTION"}},
         {"id":"downstream","kind":"prompt","prompt":"SECRET-DOWNSTREAM-PROMPT","inputs":[{"id":"feedback","name":"feedback","type":"text","required":true}],"outputMode":"text","responseFields":[{"id":"text","name":"text","type":"text"}]},
         {"id":"exit","kind":"exit","settings":{"mode":"switch","targetStateId":"done"}}],
         "edges":[{"source":"upstream","sourcePort":"text","target":"human","targetPort":"context"},{"source":"human","sourcePort":"feedback","target":"downstream","targetPort":"feedback"}],
         "controlEdges":[{"source":"in","sourcePort":"then","target":"upstream","targetPort":"exec"},{"source":"upstream","sourcePort":"then","target":"human","targetPort":"exec"},{"source":"human","sourcePort":"then","target":"downstream","targetPort":"exec"},{"source":"downstream","sourcePort":"then","target":"exit","targetPort":"exec"}]}},
-        {"id":"done","graph":{"version":3,"nodes":[{"id":"in","kind":"dm"}],"edges":[],"controlEdges":[]}}]}
+        {"id":"done","graph":{"version":4,"nodes":[{"id":"in","kind":"dm"}],"edges":[],"controlEdges":[]}}]}
         """));
 
     [Fact]

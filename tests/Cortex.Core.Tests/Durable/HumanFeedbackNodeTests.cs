@@ -10,7 +10,7 @@ namespace Cortex.Core.Tests.Durable;
 public sealed class HumanFeedbackNodeTests
 {
     internal static JsonNode Graph() => JsonNode.Parse("""
-        {"version":3,"nodes":[{"id":"in","kind":"dm"},
+        {"version":4,"nodes":[{"id":"in","kind":"dm"},
         {"id":"human","kind":"humanFeedback","settings":{"question":"Como devo continuar?"}},
         {"id":"ai","kind":"prompt","prompt":"Continue","outputMode":"text","inputs":[{"id":"feedback","name":"feedback","type":"text","required":true}],"responseFields":[{"id":"text","name":"text","type":"text"}]}],
         "edges":[{"source":"human","sourcePort":"feedback","target":"ai","targetPort":"feedback"}],

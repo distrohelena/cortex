@@ -16,7 +16,7 @@ public sealed class OutboundDriverRecoveryTests
     private static readonly ArtifactScope Scope = new("installation", Session, "execution", "revision");
     private static readonly OutboundBindings Roles = new(["recall"], ["compile"], new Dictionary<string, string> { ["generate"] = "text" }, [], null);
     private static SessionFlowProject Project() => DurableDriverTests.Project(ExecutionSnapshotCodecTests.Json("""
-        {"version":3,"nodes":[{"id":"in","kind":"dm"},
+        {"version":4,"nodes":[{"id":"in","kind":"dm"},
         {"id":"generate","kind":"prompt","prompt":"Write","outputMode":"text","inputs":[],"responseFields":[{"id":"text","name":"text","type":"text"}]},
         {"id":"send","kind":"send"}],"edges":[{"source":"generate","sourcePort":"text","target":"send","targetPort":"message"}],
         "controlEdges":[{"source":"in","sourcePort":"then","target":"generate","targetPort":"exec"},{"source":"generate","sourcePort":"then","target":"send","targetPort":"exec"}]}

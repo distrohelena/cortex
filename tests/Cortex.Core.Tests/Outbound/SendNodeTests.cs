@@ -24,7 +24,7 @@ public sealed class SendNodeTests
     public void RejectsProjectAuthorityAndRecipient(string field) => Assert.Throws<TypedFlowException>(() => TypedFlowCompiler.Compile(Graph("," + field), "in"));
 
     private static JsonElement Graph(string extra = "") => JsonDocument.Parse("""
-        {"version":3,"nodes":[{"id":"in","kind":"dm"},
+        {"version":4,"nodes":[{"id":"in","kind":"dm"},
         {"id":"ai","kind":"prompt","prompt":"answer","inputs":[],"outputMode":"text","responseFields":[{"id":"text","name":"text","type":"text"}]},
         {"id":"send","kind":"send"EXTRA}],
         "edges":[{"source":"ai","sourcePort":"text","target":"send","targetPort":"message"}],

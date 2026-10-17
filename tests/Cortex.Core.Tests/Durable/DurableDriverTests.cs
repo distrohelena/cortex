@@ -27,19 +27,20 @@ public sealed class DurableDriverTests
     internal static SessionFlowProject Project(JsonElement? graph = null)
     {
         var flow = IncrementalKernelTests.Flow();
-        var rawGraph = graph ?? JsonSerializer.SerializeToElement(new { version = 3, nodes = flow.Nodes.Values.Select(n => n.Source.Config),
+        var rawGraph = graph ?? JsonSerializer.SerializeToElement(new { version = 4, nodes = flow.Nodes.Values.Select(n => n.Source.Config),
             edges = flow.Graph.DataEdges.Select(e => new { source = e.Source.NodeId, sourcePort = e.Source.Port, target = e.Target.NodeId, targetPort = e.Target.Port }),
             controlEdges = flow.Graph.ControlEdges.Select(e => new { source = e.Source.NodeId, sourcePort = e.Source.Port, target = e.Target.NodeId, targetPort = e.Target.Port }) });
         return new("project", 1, "revision", JsonSerializer.SerializeToElement(new { version = 1, stateScope = "session", initialStateId = "initial",
             states = new[] { new { id = "initial", graph = rawGraph } } }));
     }
-    internal static async Task<ExecutionStart> PrepareAsync(IExecutionArtifactStore store, SessionFlowProject project)
+    internal static async Task<ExecutionStart> PrepareAsync(IExecutionArtifactStore store, SessionFlowProject project,
+        IReadOnlyDictionary<string, IReadOnlyDictionary<string, JsonElement>>? runtimeOutputs = null)
     {
         var scope = DurableIdentityTests.Scope;
         var projectRef = await store.PutOnceAsync(scope, "project", JsonSerializer.SerializeToElement(project), TestContext.Current.CancellationToken);
         var message = System.Text.Json.Nodes.JsonNode.Parse(IncrementalKernelTests.Message().GetRawText())!;
         message["canal"]!["nativeId"] = scope.Session.NativeConversationId;
-        var batch = new ExecutionBatchV1("in", JsonSerializer.SerializeToElement(message), new Dictionary<string, IReadOnlyDictionary<string, JsonElement>>(), ["input"], [], false);
+        var batch = new ExecutionBatchV1("in", JsonSerializer.SerializeToElement(message), runtimeOutputs ?? new Dictionary<string, IReadOnlyDictionary<string, JsonElement>>(), ["input"], [], false);
         var batchRef = await store.PutOnceAsync(scope, "batch", JsonSerializer.SerializeToElement(batch), TestContext.Current.CancellationToken);
         return new(scope, "batch", projectRef, batchRef, "initial", 0, SessionEntryKind.Dm);
     }
@@ -61,6 +62,80 @@ public sealed class DurableDriverTests
         public IFlowCompletion Create(SessionCompletionContext context) => model;
     }
     internal static StepCommand Command(ExecutionDescriptor descriptor) => new(new(descriptor.Scope, descriptor.NodeId!, descriptor.Ordinal), descriptor.SnapshotRef);
+
+    [Fact]
+    public async Task ReopenedDriverRecoversCompletedPromptAndRecomputesBuiltInCount()
+    {
+        using var directory = new ArtifactDirectory();
+        var graph = JsonSerializer.SerializeToElement(new
+        {
+            version = 4,
+            nodes = new object[]
+            {
+                new { id = "in", kind = "dm" },
+                new { id = "history", kind = "history", settings = new { maxMessages = 20, maxCharacters = 5000, includeCharacterMessages = true, mode = "before-current-batch" } },
+                new { id = "count", kind = "count" },
+                new { id = "first", kind = "prompt", prompt = "First", outputMode = "text", correctionRetry = false,
+                    inputs = new[] { new { id = "n", name = "n", type = "number", required = true } },
+                    responseFields = new[] { new { id = "text", name = "text", type = "text" } } },
+                new { id = "second", kind = "prompt", prompt = "Second", outputMode = "text", correctionRetry = false,
+                    inputs = new[] { new { id = "previous", name = "previous", type = "text", required = true }, new { id = "n", name = "n", type = "number", required = true } },
+                    responseFields = new[] { new { id = "text", name = "text", type = "text" } } }
+            },
+            edges = new[]
+            {
+                new { source = "history", sourcePort = "messages", target = "count", targetPort = "list" },
+                new { source = "count", sourcePort = "count", target = "first", targetPort = "n" },
+                new { source = "count", sourcePort = "count", target = "second", targetPort = "n" },
+                new { source = "first", sourcePort = "text", target = "second", targetPort = "previous" }
+            },
+            controlEdges = new[]
+            {
+                new { source = "in", sourcePort = "then", target = "history", targetPort = "exec" },
+                new { source = "history", sourcePort = "then", target = "first", targetPort = "exec" },
+                new { source = "first", sourcePort = "then", target = "second", targetPort = "exec" }
+            }
+        });
+        var project = Project(graph);
+        var model = new IncrementalKernelTests.Model();
+        var bindings = new Bindings(project, model);
+        var messages = JsonSerializer.SerializeToElement(new[] { IncrementalKernelTests.Message(), IncrementalKernelTests.Message() });
+        var runtimeOutputs = new Dictionary<string, IReadOnlyDictionary<string, JsonElement>>
+        {
+            ["history"] = new Dictionary<string, JsonElement> { ["messages"] = messages }
+        };
+        ExecutionDescriptor completedFirst;
+        StepCommand firstCommand;
+
+        await using (var store = directory.Open())
+        {
+            var driver = new FlowExecutionDriver(store, bindings);
+            var ready = await driver.InitializeAsync(await PrepareAsync(store, project, runtimeOutputs), TestContext.Current.CancellationToken);
+            ready = await driver.AdvanceAsync(Command(ready), TestContext.Current.CancellationToken);
+            Assert.Equal("first", ready.NodeId);
+            firstCommand = Command(ready);
+            completedFirst = await driver.AdvanceAsync(firstCommand, TestContext.Current.CancellationToken);
+            Assert.Equal("second", completedFirst.NodeId);
+            Assert.Single(model.Requests);
+            Assert.Equal(2, model.Requests[0].Inputs.GetProperty("n").GetInt32());
+        }
+
+        await using (var reopened = directory.Open())
+        {
+            var recoveredDriver = new FlowExecutionDriver(reopened, bindings);
+            var recovered = await recoveredDriver.RecoverAsync(firstCommand.Key, TestContext.Current.CancellationToken);
+            Assert.Equal(completedFirst, recovered);
+            Assert.Single(model.Requests);
+            var persisted = ExecutionSnapshotCodec.Decode(await reopened.ReadAsync(recovered!.SnapshotRef, TestContext.Current.CancellationToken), recovered.Scope);
+            Assert.False(persisted.Values.ContainsKey(new PortRef("count", "count")));
+
+            var completedSecond = await recoveredDriver.AdvanceAsync(Command(recovered), TestContext.Current.CancellationToken);
+            Assert.Equal(ExecutionStatus.Completed, completedSecond.Status);
+            Assert.Equal(new[] { "first", "second" }, model.Requests.Select(request => request.NodeId));
+            Assert.Equal(2, model.Requests[1].Inputs.GetProperty("n").GetInt32());
+            Assert.Equal("previous answer", model.Requests[1].Inputs.GetProperty("previous").GetString());
+        }
+    }
     [Fact]
     public async Task FeedbackRequiresHostAuthorizationBeforePublishing()
     {

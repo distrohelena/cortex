@@ -41,10 +41,14 @@ public sealed class TypedFlowExecution
             if(snapshot.Status!=ExecutionStatus.Ready||snapshot.Steps.Count==0)throw new InvalidOperationException("Review outputs while paused between nodes.");
             var id=snapshot.Steps[^1].NodeId;var node=_flow.Nodes[id];
             if(FlowExecutionKernel.Effect(node) is not (StepEffect.Pure or StepEffect.Inference))throw new InvalidOperationException("Published side effects cannot be edited as draft outputs.");
-            if(!outputs.Keys.ToHashSet(StringComparer.Ordinal).SetEquals(node.Outputs.Select(p=>p.Id)))throw new InvalidDataException("Review must retain the declared output ports.");
+            var declared=node.Outputs.ToDictionary(p=>p.Id,StringComparer.Ordinal);
+            var undeclared=outputs.Keys.FirstOrDefault(key=>!declared.ContainsKey(key));
+            if(undeclared is not null)throw new InvalidDataException("Review contains an undeclared output port: "+undeclared);
+            foreach(var port in node.Outputs)if(port.Required&&!outputs.ContainsKey(port.Id))throw new InvalidDataException("Review is missing required output port: "+port.Name);
             var updated=new Dictionary<string,TypedValue>(StringComparer.Ordinal);
-            foreach(var port in node.Outputs){FlowDomain.Check(outputs[port.Id],port.Type);updated[port.Id]=new(port.Type,outputs[port.Id].Clone());}
+            foreach(var(portId,value)in outputs){var port=declared[portId];FlowDomain.Check(value,port.Type);updated[port.Id]=new(port.Type,value.Clone());}
             snapshot.Outputs[id]=updated;
+            foreach(var port in node.Outputs)snapshot.Values.Remove(new(id,port.Id));
             foreach(var(port,value)in updated)snapshot.Values[new(id,port)]=value;
             return new(true,snapshot.Steps.ToArray(),snapshot.Outputs.ToDictionary(p=>p.Key,p=>new Dictionary<string,TypedValue>(p.Value)),snapshot.TargetStateId,snapshot.ConfirmedSend);
         }

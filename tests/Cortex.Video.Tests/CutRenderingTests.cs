@@ -50,7 +50,7 @@ public sealed class CutRenderingTests
             var planFile = Path.Combine(root, "plan.json"); File.WriteAllText(planFile, JsonSerializer.Serialize(Plan(), VideoNodes.JsonOptions));
             var graph = JsonSerializer.SerializeToElement(new
             {
-                version = 3,
+                version = 4,
                 nodes = new object[] { new { id = "video", kind = "videoFile", settings = new { path = source } },
                     new { id = "render", kind = "renderCuts", settings = new { editPlanFile = planFile, outputDirectory = root } } },
                 edges = new[] { new { source = "video", sourcePort = "video", target = "render", targetPort = "video" } },
@@ -110,7 +110,7 @@ public sealed class CutRenderingTests
         if (alsoFile) settings["editPlanFile"] = "conflicting.json";
         var graph = JsonSerializer.SerializeToElement(new
         {
-            version = 3,
+            version = 4,
             nodes = new object[] { new { id = "source", kind = "saved" }, new { id = "render", kind = "renderCuts", settings } },
             edges = new[] { new { source = "source", sourcePort = "video", target = "render", targetPort = "video" }, new { source = "source", sourcePort = "plan", target = "render", targetPort = "editPlan" } },
             controlEdges = new[] { new { source = "source", sourcePort = "then", target = "render", targetPort = "exec" } }

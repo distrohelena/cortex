@@ -223,6 +223,12 @@ public static class FlowValidator
 
         foreach (var field in fieldPath)
         {
+            if (current is DictionaryType dictionary)
+            {
+                current = dictionary.ValueType;
+                continue;
+            }
+
             if (current is not ObjectType objectType || !objectType.Fields.TryGetValue(field, out var selected))
             {
                 Add(issues, "edge.field_path_invalid", path, "Data edge field path must select declared object fields.");
@@ -268,6 +274,7 @@ public static class FlowValidator
         NullableType nullable => literal.ValueKind == JsonValueKind.Null || IsLiteralCompatible(literal, nullable.InnerType),
         ObjectType => literal.ValueKind == JsonValueKind.Object,
         ArrayType array => literal.ValueKind == JsonValueKind.Array && literal.EnumerateArray().All(item => IsLiteralCompatible(item, array.ElementType)),
+        DictionaryType dictionary => literal.ValueKind == JsonValueKind.Object && literal.EnumerateObject().All(item => IsLiteralCompatible(item.Value, dictionary.ValueType)),
         _ => false,
     };
 

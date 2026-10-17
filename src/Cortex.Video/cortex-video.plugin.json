@@ -4,7 +4,7 @@
   "description": "Editorial scripts, video, local transcription, take suggestions with Jev and local cut rendering.",
   "assemblyPath": "Cortex.Video.dll",
   "entryType": "Cortex.Video.VideoNodePlugin",
-  "contractVersion": 1,
+  "contractVersion": 2,
   "configurationFields": [
     {
       "name": "whisperExecutable",

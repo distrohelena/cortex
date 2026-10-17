@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Cortex.Core.Flows;
 using Xunit;
 namespace Cortex.Editor.Tests;
@@ -47,5 +47,5 @@ public sealed class UseModeTests
     }
 
     private static FlowNodeHandler Handler(string kind,bool entry,List<string> calls)=>new(new NodeDefinition(kind,1,kind=="transform"?FlowEffect.Model:kind=="save"?FlowEffect.WriteState:FlowEffect.Pure,dataInputs:entry?[]:[new("value",new StringType(),Required:true)],dataOutputs:[new("value",new StringType())],controlInputs:entry?[]:[new("exec")],controlOutputs:[new("then")],configFields:entry?[new("text",new StringType(),Required:true),new("private",new StringType())]:[]), (config,inputs,_)=>{calls.Add(kind);return Task.FromResult<IReadOnlyDictionary<string,JsonElement>>(new Dictionary<string,JsonElement>{["value"]=entry?config.GetProperty("text").Clone():inputs["value"].Value.Clone()});},entry);
-    private static JsonElement Graph()=>JsonSerializer.SerializeToElement(new {version=3,usage=new{fields=new Dictionary<string,string[]>{["a"]=["text"]}},nodes=new object[]{new{id="a",kind="input",settings=new{text="original",@private="locked"}},new{id="b",kind="transform"},new{id="c",kind="save"}},edges=new[]{new{source="a",sourcePort="value",target="b",targetPort="value"},new{source="b",sourcePort="value",target="c",targetPort="value"}},controlEdges=new[]{new{source="a",sourcePort="then",target="b",targetPort="exec"},new{source="b",sourcePort="then",target="c",targetPort="exec"}}});
+    private static JsonElement Graph()=>JsonSerializer.SerializeToElement(new {version=4,usage=new{fields=new Dictionary<string,string[]>{["a"]=["text"]}},nodes=new object[]{new{id="a",kind="input",settings=new{text="original",@private="locked"}},new{id="b",kind="transform"},new{id="c",kind="save"}},edges=new[]{new{source="a",sourcePort="value",target="b",targetPort="value"},new{source="b",sourcePort="value",target="c",targetPort="value"}},controlEdges=new[]{new{source="a",sourcePort="then",target="b",targetPort="exec"},new{source="b",sourcePort="then",target="c",targetPort="exec"}}});
 }

@@ -337,7 +337,7 @@ public sealed class SessionFlowRuntimeTests
 
     private static JsonElement Graph(string targetStateId) => JsonSerializer.SerializeToElement(new
     {
-        version = 3,
+        version = 4,
         nodes = new object[]
         {
             new { id = "dm", kind = "dm" },
@@ -352,7 +352,7 @@ public sealed class SessionFlowRuntimeTests
 
     private static JsonElement PromptGraph(string targetStateId) => JsonSerializer.SerializeToElement(new
     {
-        version = 3,
+        version = 4,
         nodes = new object[]
         {
             new { id = "dm", kind = "dm" },

@@ -108,7 +108,7 @@ public sealed class TakeSuggestionTests
             var suggester = new JevTakeSuggester(new SystemOneClient(http, new("https://fixture.invalid"), () => "fixture", true, SystemOneProbabilityPolicy.Jev113TwoDecimals));
             var graph = JsonSerializer.SerializeToElement(new
             {
-                version = 3,
+                version = 4,
                 nodes = new object[] { new { id = "video", kind = "videoFile", settings = new { path } }, new { id = "transcribe", kind = "transcribe" }, new { id = "transcript", kind = "transcript" }, new { id = "takes", kind = "suggestTakes", settings = new { goal = "Explicar cortes de vídeo" } } },
                 edges = new[] { new { source = "video", sourcePort = "video", target = "transcribe", targetPort = "video" }, new { source = "transcribe", sourcePort = "transcript", target = "transcript", targetPort = "transcript" }, new { source = "transcript", sourcePort = "transcript", target = "takes", targetPort = "transcript" } },
                 controlEdges = new[] { new { source = "video", sourcePort = "then", target = "transcribe", targetPort = "exec" }, new { source = "transcribe", sourcePort = "then", target = "transcript", targetPort = "exec" }, new { source = "transcript", sourcePort = "then", target = "takes", targetPort = "exec" } }

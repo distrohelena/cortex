@@ -54,6 +54,24 @@ public sealed class ExecutionSnapshotCodecTests
     }
 
     [Fact]
+    public void NestedDictionaryTypeAndKeysSurviveCheckpointRoundTrip()
+    {
+        var state = Snapshot();
+        var type = new DictionaryType(new NullableType(new ArrayType(new IntegerType())));
+        var value = Json("""{"model-A":[8192,4096],"model-B":null}""");
+        state.Values[new("settings", "budget")] = new(type, value);
+
+        var encoded = ExecutionSnapshotCodec.Encode(state);
+        var restored = ExecutionSnapshotCodec.Decode(encoded, state.Scope);
+        var restoredValue = restored.Values[new("settings", "budget")];
+
+        Assert.Equal("dictionary", restoredValue.Type.Kind);
+        Assert.Equal(value.GetRawText(), restoredValue.Value.GetRawText());
+        Assert.Equal(type.ToJsonSchema().GetRawText(), restoredValue.Type.ToJsonSchema().GetRawText());
+        Assert.Equal(encoded.GetRawText(), ExecutionSnapshotCodec.Encode(restored).GetRawText());
+    }
+
+    [Fact]
     public void WrongScopeAndUnknownSnapshotVersionFail()
     {
         var state = Snapshot();

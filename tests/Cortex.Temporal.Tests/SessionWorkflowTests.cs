@@ -16,7 +16,7 @@ public sealed class SessionWorkflowTests
 {
     internal static SessionFlowProject Project() => new("project", 1, "revision", JsonSerializer.Deserialize<JsonElement>("""
         {"version":1,"stateScope":"session","initialStateId":"initial","states":[{"id":"initial","graph":
-        {"version":3,"nodes":[{"id":"in","kind":"dm"},
+        {"version":4,"nodes":[{"id":"in","kind":"dm"},
         {"id":"ai","kind":"prompt","prompt":"Write","outputMode":"text","correctionRetry":false,"inputs":[],"responseFields":[{"id":"text","name":"text","type":"text"}]}],
         "edges":[],"controlEdges":[{"source":"in","sourcePort":"then","target":"ai","targetPort":"exec"}]}}]}
         """));

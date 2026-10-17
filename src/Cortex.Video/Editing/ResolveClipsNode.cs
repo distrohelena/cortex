@@ -5,12 +5,14 @@ namespace Cortex.Video.Editing;
 
 public static class ResolveClipsNode
 {
-    public static FlowNodeHandler Create(IClipMatcher matcher, IVideoSnapshotReader mediaReader) => new(
-        new NodeDefinition("resolveClips", 1, FlowEffect.Model,
+    public static NodeDefinition Definition() => new("resolveClips", 1, FlowEffect.Model,
             dataInputs: [new("video", VideoNodes.VideoType, Required: true), new("transcript", VideoNodes.TranscriptType, Required: true)],
             dataOutputs: [new("editPlan", EditingFlowTypes.Plan), new("recordingTasks", EditingFlowTypes.Tasks)],
             controlInputs: [new("exec")], controlOutputs: [new("then")],
-            configFields: [new("scriptFile", new StringType(), Required: true) { Label = "Script file" }, new("sourceId", new StringType(), Required: true) { Label = "Script source ID" }]) { DisplayName = "Resolve Clips" },
+            configFields: [new("scriptFile", new StringType(), Required: true) { Label = "Script file" }, new("sourceId", new StringType(), Required: true) { Label = "Script source ID" }]) { DisplayName = "Resolve Clips" };
+
+    public static FlowNodeHandler Create(IClipMatcher matcher, IVideoSnapshotReader mediaReader) => new(
+        Definition(),
         async (config, inputs, token) =>
         {
             var script = await EditScriptReader.ReadAsync(config.GetProperty("scriptFile").GetString()!, token);

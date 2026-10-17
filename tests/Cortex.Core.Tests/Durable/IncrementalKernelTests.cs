@@ -10,7 +10,7 @@ public sealed class IncrementalKernelTests
 {
     internal static JsonElement Message() => JsonSerializer.SerializeToElement(new { texto = "fixture", remetente = (object?)null, canal = new { nome = "DM", nativeId = "fixture" }, reply = (object?)null });
     internal static TypedFlow Flow() => TypedFlowCompiler.Compile(ExecutionSnapshotCodecTests.Json("""
-        {"version":3,"nodes":[{"id":"in","kind":"dm"},
+        {"version":4,"nodes":[{"id":"in","kind":"dm"},
         {"id":"first","kind":"prompt","prompt":"Write","outputMode":"text","correctionRetry":false,"inputs":[],"responseFields":[{"id":"text","name":"text","type":"text"}]},
         {"id":"second","kind":"prompt","prompt":"Continue","outputMode":"text","correctionRetry":false,"inputs":[{"id":"previous","name":"previous","type":"text","required":true}],"responseFields":[{"id":"text","name":"text","type":"text"}]}],
         "edges":[{"source":"first","sourcePort":"text","target":"second","targetPort":"previous"}],
@@ -45,13 +45,138 @@ public sealed class IncrementalKernelTests
         Assert.Equal("ref1", restored.Snapshot.References["stableId:actor"]);
     }
 
+    [Fact]
+    public async Task PausedKernelCheckpointResumesDictionaryInputWithoutReplayingWrite()
+    {
+        var type = new DictionaryType(new IntegerType());
+        var budget = ExecutionSnapshotCodecTests.Json("""{"Model A":8192,"gpt-6.1-sol":4096}""");
+        var writes = 0;
+        var entry = new FlowNodeHandler(new NodeDefinition("budgetEntry", 1, FlowEffect.Pure,
+            dataOutputs: [new("budget", type)], controlOutputs: [new("then")])
+        { ExecutionMode = FlowNodeExecutionMode.Entry }, (_, _, _) => Task.FromResult<IReadOnlyDictionary<string, JsonElement>>(
+            new Dictionary<string, JsonElement> { ["budget"] = budget }));
+        var write = new FlowNodeHandler(new NodeDefinition("writeBudget", 1, FlowEffect.WriteState,
+            dataInputs: [new("budget", type, Required: true)], dataOutputs: [new("result", type, Required: true)],
+            controlInputs: [new("exec")], controlOutputs: [new("then")]), (_, inputs, _) =>
+        {
+            writes++;
+            Assert.Equal(budget.GetRawText(), inputs["budget"].Value.GetRawText());
+            return Task.FromResult<IReadOnlyDictionary<string, JsonElement>>(
+                new Dictionary<string, JsonElement> { ["result"] = inputs["budget"].Value.Clone() });
+        });
+        var finish = new FlowNodeHandler(new NodeDefinition("finish", 1, FlowEffect.Pure,
+            dataInputs: [new("result", type, Required: true)], controlInputs: [new("exec")]), (_, inputs, _) =>
+        {
+            Assert.Equal(budget.GetRawText(), inputs["result"].Value.GetRawText());
+            return Task.FromResult<IReadOnlyDictionary<string, JsonElement>>(new Dictionary<string, JsonElement>());
+        });
+        var graph = JsonSerializer.SerializeToElement(new
+        {
+            version = 4,
+            nodes = new[] { new { id = "entry", kind = "budgetEntry" }, new { id = "write", kind = "writeBudget" }, new { id = "finish", kind = "finish" } },
+            edges = new[]
+            {
+                new { source = "entry", sourcePort = "budget", target = "write", targetPort = "budget" },
+                new { source = "write", sourcePort = "result", target = "finish", targetPort = "result" }
+            },
+            controlEdges = new[]
+            {
+                new { source = "entry", sourcePort = "then", target = "write", targetPort = "exec" },
+                new { source = "write", sourcePort = "then", target = "finish", targetPort = "exec" }
+            }
+        });
+        var flow = TypedFlowCompiler.Compile(graph, "entry", [entry, write, finish]);
+        var state = FlowExecutionKernel.Start(flow, ExecutionSnapshotCodecTests.Json("{}"), Identity(), null);
+
+        var paused = await FlowExecutionKernel.AdvanceAsync(flow, state, new(new ScriptedModel()), TestContext.Current.CancellationToken);
+        Assert.Equal("write", paused.NextNodeId);
+        Assert.Equal(0, writes);
+        var afterEntry = ExecutionSnapshotCodec.Decode(ExecutionSnapshotCodec.Encode(state.Snapshot), state.Snapshot.Scope);
+        Assert.Equal("dictionary", afterEntry.Values[new("entry", "budget")].Type.Kind);
+        Assert.Equal(budget.GetRawText(), afterEntry.Values[new("entry", "budget")].Value.GetRawText());
+
+        state = new FlowExecutionState(afterEntry, state.RuntimeOutputs);
+        paused = await FlowExecutionKernel.AdvanceAsync(flow, state, new(new ScriptedModel()), TestContext.Current.CancellationToken);
+        Assert.Equal("finish", paused.NextNodeId);
+        Assert.Equal(1, writes);
+        var afterWrite = ExecutionSnapshotCodec.Decode(ExecutionSnapshotCodec.Encode(state.Snapshot), state.Snapshot.Scope);
+        Assert.Equal("dictionary", afterWrite.Values[new("write", "result")].Type.Kind);
+        Assert.Equal(budget.GetRawText(), afterWrite.Values[new("write", "result")].Value.GetRawText());
+
+        state = new FlowExecutionState(afterWrite, state.RuntimeOutputs);
+        var completed = await FlowExecutionKernel.AdvanceAsync(flow, state, new(new ScriptedModel()), TestContext.Current.CancellationToken);
+        Assert.Equal(ExecutionStatus.Completed, completed.Status);
+        Assert.Equal(1, writes);
+    }
+
+    [Fact]
+    public async Task PausedKernelCheckpointPreservesMalformedDomainJsonWithoutReplayingPriorEffect()
+    {
+        var type = new JsonType();
+        var evidence = ExecutionSnapshotCodecTests.Json("""{"mensagem":7,"StableId":"person-1","unknown":[null,{"nested":true}]}""");
+        var effects = 0;
+        var entry = new FlowNodeHandler(new NodeDefinition("evidenceEntry", 1, FlowEffect.Pure,
+            dataOutputs: [new("evidence", type)], controlOutputs: [new("then")])
+        { ExecutionMode = FlowNodeExecutionMode.Entry }, (_, _, _) => Task.FromResult<IReadOnlyDictionary<string, JsonElement>>(
+            new Dictionary<string, JsonElement> { ["evidence"] = evidence }));
+        var write = new FlowNodeHandler(new NodeDefinition("recordEvidence", 1, FlowEffect.WriteState,
+            dataInputs: [new("evidence", type, Required: true)], dataOutputs: [new("saved", type, Required: true)],
+            controlInputs: [new("exec")], controlOutputs: [new("then")]), (_, inputs, _) =>
+        {
+            effects++;
+            Assert.True(JsonElement.DeepEquals(evidence, inputs["evidence"].Value));
+            return Task.FromResult<IReadOnlyDictionary<string, JsonElement>>(
+                new Dictionary<string, JsonElement> { ["saved"] = inputs["evidence"].Value.Clone() });
+        });
+        var finish = new FlowNodeHandler(new NodeDefinition("finishEvidence", 1, FlowEffect.Pure,
+            dataInputs: [new("saved", type, Required: true)], controlInputs: [new("exec")]), (_, inputs, _) =>
+        {
+            Assert.True(JsonElement.DeepEquals(evidence, inputs["saved"].Value));
+            return Task.FromResult<IReadOnlyDictionary<string, JsonElement>>(new Dictionary<string, JsonElement>());
+        });
+        var graph = JsonSerializer.SerializeToElement(new
+        {
+            version = 4,
+            nodes = new[] { new { id = "entry", kind = "evidenceEntry" }, new { id = "write", kind = "recordEvidence" }, new { id = "finish", kind = "finishEvidence" } },
+            edges = new[]
+            {
+                new { source = "entry", sourcePort = "evidence", target = "write", targetPort = "evidence" },
+                new { source = "write", sourcePort = "saved", target = "finish", targetPort = "saved" }
+            },
+            controlEdges = new[]
+            {
+                new { source = "entry", sourcePort = "then", target = "write", targetPort = "exec" },
+                new { source = "write", sourcePort = "then", target = "finish", targetPort = "exec" }
+            }
+        });
+        var flow = TypedFlowCompiler.Compile(graph, "entry", [entry, write, finish]);
+        var state = FlowExecutionKernel.Start(flow, ExecutionSnapshotCodecTests.Json("{}"), Identity(), null);
+
+        var paused = await FlowExecutionKernel.AdvanceAsync(flow, state, new(new ScriptedModel()), TestContext.Current.CancellationToken);
+        Assert.Equal("write", paused.NextNodeId);
+        Assert.Equal(0, effects);
+        paused = await FlowExecutionKernel.AdvanceAsync(flow, state, new(new ScriptedModel()), TestContext.Current.CancellationToken);
+        Assert.Equal("finish", paused.NextNodeId);
+        Assert.Equal(1, effects);
+
+        var checkpoint = ExecutionSnapshotCodec.Decode(ExecutionSnapshotCodec.Encode(state.Snapshot), state.Snapshot.Scope);
+        var saved = checkpoint.Values[new("write", "saved")];
+        Assert.Equal("json", saved.Type.Kind);
+        Assert.True(JsonElement.DeepEquals(evidence, saved.Value));
+        state = new FlowExecutionState(checkpoint, state.RuntimeOutputs);
+        var completed = await FlowExecutionKernel.AdvanceAsync(flow, state, new(new ScriptedModel()), TestContext.Current.CancellationToken);
+
+        Assert.Equal(ExecutionStatus.Completed, completed.Status);
+        Assert.Equal(1, effects);
+    }
+
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public async Task OptionalInputsAndTextStructuredCorrectionAreUnchanged(bool structured)
     {
         var graph = System.Text.Json.Nodes.JsonNode.Parse("""
-            {"version":3,"nodes":[{"id":"in","kind":"dm"},
+            {"version":4,"nodes":[{"id":"in","kind":"dm"},
             {"id":"ai","kind":"prompt","prompt":"Write","inputs":[{"id":"optional","name":"optional","type":"text","required":false}],
             "responseFields":[{"id":"text","name":"text","type":"text"}]}],"edges":[],
             "controlEdges":[{"source":"in","sourcePort":"then","target":"ai","targetPort":"exec"}]}

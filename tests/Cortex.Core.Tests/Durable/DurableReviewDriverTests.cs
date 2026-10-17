@@ -29,7 +29,7 @@ public sealed class DurableReviewDriverTests
         Assert.Equal(descriptor, await new FlowExecutionDriver(store, bindings).AdvanceAsync(command, token)); Assert.Equal(1, calls); Assert.Empty(model.Requests);
     }
     internal static SessionFlowProject Project() => DurableDriverTests.Project(ExecutionSnapshotCodecTests.Json("""
-        {"version":3,"nodes":[{"id":"in","kind":"dm"},
+        {"version":4,"nodes":[{"id":"in","kind":"dm"},
         {"id":"decision","kind":"prompt","prompt":"Decide","inputs":[],"outputMode":"structured","responseFields":[{"id":"respond","name":"respond","type":"boolean"}]},
         {"id":"branch","kind":"branch","settings":{"operator":"eq","b":true}},
         {"id":"generate","kind":"prompt","prompt":"Write","inputs":[],"outputMode":"text","responseFields":[{"id":"text","name":"text","type":"text"}]}],

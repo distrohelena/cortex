@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+using System.Text.Json;
 using Cortex.Core.Flows;
 using Cortex.Video.Editing;
 using Xunit;
@@ -121,7 +121,7 @@ public sealed class ClipResolutionTests
             var video = Path.Combine(directory, "raw.mp4"); File.WriteAllText(video, "fixture");
             var loaded = Script(); var scriptPath = Path.Combine(directory, "script.json");
             File.WriteAllText(scriptPath, EditingJson.Serialize(loaded.Document).GetRawText());
-            var graph = JsonSerializer.SerializeToElement(new { version = 3, nodes = new object[] {
+            var graph = JsonSerializer.SerializeToElement(new { version = 4, nodes = new object[] {
                 new { id = "video", kind = "videoFile", settings = new { path = video } }, new { id = "asr", kind = "transcribe" },
                 new { id = "resolve", kind = "resolveClips", settings = new { scriptFile = scriptPath, sourceId = "raw" } } },
                 edges = new[] { new { source = "video", sourcePort = "video", target = "asr", targetPort = "video" }, new { source = "video", sourcePort = "video", target = "resolve", targetPort = "video" }, new { source = "asr", sourcePort = "transcript", target = "resolve", targetPort = "transcript" } },

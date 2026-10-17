@@ -1,7 +1,7 @@
 ﻿import test from 'node:test';
 import assert from 'node:assert/strict';
 import {UseModel} from '../../src/Cortex.Editor/wwwroot/use-model.mjs';
-const state=()=>({graph:{version:3,nodes:[{id:'brief',kind:'source',settings:{title:'original'}},{id:'draft',kind:'model'}],edges:[],controlEdges:[]},entryId:'brief',usageFields:{brief:['title']},runState:{state:'idle',nextNodeId:'brief'}});
+const state=()=>({graph:{version:4,nodes:[{id:'brief',kind:'source',settings:{title:'original'}},{id:'draft',kind:'model'}],edges:[],controlEdges:[]},entryId:'brief',usageFields:{brief:['title']},runState:{state:'idle',nextNodeId:'brief'}});
 test('consumer parameters do not alter template and steps never use graph mutation routes',async()=>{
  const calls=[];const m=new UseModel(state(),async(path,method,body)=>{calls.push({path,method,body});return {state:'paused',nextNodeId:'draft',result:{steps:[{nodeId:'brief',status:'completed'}],outputs:{}}};});
  m.edit('brief',{name:'title',required:true,schema:{type:'string'}},'new');await m.advance();

@@ -39,7 +39,7 @@ public sealed class CountItemsTests
         // History provides a real domain array; an Instruction cannot manufacture nested objects.
         var graph = JsonSerializer.SerializeToElement(new
         {
-            version = 3,
+            version = 4,
             nodes = new object[] { new { id = "in", kind = "dm" }, new { id = "history", kind = "history", settings = new { maxMessages = 20, maxCharacters = 5000, includeCharacterMessages = true, mode = "before-current-batch" } }, new { id = "count", kind = "count" }, new { id = "consumer", kind = "prompt", prompt = "consume", inputs = new[] { new { id = "n", name = "n", type = "number", required = true } }, responseFields = new[] { new { id = "text", name = "text", type = "text" } } } },
             edges = new[] { new { source = "history", sourcePort = "messages", target = "count", targetPort = "list" }, new { source = "count", sourcePort = "count", target = "consumer", targetPort = "n" } },
             controlEdges = new[] { new { source = "in", sourcePort = "then", target = "history", targetPort = "exec" }, new { source = "history", sourcePort = "then", target = "consumer", targetPort = "exec" } }

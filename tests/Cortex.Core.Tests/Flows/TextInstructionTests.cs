@@ -8,7 +8,7 @@ namespace Cortex.Core.Tests.Flows;
 public sealed class TextInstructionTests
 {
     private static JsonNode Graph(string type = "text") => JsonNode.Parse($$"""
-        {"version":3,"nodes":[{"id":"in","kind":"dm"},
+        {"version":4,"nodes":[{"id":"in","kind":"dm"},
         {"id":"ai","kind":"prompt","prompt":"Write","outputMode":"text","inputs":[],"correctionRetry":false,
         "responseFields":[{"id":"stable-text","name":"texto","type":"{{type}}"}]}],"edges":[],
         "controlEdges":[{"source":"in","sourcePort":"then","target":"ai","targetPort":"exec"}]}

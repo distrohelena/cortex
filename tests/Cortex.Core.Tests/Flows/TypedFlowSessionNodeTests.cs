@@ -11,7 +11,7 @@ public sealed class TypedFlowSessionNodeTests
     {
         var graph = JsonSerializer.SerializeToElement(new
         {
-            version = 3,
+            version = 4,
             nodes = new object[]
             {
                 new { id = "dm", kind = "dm" },
@@ -50,7 +50,7 @@ public sealed class TypedFlowSessionNodeTests
     {
         var graph = JsonSerializer.SerializeToElement(new
         {
-            version = 3,
+            version = 4,
             nodes = new object[]
             {
                 new { id = "dm", kind = "dm" },
@@ -102,7 +102,7 @@ public sealed class TypedFlowSessionNodeTests
     {
         var graph = JsonSerializer.SerializeToElement(new
         {
-            version = 3,
+            version = 4,
             nodes = new object[]
             {
                 new { id = "dm", kind = "dm" },
@@ -127,7 +127,7 @@ public sealed class TypedFlowSessionNodeTests
     {
         var graph = JsonSerializer.SerializeToElement(new
         {
-            version = 3,
+            version = 4,
             nodes = new object[]
             {
                 new { id = "dm", kind = "dm" },
@@ -168,7 +168,7 @@ public sealed class TypedFlowSessionNodeTests
     {
         var graph = JsonSerializer.SerializeToElement(new
         {
-            version = 3,
+            version = 4,
             nodes = new object[]
             {
                 new { id = "dm", kind = "dm" },
@@ -205,7 +205,7 @@ public sealed class TypedFlowSessionNodeTests
     {
         var graph = JsonSerializer.SerializeToElement(new
         {
-            version = 3,
+            version = 4,
             nodes = new object[]
             {
                 new { id = "dm", kind = "dm" },

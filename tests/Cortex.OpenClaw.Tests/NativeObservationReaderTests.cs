@@ -824,7 +824,7 @@ public sealed class NativeObservationReaderTests
             stateScope = "session",
             initialStateId = "initial",
             states = new[]{new {id="initial",name="Initial",graph=new {
-                version=3,nodes=new object[]{new {id="dm",kind="dm"},new{id="exit",kind="exit",settings=new{mode="switch",targetStateId="initial"}}},
+                version=4,nodes=new object[]{new {id="dm",kind="dm"},new{id="exit",kind="exit",settings=new{mode="switch",targetStateId="initial"}}},
                 edges=Array.Empty<object>(),controlEdges=new[]{new{source="dm",sourcePort="then",target="exit",targetPort="exec"}}
             }}}
         })));

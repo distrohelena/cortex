@@ -14,7 +14,7 @@ public sealed class EditScriptNodeTests
     public async Task ScriptEntryPublishesSemanticIntentOriginalJsonAndOriginWithoutTools()
     {
         var path = Path.Combine(EditingSerializationTests.Repository(), "docs/examples/cortex-edit-v1/script.json");
-        var graph = JsonSerializer.SerializeToElement(new { version = 3, nodes = new[] { new { id = "script", kind = "editScript", settings = new { path } } }, edges = Array.Empty<object>(), controlEdges = Array.Empty<object>() });
+        var graph = JsonSerializer.SerializeToElement(new { version = 4, nodes = new[] { new { id = "script", kind = "editScript", settings = new { path } } }, edges = Array.Empty<object>(), controlEdges = Array.Empty<object>() });
         var result = await TypedFlowRunner.RunAsync(TypedFlowCompiler.Compile(graph, "script", [EditScriptNode.Create()]), TestContext.Current.CancellationToken);
         Assert.True(result.Success, string.Join("; ", result.Steps.Select(step => step.Error)));
         var outputs = result.Outputs["script"];

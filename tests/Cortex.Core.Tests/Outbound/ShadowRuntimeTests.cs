@@ -69,7 +69,7 @@ public sealed class ShadowRuntimeTests : IDisposable
     internal static SessionFlowProject Project(bool copy, bool duplicate = false, string sendExit = "shadowed", bool history = false, long version = 1, bool engagedWithoutDm = false)
     {
         var graph = JsonNode.Parse("""
-            {"version":3,"nodes":[
+            {"version":4,"nodes":[
             {"id":"dm","kind":"dm","x":0,"y":0},
             {"id":"batch","kind":"accumulate","settings":{"quietSeconds":null,"maxMessages":1,"maxWaitSeconds":null},"x":0,"y":0},
             {"id":"persons","kind":"property","settings":{"path":["remetente"]},"x":0,"y":0},
@@ -118,7 +118,7 @@ public sealed class ShadowRuntimeTests : IDisposable
         sequence.Add("exit");
         for (var i = 1; i < sequence.Count; i++) graph["controlEdges"]!.AsArray().Add(JsonSerializer.SerializeToNode(new { source = sequence[i - 1], sourcePort = sequence[i - 1].StartsWith("send", StringComparison.Ordinal) ? sendExit : "then", target = sequence[i], targetPort = "exec" }));
         // A group-only graph: the engaged state then has no DM entry at all.
-        JsonNode engagedGraph = engagedWithoutDm ? JsonNode.Parse("""{"version":3,"nodes":[{"id":"group","kind":"group","x":0,"y":0}],"edges":[],"controlEdges":[]}""")! : graph;
+        JsonNode engagedGraph = engagedWithoutDm ? JsonNode.Parse("""{"version":4,"nodes":[{"id":"group","kind":"group","x":0,"y":0}],"edges":[],"controlEdges":[]}""")! : graph;
         return new("shadow-tests", version, "v" + version, JsonSerializer.SerializeToElement(new
         {
             version = 1, stateScope = "session", initialStateId = "initial",

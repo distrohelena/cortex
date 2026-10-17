@@ -7,6 +7,7 @@ namespace Cortex.Video;
 public sealed class VideoNodePlugin : IFlowNodePlugin
 {
     public int ContractVersion => NodePluginContext.CurrentContractVersion;
+    public IReadOnlyList<NodeDefinition> DescribeNodes(NodePluginContext context) => VideoNodes.Describe();
     public IReadOnlyList<FlowNodeHandler> CreateHandlers(NodePluginContext context)
     {
         string Text(string name, string fallback = "")

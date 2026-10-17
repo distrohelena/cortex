@@ -3,11 +3,20 @@ using Cortex.Core.Plugins;
 
 namespace Cortex.Editor;
 
+public sealed record EditorGraphSnapshot(JsonElement Graph, string? EntryId, string? FilePath);
+
 public sealed class EditorGraphStore
 {
-    public JsonElement Graph { get; private set; } = JsonSerializer.SerializeToElement(new { version = 3, nodes = Array.Empty<object>(), edges = Array.Empty<object>(), controlEdges = Array.Empty<object>() });
+    public JsonElement Graph { get; private set; } = JsonSerializer.SerializeToElement(new { version = 4, nodes = Array.Empty<object>(), edges = Array.Empty<object>(), controlEdges = Array.Empty<object>() });
     public string? EntryId { get; private set; }
     public string? FilePath { get; private set; }
+
+    public EditorGraphSnapshot Capture() => new(Graph.Clone(), EntryId, FilePath);
+    public void Restore(EditorGraphSnapshot snapshot)
+    {
+        Replace(snapshot.Graph, snapshot.EntryId);
+        FilePath = snapshot.FilePath;
+    }
 
     public async Task OpenFileAsync(string path, string? entryId, CancellationToken token)
     {
@@ -21,11 +30,11 @@ public sealed class EditorGraphStore
     public void Replace(JsonElement graph, string? entryId)
     {
         if (graph.GetRawText().Length > 4194304 || graph.ValueKind != JsonValueKind.Object ||
-            !graph.TryGetProperty("version", out var version) || version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var number) || number != 3 ||
+            !graph.TryGetProperty("version", out var version) || version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var number) || number != 4 ||
             !graph.TryGetProperty("nodes", out var nodes) || nodes.ValueKind != JsonValueKind.Array || nodes.GetArrayLength() > 64 ||
             !graph.TryGetProperty("edges", out var edges) || edges.ValueKind != JsonValueKind.Array || edges.GetArrayLength() > 128 ||
             graph.TryGetProperty("controlEdges", out var controls) && (controls.ValueKind != JsonValueKind.Array || controls.GetArrayLength() > 128))
-            throw new InvalidDataException("Use a v3 graph with at most 64 nodes and 128 wires of each type.");
+            throw new InvalidDataException("Use a v4 graph with at most 64 nodes and 128 wires of each type.");
         var ids = new HashSet<string>(StringComparer.Ordinal);
         foreach (var node in nodes.EnumerateArray())
             if (node.ValueKind != JsonValueKind.Object || !node.TryGetProperty("id", out var id) || id.ValueKind != JsonValueKind.String ||

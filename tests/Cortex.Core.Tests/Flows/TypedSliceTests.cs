@@ -8,7 +8,7 @@ public sealed class TypedSliceTests
 {
     public static JsonElement Fixture() => JsonSerializer.SerializeToElement(new
     {
-        version = 3,
+        version = 4,
         nodes = new object[] {
             new { id="in", kind="dm" },
             new { id="prop", kind="property", settings=new { path=new[]{"texto"} } },

@@ -29,13 +29,30 @@ public static class VideoNodes
         ["wordTimingMethod"] = new(new NullableType(new EnumType([WhisperWordTimestamps.Method])), false)
     });
 
+    public static IReadOnlyList<NodeDefinition> Describe() => [
+        VideoFileDefinition(), TranscribeDefinition(), TranscriptDefinition(),
+        TakeSuggestionNode.Definition(), RenderCutsNode.Definition(),
+        Editing.EditScriptNode.Definition(), Editing.ResolveClipsNode.Definition()
+    ];
+
+    private static NodeDefinition VideoFileDefinition() => new("videoFile", 1, FlowEffect.Pure,
+        dataOutputs: [new("video", VideoType)], controlOutputs: [new("then")],
+        configFields: [new("path", new StringType(), Required: true) { Label = "Video path" }])
+    { DisplayName = "Video File", ExecutionMode = FlowNodeExecutionMode.Entry };
+
+    private static NodeDefinition TranscribeDefinition() => new("transcribe", 1, FlowEffect.Model,
+        dataInputs: [new("video", VideoType, Required: true)], dataOutputs: [new("transcript", TranscriptType)],
+        controlInputs: [new("exec")], controlOutputs: [new("then")]) { DisplayName = "Transcribe" };
+
+    private static NodeDefinition TranscriptDefinition() => new("transcript", 1, FlowEffect.Pure,
+        dataInputs: [new("transcript", TranscriptType, Required: true)], dataOutputs: [new("transcript", TranscriptType)],
+        controlInputs: [new("exec")], controlOutputs: [new("then")]) { DisplayName = "Transcript" };
+
     public static FlowNodeHandler[] CreateHandlers(IVideoTranscriber transcriber, ITakeSuggester? takes = null, IVideoCutRenderer? renderer = null, Editing.IClipMatcher? clipMatcher = null, Editing.IVideoSnapshotReader? mediaReader = null)
     {
         var handlers = new List<FlowNodeHandler>
         {
-        new(new NodeDefinition("videoFile", 1, FlowEffect.Pure,
-            dataOutputs: [new("video", VideoType)], controlOutputs: [new("then")],
-            configFields: [new("path", new StringType(), Required: true) { Label = "Video path" }]),
+        new(VideoFileDefinition(),
             (config, _, token) =>
             {
                 token.ThrowIfCancellationRequested();
@@ -43,17 +60,13 @@ public static class VideoNodes
                 if (!File.Exists(path)) throw new InvalidDataException("Video not found: " + path);
                 return Task.FromResult(Output("video", JsonSerializer.SerializeToElement(new { path })));
             }, isEntry: true),
-        new(new NodeDefinition("transcribe", 1, FlowEffect.Model,
-            dataInputs: [new("video", VideoType, Required: true)], dataOutputs: [new("transcript", TranscriptType)],
-            controlInputs: [new("exec")], controlOutputs: [new("then")]),
+        new(TranscribeDefinition(),
             async (_, inputs, token) =>
             {
                 var result = await transcriber.TranscribeAsync(inputs["video"].Value.GetProperty("path").GetString()!, token);
                 return Output("transcript", JsonSerializer.SerializeToElement(result, JsonOptions));
             }),
-        new(new NodeDefinition("transcript", 1, FlowEffect.Pure,
-            dataInputs: [new("transcript", TranscriptType, Required: true)], dataOutputs: [new("transcript", TranscriptType)],
-            controlInputs: [new("exec")], controlOutputs: [new("then")]),
+        new(TranscriptDefinition(),
             (_, inputs, _) => Task.FromResult(Output("transcript", inputs["transcript"].Value)))
         };
         if (takes is not null) handlers.Add(TakeSuggestionNode.Create(takes));

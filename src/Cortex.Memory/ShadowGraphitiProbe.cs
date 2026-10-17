@@ -152,7 +152,9 @@ public sealed class ShadowGraphitiProbe(IGraphitiReadClient client)
             // Use the regular memory reader/compiler path. Empty results mean these scoped
             // recalls succeeded with no selected memories; they do not prove namespace emptiness.
             var agentUuid = FilomenaIdentity.AgentUuid(request.ConversationNamespace);
-            var reader = new GraphitiMemoryReader(new NewDmRecallClient(validating, request.ConversationNamespace, agentUuid));
+            var reader = new GraphitiMemoryReader(new NewDmRecallClient(validating, request.ConversationNamespace, agentUuid,
+                excludeUnboundMentions: !requireAbsence,
+                onExcluded: () => Set("graphiti_unbound_mentions", true, "excluded_from_recall")));
             var query = new MemoryQuery(request.ConversationNamespace, agentUuid,
                 MemoryMode.Hybrid, MemoryScope.Person, [person], "limites pedidos de interação", [MemoryCategory.Boundary], 8, 1800);
             var boundaries = await reader.QueryAsync(query, cancellationToken);
@@ -234,26 +236,58 @@ public sealed class ShadowGraphitiProbe(IGraphitiReadClient client)
     // endpoint evidence into an apparently successful empty result. Established
     // recall semantics intentionally remain unchanged.
     private sealed class NewDmRecallClient(IGraphitiReadClient inner, string conversationNamespace,
-        Guid agentUuid) : IGraphitiReadClient
+        Guid agentUuid, bool excludeUnboundMentions = false, Action? onExcluded = null) : IGraphitiReadClient
     {
         public async Task<JsonElement> GetEntityNeighborhoodAsync(string ns, Guid person, int limit, CancellationToken token) =>
-            Validate(await inner.GetEntityNeighborhoodAsync(ns, person, limit, token));
+            Validate(await inner.GetEntityNeighborhoodAsync(ns, person, limit, token), person);
 
         public async Task<JsonElement> SearchFactsAsync(string ns, string query, int limit, CancellationToken token) =>
             Validate(await inner.SearchFactsAsync(ns, query, limit, token));
 
-        private JsonElement Validate(JsonElement response)
+        private JsonElement Validate(JsonElement response, Guid? requiredParticipant = null)
         {
             var root = Unwrap(response);
             if (root.ValueKind != JsonValueKind.Object || !root.TryGetProperty("facts", out var facts)
                 || facts.ValueKind != JsonValueKind.Array)
                 throw GraphitiResponseValidation.Failure("recall_provenance", "recall_provenance_missing");
 
+            var accepted = new List<JsonElement>();
             foreach (var fact in facts.EnumerateArray())
-                if (!Endpoint(fact, "source_node", "source_node_uuid")
-                    || !Endpoint(fact, "target_node", "target_node_uuid"))
+            {
+                var sourceValid = Endpoint(fact, "source_node", "source_node_uuid");
+                var targetValid = Endpoint(fact, "target_node", "target_node_uuid");
+                if (!sourceValid || !targetValid)
+                {
+                    // Established scoped recalls can contain ordinary mentioned people that
+                    // are not transport-bound participants. The runtime reader excludes these
+                    // facts too. Missing metadata or contradictory canonical identities still fail.
+                    if (excludeUnboundMentions
+                        && (sourceValid || UnboundMention(fact, "source_node", "source_node_uuid", requiredParticipant))
+                        && (targetValid || UnboundMention(fact, "target_node", "target_node_uuid", requiredParticipant)))
+                    {
+                        onExcluded?.Invoke();
+                        continue;
+                    }
                     throw GraphitiResponseValidation.Failure("recall_provenance", "recall_provenance_missing");
-            return root;
+                }
+                accepted.Add(fact);
+            }
+            return accepted.Count == facts.GetArrayLength()
+                ? root : JsonSerializer.SerializeToElement(new { facts = accepted });
+        }
+
+        private bool UnboundMention(JsonElement fact, string nodeKey, string uuidKey, Guid? requiredParticipant)
+        {
+            if (!fact.TryGetProperty(nodeKey, out var node) || node.ValueKind != JsonValueKind.Object
+                || !fact.TryGetProperty(uuidKey, out var endpoint) || endpoint.ValueKind != JsonValueKind.String
+                || !node.TryGetProperty("uuid", out var uuid) || uuid.ValueKind != JsonValueKind.String
+                || uuid.GetString() != endpoint.GetString() || !Guid.TryParse(uuid.GetString(), out var parsed)
+                || parsed == agentUuid || parsed == requiredParticipant
+                || !node.TryGetProperty("labels", out var labels) || labels.ValueKind != JsonValueKind.Array
+                || labels.EnumerateArray().Any(label => label.ValueKind != JsonValueKind.String)
+                || !labels.EnumerateArray().Any(label => label.GetString() == "Person")
+                || labels.EnumerateArray().Any(label => label.GetString() == "Agent")) return false;
+            return !node.TryGetProperty("stable_id", out var stable) || stable.ValueKind == JsonValueKind.Null;
         }
 
         private bool Endpoint(JsonElement fact, string nodeKey, string uuidKey)
