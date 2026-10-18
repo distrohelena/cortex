@@ -46,8 +46,10 @@ internal static class FlowExecutionKernel
         FlowExecutionServices services, CancellationToken token, bool oneNode = false)
     {
         if (state.Snapshot.Status != ExecutionStatus.Ready) throw new InvalidOperationException("Execution is not ready to advance.");
+        using var diagnosticContext = new FlowDiagnosticContext(state.Snapshot.InferenceAttempts, services.Diagnostics);
         var traces = new List<TypedNodeExecutionTrace>();
         var result = await ExecuteAdvanceAsync(flow, state, services with { Observer = trace => { traces.Add(trace); services.Observer?.Invoke(trace); } }, token, oneNode);
+        result = result with { InferenceAttempts = state.Snapshot.InferenceAttempts.ToArray() };
         var next = state.Snapshot.Cursor;
         return new(result, state.Snapshot.Status, next, next is null ? StepEffect.Pure : Effect(flow.Nodes[next]), traces);
     }
@@ -65,7 +67,7 @@ internal static class FlowExecutionKernel
         var sendAttempted = snapshot.SendAttempted;
         ConfirmedSend? confirmed = snapshot.ConfirmedSend;
         string current = snapshot.Cursor ?? throw new InvalidOperationException("Execution has no active cursor.");
-        var completion = services.Completion;
+        var completion = new DiagnosticFlowCompletion(services.Completion);
         var runtimeOutputs = state.RuntimeOutputs;
         var timeProvider = services.Clock;
         var observer = services.Observer;
@@ -80,6 +82,7 @@ internal static class FlowExecutionKernel
         Dictionary<string, Dictionary<string, TypedValue>> activationPureOutputs = new(StringComparer.Ordinal);
         var failureNodeId = current;
         string? failurePort = null;
+        var failureOrigin = FlowFailureOrigin.Runtime;
         TypedRunResult Complete(bool success, string? target)
         {
             snapshot.Status = success ? ExecutionStatus.Completed : ExecutionStatus.Failed;
@@ -116,7 +119,9 @@ internal static class FlowExecutionKernel
         async Task<Dictionary<string, TypedValue>> ExecuteHostAsync(TypedNode node, FlowNodeHandler handler,
             Dictionary<string, TypedValue> inputs)
         {
+            failureOrigin = FlowFailureOrigin.HostNode;
             var raw = await handler.ExecuteAsync(FlowNodeHandler.Config(node.Source), inputs.AsReadOnly(), token);
+            failureOrigin = FlowFailureOrigin.Runtime;
             token.ThrowIfCancellationRequested();
             var declared = node.Outputs.ToDictionary(port => port.Id, StringComparer.Ordinal);
             var undeclared = raw.Keys.FirstOrDefault(key => !declared.ContainsKey(key));
@@ -284,6 +289,7 @@ internal static class FlowExecutionKernel
                 activationPureOutputs = new(StringComparer.Ordinal);
                 failureNodeId = current;
                 failurePort = null;
+                failureOrigin = FlowFailureOrigin.Runtime;
                 visited++; snapshot.Ordinal++;
                 var exit = "then";
                 nodeStartedAt = timeProvider.GetUtcNow();
@@ -373,11 +379,18 @@ internal static class FlowExecutionKernel
                             HostReferences = new System.Collections.ObjectModel.ReadOnlyDictionary<string, string>(
                                 references.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal))
                         };
-                        var text = await completion.CompleteAsync(request, token);
-                        try { output = TypedFlowRunner.ValidateOutput(node, text, schema is not null); break; }
+                        var (text, diagnostics) = await FlowDiagnosticContext.CompleteAsync(completion, request, token);
+                        try { output = TypedFlowRunner.ValidateOutput(node, text, schema is not null); diagnostics.RecordValidation(null); break; }
                         catch (Exception e) when (e is JsonException or InvalidDataException)
                         {
-                            if (attempt == retries) throw new InvalidDataException("Resposta inválida após validação: " + (e is JsonException ? "JSON inválido." : e.Message));
+                            diagnostics.RecordValidation(e);
+                            if (attempt == retries)
+                            {
+                                var failure = new InvalidDataException("Resposta inválida após validação: " + (e is JsonException ? "JSON inválido." : e.Message), e);
+                                FlowDiagnostics.Attach(failure, FlowDiagnostics.Create(e, current, null, FlowFailureOrigin.Runtime,
+                                    e is JsonException ? FlowFailureCategory.Parsing : FlowFailureCategory.Validation));
+                                throw failure;
+                            }
                             correction = e is JsonException ? "Retorne um objeto JSON válido conforme o schema." : e.Message;
                         }
                     }
@@ -508,8 +521,12 @@ internal static class FlowExecutionKernel
                 current = next.Target.NodeId;
             }
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException error)
         {
+            var diagnostic = FlowDiagnostics.Create(error, failureNodeId, failurePort, failureOrigin);
+            steps.Add(new(failureNodeId, "cancelled", null, "cancelled") { Diagnostic = diagnostic });
+            FlowDiagnostics.Attach(error, diagnostic, new(false, steps.ToArray(), new Dictionary<string, Dictionary<string, TypedValue>>(published), null, confirmed)
+                { InferenceAttempts = snapshot.InferenceAttempts.ToArray() });
             snapshot.Status = ExecutionStatus.Cancelled; snapshot.Cursor = null;
             if (nodeStartedTimestamp is not null)
                 observer?.Invoke(new(failureNodeId, "cancelled", null, "cancelled", timeProvider.GetUtcNow(), timeProvider.GetElapsedTime(nodeStartedTimestamp.Value),
@@ -518,7 +535,9 @@ internal static class FlowExecutionKernel
         }
         catch (Exception e) when (e is InvalidDataException or JsonException or HttpRequestException or InvalidOperationException or BoundaryCompilationException)
         {
-            steps.Add(new(failureNodeId, "failed", null, e is HttpRequestException ? "Serviço de modelo indisponível." : e.Message));
+            var diagnostic = FlowDiagnostics.Create(e, failureNodeId, failurePort, failureOrigin);
+            steps.Add(new(failureNodeId, "failed", null, e is HttpRequestException ? "Serviço de modelo indisponível." : e.Message) { Diagnostic = diagnostic });
+            FlowDiagnostics.Attach(e, diagnostic);
             if (nodeStartedTimestamp is not null)
                 observer?.Invoke(new(failureNodeId, "failed", null, e.GetType().Name, timeProvider.GetUtcNow(), timeProvider.GetElapsedTime(nodeStartedTimestamp.Value),
                     failurePort is not null ? new Dictionary<string, string> { ["port"] = failurePort } :
@@ -540,6 +559,16 @@ internal static class FlowExecutionKernel
                         } : null));
             // A failure after a confirmed send does not un-send it: the speech still reaches history, without a transition.
             return Complete(false, null);
+        }
+        catch (Exception error) when (error is not (OutOfMemoryException or StackOverflowException or AccessViolationException))
+        {
+            // These exceptions have always escaped the runner. Preserve that behavior and expose partial evidence.
+            var diagnostic = FlowDiagnostics.Create(error, failureNodeId, failurePort, failureOrigin);
+            steps.Add(new(failureNodeId, "failed", null, error.GetType().Name) { Diagnostic = diagnostic });
+            snapshot.Status = ExecutionStatus.Failed; snapshot.Cursor = null;
+            FlowDiagnostics.Attach(error, diagnostic, new(false, steps.ToArray(), new Dictionary<string, Dictionary<string, TypedValue>>(published), null, confirmed)
+                { InferenceAttempts = snapshot.InferenceAttempts.ToArray() });
+            throw;
         }
         finally { snapshot.SendAttempted = sendAttempted; snapshot.ConfirmedSend = confirmed; }
     }

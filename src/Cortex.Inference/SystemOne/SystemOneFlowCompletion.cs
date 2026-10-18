@@ -23,7 +23,9 @@ public sealed class SystemOneFlowCompletion(SystemOneClient client, string provi
             "convaiinnovations/laya" or "convaiinnovations/laya-multilingual" or "convaiinnovations/laya-typed-decisions"))
             throw new InvalidDataException("Unsupported Laya model; implicit auto-routing is forbidden.");
         var questions = Questions(request);
-        var result = await client.DecideAsync(request.Model, request.Inputs, questions, token);
+        var result = request.Diagnostics is { } diagnostics
+            ? await client.DecideAsync(request.Model, request.Inputs, questions, diagnostics, token)
+            : await client.DecideAsync(request.Model, request.Inputs, questions, token);
         var output = new JsonObject();
         foreach (var question in questions.EnumerateObject())
         {

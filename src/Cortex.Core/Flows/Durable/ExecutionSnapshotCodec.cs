@@ -17,6 +17,7 @@ internal sealed class ExecutionSnapshotV1
     public long Ordinal { get; set; }
     public ExecutionStatus Status { get; set; }
     public List<TypedStep> Steps { get; } = [];
+    public List<FlowInferenceAttempt> InferenceAttempts { get; } = [];
     public Dictionary<PortRef, TypedValue> Values { get; } = [];
     public Dictionary<string, Dictionary<string, TypedValue>> Outputs { get; } = new(StringComparer.Ordinal);
     public Dictionary<string, string> References { get; } = new(StringComparer.Ordinal);
@@ -41,7 +42,7 @@ internal static class ExecutionSnapshotCodec
         long Ordinal, ExecutionStatus Status, IReadOnlyList<TypedStep> Steps, IReadOnlyList<PortWire> Values,
         IReadOnlyList<ValueWire> TypedValues, Dictionary<string, Dictionary<string, int>> Outputs, Dictionary<string, string> References,
         JsonElement TrustedEvidence, bool SendAttempted, ConfirmedSend? ConfirmedSend, string? TargetStateId, FeedbackRequestV1? PendingFeedback,
-        Dictionary<string, string>? PromptResponses = null, Dictionary<string, ParticipationReassessment>? InitialInterpretations = null, string? InitialGraphCursor = null);
+        Dictionary<string, string>? PromptResponses = null, Dictionary<string, ParticipationReassessment>? InitialInterpretations = null, string? InitialGraphCursor = null, IReadOnlyList<FlowInferenceAttempt>? InferenceAttempts = null);
 
     internal static JsonElement Encode(ExecutionSnapshotV1 state)
     {
@@ -63,7 +64,7 @@ internal static class ExecutionSnapshotCodec
             state.References.OrderBy(x => x.Key, StringComparer.Ordinal).ToDictionary(x => x.Key, x => x.Value),
             state.TrustedEvidence.Clone(), state.SendAttempted, state.ConfirmedSend, state.TargetStateId, state.PendingFeedback,
             state.PromptResponses.OrderBy(p => p.Key, StringComparer.Ordinal).ToDictionary(p => p.Key, p => p.Value),
-            state.InitialInterpretations.OrderBy(p => p.Key, StringComparer.Ordinal).ToDictionary(p => p.Key, p => p.Value), state.InitialGraphCursor), Options);
+            state.InitialInterpretations.OrderBy(p => p.Key, StringComparer.Ordinal).ToDictionary(p => p.Key, p => p.Value), state.InitialGraphCursor, state.InferenceAttempts.ToArray()), Options);
     }
 
     internal static ExecutionSnapshotV1 Decode(JsonElement value, ArtifactScope expectedScope)
@@ -77,6 +78,7 @@ internal static class ExecutionSnapshotCodec
                 Cursor = wire.Cursor, Ordinal = wire.Ordinal, Status = wire.Status, TrustedEvidence = wire.TrustedEvidence.Clone(),
                 SendAttempted = wire.SendAttempted, ConfirmedSend = wire.ConfirmedSend, TargetStateId = wire.TargetStateId, PendingFeedback = wire.PendingFeedback };
             state.Steps.AddRange(wire.Steps);
+            state.InferenceAttempts.AddRange(wire.InferenceAttempts ?? []);
             var table = wire.TypedValues.Select(DecodeValue).ToArray();
             TypedValue ValueAt(int id) => id >= 0 && id < table.Length ? table[id] : throw new InvalidDataException("Invalid typed value reference.");
             foreach (var port in wire.Values) state.Values.Add(new(port.NodeId, port.Port), ValueAt(port.ValueId));

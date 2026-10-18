@@ -6,6 +6,7 @@ namespace Cortex.Core.Flows.Execution;
 
 internal sealed record FlowExecutionServices(IFlowCompletion Completion)
 {
+    internal FlowDiagnosticOptions Diagnostics { get; init; } = new();
     internal TimeProvider Clock { get; init; } = TimeProvider.System;
     internal Action<TypedNodeExecutionTrace>? Observer { get; init; }
     internal Func<TypedNode, JsonElement?, string?, CancellationToken, Task<JsonElement>>? MemoryQuery { get; init; }

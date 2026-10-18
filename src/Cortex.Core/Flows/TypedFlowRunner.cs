@@ -13,20 +13,29 @@ public sealed record FlowCompletionRequest(string NodeId, string System, JsonEle
     public IReadOnlyDictionary<string, string>? HostReferences { get; init; }
     [System.Text.Json.Serialization.JsonIgnore]
     public string? HostExecutionId { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public CompletionDiagnostics? Diagnostics { get; init; }
 }
 public interface IFlowCompletion
 {
     Task<string> CompleteAsync(FlowCompletionRequest request, CancellationToken token);
 }
 public sealed record TypedValue(FlowType Type, JsonElement Value);
-public sealed record TypedStep(string NodeId, string Status, string? Exit, string? Error);
+public sealed record TypedStep(string NodeId, string Status, string? Exit, string? Error)
+{
+    public FlowFailureDiagnostic? Diagnostic { get; init; }
+}
 // Provider-accepted speech from this run. Only the session runtime turns it into history, exactly once.
 public sealed record ConfirmedSend(string NodeId, string ProviderMessageId, string Text, OutboundSpeaker Speaker)
 {
     public string? ReplyToMessageId { get; init; }
 }
 public sealed record TypedRunResult(bool Success, IReadOnlyList<TypedStep> Steps, IReadOnlyDictionary<string, Dictionary<string, TypedValue>> Outputs, string? TargetStateId = null,
-    ConfirmedSend? ConfirmedSend = null);
+    ConfirmedSend? ConfirmedSend = null)
+{
+    public IReadOnlyList<FlowInferenceAttempt> InferenceAttempts { get; init; } = [];
+    public FlowFailureDiagnostic? Failure => Steps.LastOrDefault(s => s.Diagnostic is not null)?.Diagnostic;
+}
 internal sealed record TypedNodeExecutionTrace(string NodeId, string Status, string? Exit, string? Error, DateTimeOffset Timestamp, TimeSpan Duration,
     IReadOnlyDictionary<string, string>? Metadata = null);
 
@@ -64,6 +73,14 @@ public static class TypedFlowRunner
     public static Task<TypedRunResult> RunAsync(TypedFlow flow, JsonElement message, IFlowCompletion completion, CancellationToken token) =>
         RunCoreAsync(flow, message, completion, null, TimeProvider.System, null, null, null, null, null, null, token, null);
 
+    public static Task<TypedRunResult> RunAsync(TypedFlow flow, JsonElement message, IFlowCompletion completion,
+        FlowDiagnosticOptions diagnostics, CancellationToken token)
+    {
+        ArgumentNullException.ThrowIfNull(diagnostics);
+        diagnostics.Validate();
+        return RunCoreAsync(flow, message, completion, null, TimeProvider.System, null, null, null, null, null, null, token, null, diagnostics);
+    }
+
     internal static Task<TypedRunResult> RunSessionAsync(
         TypedFlow flow,
         JsonElement message,
@@ -91,7 +108,7 @@ public static class TypedFlowRunner
         Func<string, IReadOnlyDictionary<string, TypedValue>, CancellationToken, Task>? instructionOutput,
         Func<string, IReadOnlyDictionary<string, IReadOnlyDictionary<string, TypedValue>>, CancellationToken, Task>? nodeStarting,
         BoundaryExecutionRegistry? boundaryRegistry,
-        CancellationToken token, OutboundExecution? outbound)
+        CancellationToken token, OutboundExecution? outbound, FlowDiagnosticOptions? diagnostics = null)
     {
         var scope = new Durable.ArtifactScope("local-harness", new("local", "local", "local", "local", "local"), "local", "local");
         var projectRef = new Durable.ArtifactRef(1, scope, "project", new string('0', 64));
@@ -99,12 +116,12 @@ public static class TypedFlowRunner
         var state = Execution.FlowExecutionKernel.Start(flow, message, identity, runtimeOutputs);
         var services = new Execution.FlowExecutionServices(completion) { Clock = timeProvider, Observer = observer,
             MemoryQuery = memoryQuery, InstructionContext = instructionContext, InstructionOutput = instructionOutput,
-            NodeStarting = nodeStarting, BoundaryRegistry = boundaryRegistry, Outbound = outbound };
+            NodeStarting = nodeStarting, BoundaryRegistry = boundaryRegistry, Outbound = outbound, Diagnostics = diagnostics ?? new() };
         Execution.KernelStepResult step;
         do { step = await Execution.FlowExecutionKernel.AdvanceAsync(flow, state, services, token); }
         while (step.Status == Durable.ExecutionStatus.Ready);
         if (step.Status == Durable.ExecutionStatus.WaitingForHuman)
-            return new(false, [.. step.Result.Steps, new(state.Snapshot.Cursor!, "failed", null, "human-feedback-backend-required")], step.Result.Outputs, null, step.Result.ConfirmedSend);
+            return new(false, [.. step.Result.Steps, new(state.Snapshot.Cursor!, "failed", null, "human-feedback-backend-required")], step.Result.Outputs, null, step.Result.ConfirmedSend) { InferenceAttempts = step.Result.InferenceAttempts };
         return step.Result;
     }
 
@@ -132,7 +149,7 @@ public static class TypedFlowRunner
         {
             if (!root.TryGetProperty(port.Name, out var value)) throw new InvalidDataException("Campo ausente: " + port.Name);
             try { FlowDomain.Check(value, port.Type); }
-            catch (InvalidDataException e) { throw new InvalidDataException($"Campo {port.Name} ({port.Id}): {e.Message}"); }
+            catch (InvalidDataException e) { throw new InvalidDataException($"Campo {port.Name} ({port.Id}): {e.Message}", e); }
             if (port.Config.TryGetProperty("min", out var min) && value.GetDouble() < min.GetDouble()) throw new InvalidDataException("Número abaixo do mínimo: " + port.Name);
             if (port.Config.TryGetProperty("max", out var max) && value.GetDouble() > max.GetDouble()) throw new InvalidDataException("Número acima do máximo: " + port.Name);
             // A word is a non-empty whitespace-delimited token, using .NET whitespace semantics.

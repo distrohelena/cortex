@@ -1,5 +1,7 @@
 # Inferência vinculada ao host — primeira fatia local
 
+Atualização de 2026-10-18: [diagnóstico de falhas e usage](failure-observability.md) descreve os contratos atuais. As limitações de descarte de exceções e usage sempre nulo abaixo registram o comportamento histórico da primeira fatia.
+
 Data: 2026-09-27. Implementação local, não ativada em nenhum composition root operacional.
 
 Relacionados: [especificação](superpowers/specs/2026-09-27-intelligence-platform-evolution-design.md), [plano](superpowers/plans/2026-09-27-host-bound-inference.md). O [plano da oficina](superpowers/plans/2026-09-26-evaluation-workbench.md) e sua aceitação PostgreSQL continuam pendentes e independentes.

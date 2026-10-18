@@ -39,6 +39,7 @@ public sealed class InferenceDeniedException(string code) : InvalidOperationExce
 /// <summary>Trusted composition only. The adapter and validator are not supplied by model output.</summary>
 public sealed class HostInferenceProfile
 {
+    public FlowDiagnosticOptions DiagnosticOptions { get; init; } = new();
     private readonly JsonElement[] additionalSchemas;
     public HostInferenceProfile(string profileId, string revision, IFlowCompletion adapter,
         FlowCompletionRequest expectedRequest, Action<string> validateOutput)
@@ -60,7 +61,7 @@ public sealed class HostInferenceProfile
         // Only retain routing/schema constraints, not a private sample prompt or input.
         ExpectedRequest = expectedRequest with
         {
-            System = "", Inputs = JsonSerializer.SerializeToElement(new { }), Correction = null,
+            System = "", Inputs = JsonSerializer.SerializeToElement(new { }), Correction = null, Diagnostics = null,
             ResponseSchema = expectedRequest.ResponseSchema?.Clone()
         };
         ValidateOutput = validateOutput;
@@ -106,9 +107,15 @@ public sealed record InferenceAttemptObservation(
     TimeSpan Duration, InferenceAttemptStage Stage, string Code,
     string? RequestedProvider, string? RequestedModel)
 {
-    // Task<string> does not supply trustworthy provider usage or observed deployment identity.
-    public string? ObservedModel => null;
-    public long? InputTokens => null;
-    public long? OutputTokens => null;
-    public decimal? Cost => null;
+    // Unknown unless explicitly reported by the host-owned adapter through request.Diagnostics.
+    public CompletionUsage Usage { get; init; } = new();
+    public FlowFailureDiagnostic? Failure { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? CapturedResponse { get; init; }
+    public string CaptureStatus { get; init; } = "disabled";
+    public string? ObservedModel => Usage.ObservedModel;
+    public long? InputTokens => Usage.InputTokens;
+    public long? OutputTokens => Usage.OutputTokens;
+    public decimal? Cost => Usage.CostUsd;
+    public override string ToString() => $"Inference {AttemptId}: {Stage}/{Code} (step={StepId})";
 }

@@ -1,4 +1,5 @@
 using System.Net.Http.Json;
+using Cortex.Core.Flows;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -135,7 +136,11 @@ public sealed class LmStudioClient : ILmStudioChatClient, IModelResponseChatClie
         => CompleteResponseAsync(systemPrompt, userPrompt, options.Model, cancellationToken);
 
     public Task<string> CompleteResponseAsync(
-        string systemPrompt, string userPrompt, string model, CancellationToken cancellationToken)
+        string systemPrompt, string userPrompt, string model, CancellationToken cancellationToken) =>
+        CompleteResponseAsync(systemPrompt, userPrompt, model, null, cancellationToken);
+
+    public Task<string> CompleteResponseAsync(string systemPrompt, string userPrompt, string model,
+        CompletionDiagnostics? diagnostics, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(model);
         ArgumentException.ThrowIfNullOrWhiteSpace(systemPrompt);
@@ -150,10 +155,14 @@ public sealed class LmStudioClient : ILmStudioChatClient, IModelResponseChatClie
                 new { role = "system", content = systemPrompt },
                 new { role = "user", content = userPrompt },
             },
-        }, cancellationToken, generation: true);
+        }, cancellationToken, generation: true, diagnostics: diagnostics);
     }
 
-    public Task<string> CompleteStructuredAsync(string systemPrompt, string userPrompt, string model, JsonElement schema, CancellationToken cancellationToken)
+    public Task<string> CompleteStructuredAsync(string systemPrompt, string userPrompt, string model, JsonElement schema, CancellationToken cancellationToken) =>
+        CompleteStructuredAsync(systemPrompt, userPrompt, model, schema, null, cancellationToken);
+
+    public Task<string> CompleteStructuredAsync(string systemPrompt, string userPrompt, string model, JsonElement schema,
+        CompletionDiagnostics? diagnostics, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(model);
         return CompleteAsync(new
@@ -163,10 +172,10 @@ public sealed class LmStudioClient : ILmStudioChatClient, IModelResponseChatClie
             max_tokens = options.GenerationMaxTokens,
             messages = new object[] { new { role = "system", content = systemPrompt }, new { role = "user", content = userPrompt } },
             response_format = new { type = "json_schema", json_schema = new { name = "flow_output", strict = true, schema } },
-        }, cancellationToken, generation: true);
+        }, cancellationToken, generation: true, diagnostics: diagnostics);
     }
 
-    private async Task<string> CompleteAsync(object payload, CancellationToken cancellationToken, bool generation = false)
+    private async Task<string> CompleteAsync(object payload, CancellationToken cancellationToken, bool generation = false, CompletionDiagnostics? diagnostics = null)
     {
         if (generation && options.GenerationReasoningEffort is { } effort)
         {
@@ -176,18 +185,28 @@ public sealed class LmStudioClient : ILmStudioChatClient, IModelResponseChatClie
         }
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         if (options.RequestTimeoutSeconds != Timeout.Infinite) timeout.CancelAfter(TimeSpan.FromSeconds(options.RequestTimeoutSeconds));
+        if (httpClient.DefaultRequestHeaders.Authorization?.Parameter is { } credential) diagnostics?.ProtectSensitiveValue(credential);
         using var response = await httpClient.PostAsJsonAsync(
             "chat/completions",
             payload,
             timeout.Token);
+        if (!response.IsSuccessStatusCode) await ProviderResponseDiagnostics.CaptureErrorAsync(diagnostics, response, timeout.Token);
         response.EnsureSuccessStatusCode();
 
+        if (diagnostics?.CaptureEnabled == true) diagnostics.CaptureResponse(await response.Content.ReadAsStringAsync(timeout.Token));
         using var document = await JsonDocument.ParseAsync(
             await response.Content.ReadAsStreamAsync(timeout.Token),
             cancellationToken: timeout.Token);
+        ProviderResponseDiagnostics.ReportUsage(diagnostics, document.RootElement, "lmstudio");
+        InvalidDataException InvalidOutput(string message)
+        {
+            var error = new InvalidDataException(message);
+            diagnostics?.ReportFailure(error, FlowFailureCategory.Validation);
+            return error;
+        }
         if (document.RootElement.TryGetProperty("choices", out var completedChoices) && completedChoices.ValueKind == JsonValueKind.Array && completedChoices.GetArrayLength() > 0 &&
             completedChoices[0].TryGetProperty("finish_reason", out var finish) && finish.ValueKind == JsonValueKind.String && finish.GetString() is not ("stop" or "eos"))
-            throw new InvalidDataException("LM Studio output was truncated or did not finish normally.");
+            throw InvalidOutput("LM Studio output was truncated or did not finish normally.");
         if (document.RootElement.TryGetProperty("choices", out var choices) &&
             choices.ValueKind == JsonValueKind.Array &&
             choices.GetArrayLength() > 0 &&
@@ -199,7 +218,7 @@ public sealed class LmStudioClient : ILmStudioChatClient, IModelResponseChatClie
             return content.GetString()!;
         }
 
-        throw new InvalidDataException("LM Studio response did not contain assistant content.");
+        throw InvalidOutput("LM Studio response did not contain assistant content.");
     }
 
     private static Uri EnsureTrailingSlash(Uri endpoint) =>

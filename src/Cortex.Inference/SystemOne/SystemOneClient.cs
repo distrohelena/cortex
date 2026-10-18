@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Cortex.Core.Flows;
 using System.Diagnostics;
 using System.Globalization;
 using System.Net.Http.Headers;
@@ -17,7 +18,14 @@ public sealed record SystemOneResult(string Model, JsonElement Answers, int Inpu
 public sealed class SystemOneClient(HttpClient http, Uri endpoint, Func<string?> credential, bool requireCredential,
     SystemOneProbabilityPolicy probabilityPolicy = SystemOneProbabilityPolicy.LayaFourDecimals)
 {
-    public async Task<SystemOneResult> DecideAsync(string model, JsonElement state, JsonElement questions, CancellationToken token)
+    public Task<SystemOneResult> DecideAsync(string model, JsonElement state, JsonElement questions, CancellationToken token) =>
+        DecideCoreAsync(model, state, questions, null, token);
+
+    public Task<SystemOneResult> DecideAsync(string model, JsonElement state, JsonElement questions,
+        CompletionDiagnostics diagnostics, CancellationToken token) => DecideCoreAsync(model, state, questions, diagnostics, token);
+
+    private async Task<SystemOneResult> DecideCoreAsync(string model, JsonElement state, JsonElement questions,
+        CompletionDiagnostics? diagnostics, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         if (!Enum.IsDefined(probabilityPolicy)) throw Invalid();
@@ -29,6 +37,7 @@ public sealed class SystemOneClient(HttpClient http, Uri endpoint, Func<string?>
         var expected = ReadQuestions(questions);
         var key = credential();
         if (requireCredential && string.IsNullOrWhiteSpace(key)) throw new InvalidOperationException("System 1 credential unavailable.");
+        if (!string.IsNullOrEmpty(key)) diagnostics?.ProtectSensitiveValue(key);
         using var message = new HttpRequestMessage(HttpMethod.Post, endpoint);
         if (!string.IsNullOrWhiteSpace(key)) message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
         message.Content = JsonContent.Create(new { model, state, questions });
@@ -36,14 +45,18 @@ public sealed class SystemOneClient(HttpClient http, Uri endpoint, Func<string?>
         using var response = await http.SendAsync(message, token);
         if (!response.IsSuccessStatusCode)
         {
+            await ProviderResponseDiagnostics.CaptureErrorAsync(diagnostics, response, token);
             var failure = new HttpRequestException($"System 1 HTTP {(int)response.StatusCode}.", null, response.StatusCode);
             failure.Data["failureCategory"] = "read_only_model_response_rejected";
             throw failure;
         }
         try
         {
-            using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(token));
+            var body = await response.Content.ReadAsStringAsync(token);
+            diagnostics?.CaptureResponse(body);
+            using var document = JsonDocument.Parse(body);
             var root = document.RootElement;
+            ProviderResponseDiagnostics.ReportUsage(diagnostics, root, null);
             UniqueObject(root);
             var returnedModel = root.GetProperty("model").GetString();
             if (string.IsNullOrWhiteSpace(returnedModel)) throw Invalid();
@@ -63,10 +76,12 @@ public sealed class SystemOneClient(HttpClient http, Uri endpoint, Func<string?>
         catch (Exception error) when (error is InvalidDataException or JsonException or InvalidOperationException or KeyNotFoundException or FormatException or OverflowException)
         {
             // Neither malformed payloads nor provider error bodies belong in normal logs.
+            diagnostics?.ReportFailure(error, error is JsonException ? FlowFailureCategory.Parsing : FlowFailureCategory.Validation);
             var failure = error as InvalidDataException ?? Invalid();
             // This adapter submits inference only, never tools or delivery. Keep
             // configuration/credential failures above outside this response boundary.
             failure.Data["failureCategory"] = "read_only_model_response_rejected";
+            if (ReferenceEquals(failure, error)) throw;
             throw failure;
         }
     }

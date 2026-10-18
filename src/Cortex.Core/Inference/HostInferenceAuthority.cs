@@ -29,6 +29,7 @@ public sealed class HostInferenceAuthority
         ArgumentException.ThrowIfNullOrWhiteSpace(principalRef);
         ArgumentNullException.ThrowIfNull(profiles);
         if (profiles.Count == 0) throw new ArgumentException("Profiles required.", nameof(profiles));
+        foreach (var profile in profiles) profile.DiagnosticOptions.Validate();
         var copied = profiles.ToDictionary(p => p.ProfileId, StringComparer.Ordinal);
         var grant = new HostInferenceGrant();
         lock (gate) grants.Add(grant, new(scope, principalRef, copied));

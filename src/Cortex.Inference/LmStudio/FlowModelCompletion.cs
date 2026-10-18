@@ -11,7 +11,7 @@ public sealed class FlowModelCompletion(LmStudioClient client, string defaultMod
         // Present the very same contract to the model; local validation remains authoritative.
         var prompt = FlowInstructionPrompt.Build(request);
         return request.ResponseSchema is { } schema
-            ? client.CompleteStructuredAsync(prompt, request.Inputs.GetRawText(), string.IsNullOrWhiteSpace(request.Model) ? defaultModel : request.Model, schema, token)
-            : client.CompleteResponseAsync(prompt, request.Inputs.GetRawText(), string.IsNullOrWhiteSpace(request.Model) ? defaultModel : request.Model, token);
+            ? client.CompleteStructuredAsync(prompt, request.Inputs.GetRawText(), string.IsNullOrWhiteSpace(request.Model) ? defaultModel : request.Model, schema, request.Diagnostics, token)
+            : client.CompleteResponseAsync(prompt, request.Inputs.GetRawText(), string.IsNullOrWhiteSpace(request.Model) ? defaultModel : request.Model, request.Diagnostics, token);
     }
 }

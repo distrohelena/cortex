@@ -15,6 +15,7 @@ public sealed class OpenAiFlowCompletion(
             throw new InvalidDataException("OpenAI provider and model required.");
         var key = credential();
         if (string.IsNullOrWhiteSpace(key)) throw new InvalidOperationException("OPENAI_API_KEY unavailable.");
+        request.Diagnostics?.ProtectSensitiveValue(key);
         using var message = new HttpRequestMessage(HttpMethod.Post, "https://api.openai.com/v1/responses");
         message.Headers.Authorization = new AuthenticationHeaderValue("Bearer", key);
         object format = request.ResponseSchema is { } schema
@@ -33,11 +34,21 @@ public sealed class OpenAiFlowCompletion(
         using var response = await http.SendAsync(message, token);
         // Do not include remote error payloads, headers or credentials in exception/trace.
         if (!response.IsSuccessStatusCode)
+        {
+            await ProviderResponseDiagnostics.CaptureErrorAsync(request.Diagnostics, response, token);
             throw new HttpRequestException($"OpenAI HTTP {(int)response.StatusCode}.", null, response.StatusCode);
-        using var document = JsonDocument.Parse(await response.Content.ReadAsStringAsync(token));
+        }
+        var body = await response.Content.ReadAsStringAsync(token);
+        request.Diagnostics?.CaptureResponse(body);
+        using var document = JsonDocument.Parse(body);
         var root = document.RootElement;
+        ProviderResponseDiagnostics.ReportUsage(request.Diagnostics, root, "openai");
         if (!root.TryGetProperty("status", out var status) || status.GetString() != "completed")
-            throw new InvalidDataException("OpenAI response not completed.");
+        {
+            var failure = new InvalidDataException("OpenAI response not completed.");
+            request.Diagnostics?.ReportFailure(failure, FlowFailureCategory.Provider);
+            throw failure;
+        }
         var parts = new List<string>();
         foreach (var item in root.GetProperty("output").EnumerateArray())
         {

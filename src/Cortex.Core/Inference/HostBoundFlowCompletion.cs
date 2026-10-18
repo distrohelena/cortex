@@ -32,16 +32,18 @@ public sealed class HostBoundFlowCompletion : IFlowCompletion
 
     public async Task<string> CompleteAsync(FlowCompletionRequest request, CancellationToken token)
     {
-        var attemptId = Guid.NewGuid().ToString("N");
+        var diagnostics = FlowDiagnosticContext.Begin(request, profile.DiagnosticOptions);
+        var attemptId = diagnostics.AttemptId;
         var started = timeProvider.GetTimestamp();
         var invoked = false;
         var stage = InferenceAttemptStage.DeniedBeforeInvocation;
         var code = "request_invalid";
+        Exception? failure = null;
         try
         {
             token.ThrowIfCancellationRequested();
             profile.ValidateRequest(request);
-            var copied = request with { Inputs = request.Inputs.Clone(), ResponseSchema = request.ResponseSchema?.Clone() };
+            var copied = request with { Inputs = request.Inputs.Clone(), ResponseSchema = request.ResponseSchema?.Clone(), Diagnostics = diagnostics };
             authority.Admit(grant, scope, token);
             invoked = true;
             var output = await profile.Adapter.CompleteAsync(copied, token).ConfigureAwait(false);
@@ -49,8 +51,12 @@ public sealed class HostBoundFlowCompletion : IFlowCompletion
             {
                 stage = InferenceAttemptStage.InvalidOutput;
                 code = "null_output";
-                throw new InvalidDataException(code);
+                var invalid = new InvalidDataException(code);
+                diagnostics.ReportFailure(invalid, FlowFailureCategory.Validation, FlowFailureOrigin.Runtime);
+                FlowDiagnostics.Attach(invalid, diagnostics.FailureFor(invalid));
+                throw invalid;
             }
+            diagnostics.CaptureResponse(output);
             if (profile.RuntimeOwnedValidation)
             {
                 stage = InferenceAttemptStage.AdapterReturnedPendingValidation;
@@ -59,48 +65,67 @@ public sealed class HostBoundFlowCompletion : IFlowCompletion
             else
             {
                 try { profile.ValidateOutput!(output); }
-                catch (Exception)
+                catch (Exception error)
                 {
                     stage = InferenceAttemptStage.InvalidOutput;
                     code = "schema_invalid";
-                    throw new InvalidDataException(code);
+                    var diagnostic = FlowDiagnostics.Create(error, request.NodeId, null, FlowFailureOrigin.HostValidation,
+                        error is System.Text.Json.JsonException ? FlowFailureCategory.Parsing : FlowFailureCategory.Validation);
+                    var sanitized = new InvalidDataException(code);
+                    FlowDiagnostics.Attach(sanitized, diagnostic);
+                    throw sanitized;
                 }
                 stage = InferenceAttemptStage.Completed;
                 code = "validated";
             }
             return output;
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException error)
         {
             stage = invoked ? InferenceAttemptStage.CancelledAfterInvocation : InferenceAttemptStage.CancelledBeforeInvocation;
             code = invoked ? "adapter_outcome_unknown" : "cancelled_before_invocation";
-            throw new OperationCanceledException(code, token);
+            failure = error;
+            var sanitized = new OperationCanceledException(code, token);
+            FlowDiagnostics.Attach(sanitized, FlowDiagnostics.Create(error, request.NodeId, null,
+                invoked ? FlowFailureOrigin.Adapter : FlowFailureOrigin.Runtime));
+            throw sanitized;
         }
         catch (InferenceDeniedException error) when (!invoked)
         {
             code = error.Code;
+            failure = error;
+            FlowDiagnostics.Attach(error, FlowDiagnostics.Create(error, request.NodeId, null, FlowFailureOrigin.Runtime));
             throw;
         }
-        catch (Exception error) when (stage != InferenceAttemptStage.InvalidOutput)
+        catch (Exception error)
         {
+            failure = error;
+            if (stage == InferenceAttemptStage.InvalidOutput) throw;
             stage = invoked ? InferenceAttemptStage.FailedAfterInvocation : InferenceAttemptStage.DeniedBeforeInvocation;
             code = invoked ? "adapter_outcome_unknown" : "request_invalid";
-            // Do not attach an inner provider exception containing prompts, endpoints or secrets.
-            throw error switch
+            // Keep existing public exception types/messages safe. The original is available through diagnostics,
+            // not InnerException/ToString(), which callers commonly write to untrusted logs.
+            Exception sanitized = error switch
             {
-                HttpRequestException => new HttpRequestException(code),
+                HttpRequestException http => new HttpRequestException(code, null, http.StatusCode),
                 TimeoutException => new TimeoutException(code),
                 _ => new InvalidOperationException(code)
             };
+            FlowDiagnostics.Attach(sanitized, invoked ? diagnostics.FailureFor(error) :
+                FlowDiagnostics.Create(error, request.NodeId, null, FlowFailureOrigin.Runtime));
+            throw sanitized;
         }
         finally
         {
+            var diagnosticAttempt = diagnostics.Finish(code, failure, invoked ? FlowFailureOrigin.Adapter : FlowFailureOrigin.Runtime);
             try
             {
                 observe?.Invoke(new(scope.ProjectId, principalRef, correlation.RunId, correlation.StepId,
                     attemptId, correlation.ConfigurationRevision, profile.ProfileId, profile.Revision,
                     timeProvider.GetElapsedTime(started), stage, code,
-                    profile.ExpectedRequest.Provider, profile.ExpectedRequest.Model));
+                    profile.ExpectedRequest.Provider, profile.ExpectedRequest.Model)
+                { Usage = diagnosticAttempt.Usage, Failure = diagnosticAttempt.Failure,
+                    CapturedResponse = diagnosticAttempt.CapturedResponse, CaptureStatus = diagnosticAttempt.CaptureStatus });
             }
             catch (Exception)
             {
