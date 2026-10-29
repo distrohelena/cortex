@@ -386,12 +386,12 @@ internal static class FlowExecutionKernel
                             diagnostics.RecordValidation(e);
                             if (attempt == retries)
                             {
-                                var failure = new InvalidDataException("Resposta inválida após validação: " + (e is JsonException ? "JSON inválido." : e.Message), e);
+                                var failure = new InvalidDataException("Response invalid after validation: " + (e is JsonException ? "invalid JSON." : e.Message), e);
                                 FlowDiagnostics.Attach(failure, FlowDiagnostics.Create(e, current, null, FlowFailureOrigin.Runtime,
                                     e is JsonException ? FlowFailureCategory.Parsing : FlowFailureCategory.Validation));
                                 throw failure;
                             }
-                            correction = e is JsonException ? "Retorne um objeto JSON válido conforme o schema." : e.Message;
+                            correction = e is JsonException ? "Return a valid JSON object that matches the schema." : e.Message;
                         }
                     }
                     token.ThrowIfCancellationRequested();

@@ -63,7 +63,7 @@ public static class TypedFlowRunner
             var property = json["properties"]![port.Name]!;
             if (port.Config.TryGetProperty("description", out var description) && description.ValueKind == JsonValueKind.String) property["description"] = description.GetString();
             if (port.Config.TryGetProperty("maxWords", out var wordLimit))
-                property["description"] = (property["description"]?.GetValue<string>() ?? "") + $" Máximo de {wordLimit.GetInt32()} palavras separadas por whitespace.";
+                property["description"] = (property["description"]?.GetValue<string>() ?? "") + $" At most {wordLimit.GetInt32()} whitespace-separated words.";
             foreach (var (key, keyword) in new[] { ("min", "minimum"), ("max", "maximum") })
                 if (port.Config.TryGetProperty(key, out var bound)) property[keyword] = bound.GetDouble();
         }
@@ -128,32 +128,32 @@ public static class TypedFlowRunner
     internal static string? OptionalText(JsonElement element, string key) => element.TryGetProperty(key, out var value) && value.ValueKind == JsonValueKind.String ? value.GetString() : null;
     internal static Dictionary<string, TypedValue> ValidateOutput(TypedNode node, string text, bool structured)
     {
-        if (text.Length > 65536) throw new InvalidDataException("Resposta grande demais.");
+        if (text.Length > 65536) throw new InvalidDataException("Response too large.");
         if (!structured)
         {
-            if (string.IsNullOrWhiteSpace(text)) throw new InvalidDataException("Texto vazio.");
+            if (string.IsNullOrWhiteSpace(text)) throw new InvalidDataException("Empty text.");
             var port = node.Outputs.Single();
             if (port.Config.ValueKind == JsonValueKind.Object && port.Config.TryGetProperty("maxWords", out var words)
                 && text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length > words.GetInt32())
-                throw new InvalidDataException("Limite de palavras excedido: " + port.Name);
+                throw new InvalidDataException("Word limit exceeded: " + port.Name);
             return new() { [port.Id] = new(new StringType(), JsonSerializer.SerializeToElement(text)) };
         }
         using var document = JsonDocument.Parse(text);
         var root = document.RootElement;
-        if (root.ValueKind != JsonValueKind.Object) throw new InvalidDataException("Resposta deve ser objeto JSON.");
+        if (root.ValueKind != JsonValueKind.Object) throw new InvalidDataException("The response must be a JSON object.");
         var seen = new HashSet<string>();
         foreach (var property in root.EnumerateObject())
-            if (!seen.Add(property.Name) || !node.Outputs.Any(p => p.Name == property.Name)) throw new InvalidDataException("Campo extra ou duplicado.");
+            if (!seen.Add(property.Name) || !node.Outputs.Any(p => p.Name == property.Name)) throw new InvalidDataException("Extra or duplicate field.");
         var output = new Dictionary<string, TypedValue>();
         foreach (var port in node.Outputs)
         {
-            if (!root.TryGetProperty(port.Name, out var value)) throw new InvalidDataException("Campo ausente: " + port.Name);
+            if (!root.TryGetProperty(port.Name, out var value)) throw new InvalidDataException("Missing field: " + port.Name);
             try { FlowDomain.Check(value, port.Type); }
-            catch (InvalidDataException e) { throw new InvalidDataException($"Campo {port.Name} ({port.Id}): {e.Message}", e); }
-            if (port.Config.TryGetProperty("min", out var min) && value.GetDouble() < min.GetDouble()) throw new InvalidDataException("Número abaixo do mínimo: " + port.Name);
-            if (port.Config.TryGetProperty("max", out var max) && value.GetDouble() > max.GetDouble()) throw new InvalidDataException("Número acima do máximo: " + port.Name);
+            catch (InvalidDataException e) { throw new InvalidDataException($"Field {port.Name} ({port.Id}): {e.Message}", e); }
+            if (port.Config.TryGetProperty("min", out var min) && value.GetDouble() < min.GetDouble()) throw new InvalidDataException("Number below the minimum: " + port.Name);
+            if (port.Config.TryGetProperty("max", out var max) && value.GetDouble() > max.GetDouble()) throw new InvalidDataException("Number above the maximum: " + port.Name);
             // A word is a non-empty whitespace-delimited token, using .NET whitespace semantics.
-            if (port.Config.TryGetProperty("maxWords", out var words) && value.GetString()!.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length > words.GetInt32()) throw new InvalidDataException("Limite de palavras excedido: " + port.Name);
+            if (port.Config.TryGetProperty("maxWords", out var words) && value.GetString()!.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length > words.GetInt32()) throw new InvalidDataException("Word limit exceeded: " + port.Name);
             output[port.Id] = new(port.Type, value.Clone());
         }
         return output;

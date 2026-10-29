@@ -119,14 +119,14 @@ public static class FlowDomain
             ObjectType => value.ValueKind == JsonValueKind.Object,
             _ => false,
         };
-        if (!valid) throw new InvalidDataException("Valor incompatível com " + type.Kind);
+        if (!valid) throw new InvalidDataException("Value incompatible with " + type.Kind);
         if (type is ArrayType a) foreach (var item in value.EnumerateArray()) Check(item, a.ElementType);
         if (type is DictionaryType dictionary)
         {
             var keys = new HashSet<string>(StringComparer.Ordinal);
             foreach (var item in value.EnumerateObject())
             {
-                if (!keys.Add(item.Name)) throw new InvalidDataException("Chave duplicada no dicionário: " + item.Name);
+                if (!keys.Add(item.Name)) throw new InvalidDataException("Duplicate dictionary key: " + item.Name);
                 Check(item.Value, dictionary.ValueType);
             }
         }
@@ -134,7 +134,7 @@ public static class FlowDomain
         {
             if (!value.TryGetProperty(name, out var item))
             {
-                if (field.Required) throw new InvalidDataException("Campo ausente: " + name);
+                if (field.Required) throw new InvalidDataException("Missing field: " + name);
                 continue;
             }
             Check(item, field.Type);

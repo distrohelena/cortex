@@ -79,7 +79,7 @@ public static class BoundaryInterpreter
             catch (Exception error) when (error is JsonException or InvalidDataException)
             {
                 if (attempt == 1) throw new BoundaryCompilationException(memoryId, "unsupported", "interpreter-schema-invalid");
-                correction = "Retorne exatamente os quatro campos e as combinações null/enum previstas no schema.";
+                correction = "Return exactly the four fields and the null/enum combinations the schema allows.";
             }
         }
         throw new InvalidOperationException();
