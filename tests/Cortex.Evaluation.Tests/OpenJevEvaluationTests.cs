@@ -81,6 +81,34 @@ public sealed class OpenJevEvaluationTests
         Assert.Equal(1, server.ChatCalls);
     }
 
+    [Theory]
+    [InlineData("{}", 1, "calar")]
+    [InlineData("""{"optionOrder":"fixed"}""", 1, "calar")]
+    [InlineData("""{"optionOrder":"rotations"}""", 2, "responder")]
+    public async Task Openjev_profile_option_order_reaches_the_adapter(string parameters, int calls, string expected)
+    {
+        var journal = new Journal();
+        using var server = new FakeLlamaServer();
+        // Fixed reads only the first order (calar 0.55); averaged, responder = (0.45 + 0.8) / 2 wins.
+        server.Chats.Enqueue(Chat(Math.Log(0.45), Math.Log(0.55)));
+        server.Chats.Enqueue(Chat(Math.Log(0.2), Math.Log(0.8)));
+        using var http = new HttpClient(new EvaluationHttpHandler("openjev", Base, journal) { InnerHandler = server });
+        var factory = new EvaluationProviderFactory([new("openjev-host", "openjev", Base, http, () => null)]);
+        var schema = Json("""
+            {"type":"object","additionalProperties":false,"properties":{"acao":{"type":"string","enum":["responder","calar"]}},"required":["acao"]}
+            """);
+        var profile = new ConfigurationProfile(1, "completion", "openjev", Model, "openjev-host", Model,
+            DateTimeOffset.UnixEpoch, Json(parameters), 0.5, [], new(1, "schema",
+                JsonSerializer.SerializeToElement(new { contractVersion = 1, responseSchema = schema })),
+            new(1, "prompt", Json("{\"system\":\"Instrução pinada\"}")), null);
+
+        var output = Json(await factory.Create(profile, Access()).CompleteAsync(new("case-step", "Instrução pinada",
+            Json("{\"mensagem\":\"Oi\"}"), schema, Model, "openjev", null), Token));
+
+        Assert.Equal(calls, server.ChatCalls);
+        Assert.Equal(expected, output.GetProperty("acao").GetString());
+    }
+
     [Fact]
     public async Task Openjev_trial_aggregates_tokens_and_projects_zero_local_cost()
     {

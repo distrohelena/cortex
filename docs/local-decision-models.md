@@ -30,6 +30,24 @@ var completion = new OpenJevFlowCompletion(
 
 Por campo, a pergunta é a tarefa (`request.System`), uma linha em branco e a `description` do campo no esquema; sem descrição não vazia, vai o nome do campo. Com perfil de escolha, acrescenta-se uma linha em branco e a orientação do perfil. Não há cabeçalho `Field: <nome>`. É feita uma chamada sequencial com o prompt exato do OpenJev, `max_tokens:1`, `temperature:1`, `top_k:0`, `top_p:1`, `logprobs:true`, `top_logprobs:20`, `logit_bias` +100 nos rótulos, gramática `root ::= "A" | "B" | …`, `cache_prompt:false` e `chat_template_kwargs:{"enable_thinking":false}`. Antes de usar um rótulo pela primeira vez com um modelo, o cliente o tokeniza por `POST /tokenize` (`{"model","content","add_special":false}`), só os rótulos que a pergunta precisa (`A`…o n-ésimo); o cache é por instância de `OpenJevClient` e modelo, e uma pergunta com mais opções tokeniza só os rótulos novos. Um rótulo que não vira exatamente um token é erro explícito, antes do chat. A probabilidade é o softmax dos logprobs dos rótulos; rótulo ausente do top 20 é erro, nunca renormalização. A observação usa `ProbabilityPolicy = "OpenJevLabelSoftmax"`, e os logprobs brutos vão pelo callback `observeDecision`.
 
+### Ordem das opções: `optionOrder`
+
+Modelos pequenos têm viés forte de posição: preferem um rótulo pela posição, não pelo conteúdo. Uma sonda que girou as opções (`C:\temp\localmodels-probe\rotate.py`) mediu a probabilidade dada à resposta certa em cada rotação cíclica:
+
+- Qwen3 0.6B, caso `email`: 0.86 / 0.02 / 1.00.
+- MiniCPM5 2B, caso `boolean`: 0.06 / 0.98.
+
+A correção padrão é tirar a média entre as ordens. No perfil de avaliação, o `openjev` aceita o parâmetro opcional `optionOrder`:
+
+- **`"fixed"`** (padrão, também quando o parâmetro falta): uma chamada por pergunta, como descrito acima, com `ProbabilityPolicy = "OpenJevLabelSoftmax"`.
+- **`"rotations"`**: para uma pergunta com n opções, n chamadas, uma por rotação cíclica da lista (deslocamento 0…n−1). Os rótulos ficam sempre `A`, `B`, … na ordem da lista girada. A probabilidade de cada opção original é a média aritmética das n probabilidades. A escolha é o argmax da média; no booleano, P(Yes) médio é comparado com o limiar. O `observeDecision` recebe uma única decisão sintetizada por campo, com as opções na ordem original, `Probability` = média, `Logprob` = ln(média) e tokens e tempo somados. O resultado observado soma o uso de todas as chamadas e usa `ProbabilityPolicy = "OpenJevLabelSoftmaxRotationAverage"`.
+
+Qualquer outro valor (inclusive outra caixa, número ou `null`) é recusado na validação do perfil com `profile.parameter_invalid` em `parameters.optionOrder`. Os outros provedores continuam recusando o parâmetro (`profile.parameter_unsupported`).
+
+**Custo:** n chamadas de chat por pergunta em vez de uma. Um booleano custa 2; um `enum` de 20 valores custa 20. Tokens e latência crescem na mesma proporção, e cada chamada vira uma tentativa no ledger. A tokenização dos rótulos não muda: os rótulos são os mesmos em todas as rotações.
+
+**Quando usar:** com modelos pequenos, quando a probabilidade importa mais que a latência, ou quando as respostas mudam com a ordem das opções. Com poucas opções (booleanos, `enum` curtos) o custo é pequeno. Para `enum` longos, ou para um modelo que já se mostrou estável à ordem das opções, `fixed` basta. Fora da avaliação, passe `optionOrder: OpenJevOptionOrder.AverageRotations` ao construtor de `OpenJevFlowCompletion`.
+
 ## Configurar `laya`
 
 - **Endpoint:** a URL **completa** `.../v1/systemone`, absoluta, HTTP(S), loopback, sem userinfo, query nem fragment. Exemplo: `http://127.0.0.1:18765/v1/systemone`.

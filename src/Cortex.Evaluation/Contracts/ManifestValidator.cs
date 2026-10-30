@@ -129,7 +129,8 @@ public static class ProfileValidator
             }.ToFrozenSet(StringComparer.Ordinal), true, false, false, false, EmptySet),
             ["jev"] = new(EmptySet, false, true, true, true, EmptySet),
             // OpenJev's model is the operator's GGUF alias, so no allowlist applies. Its labels are A..T.
-            ["openjev"] = new(EmptySet, false, true, true, true, EmptySet, MaximumOptions: 20),
+            // optionOrder is optional ("fixed" when absent); parameters are only ever validated when present.
+            ["openjev"] = new(new[] { "optionOrder" }.ToFrozenSet(StringComparer.Ordinal), false, true, true, true, EmptySet, MaximumOptions: 20),
             // "convaiinnovations/laya" means the English checkpoint; SystemOneFlowCompletion sends it as "english".
             ["laya"] = new(EmptySet, false, true, true, true, new[]
             {
@@ -290,6 +291,8 @@ public static class ProfileValidator
                 "lmstudio" when parameter.Name is "arbitrationTemperature" or "generationTemperature" => IsNumberInRange(parameter.Value, 0, 2),
                 "lmstudio" when parameter.Name is "arbitrationMaxTokens" or "generationMaxTokens" => IsPositiveInt(parameter.Value, 1_000_000),
                 "lmstudio" when parameter.Name == "requestTimeoutSeconds" => IsTimeout(parameter.Value),
+                "openjev" when parameter.Name == "optionOrder" => parameter.Value.ValueKind == JsonValueKind.String &&
+                    parameter.Value.GetString() is "fixed" or "rotations",
                 _ => false
             };
 

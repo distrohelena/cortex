@@ -133,6 +133,31 @@ public sealed class ManifestTests
         }
     }
 
+    [Theory]
+    [InlineData("{}", null)]
+    [InlineData("""{"optionOrder":"fixed"}""", null)]
+    [InlineData("""{"optionOrder":"rotations"}""", null)]
+    [InlineData("""{"optionOrder":"Rotations"}""", "profile.parameter_invalid")]
+    [InlineData("""{"optionOrder":"average"}""", "profile.parameter_invalid")]
+    [InlineData("""{"optionOrder":1}""", "profile.parameter_invalid")]
+    [InlineData("""{"optionOrder":null}""", "profile.parameter_invalid")]
+    public void Openjev_option_order_is_optional_and_limited_to_fixed_or_rotations(string parameters, string? code)
+    {
+        var issues = ProfileValidator.Validate(Profile("openjev", "completion", parameters, 0.5, [],
+            """{"contractVersion":1}""", null, "minicpm5-2b"));
+        if (code is null) Assert.Empty(issues);
+        else Assert.Equal([new ValidationIssue(code, "parameters.optionOrder")], issues);
+    }
+
+    [Theory]
+    [InlineData("jev", "jev-1.13.0")]
+    [InlineData("laya", "typed-decisions")]
+    public void Option_order_stays_unsupported_for_other_typed_providers(string provider, string model)
+    {
+        Assert.Contains(ProfileValidator.Validate(Profile(provider, "completion", """{"optionOrder":"rotations"}""", 0.5, [],
+            """{"contractVersion":1}""", null, model)), x => x.Code == "profile.parameter_unsupported" && x.Path == "parameters.optionOrder");
+    }
+
     [Fact]
     public void Summary_profile_rejects_missing_identity_and_invalid_summary_content()
     {

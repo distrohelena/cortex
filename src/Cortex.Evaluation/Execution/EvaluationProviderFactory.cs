@@ -80,7 +80,8 @@ public sealed class EvaluationProviderFactory
                         q => new SystemOneChoiceQuestion(q.Instructions, q.Criteria), StringComparer.Ordinal)),
                 "openjev" => new OpenJevFlowCompletion(new OpenJevClient(endpoint.Http, endpoint.Endpoint), threshold!.Value,
                     choiceQuestions: questions.ToDictionary(q => q.Field,
-                        q => new SystemOneChoiceQuestion(q.Instructions, q.Criteria), StringComparer.Ordinal)),
+                        q => new SystemOneChoiceQuestion(q.Instructions, q.Criteria), StringComparer.Ordinal),
+                    optionOrder: OpenJevOptionOrderParameter(parameters)),
                 _ => throw new InvalidDataException("Unsupported evaluation provider.")
             };
         }
@@ -89,6 +90,15 @@ public sealed class EvaluationProviderFactory
             throw new InvalidDataException("Incomplete evaluation provider settings.");
         }
     }
+
+    // Optional: an absent optionOrder is the single fixed-order call. The profile validator admits only these two values.
+    private static OpenJevOptionOrder OpenJevOptionOrderParameter(JsonElement parameters) =>
+        !parameters.TryGetProperty("optionOrder", out var value) ? OpenJevOptionOrder.Fixed : value.GetString() switch
+        {
+            "fixed" => OpenJevOptionOrder.Fixed,
+            "rotations" => OpenJevOptionOrder.AverageRotations,
+            _ => throw new InvalidDataException("Invalid OpenJev optionOrder.")
+        };
 
     private static IFlowCompletion CreateLocalAdapter(EvaluationEndpoint endpoint, string model, JsonElement parameters)
     {
