@@ -23,5 +23,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../Shared/SystemOneTestSupport.cs" Link="Support/SystemOneTestSupport.cs" />
+    <Compile Include="../Shared/LocalModels/LocalModelManifest.cs" Link="Support/LocalModels/LocalModelManifest.cs" />
+    <Compile Include="../Shared/LocalModels/LocalModelCache.cs" Link="Support/LocalModels/LocalModelCache.cs" />
+    <Compile Include="../Shared/LocalModels/LocalServerProcess.cs" Link="Support/LocalModels/LocalServerProcess.cs" />
   </ItemGroup>
 </Project>

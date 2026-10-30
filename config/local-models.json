@@ -1,0 +1,41 @@
+{
+  "llamaCpp": {
+    "tag": "b12015",
+    "assets": [
+      {
+        "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12015/llama-b12015-bin-win-cuda-12.4-x64.zip",
+        "sha256": "153efb71c5c792ac9e6d7b28c4779af7dea218a6a136453d6bd2f21a40eceb65"
+      },
+      {
+        "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12015/cudart-llama-bin-win-cuda-12.4-x64.zip",
+        "sha256": "8c79a9b226de4b3cacfd1f83d24f962d0773be79f1e7b75c6af4ded7e32ae1d6"
+      }
+    ]
+  },
+  "gguf": {
+    "qwen3-0.6b": {
+      "repo": "Qwen/Qwen3-0.6B-GGUF",
+      "revision": "23749fefcc72300e3a2ad315e1317431b06b590a",
+      "file": "Qwen3-0.6B-Q8_0.gguf",
+      "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031"
+    },
+    "minicpm5-2b": {
+      "repo": "openbmb/MiniCPM5-2B-GGUF",
+      "revision": "2079a22f3beaa4e306449978533478fe0522f4b3",
+      "file": "MiniCPM5-2B-Q4_K_M.gguf",
+      "sha256": "ec2d5801640099e97d8d7e8003ad4d81f336e757811f03a26173dddf386602fd"
+    },
+    "qwen3.5-4b": {
+      "repo": "bartowski/Qwen_Qwen3.5-4B-GGUF",
+      "revision": "4168f45a16a1290d65a4ec0fa312ae917a4c15d6",
+      "file": "Qwen_Qwen3.5-4B-Q4_K_M.gguf",
+      "sha256": "13c16f426047e2de38cd075bdade4a7bcbc8c774384876f677740cda65f8a983"
+    }
+  },
+  "laya": {
+    "package": "laya[serve]==0.4.18",
+    "modelRevision": "7b928d828b7b0e022f929d9bd2e44165aa270148",
+    "torch": "torch==2.14.1+cu126",
+    "torchIndexUrl": "https://download.pytorch.org/whl/cu126"
+  }
+}
