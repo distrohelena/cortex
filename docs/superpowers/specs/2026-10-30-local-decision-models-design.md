@@ -78,9 +78,9 @@ Fica em `src/Cortex.Inference/OpenJev/` e implementa `IFlowCompletion`.
 - **Esquema aceito:** o mesmo subconjunto de `SystemOneFlowCompletion`. É um objeto fechado de campos obrigatórios, cada um uma string `enum` (2 a 20 valores, o limite do OpenJev) ou um `boolean`. Os perfis de escolha (`SystemOneChoiceQuestion`) são aceitos da mesma forma.
 - **Uma chamada por campo**, com o prompt exato do OpenJev:
   - `state` = `request.Inputs` serializado em JSON compacto (ou a string, se for string).
-  - `question` = tarefa (`request.System`), descrição do campo e, se houver, a orientação do perfil de escolha.
+  - `question` = tarefa (`request.System`), uma linha em branco e a `description` do campo no esquema (o nome do campo, se não houver descrição não vazia) e, se houver, a orientação do perfil de escolha. Não há cabeçalho `Field: <nome>`: ele piorava medidamente os modelos pequenos.
   - opções = descrições dos critérios (do perfil) ou o próprio valor do enum.
-- **Booleano** vira duas opções, `A. true` e `B. false` acompanhadas da descrição do campo. O resultado é `true` quando P(A) ≥ limiar, com a mesma semântica de limiar do `noul`.
+- **Booleano** vira duas opções, `A. Yes` e `B. No`, depois da descrição do campo. O resultado é `true` quando P(A) = P(Yes) ≥ limiar, com a mesma semântica de limiar do `noul`.
 - **Tokens dos rótulos:** antes da primeira chamada para um modelo, usar `POST /tokenize` do `llama-server` (sem tokens especiais) em `"A"`…`"T"`. Cada rótulo precisa virar exatamente um token, senão é erro. Os ids vão para o `logit_bias` e ficam em cache por endpoint+modelo. Isso substitui o `labelBase` fixo da demo e é o que permite qualquer GGUF.
 - **Modelo:** o `llama-server` é iniciado com `--alias <modelo>`. O adaptador exige que o `model` da resposta seja igual a `request.Model`.
 - **Endpoint:** absoluto, HTTP(S), loopback, sem userinfo/query/fragment.
@@ -147,7 +147,7 @@ Uma seção curta em `docs/` (ou no README de Inference) diz como configurar `op
 
 ## Esclarecimentos da revisão (decisões minhas)
 
-- **Observação:** `openjev` sintetiza um `SystemOneResult` no formato de respostas do Jev. `choice` traz `probabilities` e `confidence`; booleano traz `noul` = P(true). `ProbabilityPolicy` = `"OpenJevLabelSoftmax"`. Assim ledger, parser e `ObservedShadowRun` reaproveitam o caminho existente. Os logits brutos vão num campo adicional de observação só do `openjev`, sem mudar o contrato dos outros.
+- **Observação:** `openjev` sintetiza um `SystemOneResult` no formato de respostas do Jev. `choice` traz `probabilities` e `confidence`; booleano traz `noul` = P(A) = P(Yes). `ProbabilityPolicy` = `"OpenJevLabelSoftmax"`. Assim ledger, parser e `ObservedShadowRun` reaproveitam o caminho existente. Os logits brutos vão num campo adicional de observação só do `openjev`, sem mudar o contrato dos outros.
 - **Limiar:** o mesmo campo de limiar de `jev`/`laya`, para que a troca seja drop-in. Nos testes e no script vale 0.5. Mais de 20 opções gera erro explícito. As chamadas por campo são sequenciais.
 - **logit_bias e logprobs:** o softmax sobre os rótulos não muda com um viés uniforme. Mesmo assim, o teste de integração verifica isso empiricamente na versão fixada do llama.cpp: compara a distribuição com e sem `logit_bias` quando todos os rótulos aparecem no top 20. Se divergir, é um achado a reportar, não algo a ajustar em silêncio.
 - **Falha semântica:** se o MiniCPM5 2B ou o Qwen3.5 4B errar um caso de demo, isso é um achado a reportar à Helena. Os casos não são trocados para o teste passar.

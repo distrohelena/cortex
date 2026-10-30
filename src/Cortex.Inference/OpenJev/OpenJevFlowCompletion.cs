@@ -38,14 +38,18 @@ public sealed class OpenJevFlowCompletion(OpenJevClient client, double booleanTh
         {
             var definition = field.Value;
             var instructions = definition.GetProperty("instructions");
-            var question = $"{request.System}\n\nField: {field.Name}\n{instructions.GetProperty("description").GetString()}";
+            // Task, then the field's own description (or its name when it has none). No "Field:" header: it measurably
+            // shifts small models' answers away from what the task alone yields.
+            var description = instructions.GetProperty("description").GetString();
+            var question = $"{request.System}\n\n{(string.IsNullOrWhiteSpace(description) ? field.Name : description)}";
             if (instructions.TryGetProperty("choiceGuidance", out var guidance)) question += "\n\n" + guidance.GetString();
             var choice = definition.GetProperty("type").GetString() == "choice";
-            var keys = choice ? definition.GetProperty("criteria").EnumerateObject().Select(p => p.Name).ToArray() : ["true", "false"];
+            var keys = choice ? definition.GetProperty("criteria").EnumerateObject().Select(p => p.Name).ToArray() : [];
+            // Booleans are asked as A. Yes / B. No; noul stays P(A).
             var options = choice
                 ? definition.GetProperty("criteria").EnumerateObject()
                     .Select(p => p.Value.GetString() is var text && text != p.Name ? $"{p.Name}: {text}" : p.Name).ToArray()
-                : keys;
+                : ["Yes", "No"];
             var decision = await client.DecideAsync(request.Model, state, question, options, request.Diagnostics, token, true, inputTokens, outputTokens);
             inputTokens += decision.InputTokens;
             outputTokens += decision.OutputTokens;

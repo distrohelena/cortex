@@ -15,7 +15,7 @@ Na avaliação, o endpoint é registrado pelo host em `EvaluationProviderFactory
 
 - **Endpoint:** a URL **base** do `llama-server`, absoluta, HTTP(S), loopback, sem userinfo, query nem fragment, e terminada em `/`. Exemplo: `http://127.0.0.1:18080/`. O cliente chama `tokenize` e `v1/chat/completions` relativos a essa base. Qualquer outra forma gera `InvalidDataException`.
 - **Modelo:** o `model` do perfil é o `--alias` com que o `llama-server` foi iniciado. O adaptador exige que o `model` da resposta seja igual ao pedido; um servidor com outro GGUF/alias gera `InvalidDataException` (`model_mismatch`), sem resultado.
-- **Limiar:** o mesmo campo `threshold` de `jev`/`laya`. Um booleano vira duas opções, `A. true` e `B. false`, e o resultado é `true` quando P(true) ≥ limiar. Os testes usam 0.5. O `tools/start-openjev.ps1` só sobe o servidor e não tem limiar: o limiar é do perfil ou de quem compõe o `OpenJevFlowCompletion`.
+- **Limiar:** o mesmo campo `threshold` de `jev`/`laya`. Um booleano vira duas opções, `A. Yes` e `B. No`, e o resultado é `true` quando P(Yes) ≥ limiar (o `noul` observado é P(Yes)). Os testes usam 0.5. O `tools/start-openjev.ps1` só sobe o servidor e não tem limiar: o limiar é do perfil ou de quem compõe o `OpenJevFlowCompletion`.
 - **Esquema:** objeto fechado de campos obrigatórios, cada um `enum` (2 a 20 valores, rótulos `A`…`T`) ou `boolean`. Um `enum` ou `choiceQuestions` com mais de 20 opções já falha na validação do perfil (`profile.options_exceed_provider_limit` / `profile.choice_question_invalid`), antes de qualquer trial. Perfis de escolha (`choiceQuestions`) são aceitos como em `jev`/`laya`.
 - **Contabilidade:** cada `tokenize` e cada chat passam pelo `EvaluationHttpHandler` e viram uma tentativa no ledger, com a reserva do endpoint. O `tokenize` não faz inferência: é observado com uso 0/0 e atribuído ao `model` enviado no pedido; o chat usa `usage` e `model` da resposta. Com termos de preço `openjev` de taxa zero, `AttemptPriceProjection` dá custo 0 e `TrialMeasurement` soma os tokens. O cache de rótulos não atravessa trials: cada trial cria seu próprio cliente e registra as tokenizações que justificam o seu `logit_bias`.
 
@@ -28,7 +28,7 @@ var completion = new OpenJevFlowCompletion(
 // request.Provider = "openjev", request.Model = "<alias do llama-server>"
 ```
 
-Por campo, é feita uma chamada sequencial com o prompt exato do OpenJev, `max_tokens:1`, `temperature:1`, `top_k:0`, `top_p:1`, `logprobs:true`, `top_logprobs:20`, `logit_bias` +100 nos rótulos, gramática `root ::= "A" | "B" | …`, `cache_prompt:false` e `chat_template_kwargs:{"enable_thinking":false}`. Antes de usar um rótulo pela primeira vez com um modelo, o cliente o tokeniza por `POST /tokenize` (`{"model","content","add_special":false}`), só os rótulos que a pergunta precisa (`A`…o n-ésimo); o cache é por instância de `OpenJevClient` e modelo, e uma pergunta com mais opções tokeniza só os rótulos novos. Um rótulo que não vira exatamente um token é erro explícito, antes do chat. A probabilidade é o softmax dos logprobs dos rótulos; rótulo ausente do top 20 é erro, nunca renormalização. A observação usa `ProbabilityPolicy = "OpenJevLabelSoftmax"`, e os logprobs brutos vão pelo callback `observeDecision`.
+Por campo, a pergunta é a tarefa (`request.System`), uma linha em branco e a `description` do campo no esquema; sem descrição não vazia, vai o nome do campo. Com perfil de escolha, acrescenta-se uma linha em branco e a orientação do perfil. Não há cabeçalho `Field: <nome>`. É feita uma chamada sequencial com o prompt exato do OpenJev, `max_tokens:1`, `temperature:1`, `top_k:0`, `top_p:1`, `logprobs:true`, `top_logprobs:20`, `logit_bias` +100 nos rótulos, gramática `root ::= "A" | "B" | …`, `cache_prompt:false` e `chat_template_kwargs:{"enable_thinking":false}`. Antes de usar um rótulo pela primeira vez com um modelo, o cliente o tokeniza por `POST /tokenize` (`{"model","content","add_special":false}`), só os rótulos que a pergunta precisa (`A`…o n-ésimo); o cache é por instância de `OpenJevClient` e modelo, e uma pergunta com mais opções tokeniza só os rótulos novos. Um rótulo que não vira exatamente um token é erro explícito, antes do chat. A probabilidade é o softmax dos logprobs dos rótulos; rótulo ausente do top 20 é erro, nunca renormalização. A observação usa `ProbabilityPolicy = "OpenJevLabelSoftmax"`, e os logprobs brutos vão pelo callback `observeDecision`.
 
 ## Configurar `laya`
 
@@ -125,25 +125,25 @@ Execução de 2026-10-30, RTX 4090 (driver 617.42), com as versões fixadas acim
 
 ### OpenJev
 
-Duas execuções deram números idênticos. O teste do MiniCPM5 2B **falha hoje** pelo caso `boolean`.
+Números atuais: execução de 2026-10-30 depois de tirar o cabeçalho `Field: <nome>` da pergunta e trocar as opções booleanas para `Yes`/`No` (antes: `Field: <campo>\n<descrição>` e `true`/`false`). Os casos, limiares e expectativas não mudaram; só o texto das opções do caso `boolean` no teste (`["Yes", "No"]`), que o teste compara com o que vai no fio. O teste do MiniCPM5 2B **continua falhando** pelo caso `boolean`, agora com margem maior.
 
-| Modelo | Caso | Escolha | Probabilidades | Tokens in/out | Latência |
-|---|---|---|---|---|---|
-| qwen3-0.6b | account | Account access support ✔ | Account 0.9864 / Billing 0.0028 / Close 0.0108 | 110/1 | 36 ms |
-| qwen3-0.6b | email | Phishing ✔ | Legitimate 0.1578 / Spam 0.0186 / Phishing 0.8236 | 127/1 | 18 ms |
-| qwen3-0.6b | boolean | true ✔ | true 0.9893 / false 0.0107 | 132/1 | 12 ms |
-| minicpm5-2b | account | Account access support ✔ | Account 0.4251 / Billing 0.1576 / Close 0.4173 | 115/1 | 24 ms |
-| minicpm5-2b | email | Phishing ✔ | Legitimate 0.000001 / Spam 0.2681 / Phishing 0.7319 | 133/1 | 19 ms |
-| minicpm5-2b | boolean | **false ✘** | true 0.1318 / false 0.8682 | 140/1 | 16 ms |
-| qwen3.5-4b | account | Account access support ✔ | Account 0.9498 / Billing 0.0052 / Close 0.0449 | 115/1 | 123 ms |
-| qwen3.5-4b | email | Phishing ✔ | Legitimate 0.000009 / Spam 0.000016 / Phishing 0.999975 | 132/1 | 92 ms |
-| qwen3.5-4b | boolean | true ✔ | true 0.9343 / false 0.0657 | 138/1 | 61 ms |
+| Modelo | Caso | Escolha | Probabilidades | Antes (prompt antigo) | Tokens in/out | Latência |
+|---|---|---|---|---|---|---|
+| qwen3-0.6b | account | Account access support ✔ | Account 0.8023 / Billing 0.0006 / Close 0.1972 | Account 0.9864 / 0.0028 / 0.0108 | 106/1 | 39 ms |
+| qwen3-0.6b | email | Phishing ✔ | Legitimate 0.0595 / Spam 0.0259 / Phishing 0.9147 | Phishing 0.8236 (0.1578 / 0.0186) | 123/1 | 19 ms |
+| qwen3-0.6b | boolean | true ✔ | Yes 0.9983 / No 0.0017 | true 0.9893 | 126/1 | 14 ms |
+| minicpm5-2b | account | Account access support ✔ | Account 0.9190 / Billing 0.0491 / Close 0.0318 | Account 0.4251 / 0.1576 / 0.4173 | 111/1 | 27 ms |
+| minicpm5-2b | email | Phishing ✔ | Legitimate 0.0000001 / Spam 0.0541 / Phishing 0.9459 | Phishing 0.7319 (0.000001 / 0.2681) | 129/1 | 25 ms |
+| minicpm5-2b | boolean | **false ✘** | Yes 0.0147 / No 0.9853 | true 0.1318 ✘ | 132/1 | 18 ms |
+| qwen3.5-4b | account | Account access support ✔ | Account 0.9622 / Billing 0.0106 / Close 0.0271 | Account 0.9498 / 0.0052 / 0.0449 | 111/1 | 145 ms |
+| qwen3.5-4b | email | Phishing ✔ | Legitimate 0.000020 / Spam 0.000038 / Phishing 0.999941 | Phishing 0.999975 | 128/1 | 101 ms |
+| qwen3.5-4b | boolean | true ✔ | Yes 0.8925 / No 0.1075 | true 0.9343 | 132/1 | 77 ms |
 
 Observações:
 
-- **MiniCPM5 2B erra o `boolean`** (P(true) = 0.13), de forma determinística. O caso não foi alterado para passar. O texto da tarefa desse caso (`Answer the field about this email.`) foi escolhido na implementação, e outras formulações não foram testadas. No `account`, o MiniCPM5 quase empata com `Close as resolved` (0.425 vs 0.417).
+- **O novo formato ajuda as escolhas**: o MiniCPM5 deixa de quase empatar no `account` (0.919, antes 0.425 vs 0.417) e sobe no `email` (0.946, antes 0.732; chamando `DecideAsync` direto com só a tarefa, 0.993). O Qwen3 0.6B sobe no `email` e cai no `account` (0.80, ainda correto). O Qwen3.5 4B fica praticamente igual.
+- **MiniCPM5 2B erra o `boolean`**, de forma determinística, e piorou: P(Yes) = 0.015 (antes P(true) = 0.13). O caso não foi alterado para passar. Uma sonda direta no mesmo servidor (`DecideAsync`, mesmo estado e tarefa) separou os dois efeitos: com `Field:` e `true`/`false`, 0.132; com `Field:` e `Yes`/`No`, 0.181; sem `Field:` e `true`/`false`, 0.025; sem `Field:` e `Yes`/`No`, 0.015. Para esse caso, tirar o cabeçalho é o que derruba a resposta; `Yes`/`No` não compensa. O texto da tarefa (`Answer the field about this email.`) foi escolhido na implementação e fala de um "field" que o prompt não nomeia mais; outras formulações não foram testadas.
 - **`logit_bias` e logprobs:** no `llama-server` b12015, os logprobs informados são bit a bit idênticos com e sem `logit_bias` +100 (MiniCPM5 2B, `email`: Legitimate −15.8934, Spam −5.0233, Phishing −0.0066). O servidor aparentemente informa `top_logprobs` antes de aplicar o viés. O teste confirma que o viés não distorce as probabilidades informadas, mas não mostra o efeito do viés na amostragem.
-- O sufixo `Field: …` que o caminho de flow acrescenta à pergunta muda as respostas dos modelos pequenos: chamando `DecideAsync` direto, sem o sufixo, o MiniCPM5 dá P(Phishing) = 0.993 no `email`; pelo flow, 0.732.
 - Com o GGUF em cache, o `llama-server` sobe em 1–2 s.
 
 ### Laya

@@ -42,8 +42,8 @@ public sealed class OpenJevFlowCompletionTests
         Assert.Equal(2, server.ChatCalls);
         var chats = server.Requests.Where(r => r.Path == "/v1/chat/completions").Select(r => r.Body.GetProperty("messages")[1]
             .GetProperty("content").GetString()).ToArray();
-        Assert.Equal("State:\n{\"mensagens\":[\"Oi\"]}\n\nQuestion:\nClassify only.\n\nField: acao\nWhat to do next\n\nAllowed options:\nA. responder\nB. calar\n\nReply with exactly one option letter from: A, B.", chats[0]);
-        Assert.Equal("State:\n{\"mensagens\":[\"Oi\"]}\n\nQuestion:\nClassify only.\n\nField: cuidado\ncuidado\n\nAllowed options:\nA. true\nB. false\n\nReply with exactly one option letter from: A, B.", chats[1]);
+        Assert.Equal("State:\n{\"mensagens\":[\"Oi\"]}\n\nQuestion:\nClassify only.\n\nWhat to do next\n\nAllowed options:\nA. responder\nB. calar\n\nReply with exactly one option letter from: A, B.", chats[0]);
+        Assert.Equal("State:\n{\"mensagens\":[\"Oi\"]}\n\nQuestion:\nClassify only.\n\ncuidado\n\nAllowed options:\nA. Yes\nB. No\n\nReply with exactly one option letter from: A, B.", chats[1]);
     }
 
     [Fact]
@@ -91,7 +91,23 @@ public sealed class OpenJevFlowCompletionTests
             { ["acao"] = new("Choose participation only.", new Dictionary<string, string> { ["responder"] = "Address the speaker", ["calar"] = "calar" }) });
         await adapter.CompleteAsync(Request(), Token);
         var first = server.Requests.First(r => r.Path == "/v1/chat/completions").Body.GetProperty("messages")[1].GetProperty("content").GetString();
-        Assert.Contains("Question:\nClassify only.\n\nField: acao\nWhat to do next\n\nChoose participation only.\n\nAllowed options:\nA. responder: Address the speaker\nB. calar\n\n", first);
+        Assert.Equal("State:\n{\"mensagens\":[\"Oi\"]}\n\nQuestion:\nClassify only.\n\nWhat to do next\n\nChoose participation only.\n\nAllowed options:\nA. responder: Address the speaker\nB. calar\n\nReply with exactly one option letter from: A, B.", first);
+    }
+
+    [Theory]
+    [InlineData("""{"type":"boolean","description":"Does the email ask for credentials?"}""", "Does the email ask for credentials?")]
+    [InlineData("""{"type":"boolean","description":""}""", "asks_for_credentials")]
+    [InlineData("""{"type":"boolean"}""", "asks_for_credentials")]
+    public async Task Boolean_question_is_task_then_description_or_field_name_with_yes_no_options(string property, string line)
+    {
+        var server = Server(Binary(0.7));
+        using var http = new HttpClient(server);
+        var adapter = new OpenJevFlowCompletion(new OpenJevClient(http, new("http://localhost:8080/")), 0.6);
+        var output = Json(await adapter.CompleteAsync(Request(
+            $$"""{"type":"object","properties":{"asks_for_credentials":{{property}}},"required":["asks_for_credentials"],"additionalProperties":false}"""), Token));
+        Assert.True(output.GetProperty("asks_for_credentials").GetBoolean());
+        Assert.Equal($"State:\n{{\"mensagens\":[\"Oi\"]}}\n\nQuestion:\nClassify only.\n\n{line}\n\nAllowed options:\nA. Yes\nB. No\n\nReply with exactly one option letter from: A, B.",
+            server.LastChat.GetProperty("messages")[1].GetProperty("content").GetString());
     }
 
     [Fact]

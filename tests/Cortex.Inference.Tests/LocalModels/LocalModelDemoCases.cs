@@ -20,6 +20,6 @@ internal static class LocalModelDemoCases
             EmailOptions, "Phishing"),
         new("boolean", EmailState, "Answer the field about this email.", "asks_for_credentials",
             """{"type":"object","properties":{"asks_for_credentials":{"type":"boolean","description":"The message asks the recipient to enter a password or verification code."}},"required":["asks_for_credentials"],"additionalProperties":false}""",
-            ["true", "false"], "true"),
+            ["Yes", "No"], "true"),
     ];
 }
