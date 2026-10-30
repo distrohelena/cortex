@@ -155,20 +155,20 @@ Validações:
 dotnet test tests/Cortex.Inference.Tests --filter Category=LocalModelsBenchmark
 ```
 
-`LocalDecisionBenchmarkTests.Benchmark_local_decision_models` tem a categoria própria `LocalModelsBenchmark`, fora de `LocalModels`. Ele roda o corpus `tests/fixtures/local-decision-cases.json`: 24 casos de resposta inequívoca, 12 em inglês e 12 em português do Brasil, sendo 16 escolhas de 2 a 5 opções e 8 booleanos. Os domínios são triagem de suporte, phishing e spam, urgência, intenção, se o assistente deve responder num grupo de WhatsApp, e tom/sentimento.
+`LocalDecisionBenchmarkTests.Benchmark_local_decision_models` tem a categoria própria `LocalModelsBenchmark`, fora de `LocalModels`. Ele roda o corpus `tests/fixtures/local-decision-cases.json`: 24 casos de resposta inequívoca, 12 em inglês e 12 em português do Brasil, sendo 16 escolhas de 2 a 5 opções e 8 booleanos. Os domínios são triagem de suporte, phishing e spam, urgência, intenção, se o assistente deve responder num grupo de WhatsApp (com a política de resposta escrita na tarefa), e tom/sentimento.
 
 - **OpenJev:** cada GGUF responde todos os casos em todas as rotações (`Fixed`) e de novo com `AverageRotations`.
 - **Laya:** cada checkpoint responde todos os casos em todas as rotações dos `criteria`.
 
-Um servidor por vez, iniciado como nos testes `LocalModels`. O benchmark não faz assert de acurácia: só valida a estrutura (probabilidades finitas, soma 1, escolha válida). Quando um rótulo falta no top 20 de logprobs, o OpenJev recusa a resposta. O benchmark registra isso como resposta "rejeitada", que conta como erro, e não aborta.
+Um servidor por vez, iniciado como nos testes `LocalModels`. O benchmark não faz assert de acurácia: só valida a estrutura (probabilidades finitas, soma 1, escolha válida). Quando um rótulo falta no top 20 de logprobs, o OpenJev recusa a resposta. O benchmark registra isso como resposta "rejeitada", que conta como erro, e não aborta. Qualquer outra violação de contrato, como um rótulo com duas entradas, faz o benchmark falhar.
 
-O relatório é sempre gravado em **`artifacts/local-models/benchmark.md`**, sobrescrito a cada execução. Ele traz data, GPU, versões fixadas, a tabela-resumo, os recortes por idioma e tipo, e a lista de casos errados com P(resposta certa) por ordem. Nesta máquina, o benchmark inteiro leva menos de 1 min.
+O relatório é sempre gravado em **`artifacts/local-models/benchmark.md`**, sobrescrito a cada execução. Ele traz data, GPU e versões fixadas. Traz também a tabela-resumo, com rejeitadas, números avaliados sem as ordens rejeitadas e o pior caso só nas escolhas, e a tabela de custo, com a mediana por chamada HTTP e por decisão. Por fim, os recortes por idioma e tipo e a lista de casos errados, com P(resposta certa) por ordem. Nesta máquina, o benchmark inteiro leva menos de 1 min.
 
 A seleção offline do [README](../README.md) exclui os dois grupos com `Category!=LocalModels&Category!=LocalModelsBenchmark`. Um `dotnet test` sem filtro executa os dois.
 
 ## Resultado observado
 
-Execução de 2026-10-30, RTX 4090 (driver 617.42), com as versões fixadas acima (llama.cpp b12015, Laya 0.4.18, pesos `7b928d82…`, torch 2.14.1+cu126).
+Execução de 2026-10-30, RTX 4090 (driver 617.42), com as versões fixadas acima (llama.cpp b12015, Laya 0.4.18, pesos `7b928d82…`, torch 2.14.1+cu126). Durante esta execução, outras cargas usavam a GPU, então as latências absolutas são mais altas que numa GPU livre. Numa execução anterior sem essa concorrência, a mediana por chamada foi de 11, 15 e 58 ms para os três GGUFs; as proporções entre modelos ficaram parecidas.
 
 ### Viés de posição
 
@@ -180,57 +180,92 @@ Modelos pequenos escolhem em parte pela **posição** da opção (o rótulo `A`,
 
 Um modelo sem viés de posição tem média por rotação = pior caso. A distância entre as duas mede o viés.
 
+No booleano, o Laya tem uma única ordem (`noul`), enquanto o OpenJev tem duas. Isso favorece o pior caso geral do Laya. Para comparar a estabilidade à ordem entre provedores, use o **pior caso só nas escolhas**: os 16 casos em que todos são perguntados em todas as ordens.
+
 ### Benchmark (24 casos)
 
-Do `artifacts/local-models/benchmark.md` desta execução. Latência é a mediana por chamada HTTP de inferência. "Rejeitadas" são respostas recusadas pelo OpenJev por rótulo fora do top 20; contam como erro.
+Do `artifacts/local-models/benchmark.md` desta execução.
 
-| Modelo | Modo | Média por rotação | Pior caso | Com média | Latência | Chamadas | Rejeitadas |
-|---|---|---|---|---|---|---|---|
-| openjev `qwen3-0.6b` | fixed, todas as rotações | 63.9% | 41.7% | — | 11 ms | 69 | 0 |
-| openjev `qwen3-0.6b` | `AverageRotations` | — | — | 70.8% | 11 ms | 69 | 0 |
-| openjev `minicpm5-2b` | fixed, todas as rotações | 67.2% | 33.3% | — | 15 ms | 69 | 3 |
-| openjev `minicpm5-2b` | `AverageRotations` | — | — | 66.7% | 15 ms | 65 | 3 |
-| openjev `qwen3.5-4b` | fixed, todas as rotações | 91.7% | 91.7% | — | 58 ms | 69 | 0 |
-| openjev `qwen3.5-4b` | `AverageRotations` | — | — | 91.7% | 58 ms | 69 | 0 |
-| laya `english` | todas as rotações dos `criteria` | 79.2% | 75.0% | 79.2% | 29 ms | 61 | 0 |
-| laya `multilingual` | todas as rotações dos `criteria` | 76.8% | 66.7% | 79.2% | 19 ms | 61 | 0 |
-| laya `typed-decisions` | todas as rotações dos `criteria` | 79.2% | 79.2% | 79.2% | 24 ms | 61 | 0 |
+**Rejeitadas** são respostas que o OpenJev recusou porque um rótulo ficou fora do top 20 de logprobs. Nas linhas de rotação, conta ordens; nas de `AverageRotations`, conta perguntas (uma ordem recusada derruba a pergunta inteira). Nas colunas de acurácia, rejeitadas contam como erro, como acontece em produção. As colunas **avaliadas** deixam de fora as ordens rejeitadas: medem só o julgamento do modelo nas ordens que ele respondeu.
 
-Recortes (média por rotação / pior caso; nas linhas `AverageRotations`, a acurácia com média):
+| Modelo | Modo | Média por rotação | Pior caso | Pior caso (escolhas) | Com média | Rejeitadas | Pior caso avaliado | Com média avaliado |
+|---|---|---|---|---|---|---|---|---|
+| openjev `qwen3-0.6b` | fixed, todas as rotações | 63.9% | 41.7% | 50.0% | — | 0 | 41.7% (10/24) | — |
+| openjev `qwen3-0.6b` | `AverageRotations` | — | — | — | 70.8% | 0 | — | 70.8% (17/24) |
+| openjev `minicpm5-2b` | fixed, todas as rotações | 69.3% | 33.3% | 31.2% | — | 3 | 45.8% (11/24) | — |
+| openjev `minicpm5-2b` | `AverageRotations` | — | — | — | 66.7% | 3 | — | 76.2% (16/21) |
+| openjev `qwen3.5-4b` | fixed, todas as rotações | 91.7% | 91.7% | 100.0% | — | 0 | 91.7% (22/24) | — |
+| openjev `qwen3.5-4b` | `AverageRotations` | — | — | — | 91.7% | 0 | — | 91.7% (22/24) |
+| laya `english` | todas as rotações dos `criteria` | 83.3% | 79.2% | 81.2% | 83.3% | 0 | 79.2% (19/24) | 83.3% (20/24) |
+| laya `multilingual` | todas as rotações dos `criteria` | 81.0% | 70.8% | 62.5% | 83.3% | 0 | 70.8% (17/24) | 83.3% (20/24) |
+| laya `typed-decisions` | todas as rotações dos `criteria` | 75.0% | 75.0% | 87.5% | 75.0% | 0 | 75.0% (18/24) | 75.0% (18/24) |
+
+Custo. **Por chamada HTTP** é a mediana de uma chamada de inferência (chat completion ou `/v1/systemone`; a tokenização dos rótulos não conta). **Por decisão** é a mediana do tempo somado das chamadas de uma resposta, então uma resposta de `AverageRotations` custa n chamadas.
+
+| Modelo | Modo | Mediana por chamada HTTP | Mediana por decisão | Chamadas |
+|---|---|---|---|---|
+| openjev `qwen3-0.6b` | fixed | 19 ms | 19 ms | 69 |
+| openjev `qwen3-0.6b` | `AverageRotations` | 18 ms | 45 ms | 69 |
+| openjev `minicpm5-2b` | fixed | 23 ms | 23 ms | 69 |
+| openjev `minicpm5-2b` | `AverageRotations` | 27 ms | 75 ms | 65 |
+| openjev `qwen3.5-4b` | fixed | 87 ms | 87 ms | 69 |
+| openjev `qwen3.5-4b` | `AverageRotations` | 87 ms | 262 ms | 69 |
+| laya `english` | criteria | 31 ms | 31 ms | 61 |
+| laya `multilingual` | criteria | 28 ms | 28 ms | 61 |
+| laya `typed-decisions` | criteria | 30 ms | 30 ms | 61 |
+
+Recortes. Nas linhas de rotação, média por rotação / pior caso; nas linhas `AverageRotations`, a acurácia com média:
 
 | Modelo | Modo | en (12) | pt (12) | escolha (16) | booleano (8) |
 |---|---|---|---|---|---|
 | `qwen3-0.6b` | fixed | 63.9% / 33.3% | 63.9% / 50.0% | 70.8% / 50.0% | 50.0% / 25.0% |
 | `qwen3-0.6b` | `AverageRotations` | 75.0% | 66.7% | 81.2% | 50.0% |
-| `minicpm5-2b` | fixed | 68.5% / 33.3% | 66.0% / 33.3% | 72.7% / 31.2% | 56.2% / 37.5% |
+| `minicpm5-2b` | fixed | 72.6% / 33.3% | 66.0% / 33.3% | 72.7% / 31.2% | 62.5% / 37.5% |
 | `minicpm5-2b` | `AverageRotations` | 66.7% | 66.7% | 75.0% | 50.0% |
 | `qwen3.5-4b` | fixed | 91.7% / 91.7% | 91.7% / 91.7% | 100.0% / 100.0% | 75.0% / 75.0% |
 | `qwen3.5-4b` | `AverageRotations` | 91.7% | 91.7% | 100.0% | 75.0% |
-| laya `english` | criteria | 77.8% / 75.0% | 80.6% / 75.0% | 87.5% / 81.2% | 62.5% / 62.5% |
-| laya `multilingual` | criteria | 77.2% / 66.7% | 76.4% / 66.7% | 77.7% / 62.5% | 75.0% / 75.0% |
-| laya `typed-decisions` | criteria | 83.3% / 83.3% | 75.0% / 75.0% | 87.5% / 87.5% | 62.5% / 62.5% |
+| laya `english` | criteria | 86.1% / 83.3% | 80.6% / 75.0% | 87.5% / 81.2% | 75.0% / 75.0% |
+| laya `multilingual` | criteria | 85.6% / 75.0% | 76.4% / 66.7% | 77.7% / 62.5% | 87.5% / 87.5% |
+| laya `typed-decisions` | criteria | 83.3% / 83.3% | 66.7% / 66.7% | 87.5% / 87.5% | 50.0% / 50.0% |
+
+Os quatro casos de WhatsApp declaram a política na tarefa: responder só quando alguém fala diretamente com o assistente ou pede algo em que ele possa ajudar; caso contrário, ficar em silêncio. Os dois casos "ficar calado" são `en-whatsapp-banter` (conversa entre amigos) e `pt-whatsapp-confirmacao-futebol` (membros confirmando presença no futebol).
 
 O que os números mostram:
 
-- **Qwen3.5 4B** é o único sem viés de posição mensurável: média por rotação = pior caso = com média = 91.7%. Acerta todas as 16 escolhas em todas as ordens. Os dois erros são o mesmo caso nos dois idiomas: no WhatsApp, quando o assistente deveria ficar calado (conversa entre amigos; "bom dia" em família), ele responde que deve falar, com P(certo) ≤ 0.015. Custa cerca de 4–5× a latência dos menores (58 ms por chamada).
-- **Qwen3 0.6B e MiniCPM5 2B** têm viés forte: o pior caso (41.7% e 33.3%) fica muito abaixo da média por rotação (63.9% e 67.2%). No Qwen3 0.6B, `AverageRotations` sobe a acurácia de 63.9% para 70.8% (escolhas: 70.8% → 81.2%). No MiniCPM5 2B, a média não ajuda (66.7%). Além disso, em 3 de 69 ordens um rótulo saiu do top 20 de logprobs, e o OpenJev recusou a resposta. Com `AverageRotations`, uma ordem recusada derruba a pergunta inteira.
-- **Booleanos são o ponto fraco de todos.** Os três GGUFs erram os dois casos "ficar calado" no WhatsApp; os menores também erram "a resposta é para hoje?" e "é reclamação?" em alguma ordem.
-- **Laya** fica em ~79% e é bem mais estável à ordem que os GGUFs pequenos (`typed-decisions`: pior caso = média). Erra phishing vs. spam (o SMS bancário em português sai errado nos três checkpoints, em todas as ordens). Os três checkpoints erram booleanos de WhatsApp, e `english` e `typed-decisions` também erram o golpe dos gift cards. O `multilingual` não é melhor que o `english` em português (76.4% vs. 80.6%).
+- **Qwen3.5 4B** é o único sem viés de posição mensurável: média por rotação = pior caso = com média = 91.7%. Acerta as 16 escolhas em todas as ordens. Os dois erros são os dois casos "ficar calado", em todas as ordens, com P(certo) entre 0.006 e 0.196. Por chamada HTTP, custa 87 ms nesta execução: 4.6× o Qwen3 0.6B (19 ms), 3.8× o MiniCPM5 2B (23 ms) e 2.8–3.1× o Laya (28–31 ms).
+- **Qwen3 0.6B e MiniCPM5 2B** têm viés forte: o pior caso (41.7% e 33.3%) fica muito abaixo da média por rotação (63.9% e 69.3%).
+  - No Qwen3 0.6B, `AverageRotations` sobe a acurácia de 63.9% para 70.8% (escolhas: 70.8% → 81.2%).
+  - Os números de produção do **MiniCPM5 2B** são puxados para baixo pelas **3 rejeições**. Os três casos rejeitados (`en-support-duplicate-charge`, `en-intent-reschedule` e `en-sentiment-love-update`) ele acerta com P ≥ 0.995 em todas as outras ordens. Contando rejeição como erro, o pior caso é 33.3% e a acurácia com média é 66.7%. Só nas ordens respondidas, sobem para 45.8% (11/24) e 76.2% (16/21). Mesmo assim, o pior caso avaliado fica bem abaixo da média por rotação (69.3%): o viés de posição é real, não só efeito das rejeições.
+- **Booleanos são o ponto fraco.** Com a política explícita, ainda assim **nenhum modelo acerta os dois casos "ficar calado"**. Os três GGUFs e os três checkpoints do Laya erram `pt-whatsapp-confirmacao-futebol`; os três GGUFs também erram `en-whatsapp-banter`. Erros booleanos completos (em pelo menos uma ordem):
+  - `qwen3-0.6b`: os dois "ficar calado", `en-scam-gift-cards`, `en-urgency-slides-next-week`, `pt-whatsapp-pergunta-direta` e `pt-reclamacao-elogio`;
+  - `minicpm5-2b`: os dois "ficar calado", `en-urgency-slides-next-week`, `pt-whatsapp-pergunta-direta` e `pt-reclamacao-elogio`;
+  - `qwen3.5-4b`: só os dois "ficar calado";
+  - Laya `english`: `en-scam-gift-cards` e `pt-whatsapp-confirmacao-futebol`;
+  - Laya `multilingual`: `pt-whatsapp-confirmacao-futebol`;
+  - Laya `typed-decisions`: `en-whatsapp-asked-directly`, `pt-whatsapp-pergunta-direta`, `en-scam-gift-cards` e `pt-whatsapp-confirmacao-futebol`.
+- **Laya, só nas escolhas** (média por rotação / pior caso):
+  - `typed-decisions` 87.5% / 87.5% e `english` 87.5% / 81.2%: mais estáveis à ordem que o Qwen3 0.6B (70.8% / 50.0%) e o MiniCPM5 2B (72.7% / 31.2%).
+  - `multilingual` 77.7% / 62.5%: tem viés visível.
+  - Os três erram phishing vs. spam: o SMS bancário em português sai errado em todas as ordens nos três checkpoints.
+  - Em português, o `multilingual` (76.4%) não é melhor que o `english` (80.6%), e o `typed-decisions` cai para 66.7%.
 
 ### Recomendação
 
 Com esses dados:
 
-- Para decisões tipadas locais, **`openjev` com `qwen3.5-4b`** é a melhor opção medida. É o mais preciso, e a ordem das opções não muda suas respostas. `optionOrder: "fixed"` basta para ele: `AverageRotations` custou n× as chamadas sem mudar nenhuma resposta.
-- Se a latência importa mais que a precisão, o **Laya `typed-decisions`** ou o **`english`** (~25 ms, ~79%, estáveis à ordem) ficam à frente dos GGUFs pequenos. A ressalva é a fraqueza em phishing vs. spam e em booleanos.
-- **Qwen3 0.6B** só com `AverageRotations`, e mesmo assim abaixo do Laya. **MiniCPM5 2B** não é recomendado: tem o pior pior-caso (33.3%), a média não o corrige, e algumas respostas são recusadas.
-- Nenhum GGUF medido acerta "ficar calado" num grupo de WhatsApp. Essa decisão não deve ficar só com um desses modelos.
+- Para decisões tipadas locais, **`openjev` com `qwen3.5-4b`** é a melhor opção medida. É o mais preciso, e a ordem das opções não muda suas respostas. `optionOrder: "fixed"` basta para ele: `AverageRotations` triplicou o custo por decisão (262 ms vs. 87 ms) sem mudar nenhuma resposta.
+- Se a latência importa mais que a precisão, o **Laya `english`** é o mais equilibrado entre os rápidos: 83.3% de média, 79.2% no pior caso e 81.2% no pior caso das escolhas. O `typed-decisions` é o mais estável nas escolhas (87.5% / 87.5%), mas o mais fraco em booleanos (50%) e em português (66.7%). A ressalva vale para os dois: phishing vs. spam.
+- **Qwen3 0.6B** só com `AverageRotations` (70.8%), e mesmo assim abaixo do Laya `english`.
+- **MiniCPM5 2B** não é recomendado. Em produção, tem 33.3% no pior caso e 66.7% com média, em boa parte por causa das 3 rejeições. Só nas ordens respondidas, tem 45.8% e 76.2%: ainda com viés forte e abaixo do Qwen3.5 4B e do Laya `english`. Uma política do cliente para rótulo ausente mudaria a primeira parte dessa conclusão, não a segunda.
+- **Nenhum modelo medido** acerta os dois casos "ficar calado" num grupo de WhatsApp, mesmo com a política escrita na tarefa. Essa decisão não deve ficar só com um desses modelos.
 
 Ressalva: são 24 casos; um caso vale 4.2 pontos percentuais. As diferenças pequenas (por exemplo, entre os checkpoints do Laya) não são conclusivas.
 
 ### Casos de demo em todas as ordens
 
 Do teste honesto (`LocalModels`), P(resposta certa) em cada rotação. Na escolha, a ordem 0 é a do caso e a ordem k começa pela opção k. No booleano do OpenJev, as ordens são `Yes/No` e `No/Yes`. Em **negrito**, as respostas erradas.
+
+Todos os números são desta execução. No caso `boolean`, a tarefa é `Classify this email.` desde o commit `a7440eb`; antes era `Answer the field about this email.`. A tabela anterior do Laya (noul `english` 0.8478, `multilingual` 0.6837, `typed-decisions` 0.6555) tinha sido medida com a tarefa antiga, e os tokens de entrada confirmam a troca (por exemplo, `multilingual`: 116 → 113). Com a tarefa nova, o `multilingual` cai para 0.10 e erra.
 
 | Modelo | `account` | `email` | `boolean` | Com média (`account` / `email` / `boolean`) |
 |---|---|---|---|---|
