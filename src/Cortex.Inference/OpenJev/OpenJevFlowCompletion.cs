@@ -1,5 +1,6 @@
 using Cortex.Core.Flows;
 using Cortex.Inference.SystemOne;
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -15,6 +16,8 @@ public sealed class OpenJevFlowCompletion(OpenJevClient client, double booleanTh
     Action<string, string, OpenJevDecision>? observeDecision = null) : IFlowCompletion
 {
     private const int MaximumOptions = 20;
+    // OpenJev passes state untouched: no \u escapes for non-ASCII, quotes or HTML-sensitive characters.
+    private static readonly JsonSerializerOptions StateJson = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping };
     private readonly Dictionary<string, SystemOneChoiceQuestion> profiles = choiceQuestions?.ToDictionary(p => p.Key,
         p => new SystemOneChoiceQuestion(p.Value.Instructions, p.Value.Criteria.ToDictionary()), StringComparer.Ordinal) ?? [];
 
@@ -23,8 +26,9 @@ public sealed class OpenJevFlowCompletion(OpenJevClient client, double booleanTh
         if (request.Provider != "openjev" || string.IsNullOrWhiteSpace(request.Model) ||
             !double.IsFinite(booleanThreshold) || booleanThreshold is <= 0 or >= 1)
             throw new InvalidDataException("OpenJev requires the openjev provider, a model and a boolean threshold in (0,1).");
+        if (request.Inputs.ValueKind == JsonValueKind.Undefined) throw new InvalidDataException("OpenJev requires a state.");
         var questions = TypedDecisionSchema.Questions(request, profiles, MaximumOptions);
-        var state = request.Inputs.ValueKind == JsonValueKind.String ? request.Inputs.GetString()! : JsonSerializer.Serialize(request.Inputs);
+        var state = request.Inputs.ValueKind == JsonValueKind.String ? request.Inputs.GetString()! : JsonSerializer.Serialize(request.Inputs, StateJson);
         var values = new JsonObject();
         var answers = new JsonObject();
         string? model = null;

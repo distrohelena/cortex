@@ -59,6 +59,29 @@ public sealed class OpenJevFlowCompletionTests
     }
 
     [Fact]
+    public async Task Structured_state_is_compact_json_without_escaping_non_ascii_or_quotes()
+    {
+        var server = Server(Binary(0.9));
+        using var http = new HttpClient(server);
+        var adapter = new OpenJevFlowCompletion(new OpenJevClient(http, new("http://localhost:8080/")), 0.5);
+        var request = Request("""{"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"],"additionalProperties":false}""")
+            with { Inputs = Json("{ \"m\" : \"ação \\\"x\\\" <b>&'\" }") };
+        await adapter.CompleteAsync(request, Token);
+        Assert.StartsWith("State:\n{\"m\":\"ação \\\"x\\\" <b>&'\"}\n\nQuestion:",
+            server.LastChat.GetProperty("messages")[1].GetProperty("content").GetString());
+    }
+
+    [Fact]
+    public async Task Undefined_state_is_rejected_without_calls()
+    {
+        var server = Server();
+        using var http = new HttpClient(server);
+        var adapter = new OpenJevFlowCompletion(new OpenJevClient(http, new("http://localhost:8080/")), 0.5);
+        await Assert.ThrowsAsync<InvalidDataException>(() => adapter.CompleteAsync(Request() with { Inputs = default }, Token));
+        Assert.Empty(server.Requests);
+    }
+
+    [Fact]
     public async Task Choice_profile_descriptions_become_option_text()
     {
         var server = Server(Binary(0.8), Binary(0.5));
