@@ -131,6 +131,7 @@ internal sealed class LocalServerProcess : IAsyncDisposable
         }
         catch (InvalidOperationException) { } // exited between the check and the kill
         catch (AggregateException) { } // some descendant could not be killed; the bounded wait below reports a survivor
+        catch (System.ComponentModel.Win32Exception) { } // the root itself could not be killed (e.g. access denied); same bounded report
         // Process is deliberately not disposed: callers may still read HasExited/ExitCode after disposal.
         // WaitForExitAsync also waits for EOF on stdout/stderr, so a surviving descendant holding them is caught here.
         using var bound = new CancellationTokenSource(DisposeTimeout);
