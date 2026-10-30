@@ -11,13 +11,16 @@ namespace Cortex.Core.Tests;
 
 public sealed class ObservedLiveRunTests : IDisposable
 {
-    [Fact]
-    public async Task Read_only_inference_rejection_does_not_stop_next_turn_or_replay_after_restart()
+    [Theory]
+    [InlineData("jev")]
+    [InlineData("laya")]
+    [InlineData("openjev")]
+    public async Task Read_only_inference_rejection_does_not_stop_next_turn_or_replay_after_restart(string provider)
     {
         var source = ShadowRuntimeTests.Project(false, sendExit: "sent", history: true);
         var document = JsonNode.Parse(source.Document.GetRawText())!;
         foreach (var state in document["states"]!.AsArray())
-            state!["graph"]!["nodes"]!.AsArray().Single(n => n!["id"]!.GetValue<string>() == "generate")!["provider"] = "jev";
+            state!["graph"]!["nodes"]!.AsArray().Single(n => n!["id"]!.GetValue<string>() == "generate")!["provider"] = provider;
         var pin = new PinnedShadowProject(source with { Document = JsonSerializer.SerializeToElement(document) });
         var completion = new RejectedOnceCompletion();
         var sender = new LiveRuntimeTests.SequencedTransport();
