@@ -15,8 +15,8 @@ Na avaliação, o endpoint é registrado pelo host em `EvaluationProviderFactory
 
 - **Endpoint:** a URL **base** do `llama-server`, absoluta, HTTP(S), loopback, sem userinfo, query nem fragment, e terminada em `/`. Exemplo: `http://127.0.0.1:18080/`. O cliente chama `tokenize` e `v1/chat/completions` relativos a essa base. Qualquer outra forma gera `InvalidDataException`.
 - **Modelo:** o `model` do perfil é o `--alias` com que o `llama-server` foi iniciado. O adaptador exige que o `model` da resposta seja igual ao pedido; um servidor com outro GGUF/alias gera `InvalidDataException` (`model_mismatch`), sem resultado.
-- **Limiar:** o mesmo campo `threshold` de `jev`/`laya`. Um booleano vira duas opções, `A. true` e `B. false`, e o resultado é `true` quando P(true) ≥ limiar. Testes e script usam 0.5.
-- **Esquema:** objeto fechado de campos obrigatórios, cada um `enum` (2 a 20 valores, rótulos `A`…`T`) ou `boolean`. Perfis de escolha (`choiceQuestions`) são aceitos como em `jev`/`laya`.
+- **Limiar:** o mesmo campo `threshold` de `jev`/`laya`. Um booleano vira duas opções, `A. true` e `B. false`, e o resultado é `true` quando P(true) ≥ limiar. Os testes usam 0.5. O `tools/start-openjev.ps1` só sobe o servidor e não tem limiar: o limiar é do perfil ou de quem compõe o `OpenJevFlowCompletion`.
+- **Esquema:** objeto fechado de campos obrigatórios, cada um `enum` (2 a 20 valores, rótulos `A`…`T`) ou `boolean`. Um `enum` ou `choiceQuestions` com mais de 20 opções já falha na validação do perfil (`profile.options_exceed_provider_limit` / `profile.choice_question_invalid`), antes de qualquer trial. Perfis de escolha (`choiceQuestions`) são aceitos como em `jev`/`laya`.
 - **Contabilidade:** cada `tokenize` e cada chat passam pelo `EvaluationHttpHandler` e viram uma tentativa no ledger, com a reserva do endpoint. O `tokenize` não faz inferência: é observado com uso 0/0 e atribuído ao `model` enviado no pedido; o chat usa `usage` e `model` da resposta. Com termos de preço `openjev` de taxa zero, `AttemptPriceProjection` dá custo 0 e `TrialMeasurement` soma os tokens. O cache de rótulos não atravessa trials: cada trial cria seu próprio cliente e registra as tokenizações que justificam o seu `logit_bias`.
 
 Fora da avaliação, a composição é direta:
@@ -38,16 +38,19 @@ Por campo, é feita uma chamada sequencial com o prompt exato do OpenJev, `max_t
 
 Atenção: `SystemOneFlowCompletion` também aceita `convaiinnovations/laya`, `convaiinnovations/laya-multilingual` e `convaiinnovations/laya-typed-decisions`. Na execução real, o Laya 0.4.18 trata `convaiinnovations/laya` como nome desconhecido e escolhe o checkpoint por detecção de idioma (`routing.reason: "English Latin text"`). Como a resposta sempre traz `model: "laya-rl-agent"`, o cliente não detecta esse desvio. Use os nomes curtos.
 
-Para subir o Laya fora dos testes, com as mesmas versões fixadas:
+Para subir o Laya fora dos testes, com as mesmas versões e o mesmo ambiente de `LayaLocalModelTests`:
 
 ```powershell
+$root = if ($env:CORTEX_LOCAL_MODELS_DIR) { $env:CORTEX_LOCAL_MODELS_DIR } else { "$env:LOCALAPPDATA\Cortex\local-models" }
 $env:LAYA_HOST = '127.0.0.1'; $env:LAYA_PORT = '18765'
 $env:LAYA_DEVICE = 'cuda'; $env:LAYA_PRELOAD = '1'
+$env:LAYA_MODELS = 'typed-decisions'   # o checkpoint que o perfil usa: english, multilingual ou typed-decisions
 $env:LAYA_REVISION = '7b928d828b7b0e022f929d9bd2e44165aa270148'
-& "$env:LOCALAPPDATA\Cortex\local-models\laya-venv\Scripts\python.exe" -m laya.serve
+$env:LAYA_API_KEY = ''                 # sem chave = sem credencial; no PowerShell, '' remove uma chave herdada
+& "$root\laya-venv\Scripts\python.exe" -m laya.serve
 ```
 
-O venv é criado pelos testes `LocalModels` (ou manualmente com `py -3.11 -m venv` e `pip install --extra-index-url https://download.pytorch.org/whl/cu126 "torch==2.14.1+cu126" "laya[serve]==0.4.18"`). Sem `LAYA_API_KEY` definida, não há credencial. `GET /health` mostra `checkpoint_devices` e `revisions` de cada checkpoint.
+Como nos testes, cada servidor pré-carrega um único checkpoint (`LAYA_MODELS`). Para usar outro, suba outro servidor (outra porta) com o `LAYA_MODELS` correspondente. `$root` segue a mesma regra do cache de downloads (abaixo). O venv é criado pelos testes `LocalModels` (ou manualmente com `py -3.11 -m venv` e `pip install --extra-index-url https://download.pytorch.org/whl/cu126 "torch==2.14.1+cu126" "laya[serve]==0.4.18"`). `GET /health` mostra `checkpoint_devices` e `revisions` de cada checkpoint.
 
 ## `tools/start-openjev.ps1`
 
@@ -114,7 +117,7 @@ Validações:
 - **OpenJev** (`qwen3-0.6b`, `minicpm5-2b`, `qwen3.5-4b`): `CUDA0` presente, `model` = alias, todas as opções na ordem, probabilidades finitas, soma 1 ± 1e-6, escolha = argmax. A escolha correta é obrigatória para MiniCPM5 2B e Qwen3.5 4B; no Qwen3 0.6B só é registrada. `Label_bias_does_not_change_label_distribution` compara a distribuição com e sem `logit_bias` (tolerância 1e-4).
 - **Laya** (`english`, `multilingual`, `typed-decisions`): `/health` deve mostrar o checkpoint em `cuda` e na revisão fixada, a resposta passa pelo `SystemOneClient` estrito e `routing.model` deve ser o checkpoint pedido. A correção semântica só é registrada.
 
-A seleção offline do [README](../README.md) exclui `Category!=LocalModels`. Um `dotnet test` sem filtro executa esses testes.
+A seleção offline do [README](../README.md) exclui esses testes com o filtro `Category!=LocalModels`. Um `dotnet test` sem filtro executa esses testes.
 
 ## Resultado observado
 
