@@ -82,12 +82,12 @@ public sealed class LocalDecisionBenchmarkTests
     /// <summary>
     /// OpenJev rejects a response whose top 20 logprobs miss a label (it never renormalizes). That is a property of the
     /// model on that prompt, so the benchmark records it as an error answer (counted wrong) instead of aborting the run.
-    /// Every other failure, including a structural assertion, still fails the benchmark.
+    /// Every other failure, including a duplicate label entry or a structural assertion, still fails the benchmark.
     /// </summary>
     private static async Task<LocalDecisionOutcome> Recorded(string model, LocalDecisionCase decision, int? shift, Func<Task<LocalDecisionOutcome>> run)
     {
         try { return await run(); }
-        catch (InvalidDataException error) when (error.Message.Contains("logprob entries", StringComparison.Ordinal))
+        catch (InvalidDataException error) when (error.Message.Contains("has 0 logprob entries", StringComparison.Ordinal))
         {
             Log($"OPENJEV {model} {decision.Id} {(shift is { } s ? $"shift {s}" : "averaged")}: rejected: {error.Message}");
             return LocalDecisionOutcome.Failed(shift, error);
