@@ -174,4 +174,121 @@ public sealed class OpenJevFlowCompletionTests
         await Assert.ThrowsAsync<InvalidDataException>(() => adapter.CompleteAsync(Request(provider: provider, model: model), Token));
         Assert.Empty(server.Requests);
     }
+
+    private const string ThreeOptionSchema = """
+        {"type":"object","properties":{"canal":{"type":"string","enum":["a","b","c"]}},"required":["canal"],"additionalProperties":false}
+        """;
+    private const string BooleanSchema = """
+        {"type":"object","properties":{"ok":{"type":"boolean"}},"required":["ok"],"additionalProperties":false}
+        """;
+
+    private static string Ternary(double pA, double pB, double pC, int prompt) =>
+        FakeLlamaServer.Chat(Model, [("A", Math.Log(pA)), ("B", Math.Log(pB)), ("C", Math.Log(pC))], prompt: prompt);
+
+    private static string[] ChatContents(FakeLlamaServer server) => server.Requests.Where(r => r.Path == "/v1/chat/completions")
+        .Select(r => r.Body.GetProperty("messages")[1].GetProperty("content").GetString()!).ToArray();
+
+    [Fact]
+    public async Task Rotations_ask_every_cyclic_order_and_average_back_onto_the_original_options()
+    {
+        // Position-biased replies: the first label is always favored, whichever option sits there.
+        var server = Server(Ternary(0.5, 0.3, 0.2, 11), Ternary(0.5, 0.4, 0.1, 12), Ternary(0.6, 0.1, 0.3, 13));
+        using var http = new HttpClient(server);
+        SystemOneResult? trace = null;
+        var decisions = new List<(string Node, string Field, OpenJevDecision Decision)>();
+        var adapter = new OpenJevFlowCompletion(new OpenJevClient(http, new("http://localhost:8080/")), 0.5, (_, result) => trace = result,
+            observeDecision: (node, field, decision) => decisions.Add((node, field, decision)), optionOrder: OpenJevOptionOrder.AverageRotations);
+
+        var output = Json(await adapter.CompleteAsync(Request(ThreeOptionSchema), Token));
+
+        Assert.Equal(3, server.ChatCalls);
+        var chats = ChatContents(server);
+        Assert.EndsWith("Allowed options:\nA. a\nB. b\nC. c\n\nReply with exactly one option letter from: A, B, C.", chats[0]);
+        Assert.EndsWith("Allowed options:\nA. b\nB. c\nC. a\n\nReply with exactly one option letter from: A, B, C.", chats[1]);
+        Assert.EndsWith("Allowed options:\nA. c\nB. a\nC. b\n\nReply with exactly one option letter from: A, B, C.", chats[2]);
+        // a = (0.5+0.1+0.1)/3, b = (0.3+0.5+0.3)/3, c = (0.2+0.4+0.6)/3: the fixed order alone would have chosen a.
+        Assert.Equal("c", output.GetProperty("canal").GetString());
+        Assert.NotNull(trace);
+        Assert.Equal("OpenJevLabelSoftmaxRotationAverage", trace.ProbabilityPolicy);
+        var canal = trace.Answers.GetProperty("canal");
+        Assert.Equal("c", canal.GetProperty("choice").GetString());
+        Assert.Equal(["a", "b", "c"], canal.GetProperty("probabilities").EnumerateObject().Select(p => p.Name));
+        Assert.Equal(0.7 / 3, canal.GetProperty("probabilities").GetProperty("a").GetDouble(), 1e-12);
+        Assert.Equal(1.1 / 3, canal.GetProperty("probabilities").GetProperty("b").GetDouble(), 1e-12);
+        Assert.Equal(1.2 / 3, canal.GetProperty("probabilities").GetProperty("c").GetDouble(), 1e-12);
+        Assert.Equal(1.2 / 3, canal.GetProperty("confidence").GetDouble(), 1e-12);
+        Assert.Equal(36, trace.InputTokens);
+        Assert.Equal(3, trace.OutputTokens);
+
+        var (node, field, decision) = Assert.Single(decisions);
+        Assert.Equal(("situation", "canal"), (node, field));
+        Assert.Equal(Model, decision.Model);
+        Assert.Equal(["A", "B", "C"], decision.Options.Select(o => o.Label));
+        Assert.Equal(["a", "b", "c"], decision.Options.Select(o => o.Text));
+        double[] means = [0.7 / 3, 1.1 / 3, 1.2 / 3];
+        for (var i = 0; i < 3; i++)
+        {
+            Assert.Equal(means[i], decision.Options[i].Probability, 1e-12);
+            Assert.Equal(Math.Log(means[i]), decision.Options[i].Logprob, 1e-12);
+        }
+        Assert.Equal(36, decision.InputTokens);
+        Assert.Equal(3, decision.OutputTokens);
+        Assert.Equal(trace.Elapsed, decision.Elapsed);
+    }
+
+    [Theory]
+    [InlineData(0.5, true)]
+    [InlineData(0.65, false)]
+    public async Task Rotations_average_boolean_yes_before_the_threshold(double threshold, bool expected)
+    {
+        // Yes first: P(Yes) = 0.9. No first: P(No) = 0.7, so P(Yes) = 0.3. Mean 0.6.
+        var server = Server(Binary(0.9, prompt: 20), Binary(0.7, prompt: 21));
+        using var http = new HttpClient(server);
+        SystemOneResult? trace = null;
+        var adapter = new OpenJevFlowCompletion(new OpenJevClient(http, new("http://localhost:8080/")), threshold, (_, result) => trace = result,
+            optionOrder: OpenJevOptionOrder.AverageRotations);
+
+        var output = Json(await adapter.CompleteAsync(Request(BooleanSchema), Token));
+
+        Assert.Equal(expected, output.GetProperty("ok").GetBoolean());
+        var chats = ChatContents(server);
+        Assert.Equal(2, chats.Length);
+        Assert.EndsWith("Allowed options:\nA. Yes\nB. No\n\nReply with exactly one option letter from: A, B.", chats[0]);
+        Assert.EndsWith("Allowed options:\nA. No\nB. Yes\n\nReply with exactly one option letter from: A, B.", chats[1]);
+        Assert.Equal(0.6, trace!.Answers.GetProperty("ok").GetProperty("noul").GetDouble(), 1e-12);
+        Assert.Equal(41, trace.InputTokens);
+        Assert.Equal(2, trace.OutputTokens);
+    }
+
+    [Fact]
+    public async Task Rotations_sum_usage_across_every_field_and_call()
+    {
+        var server = Server(Binary(0.2, prompt: 3), Binary(0.4, prompt: 5), Binary(0.6, prompt: 7), Binary(0.8, prompt: 11));
+        using var http = new HttpClient(server);
+        SystemOneResult? trace = null;
+        var adapter = new OpenJevFlowCompletion(new OpenJevClient(http, new("http://localhost:8080/")), 0.5, (_, result) => trace = result,
+            optionOrder: OpenJevOptionOrder.AverageRotations);
+
+        await adapter.CompleteAsync(Request(), Token);
+
+        Assert.Equal(4, server.ChatCalls);
+        Assert.Equal(26, trace!.InputTokens);
+        Assert.Equal(4, trace.OutputTokens);
+        // acao: responder = (0.2 + 0.6) / 2. cuidado: P(Yes) = (0.6 + (1 - 0.8)) / 2.
+        Assert.Equal(0.4, trace.Answers.GetProperty("acao").GetProperty("probabilities").GetProperty("responder").GetDouble(), 1e-12);
+        Assert.Equal(0.4, trace.Answers.GetProperty("cuidado").GetProperty("noul").GetDouble(), 1e-12);
+    }
+
+    [Fact]
+    public async Task Fixed_order_is_the_default_single_call_policy()
+    {
+        var server = Server(Binary(0.2), Binary(0.6));
+        using var http = new HttpClient(server);
+        SystemOneResult? trace = null;
+        var adapter = new OpenJevFlowCompletion(new OpenJevClient(http, new("http://localhost:8080/")), 0.5, (_, result) => trace = result,
+            optionOrder: OpenJevOptionOrder.Fixed);
+        await adapter.CompleteAsync(Request(), Token);
+        Assert.Equal(2, server.ChatCalls);
+        Assert.Equal("OpenJevLabelSoftmax", trace!.ProbabilityPolicy);
+    }
 }
