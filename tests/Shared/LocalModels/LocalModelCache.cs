@@ -126,7 +126,9 @@ internal sealed class LocalModelCache(string root)
         if (File.Exists(python) && File.Exists(stamp) && (await File.ReadAllTextAsync(stamp, token)).Trim() == expected) return python;
 
         if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
-        await Run("py", ["-3.11", "-m", "venv", directory], token);
+        // "py.exe", not "py": the launcher builds the interpreter path from its own argv[0], and a Process started as
+        // "py" makes it run "<Python311>\py" (exit 101, "Unable to create process").
+        await Run("py.exe", ["-3.11", "-m", "venv", directory], token);
         await Run(python, ["-m", "pip", "install", "--disable-pip-version-check", "--no-input",
             "--extra-index-url", manifest.Laya.TorchIndexUrl.ToString(), manifest.Laya.Torch, manifest.Laya.Package], token);
         try { await Run(python, ["-c", CudaTorchCheck], token); }

@@ -129,7 +129,7 @@ public sealed class LocalModelCacheTests : IDisposable
         // The unstamped venv is rebuilt from scratch on the next run.
         calls.Clear();
         await Assert.ThrowsAsync<InvalidOperationException>(() => cache.EnsureLayaAsync(manifest, TestContext.Current.CancellationToken));
-        Assert.Equal("py", calls[0].File);
+        Assert.Equal("py.exe", calls[0].File);
     }
 
     [Fact]
@@ -151,7 +151,7 @@ public sealed class LocalModelCacheTests : IDisposable
     private static Task FakeRun(List<(string File, string[] Arguments)> calls, string file, IReadOnlyList<string> arguments, bool cudaTorch)
     {
         calls.Add((file, arguments.ToArray()));
-        if (file == "py")
+        if (file == "py.exe")
         {
             var scripts = Path.Combine(arguments[^1], "Scripts");
             Directory.CreateDirectory(scripts);

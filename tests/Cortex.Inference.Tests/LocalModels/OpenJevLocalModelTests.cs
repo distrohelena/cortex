@@ -5,6 +5,7 @@ using Cortex.Core.Flows;
 using Cortex.Inference.OpenJev;
 using Cortex.TestSupport.LocalModels;
 using Xunit;
+using static Cortex.Inference.Tests.LocalModels.LocalModelDemoCases;
 
 namespace Cortex.Inference.Tests.LocalModels;
 
@@ -16,27 +17,8 @@ namespace Cortex.Inference.Tests.LocalModels;
 [Trait("Category", "LocalModels")]
 public sealed class OpenJevLocalModelTests
 {
-    private const string AccountState = "A customer says a password reset succeeded, but every login attempt still returns ‘account locked’. Two unlock emails were requested and neither arrived.";
-    private const string EmailState = "An email claims to be from the payroll team and says the recipient’s salary payment will be suspended today. It comes from payroll-review@outlook.com and links to a non-company sign-in page asking for a password and verification code.";
-    private const string EmailQuestion = "How should this email be classified?";
-    private static readonly string[] EmailOptions = ["Legitimate", "Spam", "Phishing"];
     private const double BooleanThreshold = 0.5;
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromMinutes(5);
-
-    private sealed record DemoCase(string Name, string State, string Question, string Field, string Schema, string[] Options, string Expected);
-
-    private static readonly DemoCase[] Cases =
-    [
-        new("account", AccountState, "Which queue should handle this request?", "queue",
-            """{"type":"object","properties":{"queue":{"type":"string","enum":["Account access support","Billing support","Close as resolved"]}},"required":["queue"],"additionalProperties":false}""",
-            ["Account access support", "Billing support", "Close as resolved"], "Account access support"),
-        new("email", EmailState, EmailQuestion, "classification",
-            """{"type":"object","properties":{"classification":{"type":"string","enum":["Legitimate","Spam","Phishing"]}},"required":["classification"],"additionalProperties":false}""",
-            EmailOptions, "Phishing"),
-        new("boolean", EmailState, "Answer the field about this email.", "asks_for_credentials",
-            """{"type":"object","properties":{"asks_for_credentials":{"type":"boolean","description":"The message asks the recipient to enter a password or verification code."}},"required":["asks_for_credentials"],"additionalProperties":false}""",
-            ["true", "false"], "true"),
-    ];
 
     private static CancellationToken Token => TestContext.Current.CancellationToken;
     private static void Log(string line) => TestContext.Current.TestOutputHelper!.WriteLine(line);
