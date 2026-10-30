@@ -37,10 +37,12 @@ Modelos pequenos têm viés forte de posição: preferem um rótulo pela posiç�
 - Qwen3 0.6B, caso `email`: 0.86 / 0.02 / 1.00.
 - MiniCPM5 2B, caso `boolean`: 0.06 / 0.98.
 
+Os testes `LocalModels` e o benchmark (abaixo) medem isso em todas as ordens.
+
 A correção padrão é tirar a média entre as ordens. No perfil de avaliação, o `openjev` aceita o parâmetro opcional `optionOrder`:
 
 - **`"fixed"`** (padrão, também quando o parâmetro falta): uma chamada por pergunta, como descrito acima, com `ProbabilityPolicy = "OpenJevLabelSoftmax"`.
-- **`"rotations"`**: para uma pergunta com n opções, n chamadas, uma por rotação cíclica da lista (deslocamento 0…n−1). Os rótulos ficam sempre `A`, `B`, … na ordem da lista girada. A probabilidade de cada opção original é a média aritmética das n probabilidades. A escolha é o argmax da média; no booleano, P(Yes) médio é comparado com o limiar. O `observeDecision` recebe uma única decisão sintetizada por campo, com as opções na ordem original, `Probability` = média, `Logprob` = ln(média) e tokens e tempo somados. O resultado observado soma o uso de todas as chamadas e usa `ProbabilityPolicy = "OpenJevLabelSoftmaxRotationAverage"`.
+- **`"rotations"`**: para uma pergunta com n opções, n chamadas, uma por rotação cíclica da lista (deslocamento 0…n−1). Os rótulos ficam sempre `A`, `B`, … na ordem da lista girada. A probabilidade de cada opção original é a média aritmética das n probabilidades. A escolha é o argmax da média; no booleano, P(Yes) médio é comparado com o limiar. O `observeDecision` recebe uma única decisão sintetizada por campo, com as opções na ordem original, `Probability` = média, `Logprob` = ln(média) (−∞ quando todas as ordens deram 0 à opção) e tokens e tempo somados. O resultado observado soma o uso de todas as chamadas e usa `ProbabilityPolicy = "OpenJevLabelSoftmaxRotationAverage"`.
 
 Qualquer outro valor (inclusive outra caixa, número ou `null`) é recusado na validação do perfil com `profile.parameter_invalid` em `parameters.optionOrder`. Os outros provedores continuam recusando o parâmetro (`profile.parameter_unsupported`).
 
@@ -122,7 +124,7 @@ dotnet test tests/Cortex.Inference.Tests --filter "Category=LocalModels&FullyQua
 dotnet test tests/Cortex.Inference.Tests --filter "Category=LocalModels&FullyQualifiedName~Laya"
 ```
 
-Eles baixam o que falta, sobem o servidor em uma porta livre de loopback, esperam `/health`, rodam três casos pelo caminho completo `ProviderFlowCompletion` → provedor e encerram a árvore de processos mesmo em falha. Exigem GPU CUDA (para o Laya, também Python 3.11 com o launcher `py`). Faltar GPU, rede ou servidor é **falha** com mensagem clara, nunca skip. A primeira execução baixa vários GB; o Laya leva alguns minutos para montar o venv.
+Eles baixam o que falta, sobem o servidor em uma porta livre de loopback, esperam `/health`, rodam os casos de demo pelo caminho completo `ProviderFlowCompletion` → provedor e encerram a árvore de processos mesmo em falha. Todos os testes que sobem servidor ficam na mesma coleção xUnit sem paralelismo (`LocalModelServers`), então só um servidor ocupa a GPU por vez. Exigem GPU CUDA (para o Laya, também Python 3.11 com o launcher `py`). Faltar GPU, rede ou servidor é **falha** com mensagem clara, nunca skip. A primeira execução baixa vários GB; o Laya leva alguns minutos para montar o venv.
 
 Os casos (`LocalModelDemoCases.cs`) são os dois exemplos da demo do OpenJev e um booleano óbvio:
 
@@ -130,54 +132,125 @@ Os casos (`LocalModelDemoCases.cs`) são os dois exemplos da demo do OpenJev e u
 - `email`: e-mail de folha de pagamento pedindo credenciais → `Phishing`
 - `boolean`: o e-mail pede credenciais? → `true`
 
+Cada caso roda em **todas as rotações cíclicas** das opções, porque uma ordem fixa esconde o viés de posição:
+
+- **Escolha:** a rotação vai pelo esquema. O `enum` lista as opções na ordem girada, e o fluxo as pergunta nessa ordem (no Laya, é a ordem dos `criteria`).
+- **Booleano no OpenJev:** o fluxo sempre pergunta `A. Yes / B. No`, então o esquema não consegue girar. A ordem `Yes/No` vai pelo fluxo; a ordem `No/Yes` vai direto para `OpenJevClient.DecideAsync`, com a pergunta montada exatamente como o fluxo monta (tarefa, linha em branco, descrição). É a mesma chamada que o modo `AverageRotations` faz para a segunda ordem.
+- **Booleano no Laya:** é uma pergunta `noul` sem `criteria`, com uma única ordem.
+
+Para cada ordem, o log mostra P(resposta certa).
+
 Validações:
 
-- **OpenJev** (`qwen3-0.6b`, `minicpm5-2b`, `qwen3.5-4b`): `CUDA0` presente, `model` = alias, todas as opções na ordem, probabilidades finitas, soma 1 ± 1e-6, escolha = argmax. A escolha correta é obrigatória para MiniCPM5 2B e Qwen3.5 4B; no Qwen3 0.6B só é registrada. `Label_bias_does_not_change_label_distribution` compara a distribuição com e sem `logit_bias` (tolerância 1e-4).
-- **Laya** (`english`, `multilingual`, `typed-decisions`): `/health` deve mostrar o checkpoint em `cuda` e na revisão fixada, a resposta passa pelo `SystemOneClient` estrito e `routing.model` deve ser o checkpoint pedido. A correção semântica só é registrada.
+- **OpenJev** (`qwen3-0.6b`, `minicpm5-2b`, `qwen3.5-4b`): `CUDA0` presente, `model` = alias, todas as opções na ordem enviada, probabilidades finitas, soma 1 ± 1e-6, escolha = argmax (no booleano, P(Yes) ≥ 0.5). Dois testes por modelo:
+  - `Demo_cases_are_answered_in_every_fixed_option_order`: modo `Fixed`, uma chamada por ordem.
+  - `Demo_cases_are_answered_with_rotation_averaging`: modo `AverageRotations` pelo fluxo.
 
-A seleção offline do [README](../README.md) exclui esses testes com o filtro `Category!=LocalModels`. Um `dotnet test` sem filtro executa esses testes.
+  Para MiniCPM5 2B e Qwen3.5 4B, a escolha correta é obrigatória **em todas as ordens** e com a média. No Qwen3 0.6B, só é registrada. `Label_bias_does_not_change_label_distribution` compara a distribuição com e sem `logit_bias` (tolerância 1e-4).
+- **Laya** (`english`, `multilingual`, `typed-decisions`): `/health` deve mostrar o checkpoint em `cuda` e na revisão fixada, a resposta passa pelo `SystemOneClient` estrito e `routing.model` deve ser o checkpoint pedido, em todas as ordens dos `criteria`. A correção semântica só é registrada.
+
+### Benchmark
+
+```powershell
+dotnet test tests/Cortex.Inference.Tests --filter Category=LocalModelsBenchmark
+```
+
+`LocalDecisionBenchmarkTests.Benchmark_local_decision_models` tem a categoria própria `LocalModelsBenchmark`, fora de `LocalModels`. Ele roda o corpus `tests/fixtures/local-decision-cases.json`: 24 casos de resposta inequívoca, 12 em inglês e 12 em português do Brasil, sendo 16 escolhas de 2 a 5 opções e 8 booleanos. Os domínios são triagem de suporte, phishing e spam, urgência, intenção, se o assistente deve responder num grupo de WhatsApp, e tom/sentimento.
+
+- **OpenJev:** cada GGUF responde todos os casos em todas as rotações (`Fixed`) e de novo com `AverageRotations`.
+- **Laya:** cada checkpoint responde todos os casos em todas as rotações dos `criteria`.
+
+Um servidor por vez, iniciado como nos testes `LocalModels`. O benchmark não faz assert de acurácia: só valida a estrutura (probabilidades finitas, soma 1, escolha válida). Quando um rótulo falta no top 20 de logprobs, o OpenJev recusa a resposta. O benchmark registra isso como resposta "rejeitada", que conta como erro, e não aborta.
+
+O relatório é sempre gravado em **`artifacts/local-models/benchmark.md`**, sobrescrito a cada execução. Ele traz data, GPU, versões fixadas, a tabela-resumo, os recortes por idioma e tipo, e a lista de casos errados com P(resposta certa) por ordem. Nesta máquina, o benchmark inteiro leva menos de 1 min.
+
+A seleção offline do [README](../README.md) exclui os dois grupos com `Category!=LocalModels&Category!=LocalModelsBenchmark`. Um `dotnet test` sem filtro executa os dois.
 
 ## Resultado observado
 
-Execução de 2026-10-30, RTX 4090 (driver 617.42), com as versões fixadas acima (llama.cpp b12015, Laya 0.4.18, pesos `7b928d82…`, torch 2.14.1+cu126). Latência é o tempo HTTP por decisão.
+Execução de 2026-10-30, RTX 4090 (driver 617.42), com as versões fixadas acima (llama.cpp b12015, Laya 0.4.18, pesos `7b928d82…`, torch 2.14.1+cu126).
 
-### OpenJev
+### Viés de posição
 
-Números atuais: execução de 2026-10-30 depois de tirar o cabeçalho `Field: <nome>` da pergunta e trocar as opções booleanas para `Yes`/`No` (antes: `Field: <campo>\n<descrição>` e `true`/`false`). Os limiares e as expectativas não mudaram. No caso `boolean` mudaram o texto das opções no teste (`["Yes", "No"]`, que o teste compara com o que vai no fio) e a tarefa: de `Answer the field about this email.`, que citava um "field" que o prompt não nomeia mais, para `Classify this email.`. O teste do MiniCPM5 2B **continua falhando** pelo caso `boolean`.
+Modelos pequenos escolhem em parte pela **posição** da opção (o rótulo `A`, `B`, …), não só pelo conteúdo. Uma única ordem fixa pode acertar por sorte e errar quando as mesmas opções vêm em outra ordem. Por isso as métricas abaixo separam:
 
-| Modelo | Caso | Escolha | Probabilidades | Antes (prompt antigo) | Tokens in/out | Latência |
-|---|---|---|---|---|---|---|
-| qwen3-0.6b | account | Account access support ✔ | Account 0.8023 / Billing 0.0006 / Close 0.1972 | Account 0.9864 / 0.0028 / 0.0108 | 106/1 | 39 ms |
-| qwen3-0.6b | email | Phishing ✔ | Legitimate 0.0595 / Spam 0.0259 / Phishing 0.9147 | Phishing 0.8236 (0.1578 / 0.0186) | 123/1 | 19 ms |
-| qwen3-0.6b | boolean | true ✔ | Yes 0.9980 / No 0.0020 | true 0.9893 | 124/1 | 22 ms |
-| minicpm5-2b | account | Account access support ✔ | Account 0.9190 / Billing 0.0491 / Close 0.0318 | Account 0.4251 / 0.1576 / 0.4173 | 111/1 | 27 ms |
-| minicpm5-2b | email | Phishing ✔ | Legitimate 0.0000001 / Spam 0.0541 / Phishing 0.9459 | Phishing 0.7319 (0.000001 / 0.2681) | 129/1 | 25 ms |
-| minicpm5-2b | boolean | **false ✘** | Yes 0.0638 / No 0.9362 | true 0.1318 ✘ | 130/1 | 18 ms |
-| qwen3.5-4b | account | Account access support ✔ | Account 0.9622 / Billing 0.0106 / Close 0.0271 | Account 0.9498 / 0.0052 / 0.0449 | 111/1 | 145 ms |
-| qwen3.5-4b | email | Phishing ✔ | Legitimate 0.000020 / Spam 0.000038 / Phishing 0.999941 | Phishing 0.999975 | 128/1 | 101 ms |
-| qwen3.5-4b | boolean | true ✔ | Yes 0.9183 / No 0.0817 | true 0.9343 | 130/1 | 93 ms |
+- **média por rotação:** por caso, a fração das ordens em que acertou, com média sobre os casos;
+- **pior caso:** a fração dos casos certos em *todas* as ordens;
+- **com média:** para o OpenJev, o modo `AverageRotations` (média das probabilidades entre as ordens); para o Laya, a mesma média calculada depois, sobre as ordens já perguntadas, já que o Laya não tem esse modo.
 
-Observações:
+Um modelo sem viés de posição tem média por rotação = pior caso. A distância entre as duas mede o viés.
 
-- **O novo formato ajuda as escolhas**: o MiniCPM5 deixa de quase empatar no `account` (0.919, antes 0.425 vs 0.417) e sobe no `email` (0.946, antes 0.732; chamando `DecideAsync` direto com só a tarefa, 0.993). O Qwen3 0.6B sobe no `email` e cai no `account` (0.80, ainda correto). O Qwen3.5 4B fica praticamente igual.
-- **MiniCPM5 2B erra o `boolean`** de forma determinística. Com a tarefa `Classify this email.`, P(Yes) = 0.064 (antes, com o prompt antigo, P(true) = 0.13). Com a tarefa anterior, `Answer the field about this email.`, eram 0.015. Uma sonda direta (`DecideAsync`, mesmo estado e essa tarefa anterior) mostrou que tirar o cabeçalho `Field:` é o que mais pesa nesse caso: com `Field:`, 0.132 (`true`/`false`) e 0.181 (`Yes`/`No`); sem `Field:`, 0.025 e 0.015. Fica registrado como limite do MiniCPM5 2B nesse tipo de pergunta. Para decisões sim/não com modelo pequeno, prefira o Qwen3 0.6B ou o Qwen3.5 4B, que acertam com folga.
-- **`logit_bias` e logprobs:** no `llama-server` b12015, os logprobs informados são bit a bit idênticos com e sem `logit_bias` +100 (MiniCPM5 2B, `email`: Legitimate −15.8934, Spam −5.0233, Phishing −0.0066). O servidor aparentemente informa `top_logprobs` antes de aplicar o viés. O teste confirma que o viés não distorce as probabilidades informadas, mas não mostra o efeito do viés na amostragem.
+### Benchmark (24 casos)
+
+Do `artifacts/local-models/benchmark.md` desta execução. Latência é a mediana por chamada HTTP de inferência. "Rejeitadas" são respostas recusadas pelo OpenJev por rótulo fora do top 20; contam como erro.
+
+| Modelo | Modo | Média por rotação | Pior caso | Com média | Latência | Chamadas | Rejeitadas |
+|---|---|---|---|---|---|---|---|
+| openjev `qwen3-0.6b` | fixed, todas as rotações | 63.9% | 41.7% | — | 11 ms | 69 | 0 |
+| openjev `qwen3-0.6b` | `AverageRotations` | — | — | 70.8% | 11 ms | 69 | 0 |
+| openjev `minicpm5-2b` | fixed, todas as rotações | 67.2% | 33.3% | — | 15 ms | 69 | 3 |
+| openjev `minicpm5-2b` | `AverageRotations` | — | — | 66.7% | 15 ms | 65 | 3 |
+| openjev `qwen3.5-4b` | fixed, todas as rotações | 91.7% | 91.7% | — | 58 ms | 69 | 0 |
+| openjev `qwen3.5-4b` | `AverageRotations` | — | — | 91.7% | 58 ms | 69 | 0 |
+| laya `english` | todas as rotações dos `criteria` | 79.2% | 75.0% | 79.2% | 29 ms | 61 | 0 |
+| laya `multilingual` | todas as rotações dos `criteria` | 76.8% | 66.7% | 79.2% | 19 ms | 61 | 0 |
+| laya `typed-decisions` | todas as rotações dos `criteria` | 79.2% | 79.2% | 79.2% | 24 ms | 61 | 0 |
+
+Recortes (média por rotação / pior caso; nas linhas `AverageRotations`, a acurácia com média):
+
+| Modelo | Modo | en (12) | pt (12) | escolha (16) | booleano (8) |
+|---|---|---|---|---|---|
+| `qwen3-0.6b` | fixed | 63.9% / 33.3% | 63.9% / 50.0% | 70.8% / 50.0% | 50.0% / 25.0% |
+| `qwen3-0.6b` | `AverageRotations` | 75.0% | 66.7% | 81.2% | 50.0% |
+| `minicpm5-2b` | fixed | 68.5% / 33.3% | 66.0% / 33.3% | 72.7% / 31.2% | 56.2% / 37.5% |
+| `minicpm5-2b` | `AverageRotations` | 66.7% | 66.7% | 75.0% | 50.0% |
+| `qwen3.5-4b` | fixed | 91.7% / 91.7% | 91.7% / 91.7% | 100.0% / 100.0% | 75.0% / 75.0% |
+| `qwen3.5-4b` | `AverageRotations` | 91.7% | 91.7% | 100.0% | 75.0% |
+| laya `english` | criteria | 77.8% / 75.0% | 80.6% / 75.0% | 87.5% / 81.2% | 62.5% / 62.5% |
+| laya `multilingual` | criteria | 77.2% / 66.7% | 76.4% / 66.7% | 77.7% / 62.5% | 75.0% / 75.0% |
+| laya `typed-decisions` | criteria | 83.3% / 83.3% | 75.0% / 75.0% | 87.5% / 87.5% | 62.5% / 62.5% |
+
+O que os números mostram:
+
+- **Qwen3.5 4B** é o único sem viés de posição mensurável: média por rotação = pior caso = com média = 91.7%. Acerta todas as 16 escolhas em todas as ordens. Os dois erros são o mesmo caso nos dois idiomas: no WhatsApp, quando o assistente deveria ficar calado (conversa entre amigos; "bom dia" em família), ele responde que deve falar, com P(certo) ≤ 0.015. Custa cerca de 4–5× a latência dos menores (58 ms por chamada).
+- **Qwen3 0.6B e MiniCPM5 2B** têm viés forte: o pior caso (41.7% e 33.3%) fica muito abaixo da média por rotação (63.9% e 67.2%). No Qwen3 0.6B, `AverageRotations` sobe a acurácia de 63.9% para 70.8% (escolhas: 70.8% → 81.2%). No MiniCPM5 2B, a média não ajuda (66.7%). Além disso, em 3 de 69 ordens um rótulo saiu do top 20 de logprobs, e o OpenJev recusou a resposta. Com `AverageRotations`, uma ordem recusada derruba a pergunta inteira.
+- **Booleanos são o ponto fraco de todos.** Os três GGUFs erram os dois casos "ficar calado" no WhatsApp; os menores também erram "a resposta é para hoje?" e "é reclamação?" em alguma ordem.
+- **Laya** fica em ~79% e é bem mais estável à ordem que os GGUFs pequenos (`typed-decisions`: pior caso = média). Erra phishing vs. spam (o SMS bancário em português sai errado nos três checkpoints, em todas as ordens). Os três checkpoints erram booleanos de WhatsApp, e `english` e `typed-decisions` também erram o golpe dos gift cards. O `multilingual` não é melhor que o `english` em português (76.4% vs. 80.6%).
+
+### Recomendação
+
+Com esses dados:
+
+- Para decisões tipadas locais, **`openjev` com `qwen3.5-4b`** é a melhor opção medida. É o mais preciso, e a ordem das opções não muda suas respostas. `optionOrder: "fixed"` basta para ele: `AverageRotations` custou n× as chamadas sem mudar nenhuma resposta.
+- Se a latência importa mais que a precisão, o **Laya `typed-decisions`** ou o **`english`** (~25 ms, ~79%, estáveis à ordem) ficam à frente dos GGUFs pequenos. A ressalva é a fraqueza em phishing vs. spam e em booleanos.
+- **Qwen3 0.6B** só com `AverageRotations`, e mesmo assim abaixo do Laya. **MiniCPM5 2B** não é recomendado: tem o pior pior-caso (33.3%), a média não o corrige, e algumas respostas são recusadas.
+- Nenhum GGUF medido acerta "ficar calado" num grupo de WhatsApp. Essa decisão não deve ficar só com um desses modelos.
+
+Ressalva: são 24 casos; um caso vale 4.2 pontos percentuais. As diferenças pequenas (por exemplo, entre os checkpoints do Laya) não são conclusivas.
+
+### Casos de demo em todas as ordens
+
+Do teste honesto (`LocalModels`), P(resposta certa) em cada rotação. Na escolha, a ordem 0 é a do caso e a ordem k começa pela opção k. No booleano do OpenJev, as ordens são `Yes/No` e `No/Yes`. Em **negrito**, as respostas erradas.
+
+| Modelo | `account` | `email` | `boolean` | Com média (`account` / `email` / `boolean`) |
+|---|---|---|---|---|
+| openjev `qwen3-0.6b` | 0.80 / 0.65 / 0.73 | 0.91 / **0.08** / 1.00 | 1.00 / 0.64 | 0.73 / 0.66 / 0.82 |
+| openjev `minicpm5-2b` | 0.92 / 1.00 / 1.00 | 0.95 / 1.00 / 1.00 | **0.06** / 0.98 | 0.97 / 0.98 / 0.52 |
+| openjev `qwen3.5-4b` | 0.96 / 1.00 / 0.99 | 1.00 / 1.00 / 1.00 | 0.92 / 0.84 | 0.98 / 1.00 / 0.88 |
+| laya `english` | 0.84 / 0.87 / 0.79 | **0.17 / 0.11 / 0.28** | 0.87 | — |
+| laya `multilingual` | 0.45 / **0.37 / 0.32** | **0.22 / 0.44 / 0.06** | **0.10** | — |
+| laya `typed-decisions` | 0.73 / 0.73 / 0.68 | **0.33 / 0.33 / 0.38** | 0.62 | — |
+
+Resultado dos testes:
+
+- O teste `Fixed` do **MiniCPM5 2B fica vermelho**: ele erra o `boolean` na ordem `Yes/No` (P(Yes) = 0.064) e acerta em `No/Yes` (0.98).
+- Com `AverageRotations`, o MiniCPM5 2B passa, mas no limite: P(Yes) = 0.52.
+- Qwen3.5 4B passa nos dois modos.
+- O Qwen3 0.6B erra o `email` numa ordem (`Spam` com P(Phishing) = 0.08), o que só é registrado.
+- O Laya erra o `email` em todas as ordens dos três checkpoints, também só registrado.
+
+### Notas de execução
+
+- **`logit_bias` e logprobs:** no `llama-server` b12015, os logprobs informados são bit a bit idênticos com e sem `logit_bias` +100. Por exemplo, MiniCPM5 2B no `email`: Legitimate −15.8934, Spam −5.0233, Phishing −0.0066. O servidor aparentemente informa `top_logprobs` antes de aplicar o viés. Por isso um rótulo muito improvável pode ficar fora do top 20 mesmo com viés, e é isso que gera as respostas rejeitadas do MiniCPM5 2B no benchmark.
 - Com o GGUF em cache, o `llama-server` sobe em 1–2 s.
-
-### Laya
-
-Os três testes passam. Todos os checkpoints respondem **Spam** para o e-mail de phishing. Isso é só registrado, conforme o desenho.
-
-| Checkpoint | Caso | Escolha | Probabilidades / noul | Confiança | Tokens in/out | Latência |
-|---|---|---|---|---|---|---|
-| english | account | Account access support ✔ | 0.8364 / 0.0402 / 0.1235 | 0.5113 | 82/0 | 372 ms (1ª chamada) |
-| english | email | **Spam ✘** | Legitimate 0.1652 / Spam 0.6678 / Phishing 0.1670 | 0.2118 | 101/0 | 26 ms |
-| english | boolean | true ✔ | noul 0.8478 | 0.8478 | 118/0 | 30 ms |
-| multilingual | account | Account access support ✔ | 0.4480 / 0.2717 / 0.2803 | 0.0258 | 80/0 | 304 ms |
-| multilingual | email | **Spam ✘** | Legitimate 0.0230 / Spam 0.7588 / Phishing 0.2182 | 0.4280 | 98/0 | 25 ms |
-| multilingual | boolean | true ✔ | noul 0.6837 | 0.6837 | 116/0 | 23 ms |
-| typed-decisions | account | Account access support ✔ | 0.7266 / 0.0982 / 0.1752 | 0.3036 | 82/0 | 330 ms |
-| typed-decisions | email | **Spam ✘** | Legitimate 0.2322 / Spam 0.4330 / Phishing 0.3347 | 0.0280 | 101/0 | 32 ms |
-| typed-decisions | boolean | true ✔ | noul 0.6555 | 0.6555 | 118/0 | 37 ms |
-
-O Laya sempre informa 0 tokens de saída. A primeira execução levou 2,85 min, quase tudo para montar o venv e baixar os pesos.
+- O Laya sempre informa 0 tokens de saída. A primeira execução levou 2,85 min, quase tudo para montar o venv e baixar os pesos.

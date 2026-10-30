@@ -66,8 +66,8 @@ settings without owning its node implementations.
 - Projects: `src/Cortex.*`; reusable editor: `packages/flow-graph`.
 - `dotnet build Cortex.slnx`
 - Offline test selection:
-  `dotnet test Cortex.slnx --filter "Category!=Postgres&Category!=LocalSocket&Category!=LocalModels&FullyQualifiedName!~DatabaseLifecycleTests"`
-- Local OpenJev/Laya decision models (GPU, downloads; excluded above):
+  `dotnet test Cortex.slnx --filter "Category!=Postgres&Category!=LocalSocket&Category!=LocalModels&Category!=LocalModelsBenchmark&FullyQualifiedName!~DatabaseLifecycleTests"`
+- Local OpenJev/Laya decision models and their benchmark (GPU, downloads; excluded above):
   [docs/local-decision-models.md](docs/local-decision-models.md)
 - `node --test tests/architecture/*.test.mjs packages/flow-graph/tests/*.test.mjs`
 
