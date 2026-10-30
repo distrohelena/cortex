@@ -99,6 +99,40 @@ public sealed class ManifestTests
         Assert.Empty(ProfileValidator.Validate(profile));
     }
 
+    [Theory]
+    [InlineData("openjev", 20, true)]
+    [InlineData("openjev", 21, false)]
+    [InlineData("jev", 21, true)]
+    [InlineData("laya", 21, true)]
+    public void Openjev_profile_rejects_more_than_twenty_options_before_any_trial(string provider, int count, bool valid)
+    {
+        var values = Enumerable.Range(0, count).Select(i => $"v{i}").ToArray();
+        var schema = JsonSerializer.Serialize(new
+        {
+            contractVersion = 1,
+            responseSchema = new
+            {
+                type = "object", additionalProperties = false, required = new[] { "acao" },
+                properties = new { acao = new { type = "string", @enum = values } }
+            }
+        });
+        var model = provider switch { "jev" => "jev-1.13.0", "laya" => "typed-decisions", _ => "minicpm5-2b" };
+        var bySchema = ProfileValidator.Validate(Profile(provider, "completion", "{}", 0.5, [], schema, null, model));
+        var byQuestion = ProfileValidator.Validate(Profile(provider, "completion", "{}", 0.5,
+            [new ChoiceQuestionProfile("acao", "Choose.", values.ToDictionary(v => v, v => v))], """{"contractVersion":1}""", null, model));
+
+        if (valid)
+        {
+            Assert.Empty(bySchema);
+            Assert.Empty(byQuestion);
+        }
+        else
+        {
+            Assert.Contains(bySchema, x => x.Code == "profile.options_exceed_provider_limit" && x.Path == "schema.responseSchema.properties.acao");
+            Assert.Contains(byQuestion, x => x.Code == "profile.choice_question_invalid" && x.Path == "choiceQuestions[0]");
+        }
+    }
+
     [Fact]
     public void Summary_profile_rejects_missing_identity_and_invalid_summary_content()
     {

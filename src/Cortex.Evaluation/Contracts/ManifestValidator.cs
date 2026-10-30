@@ -114,7 +114,8 @@ public static class ProfileValidator
         bool SupportsTyped,
         bool HasThreshold,
         bool HasChoiceQuestions,
-        FrozenSet<string> Models);
+        FrozenSet<string> Models,
+        int MaximumOptions = 255);
 
     private static readonly FrozenSet<string> EmptySet = Array.Empty<string>().ToFrozenSet(StringComparer.Ordinal);
 
@@ -127,8 +128,8 @@ public static class ProfileValidator
                 "generationMaxTokens", "requestTimeoutSeconds"
             }.ToFrozenSet(StringComparer.Ordinal), true, false, false, false, EmptySet),
             ["jev"] = new(EmptySet, false, true, true, true, EmptySet),
-            // OpenJev's model is the operator's GGUF alias, so no allowlist applies.
-            ["openjev"] = new(EmptySet, false, true, true, true, EmptySet),
+            // OpenJev's model is the operator's GGUF alias, so no allowlist applies. Its labels are A..T.
+            ["openjev"] = new(EmptySet, false, true, true, true, EmptySet, MaximumOptions: 20),
             ["laya"] = new(EmptySet, false, true, true, true, new[]
             {
                 "english", "multilingual", "typed-decisions", "convaiinnovations/laya",
@@ -220,6 +221,7 @@ public static class ProfileValidator
         }
 
         ValidateSchema(profile.Schema, "schema", issues);
+        if (supportsTypedDecisions && descriptor is not null) ValidateOptionLimit(profile.Schema, descriptor.MaximumOptions, issues);
         ValidatePrompt(profile.Prompt, "prompt", issues);
         return issues.AsReadOnly();
     }
@@ -336,7 +338,8 @@ public static class ProfileValidator
             var path = $"choiceQuestions[{index}]";
             if (question is null || string.IsNullOrWhiteSpace(question.Field) || question.Field.Length > 256 ||
                 !fields.Add(question.Field) || string.IsNullOrWhiteSpace(question.Instructions) ||
-                question.Instructions.Length > 16_384 || question.Criteria is null || question.Criteria.Count is < 2 or > 255 ||
+                question.Instructions.Length > 16_384 || question.Criteria is null || question.Criteria.Count < 2 ||
+                question.Criteria.Count > descriptor.MaximumOptions ||
                 question.Criteria.Any(item => string.IsNullOrWhiteSpace(item.Key) || item.Key.Length > 256 ||
                     string.IsNullOrWhiteSpace(item.Value) || item.Value.Length > 16_384))
             {
@@ -358,6 +361,26 @@ public static class ProfileValidator
             version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var schemaVersion) || schemaVersion != 1)
         {
             issues.Add(new("schema.contract_version", $"{path}.contractVersion"));
+        }
+    }
+
+    // A provider's option ceiling fails the profile once, not every trial at runtime. Shape errors stay with the adapters.
+    private static void ValidateOptionLimit(RevisionDocument? document, int maximum, List<ValidationIssue> issues)
+    {
+        if (document?.Payload is not { ValueKind: JsonValueKind.Object } payload ||
+            !payload.TryGetProperty("responseSchema", out var schema) || schema.ValueKind != JsonValueKind.Object ||
+            !schema.TryGetProperty("properties", out var properties) || properties.ValueKind != JsonValueKind.Object)
+        {
+            return;
+        }
+
+        foreach (var field in properties.EnumerateObject())
+        {
+            if (field.Value.ValueKind == JsonValueKind.Object && field.Value.TryGetProperty("enum", out var values) &&
+                values.ValueKind == JsonValueKind.Array && values.GetArrayLength() > maximum)
+            {
+                issues.Add(new("profile.options_exceed_provider_limit", $"schema.responseSchema.properties.{field.Name}"));
+            }
         }
     }
 
