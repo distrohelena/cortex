@@ -1,7 +1,5 @@
 using System.Diagnostics;
 using System.Globalization;
-using System.Text.Json;
-using Cortex.Core.Flows;
 using Cortex.Inference.OpenJev;
 using Cortex.TestSupport.LocalModels;
 using Xunit;
@@ -15,68 +13,71 @@ namespace Cortex.Inference.Tests.LocalModels;
 /// server is a failure, never a skip.
 /// </summary>
 [Trait("Category", "LocalModels")]
+[Collection(LocalModelServers.Collection)]
 public sealed class OpenJevLocalModelTests
 {
-    private const double BooleanThreshold = 0.5;
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromMinutes(5);
 
     private static CancellationToken Token => TestContext.Current.CancellationToken;
     private static void Log(string line) => TestContext.Current.TestOutputHelper!.WriteLine(line);
 
+    /// <summary>
+    /// Every demo case in every cyclic order of its options, one <see cref="OpenJevOptionOrder.Fixed"/> call each (see
+    /// <see cref="OpenJevCaseRunner"/> for how a boolean's No/Yes order is asked). A model that must be correct must be
+    /// correct in every order: small models' label-position bias is exactly what a single fixed order hides.
+    /// </summary>
     [Theory]
     [InlineData("qwen3-0.6b", false)]
     [InlineData("minicpm5-2b", true)]
     [InlineData("qwen3.5-4b", true)]
-    public async Task Demo_cases_run_end_to_end_through_the_openjev_provider(string modelKey, bool requireCorrect)
+    public async Task Demo_cases_are_answered_in_every_fixed_option_order(string modelKey, bool requireCorrect)
     {
         await using var server = await StartServerAsync(modelKey);
-        using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(2) };
-        var decisions = new List<(string Field, OpenJevDecision Decision)>();
-        var completion = new ProviderFlowCompletion(new Dictionary<string, IFlowCompletion>
-        {
-            ["openjev"] = new OpenJevFlowCompletion(new OpenJevClient(http, server.BaseUri), BooleanThreshold,
-                observeDecision: (_, field, decision) => decisions.Add((field, decision))),
-        });
+        using var runner = new OpenJevCaseRunner(server.BaseUri, modelKey);
 
         var wrong = new List<string>();
         foreach (var demo in Cases)
         {
-            decisions.Clear();
-            var request = new FlowCompletionRequest(demo.Name, demo.Question, JsonSerializer.SerializeToElement(demo.State),
-                JsonDocument.Parse(demo.Schema).RootElement.Clone(), modelKey, "openjev", null);
-            using var output = JsonDocument.Parse(await completion.CompleteAsync(request, Token));
-
-            var (field, decision) = Assert.Single(decisions);
-            Assert.Equal(demo.Field, field);
-            Assert.Equal(modelKey, decision.Model);
-            Assert.Equal(demo.Options, decision.Options.Select(o => o.Text).ToArray());
-            Assert.All(decision.Options, o => Assert.True(double.IsFinite(o.Probability) && double.IsFinite(o.Logprob),
-                $"{modelKey}/{demo.Name}: option '{o.Text}' has a non-finite probability {o.Probability} or logprob {o.Logprob}."));
-            var sum = decision.Options.Sum(o => o.Probability);
-            Assert.True(Math.Abs(sum - 1) <= 1e-6, $"{modelKey}/{demo.Name}: probabilities sum to {sum:R}, not 1 ± 1e-6.");
-
-            var value = output.RootElement.GetProperty(demo.Field);
-            string choice;
-            if (value.ValueKind is JsonValueKind.True or JsonValueKind.False)
+            var expected = new List<string>();
+            for (var shift = 0; shift < demo.Rotations; shift++)
             {
-                choice = value.GetBoolean() ? "true" : "false";
-                Assert.Equal(decision.Options[0].Probability >= BooleanThreshold ? "true" : "false", choice);
+                var outcome = await runner.FixedAsync(demo, shift, Token);
+                var order = string.Join(" / ", demo.Rotated(shift));
+                expected.Add(outcome.ExpectedProbability(demo).ToString("F4", CultureInfo.InvariantCulture));
+                Log($"OPENJEV {modelKey} {demo.Id} fixed shift={shift} [{order}]: choice={outcome.Choice} expected={demo.Expected} " +
+                    $"P(expected)={outcome.ExpectedProbability(demo).ToString("F6", CultureInfo.InvariantCulture)} {outcome.Describe()}");
+                if (!outcome.IsCorrect(demo)) wrong.Add($"{demo.Id} shift {shift} [{order}]: chose '{outcome.Choice}', expected '{demo.Expected}'");
             }
-            else
-            {
-                choice = value.GetString()!;
-                var argmax = decision.Options.Aggregate((best, next) => next.Probability > best.Probability ? next : best);
-                Assert.Equal(argmax.Text, choice);
-            }
-
-            Log($"OPENJEV {modelKey} {demo.Name}: choice={choice} expected={demo.Expected} " +
-                string.Join(" ", decision.Options.Select(o => $"[{o.Label}] {o.Text}={o.Probability.ToString("F6", CultureInfo.InvariantCulture)}")) +
-                $" tokens={decision.InputTokens}/{decision.OutputTokens} latency={decision.Elapsed.TotalMilliseconds.ToString("F0", CultureInfo.InvariantCulture)}ms");
-            if (choice != demo.Expected) wrong.Add($"{demo.Name}: chose '{choice}', expected '{demo.Expected}'");
+            Log($"OPENJEV {modelKey} {demo.Id} fixed: P(expected) per rotation = {string.Join(" / ", expected)}");
         }
 
         if (requireCorrect)
-            Assert.True(wrong.Count == 0, $"{modelKey} answered demo cases wrongly: {string.Join("; ", wrong)}.");
+            Assert.True(wrong.Count == 0, $"{modelKey} answered demo cases wrongly in some option order: {string.Join("; ", wrong)}.");
+    }
+
+    /// <summary>Every demo case with <see cref="OpenJevOptionOrder.AverageRotations"/>, through the flow.</summary>
+    [Theory]
+    [InlineData("qwen3-0.6b", false)]
+    [InlineData("minicpm5-2b", true)]
+    [InlineData("qwen3.5-4b", true)]
+    public async Task Demo_cases_are_answered_with_rotation_averaging(string modelKey, bool requireCorrect)
+    {
+        await using var server = await StartServerAsync(modelKey);
+        using var runner = new OpenJevCaseRunner(server.BaseUri, modelKey);
+
+        var wrong = new List<string>();
+        foreach (var demo in Cases)
+        {
+            var calls = runner.Timer.Calls.Count;
+            var outcome = await runner.AveragedAsync(demo, Token);
+            Assert.Equal(demo.Rotations, runner.Timer.Calls.Count - calls);
+            Log($"OPENJEV {modelKey} {demo.Id} averaged: choice={outcome.Choice} expected={demo.Expected} " +
+                $"P(expected)={outcome.ExpectedProbability(demo).ToString("F6", CultureInfo.InvariantCulture)} {outcome.Describe()}");
+            if (!outcome.IsCorrect(demo)) wrong.Add($"{demo.Id}: chose '{outcome.Choice}', expected '{demo.Expected}'");
+        }
+
+        if (requireCorrect)
+            Assert.True(wrong.Count == 0, $"{modelKey} answered demo cases wrongly with rotation averaging: {string.Join("; ", wrong)}.");
     }
 
     [Fact]
@@ -109,7 +110,7 @@ public sealed class OpenJevLocalModelTests
                 $"logit_bias changed P({EmailOptions[i]}) from {unbiased.Options[i].Probability:R} to {biased.Options[i].Probability:R} (tolerance 1e-4).");
     }
 
-    private static async Task<LocalServerProcess> StartServerAsync(string modelKey)
+    internal static async Task<LocalServerProcess> StartServerAsync(string modelKey)
     {
         var manifest = LocalModelManifest.Load();
         var cache = new LocalModelCache();

@@ -8,18 +8,12 @@ internal static class LocalModelDemoCases
     internal const string EmailQuestion = "How should this email be classified?";
     internal static readonly string[] EmailOptions = ["Legitimate", "Spam", "Phishing"];
 
-    internal sealed record DemoCase(string Name, string State, string Question, string Field, string Schema, string[] Options, string Expected);
-
-    internal static readonly DemoCase[] Cases =
+    internal static readonly LocalDecisionCase[] Cases =
     [
-        new("account", AccountState, "Which queue should handle this request?", "queue",
-            """{"type":"object","properties":{"queue":{"type":"string","enum":["Account access support","Billing support","Close as resolved"]}},"required":["queue"],"additionalProperties":false}""",
-            ["Account access support", "Billing support", "Close as resolved"], "Account access support"),
-        new("email", EmailState, EmailQuestion, "classification",
-            """{"type":"object","properties":{"classification":{"type":"string","enum":["Legitimate","Spam","Phishing"]}},"required":["classification"],"additionalProperties":false}""",
-            EmailOptions, "Phishing"),
-        new("boolean", EmailState, "Classify this email.", "asks_for_credentials",
-            """{"type":"object","properties":{"asks_for_credentials":{"type":"boolean","description":"The message asks the recipient to enter a password or verification code."}},"required":["asks_for_credentials"],"additionalProperties":false}""",
-            ["Yes", "No"], "true"),
+        new("account", "en", AccountState, "Which queue should handle this request?", "queue", false,
+            ["Account access support", "Billing support", "Close as resolved"], null, "Account access support"),
+        new("email", "en", EmailState, EmailQuestion, "classification", false, EmailOptions, null, "Phishing"),
+        new("boolean", "en", EmailState, "Classify this email.", "asks_for_credentials", true, [],
+            "The message asks the recipient to enter a password or verification code.", "true"),
     ];
 }

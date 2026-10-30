@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Text.Json;
-using Cortex.Core.Flows;
 using Cortex.Inference.SystemOne;
 using Cortex.TestSupport.LocalModels;
 using Xunit;
@@ -16,88 +15,49 @@ namespace Cortex.Inference.Tests.LocalModels;
 /// only logged; the spec does not require it for Laya.
 /// </summary>
 [Trait("Category", "LocalModels")]
+[Collection(LocalModelServers.Collection)]
 public sealed class LayaLocalModelTests
 {
-    private const double BooleanThreshold = 0.5;
     // First run downloads the checkpoint into the HF cache before the server binds its port.
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromMinutes(10);
 
     private static CancellationToken Token => TestContext.Current.CancellationToken;
     private static void Log(string line) => TestContext.Current.TestOutputHelper!.WriteLine(line);
 
+    /// <summary>
+    /// Every demo case in every cyclic order of its <c>criteria</c> (the schema's enum order; a boolean has one order).
+    /// Structure is asserted; semantic correctness and the probability of the expected answer per order are only logged.
+    /// </summary>
     [Theory]
     [InlineData("english")]
     [InlineData("multilingual")]
     [InlineData("typed-decisions")]
-    public async Task Demo_cases_run_end_to_end_through_the_laya_provider(string model)
+    public async Task Demo_cases_run_end_to_end_through_the_laya_provider_in_every_criteria_order(string model)
     {
         var manifest = LocalModelManifest.Load();
         await using var server = await StartServerAsync(manifest, model);
         await RequireCudaCheckpointAsync(server, model, manifest.Laya.ModelRevision);
-
-        var recorder = new ResponseRecorder(new HttpClientHandler());
-        using var http = new HttpClient(recorder) { Timeout = TimeSpan.FromMinutes(2) };
-        var results = new List<SystemOneResult>();
-        var completion = new ProviderFlowCompletion(new Dictionary<string, IFlowCompletion>
-        {
-            ["laya"] = new SystemOneFlowCompletion(
-                new SystemOneClient(http, new Uri(server.BaseUri, "/v1/systemone"), () => null, requireCredential: false,
-                    SystemOneProbabilityPolicy.LayaFourDecimals),
-                "laya", BooleanThreshold, observe: (_, result) => results.Add(result)),
-        });
+        using var runner = new LayaCaseRunner(server.BaseUri, model);
 
         var wrong = new List<string>();
         foreach (var demo in Cases)
         {
-            results.Clear();
-            recorder.Bodies.Clear();
-            var request = new FlowCompletionRequest(demo.Name, demo.Question, JsonSerializer.SerializeToElement(demo.State),
-                JsonDocument.Parse(demo.Schema).RootElement.Clone(), model, "laya", null);
-            using var output = JsonDocument.Parse(await completion.CompleteAsync(request, Token));
-
-            // The strict client accepted the response; the result is what it validated.
-            var result = Assert.Single(results);
-            Assert.Equal(nameof(SystemOneProbabilityPolicy.LayaFourDecimals), result.ProbabilityPolicy);
-            Assert.True(result.InputTokens > 0, $"laya/{model}/{demo.Name}: usage.input_tokens was {result.InputTokens}, expected > 0.");
-            Assert.True(result.OutputTokens >= 0, $"laya/{model}/{demo.Name}: usage.output_tokens was {result.OutputTokens}.");
-
-            // Laya answers model "laya-rl-agent" for every checkpoint and silently auto-routes names it does not know,
-            // so the routing block is the only proof the requested checkpoint answered.
-            using (var body = JsonDocument.Parse(Assert.Single(recorder.Bodies)))
+            var expected = new List<string>();
+            for (var shift = 0; shift < LayaCaseRunner.Rotations(demo); shift++)
             {
-                var routing = body.RootElement.GetProperty("routing");
-                Assert.True(routing.GetProperty("model").GetString() == model,
-                    $"laya/{model}/{demo.Name}: request was routed to another checkpoint: {routing.GetRawText()}");
+                var outcome = await runner.RunAsync(demo, shift, Token);
+                var result = runner.Last;
+                var order = demo.Boolean ? "noul" : string.Join(" / ", demo.Rotated(shift));
+                expected.Add(outcome.ExpectedProbability(demo).ToString("F4", CultureInfo.InvariantCulture));
+                Log($"LAYA {model} {demo.Id} shift={shift} [{order}]: choice={outcome.Choice} expected={demo.Expected} {outcome.Describe()} " +
+                    $"confidence={result.Answers.GetProperty(demo.Field).GetProperty("confidence").GetDouble().ToString("F4", CultureInfo.InvariantCulture)} " +
+                    $"tokens={result.InputTokens}/{result.OutputTokens} latency={result.Elapsed.TotalMilliseconds.ToString("F0", CultureInfo.InvariantCulture)}ms");
+                if (!outcome.IsCorrect(demo)) wrong.Add($"{demo.Id} shift {shift} [{order}]: chose '{outcome.Choice}', expected '{demo.Expected}'");
             }
-
-            var answer = result.Answers.GetProperty(demo.Field);
-            var value = output.RootElement.GetProperty(demo.Field);
-            string choice, detail;
-            if (value.ValueKind is JsonValueKind.True or JsonValueKind.False)
-            {
-                var noul = answer.GetProperty("noul").GetDouble();
-                choice = value.GetBoolean() ? "true" : "false";
-                Assert.Equal(noul >= BooleanThreshold ? "true" : "false", choice);
-                detail = string.Create(CultureInfo.InvariantCulture, $"noul={noul:F4}");
-            }
-            else
-            {
-                choice = value.GetString()!;
-                Assert.Contains(choice, demo.Options);
-                Assert.Equal(answer.GetProperty("choice").GetString(), choice);
-                var probabilities = answer.GetProperty("probabilities");
-                Assert.Equal(demo.Options.Order(StringComparer.Ordinal), probabilities.EnumerateObject().Select(p => p.Name).Order(StringComparer.Ordinal));
-                detail = string.Join(" ", demo.Options.Select(o =>
-                    $"{o}={probabilities.GetProperty(o).GetDouble().ToString("F4", CultureInfo.InvariantCulture)}"));
-            }
-
-            Log($"LAYA {model} {demo.Name}: choice={choice} expected={demo.Expected} {detail} " +
-                $"confidence={answer.GetProperty("confidence").GetDouble().ToString("F4", CultureInfo.InvariantCulture)} " +
-                $"tokens={result.InputTokens}/{result.OutputTokens} latency={result.Elapsed.TotalMilliseconds.ToString("F0", CultureInfo.InvariantCulture)}ms");
-            if (choice != demo.Expected) wrong.Add($"{demo.Name}: chose '{choice}', expected '{demo.Expected}'");
+            Log($"LAYA {model} {demo.Id}: P(expected) per order = {string.Join(" / ", expected)}");
         }
 
-        Log(wrong.Count == 0 ? $"LAYA {model}: all demo cases semantically correct."
+        Log(wrong.Count == 0 ? $"LAYA {model}: all demo cases semantically correct in every order."
             : $"LAYA {model}: semantically wrong (logged only): {string.Join("; ", wrong)}.");
     }
 
@@ -107,7 +67,7 @@ public sealed class LayaLocalModelTests
     /// <c>convaiinnovations/laya</c> bundle repo) to the manifest's commit. The server only binds after the preload,
     /// so <c>/health</c> answering 200 means the checkpoint is resident.
     /// </summary>
-    private static async Task<LocalServerProcess> StartServerAsync(LocalModelManifest manifest, string model)
+    internal static async Task<LocalServerProcess> StartServerAsync(LocalModelManifest manifest, string model)
     {
         var python = await new LocalModelCache().EnsureLayaAsync(manifest, Token);
         var port = LocalServerProcess.FreeLoopbackPort().ToString(CultureInfo.InvariantCulture);
@@ -127,7 +87,7 @@ public sealed class LayaLocalModelTests
     }
 
     /// <summary>A checkpoint that fell back to the CPU or loaded another revision is a broken environment, not a pass.</summary>
-    private static async Task RequireCudaCheckpointAsync(LocalServerProcess server, string model, string revision)
+    internal static async Task RequireCudaCheckpointAsync(LocalServerProcess server, string model, string revision)
     {
         using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(30) };
         var text = await http.GetStringAsync(new Uri(server.BaseUri, "/health"), Token);
@@ -137,21 +97,5 @@ public sealed class LayaLocalModelTests
             device.GetString() == "cuda", $"Laya checkpoint '{model}' is not on CUDA; Laya local-model tests need a GPU. /health said: {text}");
         Assert.True(root.TryGetProperty("revisions", out var revisions) && revisions.TryGetProperty(model, out var loaded) &&
             loaded.GetString() == revision, $"Laya checkpoint '{model}' is not at the pinned revision {revision}. /health said: {text}");
-    }
-
-    private sealed class ResponseRecorder(HttpMessageHandler inner) : DelegatingHandler(inner)
-    {
-        internal List<string> Bodies { get; } = [];
-
-        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
-        {
-            var response = await base.SendAsync(request, cancellationToken);
-            var body = await response.Content.ReadAsStringAsync(cancellationToken);
-            Bodies.Add(body);
-            var replay = new StringContent(body);
-            replay.Headers.ContentType = response.Content.Headers.ContentType;
-            response.Content = replay;
-            return response;
-        }
     }
 }
