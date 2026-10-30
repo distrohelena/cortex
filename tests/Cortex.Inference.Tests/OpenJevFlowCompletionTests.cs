@@ -280,7 +280,7 @@ public sealed class OpenJevFlowCompletionTests
     }
 
     [Fact]
-    public async Task Fixed_order_is_the_default_single_call_policy()
+    public async Task Fixed_order_makes_one_call_per_field_under_the_single_call_policy()
     {
         var server = Server(Binary(0.2), Binary(0.6));
         using var http = new HttpClient(server);
