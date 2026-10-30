@@ -25,9 +25,21 @@ public sealed class LocalDecisionBenchmarkTests
 
     private enum Mode { FixedRotations, AveragedRotations, LayaCriteriaRotations }
 
-    /// <summary>One model in one mode: per case, either every rotation's outcome or the single averaged outcome.</summary>
+    /// <summary>
+    /// One model in one mode: per case, either every rotation's outcome or the single averaged outcome. <see cref="Calls"/>
+    /// holds every inference HTTP call; <see cref="Decisions"/> the summed call time of each answer (n calls for an averaged one).
+    /// </summary>
     private sealed record Run(string Provider, string Model, Mode Mode, Dictionary<LocalDecisionCase, List<LocalDecisionOutcome>> Outcomes,
-        List<TimeSpan> Calls);
+        List<TimeSpan> Calls, List<TimeSpan> Decisions);
+
+    /// <summary>Runs one decision and records the summed time of the inference calls it made.</summary>
+    private static async Task<LocalDecisionOutcome> Timed(Run run, InferenceCallTimer timer, Func<Task<LocalDecisionOutcome>> decide)
+    {
+        var before = timer.Calls.Count;
+        var outcome = await decide();
+        run.Decisions.Add(timer.Calls.Skip(before).Aggregate(TimeSpan.Zero, (sum, call) => sum + call));
+        return outcome;
+    }
 
     [Fact]
     public async Task Benchmark_local_decision_models()
@@ -57,20 +69,20 @@ public sealed class LocalDecisionBenchmarkTests
         await using var server = await OpenJevLocalModelTests.StartServerAsync(model);
         using var runner = new OpenJevCaseRunner(server.BaseUri, model);
 
-        var fixedRun = new Run("openjev", model, Mode.FixedRotations, [], []);
+        var fixedRun = new Run("openjev", model, Mode.FixedRotations, [], [], []);
         foreach (var decision in cases)
         {
             var outcomes = fixedRun.Outcomes[decision] = [];
             for (var shift = 0; shift < decision.Rotations; shift++)
-                outcomes.Add(await Recorded(model, decision, shift, () => runner.FixedAsync(decision, shift, Token)));
+                outcomes.Add(await Timed(fixedRun, runner.Timer, () => Recorded(model, decision, shift, () => runner.FixedAsync(decision, shift, Token))));
         }
         fixedRun.Calls.AddRange(runner.Timer.Calls);
         Assert.Equal(cases.Sum(c => c.Rotations), fixedRun.Calls.Count);
 
         runner.Timer.Calls.Clear();
-        var averagedRun = new Run("openjev", model, Mode.AveragedRotations, [], []);
+        var averagedRun = new Run("openjev", model, Mode.AveragedRotations, [], [], []);
         foreach (var decision in cases)
-            averagedRun.Outcomes[decision] = [await Recorded(model, decision, null, () => runner.AveragedAsync(decision, Token))];
+            averagedRun.Outcomes[decision] = [await Timed(averagedRun, runner.Timer, () => Recorded(model, decision, null, () => runner.AveragedAsync(decision, Token)))];
         averagedRun.Calls.AddRange(runner.Timer.Calls);
         // A rejected rotation ends its averaged question early, so only an error-free run makes every call.
         if (averagedRun.Outcomes.Values.All(o => o[0].Error is null)) Assert.Equal(cases.Sum(c => c.Rotations), averagedRun.Calls.Count);
@@ -100,11 +112,12 @@ public sealed class LocalDecisionBenchmarkTests
         await LayaLocalModelTests.RequireCudaCheckpointAsync(server, model, manifest.Laya.ModelRevision);
         using var runner = new LayaCaseRunner(server.BaseUri, model);
 
-        var run = new Run("laya", model, Mode.LayaCriteriaRotations, [], []);
+        var run = new Run("laya", model, Mode.LayaCriteriaRotations, [], [], []);
         foreach (var decision in cases)
         {
             var outcomes = run.Outcomes[decision] = [];
-            for (var shift = 0; shift < LayaCaseRunner.Rotations(decision); shift++) outcomes.Add(await runner.RunAsync(decision, shift, Token));
+            for (var shift = 0; shift < LayaCaseRunner.Rotations(decision); shift++)
+                outcomes.Add(await Timed(run, runner.Timer, () => runner.RunAsync(decision, shift, Token)));
         }
         run.Calls.AddRange(runner.Timer.Calls);
         Assert.Equal(cases.Sum(LayaCaseRunner.Rotations), run.Calls.Count);
@@ -125,6 +138,24 @@ public sealed class LocalDecisionBenchmarkTests
     private static double Averaged(Run run, Func<LocalDecisionCase, bool> filter) =>
         run.Outcomes.Where(p => filter(p.Key)).Average(p => AveragedChoice(p.Key, p.Value) == p.Key.Expected ? 1.0 : 0.0);
 
+    // Judgement only: rejected orders (no answer) are left out. A case with no answered order is left out entirely.
+    private static (int Correct, int Cases) JudgedWorstCase(Run run) =>
+        Tally(run, outcomes => outcomes.All(o => o.Item2.IsCorrect(o.Item1)));
+
+    private static (int Correct, int Cases) JudgedAveraged(Run run) =>
+        Tally(run, outcomes => AveragedChoice(outcomes[0].Item1, outcomes.Select(o => o.Item2).ToList()) == outcomes[0].Item1.Expected);
+
+    private static (int Correct, int Cases) Tally(Run run, Func<List<(LocalDecisionCase, LocalDecisionOutcome)>, bool> correct)
+    {
+        var answered = run.Outcomes.Select(p => p.Value.Where(o => o.Error is null).Select(o => (p.Key, o)).ToList()).Where(l => l.Count > 0).ToList();
+        return (answered.Count(correct), answered.Count);
+    }
+
+    private static int Rejected(Run run) => run.Outcomes.Values.Sum(o => o.Count(x => x.Error is not null));
+
+    private static string Fraction((int Correct, int Cases) tally) =>
+        $"{Percent(tally.Correct / (double)tally.Cases)} ({tally.Correct}/{tally.Cases})";
+
     /// <summary>The single averaged answer, or (for per-order outcomes) the argmax of the per-option mean.</summary>
     private static string AveragedChoice(LocalDecisionCase decision, List<LocalDecisionOutcome> outcomes)
     {
@@ -137,8 +168,9 @@ public sealed class LocalDecisionBenchmarkTests
     }
 
     private static string Summary(Run run) => run.Mode == Mode.AveragedRotations
-        ? $"accuracy {Percent(Averaged(run, _ => true))}, {run.Calls.Count} calls"
-        : $"mean per rotation {Percent(MeanPerRotation(run, _ => true))}, worst case {Percent(WorstCase(run, _ => true))}, {run.Calls.Count} calls";
+        ? $"accuracy {Percent(Averaged(run, _ => true))}, judged {Fraction(JudgedAveraged(run))}, {Rejected(run)} rejected, {run.Calls.Count} calls"
+        : $"mean per rotation {Percent(MeanPerRotation(run, _ => true))}, worst case {Percent(WorstCase(run, _ => true))}, " +
+          $"judged worst case {Fraction(JudgedWorstCase(run))}, {Rejected(run)} rejected, {run.Calls.Count} calls";
 
     private static string Percent(double value) => (value * 100).ToString("F1", CultureInfo.InvariantCulture) + "%";
 
@@ -198,20 +230,36 @@ public sealed class LocalDecisionBenchmarkTests
         Line("- **Averaged**: OpenJev `rotation-averaged` rows are `OpenJevOptionOrder.AverageRotations` itself (one call per order, " +
              "probabilities averaged; a rotation the provider rejects rejects the whole averaged answer). For Laya it is computed afterwards from the orders already asked (per-option mean, argmax); " +
              "Laya has no averaging mode.");
-        Line("- An OpenJev boolean has two orders (`Yes/No`, `No/Yes`); a Laya boolean is one `noul` question with a single order.");
-        Line("- Latency is the median wall time of one inference HTTP call (a chat completion or a `/v1/systemone` request); " +
-             "label tokenization is not counted. Calls is the number of those calls.");
-        Line("- **Rejected**: answers the provider refused (OpenJev: a label missing from the top 20 logprobs); they count as wrong.");
+        Line("- An OpenJev boolean has two orders (`Yes/No`, `No/Yes`); a Laya boolean is one `noul` question with a single order, " +
+             "so a Laya worst case over all cases is flattered by its booleans. **Worst case (choice)** compares order stability on the " +
+             $"{Count(c => !c.Boolean)} choice cases only, where every provider is asked every order.");
+        Line("- **Rejected**: answers the provider refused (OpenJev: a label missing from the top 20 logprobs). Rotation rows count " +
+             "rejected orders; rotation-averaged rows count rejected questions (one rejected order rejects the whole averaged answer). " +
+             "Rejections count as wrong in every accuracy column, as they fail in production.");
+        Line("- **Judged worst case / judged averaged**: the same metrics with rejected orders left out, i.e. only the orders the model " +
+             "actually answered (a case with no answered order is left out). This separates the model's judgement from rejections.");
         Line();
-        Line("| Model | Mode | Mean per rotation | Worst case | Averaged | Median latency | Calls | Rejected |");
-        Line("|---|---|---|---|---|---|---|---|");
+        Line("| Model | Mode | Mean per rotation | Worst case | Worst case (choice) | Averaged | Rejected | Judged worst case | Judged averaged |");
+        Line("|---|---|---|---|---|---|---|---|---|");
+        Func<LocalDecisionCase, bool> choiceOnly = c => !c.Boolean;
         foreach (var run in runs)
         {
             var rotations = run.Mode != Mode.AveragedRotations;
+            var averaged = run.Mode != Mode.FixedRotations;
             Line($"| {run.Provider} `{run.Model}` | {ModeName(run.Mode)} | {(rotations ? Percent(MeanPerRotation(run, all)) : "—")} | " +
-                 $"{(rotations ? Percent(WorstCase(run, all)) : "—")} | {(run.Mode == Mode.FixedRotations ? "—" : Percent(Averaged(run, all)))} | " +
-                 $"{Milliseconds(run.Calls)} | {run.Calls.Count} | {run.Outcomes.Values.Sum(o => o.Count(x => x.Error is not null))} |");
+                 $"{(rotations ? Percent(WorstCase(run, all)) : "—")} | {(rotations ? Percent(WorstCase(run, choiceOnly)) : "—")} | " +
+                 $"{(averaged ? Percent(Averaged(run, all)) : "—")} | {Rejected(run)} | " +
+                 $"{(rotations ? Fraction(JudgedWorstCase(run)) : "—")} | {(averaged ? Fraction(JudgedAveraged(run)) : "—")} |");
         }
+        Line();
+        Line("Cost. **Per HTTP call**: median wall time of one inference call (a chat completion or a `/v1/systemone` request; " +
+             "label tokenization is not counted). **Per decision**: median summed call time of one answer, so a rotation-averaged " +
+             "answer costs n calls. Calls is the number of inference calls.");
+        Line();
+        Line("| Model | Mode | Median per HTTP call | Median per decision | Calls |");
+        Line("|---|---|---|---|---|");
+        foreach (var run in runs)
+            Line($"| {run.Provider} `{run.Model}` | {ModeName(run.Mode)} | {Milliseconds(run.Calls)} | {Milliseconds(run.Decisions)} | {run.Calls.Count} |");
         Line();
         Line("By language and type. Rotation rows show *mean per rotation / worst case*; rotation-averaged rows show the averaged accuracy.");
         Line();
