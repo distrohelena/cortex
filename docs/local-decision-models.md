@@ -125,24 +125,24 @@ Execução de 2026-10-30, RTX 4090 (driver 617.42), com as versões fixadas acim
 
 ### OpenJev
 
-Números atuais: execução de 2026-10-30 depois de tirar o cabeçalho `Field: <nome>` da pergunta e trocar as opções booleanas para `Yes`/`No` (antes: `Field: <campo>\n<descrição>` e `true`/`false`). Os casos, limiares e expectativas não mudaram; só o texto das opções do caso `boolean` no teste (`["Yes", "No"]`), que o teste compara com o que vai no fio. O teste do MiniCPM5 2B **continua falhando** pelo caso `boolean`, agora com margem maior.
+Números atuais: execução de 2026-10-30 depois de tirar o cabeçalho `Field: <nome>` da pergunta e trocar as opções booleanas para `Yes`/`No` (antes: `Field: <campo>\n<descrição>` e `true`/`false`). Os limiares e as expectativas não mudaram. No caso `boolean` mudaram o texto das opções no teste (`["Yes", "No"]`, que o teste compara com o que vai no fio) e a tarefa: de `Answer the field about this email.`, que citava um "field" que o prompt não nomeia mais, para `Classify this email.`. O teste do MiniCPM5 2B **continua falhando** pelo caso `boolean`.
 
 | Modelo | Caso | Escolha | Probabilidades | Antes (prompt antigo) | Tokens in/out | Latência |
 |---|---|---|---|---|---|---|
 | qwen3-0.6b | account | Account access support ✔ | Account 0.8023 / Billing 0.0006 / Close 0.1972 | Account 0.9864 / 0.0028 / 0.0108 | 106/1 | 39 ms |
 | qwen3-0.6b | email | Phishing ✔ | Legitimate 0.0595 / Spam 0.0259 / Phishing 0.9147 | Phishing 0.8236 (0.1578 / 0.0186) | 123/1 | 19 ms |
-| qwen3-0.6b | boolean | true ✔ | Yes 0.9983 / No 0.0017 | true 0.9893 | 126/1 | 14 ms |
+| qwen3-0.6b | boolean | true ✔ | Yes 0.9980 / No 0.0020 | true 0.9893 | 124/1 | 22 ms |
 | minicpm5-2b | account | Account access support ✔ | Account 0.9190 / Billing 0.0491 / Close 0.0318 | Account 0.4251 / 0.1576 / 0.4173 | 111/1 | 27 ms |
 | minicpm5-2b | email | Phishing ✔ | Legitimate 0.0000001 / Spam 0.0541 / Phishing 0.9459 | Phishing 0.7319 (0.000001 / 0.2681) | 129/1 | 25 ms |
-| minicpm5-2b | boolean | **false ✘** | Yes 0.0147 / No 0.9853 | true 0.1318 ✘ | 132/1 | 18 ms |
+| minicpm5-2b | boolean | **false ✘** | Yes 0.0638 / No 0.9362 | true 0.1318 ✘ | 130/1 | 18 ms |
 | qwen3.5-4b | account | Account access support ✔ | Account 0.9622 / Billing 0.0106 / Close 0.0271 | Account 0.9498 / 0.0052 / 0.0449 | 111/1 | 145 ms |
 | qwen3.5-4b | email | Phishing ✔ | Legitimate 0.000020 / Spam 0.000038 / Phishing 0.999941 | Phishing 0.999975 | 128/1 | 101 ms |
-| qwen3.5-4b | boolean | true ✔ | Yes 0.8925 / No 0.1075 | true 0.9343 | 132/1 | 77 ms |
+| qwen3.5-4b | boolean | true ✔ | Yes 0.9183 / No 0.0817 | true 0.9343 | 130/1 | 93 ms |
 
 Observações:
 
 - **O novo formato ajuda as escolhas**: o MiniCPM5 deixa de quase empatar no `account` (0.919, antes 0.425 vs 0.417) e sobe no `email` (0.946, antes 0.732; chamando `DecideAsync` direto com só a tarefa, 0.993). O Qwen3 0.6B sobe no `email` e cai no `account` (0.80, ainda correto). O Qwen3.5 4B fica praticamente igual.
-- **MiniCPM5 2B erra o `boolean`**, de forma determinística, e piorou: P(Yes) = 0.015 (antes P(true) = 0.13). O caso não foi alterado para passar. Uma sonda direta no mesmo servidor (`DecideAsync`, mesmo estado e tarefa) separou os dois efeitos: com `Field:` e `true`/`false`, 0.132; com `Field:` e `Yes`/`No`, 0.181; sem `Field:` e `true`/`false`, 0.025; sem `Field:` e `Yes`/`No`, 0.015. Para esse caso, tirar o cabeçalho é o que derruba a resposta; `Yes`/`No` não compensa. O texto da tarefa (`Answer the field about this email.`) foi escolhido na implementação e fala de um "field" que o prompt não nomeia mais; outras formulações não foram testadas.
+- **MiniCPM5 2B erra o `boolean`** de forma determinística. Com a tarefa `Classify this email.`, P(Yes) = 0.064 (antes, com o prompt antigo, P(true) = 0.13). Com a tarefa anterior, `Answer the field about this email.`, eram 0.015. Uma sonda direta (`DecideAsync`, mesmo estado e essa tarefa anterior) mostrou que tirar o cabeçalho `Field:` é o que mais pesa nesse caso: com `Field:`, 0.132 (`true`/`false`) e 0.181 (`Yes`/`No`); sem `Field:`, 0.025 e 0.015. Fica registrado como limite do MiniCPM5 2B nesse tipo de pergunta. Para decisões sim/não com modelo pequeno, prefira o Qwen3 0.6B ou o Qwen3.5 4B, que acertam com folga.
 - **`logit_bias` e logprobs:** no `llama-server` b12015, os logprobs informados são bit a bit idênticos com e sem `logit_bias` +100 (MiniCPM5 2B, `email`: Legitimate −15.8934, Spam −5.0233, Phishing −0.0066). O servidor aparentemente informa `top_logprobs` antes de aplicar o viés. O teste confirma que o viés não distorce as probabilidades informadas, mas não mostra o efeito do viés na amostragem.
 - Com o GGUF em cache, o `llama-server` sobe em 1–2 s.
 

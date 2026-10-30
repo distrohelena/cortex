@@ -18,7 +18,7 @@ internal static class LocalModelDemoCases
         new("email", EmailState, EmailQuestion, "classification",
             """{"type":"object","properties":{"classification":{"type":"string","enum":["Legitimate","Spam","Phishing"]}},"required":["classification"],"additionalProperties":false}""",
             EmailOptions, "Phishing"),
-        new("boolean", EmailState, "Answer the field about this email.", "asks_for_credentials",
+        new("boolean", EmailState, "Classify this email.", "asks_for_credentials",
             """{"type":"object","properties":{"asks_for_credentials":{"type":"boolean","description":"The message asks the recipient to enter a password or verification code."}},"required":["asks_for_credentials"],"additionalProperties":false}""",
             ["Yes", "No"], "true"),
     ];
