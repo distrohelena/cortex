@@ -10,13 +10,21 @@ namespace Cortex.Inference.Tests.LocalModels;
 /// <param name="Shift">The cyclic rotation asked; <c>null</c> for the rotation-averaged answer.</param>
 /// <param name="Choice">The answer the flow output carried: an option, or <c>"true"</c>/<c>"false"</c>.</param>
 /// <param name="Probabilities">Probability per original option text (<c>Yes</c>/<c>No</c> for a boolean).</param>
-internal sealed record LocalDecisionOutcome(int? Shift, string Choice, IReadOnlyDictionary<string, double> Probabilities)
+/// <param name="Error">Set when the provider rejected the response (no answer); <see cref="Probabilities"/> is then empty.</param>
+internal sealed record LocalDecisionOutcome(int? Shift, string Choice, IReadOnlyDictionary<string, double> Probabilities, string? Error = null)
 {
-    internal bool IsCorrect(LocalDecisionCase decision) => Choice == decision.Expected;
+    internal static LocalDecisionOutcome Failed(int? shift, Exception error) => new(shift, "error", new Dictionary<string, double>(), error.Message);
 
-    internal double ExpectedProbability(LocalDecisionCase decision) => Probabilities[decision.ExpectedOption];
+    internal bool IsCorrect(LocalDecisionCase decision) => Error is null && Choice == decision.Expected;
 
-    internal string Describe() => string.Join(" ", Probabilities.Select(p => $"{p.Key}={p.Value.ToString("F4", CultureInfo.InvariantCulture)}"));
+    /// <summary>The probability given to the expected answer; <c>null</c> when the call produced no answer.</summary>
+    internal double? ExpectedProbability(LocalDecisionCase decision) => Error is null ? Probabilities[decision.ExpectedOption] : null;
+
+    internal string FormatExpected(LocalDecisionCase decision, string format) =>
+        ExpectedProbability(decision)?.ToString(format, CultureInfo.InvariantCulture) ?? "error";
+
+    internal string Describe() => Error is not null ? $"error: {Error}"
+        : string.Join(" ", Probabilities.Select(p => $"{p.Key}={p.Value.ToString("F4", CultureInfo.InvariantCulture)}"));
 }
 
 /// <summary>Records the wall time of every inference call (chat completion or System 1 request) that passes through it.</summary>

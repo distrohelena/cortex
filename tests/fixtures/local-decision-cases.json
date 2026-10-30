@@ -1,0 +1,245 @@
+{
+  "description": "Local typed-decision benchmark corpus: unambiguous choice and boolean decisions, half English (en) and half Brazilian Portuguese (pt). 'task' becomes request.System; 'field' is the single schema field; 'description' (optional) is that field's schema description. Used by LocalDecisionBenchmarkTests.",
+  "cases": [
+    {
+      "id": "en-support-duplicate-charge",
+      "language": "en",
+      "state": "I was charged twice for my March subscription: two identical charges of $19.99 on March 3. I only have one account. Please refund the duplicate charge.",
+      "task": "Route this support ticket to the team that should handle it.",
+      "field": "team",
+      "type": "choice",
+      "options": ["Billing", "Technical support", "Shipping", "Sales"],
+      "expected": "Billing"
+    },
+    {
+      "id": "en-support-export-crash",
+      "language": "en",
+      "state": "Since yesterday's update the app crashes every single time I tap 'Export to PDF'. I reinstalled it twice and it still crashes at the same step.",
+      "task": "Classify this support ticket.",
+      "field": "category",
+      "type": "choice",
+      "options": ["Bug report", "Feature request", "Billing question"],
+      "expected": "Bug report"
+    },
+    {
+      "id": "en-phishing-bank-sms",
+      "language": "en",
+      "state": "SMS from an unknown number: \"Chase Alert: your account has been locked. Verify your identity within 24h at chase-secure-verify.top/login by entering your username, password and card PIN, or your account will be closed.\"",
+      "task": "How should this message be classified?",
+      "field": "classification",
+      "type": "choice",
+      "options": ["Legitimate", "Spam", "Phishing"],
+      "expected": "Phishing"
+    },
+    {
+      "id": "en-spam-sunglasses",
+      "language": "en",
+      "state": "An email from 'Sunny Deals Outlet', a store the recipient never signed up with: \"MEGA SALE! 70% off designer sunglasses, today only! Shop now.\" It links to the store's website and does not ask for any login, password or personal data.",
+      "task": "How should this email be classified?",
+      "field": "classification",
+      "type": "choice",
+      "options": ["Legitimate", "Spam", "Phishing"],
+      "expected": "Spam"
+    },
+    {
+      "id": "en-urgency-checkout-down",
+      "language": "en",
+      "state": "On-call alert: the production payments database has been down for 10 minutes. Checkout fails for every customer and orders are being lost.",
+      "task": "Set the priority of this incident.",
+      "field": "priority",
+      "type": "choice",
+      "options": ["Urgent", "Routine", "No action needed"],
+      "expected": "Urgent"
+    },
+    {
+      "id": "en-urgency-typo",
+      "language": "en",
+      "state": "Small typo on our About page: 'recieve' should be 'receive'. No rush at all, just letting you know.",
+      "task": "Set the priority of this request.",
+      "field": "priority",
+      "type": "choice",
+      "options": ["Critical", "Low"],
+      "expected": "Low"
+    },
+    {
+      "id": "en-intent-reschedule",
+      "language": "en",
+      "state": "Hi! I have an appointment on Tuesday at 3pm. Could I move it to Thursday morning instead?",
+      "task": "What does the customer want?",
+      "field": "intent",
+      "type": "choice",
+      "options": ["Reschedule appointment", "Cancel appointment", "Book a new appointment", "Complain", "Ask about prices"],
+      "expected": "Reschedule appointment"
+    },
+    {
+      "id": "en-sentiment-love-update",
+      "language": "en",
+      "state": "Absolutely love the new update! Everything is faster and the new design is gorgeous. Thank you so much!",
+      "task": "What is the sentiment of this review?",
+      "field": "sentiment",
+      "type": "choice",
+      "options": ["Positive", "Neutral", "Negative"],
+      "expected": "Positive"
+    },
+    {
+      "id": "en-whatsapp-asked-directly",
+      "language": "en",
+      "state": "WhatsApp group 'Family'. Members: Mom, Dad, Lucy and the assistant Cortex.\nDad: anyone going to the market later?\nLucy: not me\nMom: @Cortex what time does the pharmacy on Main Street close today?",
+      "task": "You are Cortex, an assistant in a WhatsApp group chat. Decide whether you should reply to the latest message.",
+      "field": "should_reply",
+      "type": "boolean",
+      "description": "Cortex should reply to the latest message.",
+      "expected": true
+    },
+    {
+      "id": "en-whatsapp-banter",
+      "language": "en",
+      "state": "WhatsApp group 'College friends'. Members: Ana, Bruno, Chris and the assistant Cortex.\nAna: haha last night was so much fun\nBruno: right?? Chris's dance moves\nChris: never speaking of it again",
+      "task": "You are Cortex, an assistant in a WhatsApp group chat. Decide whether you should reply to the latest message.",
+      "field": "should_reply",
+      "type": "boolean",
+      "description": "Cortex should reply to the latest message.",
+      "expected": false
+    },
+    {
+      "id": "en-scam-gift-cards",
+      "language": "en",
+      "state": "Email from 'CEO Mark Davis' <mark.davis.ceo@gmail.com> to an accountant: \"I'm in a meeting and can't talk. I need you to buy 10 Apple gift cards of $200 each right now and email me the codes. Keep this confidential.\"",
+      "task": "Review this email for fraud.",
+      "field": "is_scam",
+      "type": "boolean",
+      "description": "The email is a scam attempt.",
+      "expected": true
+    },
+    {
+      "id": "en-urgency-slides-next-week",
+      "language": "en",
+      "state": "Whenever you get a chance next week, could you send me the slides from the workshop? No hurry.",
+      "task": "Assess the urgency of this request.",
+      "field": "due_today",
+      "type": "boolean",
+      "description": "The request must be handled today.",
+      "expected": false
+    },
+    {
+      "id": "pt-suporte-entrega-atrasada",
+      "language": "pt",
+      "state": "Comprei um fone de ouvido no dia 2, o prazo de entrega era dia 9 e até hoje, dia 20, não chegou. O rastreio está parado em 'objeto em trânsito' há 10 dias.",
+      "task": "Encaminhe este chamado de suporte para a equipe certa.",
+      "field": "equipe",
+      "type": "choice",
+      "options": ["Logística e entregas", "Cobrança", "Suporte técnico", "Vendas"],
+      "expected": "Logística e entregas"
+    },
+    {
+      "id": "pt-suporte-codigo-sms",
+      "language": "pt",
+      "state": "Não consigo entrar no aplicativo: digito o código que chega por SMS e aparece 'código inválido' toda vez. Já tentei cinco vezes.",
+      "task": "Classifique este chamado de suporte.",
+      "field": "categoria",
+      "type": "choice",
+      "options": ["Acesso à conta", "Cobrança", "Cancelamento"],
+      "expected": "Acesso à conta"
+    },
+    {
+      "id": "pt-phishing-pix-bloqueado",
+      "language": "pt",
+      "state": "SMS de um número desconhecido: \"Banco Itaú: seu Pix de R$ 1.890,00 foi bloqueado. Para liberar, acesse itau-liberacao.online e confirme sua senha e o código do token.\"",
+      "task": "Como esta mensagem deve ser classificada?",
+      "field": "classificacao",
+      "type": "choice",
+      "options": ["Legítima", "Spam", "Phishing"],
+      "expected": "Phishing"
+    },
+    {
+      "id": "pt-spam-pizzaria",
+      "language": "pt",
+      "state": "Mensagem da 'Pizzaria Bella Napoli', onde o destinatário nunca se cadastrou nem comprou: \"RODÍZIO EM DOBRO nesta sexta!!! Chame os amigos! Mande SAIR para não receber mais.\" Não pede senha, código nem dados pessoais.",
+      "task": "Como esta mensagem deve ser classificada?",
+      "field": "classificacao",
+      "type": "choice",
+      "options": ["Legítima", "Spam", "Phishing"],
+      "expected": "Spam"
+    },
+    {
+      "id": "pt-urgencia-pagamentos-fora",
+      "language": "pt",
+      "state": "Alerta do plantão: o servidor de pagamentos caiu às 14h e desde então nenhum cliente consegue finalizar compras na loja online.",
+      "task": "Defina a prioridade deste incidente.",
+      "field": "prioridade",
+      "type": "choice",
+      "options": ["Urgente", "Pode esperar"],
+      "expected": "Urgente"
+    },
+    {
+      "id": "pt-intencao-cancelar",
+      "language": "pt",
+      "state": "Oi, quero cancelar minha assinatura a partir do mês que vem. Como faço?",
+      "task": "O que o cliente quer?",
+      "field": "intencao",
+      "type": "choice",
+      "options": ["Cancelar assinatura", "Mudar de plano", "Pedir reembolso", "Fazer um elogio", "Perguntar sobre entrega"],
+      "expected": "Cancelar assinatura"
+    },
+    {
+      "id": "pt-sentimento-pedido-quebrado",
+      "language": "pt",
+      "state": "O pedido chegou quebrado, a caixa toda amassada, e ninguém responde meu e-mail há uma semana. Péssimo.",
+      "task": "Qual é o sentimento desta avaliação?",
+      "field": "sentimento",
+      "type": "choice",
+      "options": ["Positivo", "Neutro", "Negativo"],
+      "expected": "Negativo"
+    },
+    {
+      "id": "pt-tom-agradecimento",
+      "language": "pt",
+      "state": "Muito obrigada pela ajuda de ontem! Vocês salvaram o meu dia, de verdade.",
+      "task": "Qual é o tom desta mensagem?",
+      "field": "tom",
+      "type": "choice",
+      "options": ["Agradecido", "Irritado", "Sarcástico", "Neutro"],
+      "expected": "Agradecido"
+    },
+    {
+      "id": "pt-whatsapp-pergunta-direta",
+      "language": "pt",
+      "state": "Grupo de WhatsApp 'Condomínio Bloco B'. Participantes: Carla, Paulo, Seu Zé e o assistente Cortex.\nPaulo: alguém viu o encanador hoje?\nSeu Zé: passou de manhã\nCarla: @Cortex qual é o telefone da administradora do condomínio?",
+      "task": "Você é o Cortex, um assistente em um grupo de WhatsApp. Decida se você deve responder à última mensagem.",
+      "field": "deve_responder",
+      "type": "boolean",
+      "description": "O Cortex deve responder à última mensagem.",
+      "expected": true
+    },
+    {
+      "id": "pt-whatsapp-bom-dia",
+      "language": "pt",
+      "state": "Grupo de WhatsApp 'Família Silva'. Participantes: João, Maria, Tia Rosa e o assistente Cortex.\nJoão: bom dia, família! ☀️\nMaria: bom diaaa\nTia Rosa: bom dia, queridos, fiquem com Deus",
+      "task": "Você é o Cortex, um assistente em um grupo de WhatsApp. Decida se você deve responder à última mensagem.",
+      "field": "deve_responder",
+      "type": "boolean",
+      "description": "O Cortex deve responder à última mensagem.",
+      "expected": false
+    },
+    {
+      "id": "pt-golpe-troquei-de-numero",
+      "language": "pt",
+      "state": "Mensagem de WhatsApp de um número desconhecido, sem foto: \"Oi mãe, troquei de número, salva esse. Preciso que você me faça um Pix de R$ 800 agora, é urgente, depois te explico.\"",
+      "task": "Analise esta mensagem quanto a fraude.",
+      "field": "e_golpe",
+      "type": "boolean",
+      "description": "A mensagem é uma tentativa de golpe.",
+      "expected": true
+    },
+    {
+      "id": "pt-reclamacao-elogio",
+      "language": "pt",
+      "state": "Adorei o atendimento! O técnico chegou no horário, foi super educado e resolveu tudo em meia hora.",
+      "task": "Analise esta mensagem de cliente.",
+      "field": "reclamacao",
+      "type": "boolean",
+      "description": "O cliente está fazendo uma reclamação.",
+      "expected": false
+    }
+  ]
+}

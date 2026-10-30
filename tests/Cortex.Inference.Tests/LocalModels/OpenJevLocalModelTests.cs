@@ -43,9 +43,9 @@ public sealed class OpenJevLocalModelTests
             {
                 var outcome = await runner.FixedAsync(demo, shift, Token);
                 var order = string.Join(" / ", demo.Rotated(shift));
-                expected.Add(outcome.ExpectedProbability(demo).ToString("F4", CultureInfo.InvariantCulture));
+                expected.Add(outcome.FormatExpected(demo, "F4"));
                 Log($"OPENJEV {modelKey} {demo.Id} fixed shift={shift} [{order}]: choice={outcome.Choice} expected={demo.Expected} " +
-                    $"P(expected)={outcome.ExpectedProbability(demo).ToString("F6", CultureInfo.InvariantCulture)} {outcome.Describe()}");
+                    $"P(expected)={outcome.FormatExpected(demo, "F6")} {outcome.Describe()}");
                 if (!outcome.IsCorrect(demo)) wrong.Add($"{demo.Id} shift {shift} [{order}]: chose '{outcome.Choice}', expected '{demo.Expected}'");
             }
             Log($"OPENJEV {modelKey} {demo.Id} fixed: P(expected) per rotation = {string.Join(" / ", expected)}");
@@ -72,7 +72,7 @@ public sealed class OpenJevLocalModelTests
             var outcome = await runner.AveragedAsync(demo, Token);
             Assert.Equal(demo.Rotations, runner.Timer.Calls.Count - calls);
             Log($"OPENJEV {modelKey} {demo.Id} averaged: choice={outcome.Choice} expected={demo.Expected} " +
-                $"P(expected)={outcome.ExpectedProbability(demo).ToString("F6", CultureInfo.InvariantCulture)} {outcome.Describe()}");
+                $"P(expected)={outcome.FormatExpected(demo, "F6")} {outcome.Describe()}");
             if (!outcome.IsCorrect(demo)) wrong.Add($"{demo.Id}: chose '{outcome.Choice}', expected '{demo.Expected}'");
         }
 

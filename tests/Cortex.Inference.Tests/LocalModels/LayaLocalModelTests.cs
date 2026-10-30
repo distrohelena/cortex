@@ -48,7 +48,7 @@ public sealed class LayaLocalModelTests
                 var outcome = await runner.RunAsync(demo, shift, Token);
                 var result = runner.Last;
                 var order = demo.Boolean ? "noul" : string.Join(" / ", demo.Rotated(shift));
-                expected.Add(outcome.ExpectedProbability(demo).ToString("F4", CultureInfo.InvariantCulture));
+                expected.Add(outcome.FormatExpected(demo, "F4"));
                 Log($"LAYA {model} {demo.Id} shift={shift} [{order}]: choice={outcome.Choice} expected={demo.Expected} {outcome.Describe()} " +
                     $"confidence={result.Answers.GetProperty(demo.Field).GetProperty("confidence").GetDouble().ToString("F4", CultureInfo.InvariantCulture)} " +
                     $"tokens={result.InputTokens}/{result.OutputTokens} latency={result.Elapsed.TotalMilliseconds.ToString("F0", CultureInfo.InvariantCulture)}ms");
