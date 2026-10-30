@@ -36,7 +36,7 @@ Por campo, a pergunta é a tarefa (`request.System`), uma linha em branco e a `d
 - **Modelo:** `english`, `multilingual` ou `typed-decisions`. Outros nomes são recusados (auto-roteamento implícito é proibido).
 - **Limiar:** o mesmo campo `threshold`, aplicado ao `noul`.
 
-Atenção: `SystemOneFlowCompletion` também aceita `convaiinnovations/laya`, `convaiinnovations/laya-multilingual` e `convaiinnovations/laya-typed-decisions`. Na execução real, o Laya 0.4.18 trata `convaiinnovations/laya` como nome desconhecido e escolhe o checkpoint por detecção de idioma (`routing.reason: "English Latin text"`). Como a resposta sempre traz `model: "laya-rl-agent"`, o cliente não detecta esse desvio. Use os nomes curtos.
+`SystemOneFlowCompletion` e a validação do manifesto também aceitam os ids do Hugging Face `convaiinnovations/laya`, `convaiinnovations/laya-multilingual` e `convaiinnovations/laya-typed-decisions`. No Laya 0.4.18, `convaiinnovations/laya` é o id do pacote e significa "escolha por detecção de idioma": com texto em inglês vai para `english` (`routing.reason: "English Latin text"`), com texto em português vai para `multilingual` (`"Latin script but language looks like 'pt', not English"`). Como a resposta sempre traz `model: "laya-rl-agent"`, o cliente não detectaria esse desvio. Por isso, no Cortex, `convaiinnovations/laya` significa o checkpoint `english`: o adaptador envia `model: "english"` ao Laya. Os outros dois ids são roteados explicitamente pelo próprio Laya (`routing.reason: "explicit model='multilingual'"` / `"explicit model='typed-decisions'"`) e vão como estão. Os nomes curtos continuam sendo a forma preferida.
 
 Para subir o Laya fora dos testes, com as mesmas versões e o mesmo ambiente de `LayaLocalModelTests`:
 

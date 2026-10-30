@@ -22,9 +22,12 @@ public sealed class SystemOneFlowCompletion(SystemOneClient client, string provi
             "convaiinnovations/laya" or "convaiinnovations/laya-multilingual" or "convaiinnovations/laya-typed-decisions"))
             throw new InvalidDataException("Unsupported Laya model; implicit auto-routing is forbidden.");
         var questions = TypedDecisionSchema.Questions(request, profiles, maximumOptions: 255);
+        // Laya 0.4.18 treats the bundle id as "auto-route by detected language", not as a checkpoint. Cortex means its
+        // English checkpoint by it, so the wire carries the canonical name. The other two published ids route explicitly.
+        var model = provider == "laya" && request.Model == "convaiinnovations/laya" ? "english" : request.Model;
         var result = request.Diagnostics is { } diagnostics
-            ? await client.DecideAsync(request.Model, request.Inputs, questions, diagnostics, token)
-            : await client.DecideAsync(request.Model, request.Inputs, questions, token);
+            ? await client.DecideAsync(model, request.Inputs, questions, diagnostics, token)
+            : await client.DecideAsync(model, request.Inputs, questions, token);
         var output = new JsonObject();
         foreach (var question in questions.EnumerateObject())
         {

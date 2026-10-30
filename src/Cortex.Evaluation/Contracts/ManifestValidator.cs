@@ -130,6 +130,7 @@ public static class ProfileValidator
             ["jev"] = new(EmptySet, false, true, true, true, EmptySet),
             // OpenJev's model is the operator's GGUF alias, so no allowlist applies. Its labels are A..T.
             ["openjev"] = new(EmptySet, false, true, true, true, EmptySet, MaximumOptions: 20),
+            // "convaiinnovations/laya" means the English checkpoint; SystemOneFlowCompletion sends it as "english".
             ["laya"] = new(EmptySet, false, true, true, true, new[]
             {
                 "english", "multilingual", "typed-decisions", "convaiinnovations/laya",

@@ -67,6 +67,24 @@ public sealed class SystemOneFlowCompletionTests
         Assert.Equal(0.5, trace.Answers.GetProperty("cuidado").GetProperty("noul").GetDouble());
     }
 
+    /// <summary>Laya auto-routes the bundle id <c>convaiinnovations/laya</c>, so Cortex pins it to its English checkpoint on the wire.</summary>
+    [Theory]
+    [InlineData("laya", "convaiinnovations/laya", "english")]
+    [InlineData("laya", "english", "english")]
+    [InlineData("laya", "multilingual", "multilingual")]
+    [InlineData("laya", "typed-decisions", "typed-decisions")]
+    [InlineData("laya", "convaiinnovations/laya-multilingual", "convaiinnovations/laya-multilingual")]
+    [InlineData("laya", "convaiinnovations/laya-typed-decisions", "convaiinnovations/laya-typed-decisions")]
+    [InlineData("jev", "jev-latest", "jev-latest")]
+    public async Task Sends_the_canonical_laya_checkpoint_on_the_wire(string provider, string model, string wire)
+    {
+        using var handler = new Handler(Answer);
+        using var http = new HttpClient(handler);
+        var adapter = new SystemOneFlowCompletion(new(http, new("http://localhost/v1/systemone"), () => null, false), provider, 0.5);
+        await adapter.CompleteAsync(Request(provider: provider, model: model), TestContext.Current.CancellationToken);
+        Assert.Equal(wire, handler.Body.GetProperty("model").GetString());
+    }
+
     [Theory]
     [InlineData("{\"type\":\"string\"}")]
     [InlineData("{\"type\":\"number\"}")]
