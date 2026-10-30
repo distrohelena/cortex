@@ -13,8 +13,15 @@ internal sealed class LocalModelCache(string root)
 {
     private static readonly HttpClient Http = new() { Timeout = Timeout.InfiniteTimeSpan };
     private const string StampFile = ".tag";
+    internal const string CudaTorchCheck = "import sys, torch; sys.exit(0 if torch.version.cuda else 1)";
 
     internal LocalModelCache() : this(DefaultRoot()) { }
+
+    /// <summary>A download fails when no bytes (or no response headers) arrive for this long.</summary>
+    internal TimeSpan ReadInactivityTimeout { get; init; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>Runs an external command and throws on a non-zero exit. Replaceable so the Laya venv logic is testable offline.</summary>
+    internal Func<string, IReadOnlyList<string>, CancellationToken, Task> Run { get; init; } = RunAsync;
 
     internal string Root { get; } = Path.GetFullPath(root);
 
@@ -39,20 +46,29 @@ internal sealed class LocalModelCache(string root)
         try
         {
             string actual;
-            using (var response = await Http.GetAsync(source, HttpCompletionOption.ResponseHeadersRead, token))
+            using var inactivity = CancellationTokenSource.CreateLinkedTokenSource(token);
+            try
             {
+                inactivity.CancelAfter(ReadInactivityTimeout);
+                using var response = await Http.GetAsync(source, HttpCompletionOption.ResponseHeadersRead, inactivity.Token);
                 response.EnsureSuccessStatusCode();
-                await using var input = await response.Content.ReadAsStreamAsync(token);
+                await using var input = await response.Content.ReadAsStreamAsync(inactivity.Token);
                 await using var output = new FileStream(partial, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 20, useAsync: true);
                 using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
                 var buffer = new byte[1 << 20];
-                int read;
-                while ((read = await input.ReadAsync(buffer, token)) > 0)
+                while (true)
                 {
+                    inactivity.CancelAfter(ReadInactivityTimeout);
+                    var read = await input.ReadAsync(buffer, inactivity.Token);
+                    if (read == 0) break;
                     hash.AppendData(buffer, 0, read);
                     await output.WriteAsync(buffer.AsMemory(0, read), token);
                 }
                 actual = Convert.ToHexStringLower(hash.GetHashAndReset());
+            }
+            catch (OperationCanceledException) when (!token.IsCancellationRequested)
+            {
+                throw new TimeoutException($"Download of {source} stalled: no data for {ReadInactivityTimeout}. The partial download was deleted.");
             }
             if (actual != sha256)
                 throw new InvalidDataException($"SHA-256 mismatch for {source}: expected {sha256}, downloaded {actual}. The partial download was deleted.");
@@ -95,8 +111,10 @@ internal sealed class LocalModelCache(string root)
     }
 
     /// <summary>
-    /// Creates <c>laya-venv\</c> with Python 3.11, installs the pinned CUDA torch and then the pinned <c>laya[serve]</c>.
-    /// A <c>.tag</c> stamp records the pins; a different stamp rebuilds the venv. Returns the venv's <c>python.exe</c>.
+    /// Creates <c>laya-venv\</c> with Python 3.11 and installs the pinned CUDA torch and <c>laya[serve]</c> in one resolver
+    /// pass (PyTorch's index as an extra index, so nothing can swap torch for PyPI's CPU build), then proves
+    /// <c>torch.version.cuda</c> is set. Only then is the <c>.tag</c> stamp written; a different or missing stamp rebuilds
+    /// the venv. Returns the venv's <c>python.exe</c>.
     /// </summary>
     internal async Task<string> EnsureLayaAsync(LocalModelManifest manifest, CancellationToken token)
     {
@@ -108,10 +126,15 @@ internal sealed class LocalModelCache(string root)
         if (File.Exists(python) && File.Exists(stamp) && (await File.ReadAllTextAsync(stamp, token)).Trim() == expected) return python;
 
         if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
-        await RunAsync("py", ["-3.11", "-m", "venv", directory], token);
-        await RunAsync(python, ["-m", "pip", "install", "--disable-pip-version-check", "--no-input",
-            manifest.Laya.Torch, "--index-url", manifest.Laya.TorchIndexUrl.ToString()], token);
-        await RunAsync(python, ["-m", "pip", "install", "--disable-pip-version-check", "--no-input", manifest.Laya.Package], token);
+        await Run("py", ["-3.11", "-m", "venv", directory], token);
+        await Run(python, ["-m", "pip", "install", "--disable-pip-version-check", "--no-input",
+            "--extra-index-url", manifest.Laya.TorchIndexUrl.ToString(), manifest.Laya.Torch, manifest.Laya.Package], token);
+        try { await Run(python, ["-c", CudaTorchCheck], token); }
+        catch (InvalidOperationException error)
+        {
+            throw new InvalidOperationException(
+                $"laya-venv has no CUDA torch after installing {manifest.Laya.Torch} and {manifest.Laya.Package}; the venv was left unstamped and is rebuilt on the next run.", error);
+        }
         await File.WriteAllTextAsync(stamp, expected, token);
         return python;
     }

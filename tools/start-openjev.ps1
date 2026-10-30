@@ -8,11 +8,14 @@ same cache (CORTEX_LOCAL_MODELS_DIR, or %LOCALAPPDATA%\Cortex\local-models), che
 llama-server in the foreground on loopback. Stop it with Ctrl+C.
 
 .EXAMPLE
-powershell -File tools/start-openjev.ps1 -Model qwen3-0.6b -Port 8080
+powershell -File tools/start-openjev.ps1 -Model qwen3-0.6b
+.EXAMPLE
+powershell -File tools/start-openjev.ps1 -Model qwen3-0.6b -Port 18080
 #>
 param(
     [string]$Model = "minicpm5-2b",
-    [ValidateRange(1, 65535)][int]$Port = 8080
+    # Omitted: a free loopback port is chosen and printed.
+    [ValidateRange(1, 65535)][int]$Port = 0
 )
 
 $ErrorActionPreference = "Stop"
@@ -81,6 +84,13 @@ try {
 }
 finally {
     $lock.Dispose()
+}
+
+if ($Port -eq 0) {
+    $probe = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
+    $probe.Start()
+    $Port = ([Net.IPEndPoint]$probe.LocalEndpoint).Port
+    $probe.Stop()
 }
 
 Write-Host "Endpoint: http://127.0.0.1:$Port/  Model: $Model"

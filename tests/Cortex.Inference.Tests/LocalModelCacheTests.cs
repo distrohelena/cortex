@@ -97,6 +97,71 @@ public sealed class LocalModelCacheTests : IDisposable
     }
 
     [Fact]
+    public async Task Stalled_download_times_out_and_deletes_partial()
+    {
+        await using var server = FileServer.Start(Payload, stallAfter: 1000);
+        var cache = new LocalModelCache(root) { ReadInactivityTimeout = TimeSpan.FromSeconds(1) };
+
+        var error = await Assert.ThrowsAsync<TimeoutException>(() =>
+            cache.EnsureFileAsync(server.Uri, PayloadSha, Path.Combine("models", "a.gguf"), TestContext.Current.CancellationToken));
+
+        Assert.Contains(server.Uri.ToString(), error.Message);
+        Assert.False(File.Exists(Path.Combine(root, "models", "a.gguf")));
+        Assert.False(File.Exists(Path.Combine(root, "models", "a.gguf.partial")));
+    }
+
+    [Fact]
+    public async Task Laya_venv_is_installed_in_one_pass_and_not_stamped_without_cuda_torch()
+    {
+        var manifest = LocalModelManifest.Load();
+        var calls = new List<(string File, string[] Arguments)>();
+        var cache = new LocalModelCache(root) { Run = (file, arguments, _) => FakeRun(calls, file, arguments, cudaTorch: false) };
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(() => cache.EnsureLayaAsync(manifest, TestContext.Current.CancellationToken));
+
+        Assert.Contains("no CUDA torch", error.Message);
+        Assert.False(File.Exists(Path.Combine(root, "laya-venv", ".tag")));
+        var pip = Assert.Single(calls, c => c.Arguments.Contains("pip"));
+        Assert.Equal(["-m", "pip", "install", "--disable-pip-version-check", "--no-input",
+            "--extra-index-url", manifest.Laya.TorchIndexUrl.ToString(), manifest.Laya.Torch, manifest.Laya.Package], pip.Arguments);
+        Assert.Equal(["-c", LocalModelCache.CudaTorchCheck], calls[^1].Arguments);
+
+        // The unstamped venv is rebuilt from scratch on the next run.
+        calls.Clear();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => cache.EnsureLayaAsync(manifest, TestContext.Current.CancellationToken));
+        Assert.Equal("py", calls[0].File);
+    }
+
+    [Fact]
+    public async Task Laya_venv_with_cuda_torch_is_stamped_and_reused()
+    {
+        var manifest = LocalModelManifest.Load();
+        var calls = new List<(string File, string[] Arguments)>();
+        var cache = new LocalModelCache(root) { Run = (file, arguments, _) => FakeRun(calls, file, arguments, cudaTorch: true) };
+
+        var python = await cache.EnsureLayaAsync(manifest, TestContext.Current.CancellationToken);
+        Assert.Equal(Path.Combine(root, "laya-venv", "Scripts", "python.exe"), python);
+        Assert.Equal(3, calls.Count);
+
+        calls.Clear();
+        Assert.Equal(python, await cache.EnsureLayaAsync(manifest, TestContext.Current.CancellationToken));
+        Assert.Empty(calls);
+    }
+
+    private static Task FakeRun(List<(string File, string[] Arguments)> calls, string file, IReadOnlyList<string> arguments, bool cudaTorch)
+    {
+        calls.Add((file, arguments.ToArray()));
+        if (file == "py")
+        {
+            var scripts = Path.Combine(arguments[^1], "Scripts");
+            Directory.CreateDirectory(scripts);
+            File.WriteAllText(Path.Combine(scripts, "python.exe"), "");
+        }
+        if (arguments[0] == "-c" && !cudaTorch) throw new InvalidOperationException("python.exe -c ... exited with code 1.");
+        return Task.CompletedTask;
+    }
+
+    [Fact]
     public void Pinned_manifest_loads_with_every_model_and_hash()
     {
         var manifest = LocalModelManifest.Load();
@@ -163,14 +228,50 @@ public sealed class LocalModelCacheTests : IDisposable
         }
         finally
         {
-            // A survivor holding the inherited stdout/stderr pipes would make disposal hang, so bound it.
-            await server.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
+            // Disposal is bounded: a survivor holding the inherited pipes surfaces as a TimeoutException, not a hang.
+            await server.DisposeAsync();
         }
 
         Assert.True(process.HasExited);
         var rebound = new TcpListener(IPAddress.Loopback, port);
         rebound.Start();
         rebound.Stop();
+    }
+
+    [Fact]
+    public async Task Disposal_reports_a_descendant_that_outlives_the_tree_kill()
+    {
+        // The middle process exits after spawning, so the survivor is orphaned and outside the tree walk while
+        // still holding the inherited stdout pipe. Disposal must report it, not hang.
+        var server = await LocalServerProcess.StartAsync("powershell.exe",
+            ["-NoProfile", "-NonInteractive", "-Command",
+             "$p = Start-Process powershell.exe -NoNewWindow -PassThru -ArgumentList '-NoProfile','-NonInteractive','-Command','Start-Sleep 600'; Write-Output \"orphan:$($p.Id)\"; exit 0"],
+            new Dictionary<string, string>(), null, TimeSpan.FromSeconds(60), TestContext.Current.CancellationToken);
+        server.DisposeTimeout = TimeSpan.FromSeconds(3);
+        int? orphan = null;
+        try
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(60);
+            while (orphan is null && DateTime.UtcNow < deadline)
+            {
+                var line = server.OutputTail().Split(Environment.NewLine).FirstOrDefault(l => l.StartsWith("orphan:", StringComparison.Ordinal));
+                if (line is not null) orphan = int.Parse(line["orphan:".Length..], System.Globalization.CultureInfo.InvariantCulture);
+                else await Task.Delay(100, TestContext.Current.CancellationToken);
+            }
+            Assert.NotNull(orphan);
+
+            var error = await Assert.ThrowsAsync<TimeoutException>(() => server.DisposeAsync().AsTask());
+            Assert.Contains($"Process {server.Process.Id}", error.Message);
+            Assert.Contains($"orphan:{orphan}", error.Message);
+        }
+        finally
+        {
+            if (orphan is int id)
+            {
+                try { using var survivor = Process.GetProcessById(id); survivor.Kill(entireProcessTree: true); }
+                catch (ArgumentException) { }
+            }
+        }
     }
 
     private static async Task WaitUntilListeningAsync(int port, TimeSpan timeout)

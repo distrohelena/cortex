@@ -24,6 +24,9 @@ internal sealed class LocalServerProcess : IAsyncDisposable
 
     internal Process Process { get; }
 
+    /// <summary>How long disposal waits for the killed tree to exit and release the redirected pipes.</summary>
+    internal TimeSpan DisposeTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
     internal Uri BaseUri => baseUri ?? throw new InvalidOperationException("This process was started without a readiness URL, so it has no base URI.");
 
     /// <summary>
@@ -58,9 +61,13 @@ internal sealed class LocalServerProcess : IAsyncDisposable
             await server.WaitReadyAsync(fileName, readiness, timeout, token);
             return server;
         }
-        catch
+        catch (Exception error)
         {
-            await server.DisposeAsync();
+            try { await server.DisposeAsync(); }
+            catch (Exception cleanup)
+            {
+                throw new InvalidOperationException($"{error.Message}{Environment.NewLine}Cleanup also failed: {cleanup.Message}", error);
+            }
             throw;
         }
     }
@@ -123,7 +130,15 @@ internal sealed class LocalServerProcess : IAsyncDisposable
             if (!Process.HasExited) Process.Kill(entireProcessTree: true);
         }
         catch (InvalidOperationException) { } // exited between the check and the kill
-        await Process.WaitForExitAsync();
+        catch (AggregateException) { } // some descendant could not be killed; the bounded wait below reports a survivor
         // Process is deliberately not disposed: callers may still read HasExited/ExitCode after disposal.
+        // WaitForExitAsync also waits for EOF on stdout/stderr, so a surviving descendant holding them is caught here.
+        using var bound = new CancellationTokenSource(DisposeTimeout);
+        try { await Process.WaitForExitAsync(bound.Token); }
+        catch (OperationCanceledException)
+        {
+            throw new TimeoutException(
+                $"Process {Process.Id} or a descendant still held its output pipes {DisposeTimeout} after the tree kill. Output tail:{Environment.NewLine}{OutputTail()}");
+        }
     }
 }
