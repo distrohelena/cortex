@@ -17,6 +17,7 @@ Na avaliação, o endpoint é registrado pelo host em `EvaluationProviderFactory
 - **Modelo:** o `model` do perfil é o `--alias` com que o `llama-server` foi iniciado. O adaptador exige que o `model` da resposta seja igual ao pedido; um servidor com outro GGUF/alias gera `InvalidDataException` (`model_mismatch`), sem resultado.
 - **Limiar:** o mesmo campo `threshold` de `jev`/`laya`. Um booleano vira duas opções, `A. true` e `B. false`, e o resultado é `true` quando P(true) ≥ limiar. Testes e script usam 0.5.
 - **Esquema:** objeto fechado de campos obrigatórios, cada um `enum` (2 a 20 valores, rótulos `A`…`T`) ou `boolean`. Perfis de escolha (`choiceQuestions`) são aceitos como em `jev`/`laya`.
+- **Contabilidade:** cada `tokenize` e cada chat passam pelo `EvaluationHttpHandler` e viram uma tentativa no ledger, com a reserva do endpoint. O `tokenize` não faz inferência: é observado com uso 0/0 e atribuído ao `model` enviado no pedido; o chat usa `usage` e `model` da resposta. Com termos de preço `openjev` de taxa zero, `AttemptPriceProjection` dá custo 0 e `TrialMeasurement` soma os tokens. O cache de rótulos não atravessa trials: cada trial cria seu próprio cliente e registra as tokenizações que justificam o seu `logit_bias`.
 
 Fora da avaliação, a composição é direta:
 
@@ -27,7 +28,7 @@ var completion = new OpenJevFlowCompletion(
 // request.Provider = "openjev", request.Model = "<alias do llama-server>"
 ```
 
-Por campo, é feita uma chamada sequencial com o prompt exato do OpenJev, `max_tokens:1`, `temperature:1`, `top_k:0`, `top_p:1`, `logprobs:true`, `top_logprobs:20`, `logit_bias` +100 nos rótulos, gramática `root ::= "A" | "B" | …`, `cache_prompt:false` e `chat_template_kwargs:{"enable_thinking":false}`. Antes da primeira chamada para um endpoint+modelo, o cliente tokeniza `"A"`…`"T"` por `POST /tokenize`. Um rótulo que não vira exatamente um token é erro explícito, antes do chat. A probabilidade é o softmax dos logprobs dos rótulos; rótulo ausente do top 20 é erro, nunca renormalização. A observação usa `ProbabilityPolicy = "OpenJevLabelSoftmax"`, e os logprobs brutos vão pelo callback `observeDecision`.
+Por campo, é feita uma chamada sequencial com o prompt exato do OpenJev, `max_tokens:1`, `temperature:1`, `top_k:0`, `top_p:1`, `logprobs:true`, `top_logprobs:20`, `logit_bias` +100 nos rótulos, gramática `root ::= "A" | "B" | …`, `cache_prompt:false` e `chat_template_kwargs:{"enable_thinking":false}`. Antes de usar um rótulo pela primeira vez com um modelo, o cliente o tokeniza por `POST /tokenize` (`{"model","content","add_special":false}`), só os rótulos que a pergunta precisa (`A`…o n-ésimo); o cache é por instância de `OpenJevClient` e modelo, e uma pergunta com mais opções tokeniza só os rótulos novos. Um rótulo que não vira exatamente um token é erro explícito, antes do chat. A probabilidade é o softmax dos logprobs dos rótulos; rótulo ausente do top 20 é erro, nunca renormalização. A observação usa `ProbabilityPolicy = "OpenJevLabelSoftmax"`, e os logprobs brutos vão pelo callback `observeDecision`.
 
 ## Configurar `laya`
 

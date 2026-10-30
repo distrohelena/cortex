@@ -77,7 +77,8 @@ public sealed class OpenJevClientTests
         await client.DecideAsync(Model, "{\"x\":1}", "Pick one.", ["north", "south", "stay"], null, Token);
         foreach (var (path, body) in server.Requests.Where(r => r.Path == "/tokenize"))
         {
-            Assert.Equal(2, body.EnumerateObject().Count());
+            Assert.Equal(3, body.EnumerateObject().Count());
+            Assert.Equal(Model, body.GetProperty("model").GetString());
             Assert.False(body.GetProperty("add_special").GetBoolean());
         }
         var chat = server.LastChat;
@@ -240,20 +241,47 @@ public sealed class OpenJevClientTests
     }
 
     [Fact]
-    public async Task Tokenize_is_called_once_per_model()
+    public async Task Two_option_question_tokenizes_exactly_two_labels()
     {
+        var (server, client, http) = Create(FakeLlamaServer.Chat(Model, [("A", -0.1), ("B", -2.3)]));
+        using var __ = http;
+        await client.DecideAsync(Model, "s", "q", ["yes", "no"], null, Token);
+        Assert.Equal(["A", "B"], TokenizedLabels(server));
+        Assert.Equal(1, server.ChatCalls);
+    }
+
+    [Fact]
+    public async Task Tokenize_is_cached_per_model_and_extended_only_for_new_labels()
+    {
+        (string, double)[] five = [("A", -0.1), ("B", -2.3), ("C", -4.0), ("D", -5.0), ("E", -6.0)];
         var (server, client, http) = Create(FakeLlamaServer.Chat(Model, Three), FakeLlamaServer.Chat(Model, Three),
-            FakeLlamaServer.Chat("other", Three));
+            FakeLlamaServer.Chat(Model, five), FakeLlamaServer.Chat("other", Three));
         using var __ = http;
         await client.DecideAsync(Model, "s", "q", ["a", "b", "c"], null, Token);
         await client.DecideAsync(Model, "s", "q", ["a", "b", "c"], null, Token);
-        Assert.Equal(20, server.TokenizeCalls);
-        Assert.Equal(Enumerable.Range(0, 20).Select(i => ((char)('A' + i)).ToString()),
-            server.Requests.Where(r => r.Path == "/tokenize").Select(r => r.Body.GetProperty("content").GetString()));
+        Assert.Equal(["A", "B", "C"], TokenizedLabels(server));
+        await client.DecideAsync(Model, "s", "q", ["a", "b", "c", "d", "e"], null, Token);
+        Assert.Equal(["A", "B", "C", "D", "E"], TokenizedLabels(server));
+        Assert.Equal("{\"1000\":100,\"1001\":100,\"1002\":100,\"1003\":100,\"1004\":100}",
+            server.LastChat.GetProperty("logit_bias").GetRawText());
         await client.DecideAsync("other", "s", "q", ["a", "b", "c"], null, Token);
-        Assert.Equal(40, server.TokenizeCalls);
-        Assert.Equal(3, server.ChatCalls);
+        Assert.Equal(8, server.TokenizeCalls);
+        Assert.Equal(4, server.ChatCalls);
     }
+
+    [Fact]
+    public async Task Extended_label_sharing_a_cached_token_is_rejected_before_chat()
+    {
+        var (server, client, http) = Create(FakeLlamaServer.Chat(Model, [("A", -0.1), ("B", -2.3)]), FakeLlamaServer.Chat(Model, Three));
+        using var __ = http;
+        await client.DecideAsync(Model, "s", "q", ["a", "b"], null, Token);
+        server.Tokens["C"] = [1000];
+        await Assert.ThrowsAsync<InvalidDataException>(() => client.DecideAsync(Model, "s", "q", ["a", "b", "c"], null, Token));
+        Assert.Equal(1, server.ChatCalls);
+    }
+
+    private static string[] TokenizedLabels(FakeLlamaServer server) =>
+        server.Requests.Where(r => r.Path == "/tokenize").Select(r => r.Body.GetProperty("content").GetString()!).ToArray();
 
     private sealed class Probe(Func<FlowCompletionRequest, Task<string>> complete) : IFlowCompletion
     {

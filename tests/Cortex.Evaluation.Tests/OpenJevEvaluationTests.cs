@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using Cortex.Core.Flows;
+using Cortex.Evaluation.Comparison;
 using Cortex.Evaluation.Contracts;
 using Cortex.Evaluation.Execution;
 using Xunit;
@@ -38,7 +39,7 @@ public sealed class OpenJevEvaluationTests
         server.Chats.Enqueue(Chat(-0.1, -2.4));
         using var http = new HttpClient(new EvaluationHttpHandler("openjev", Base, journal) { InnerHandler = server });
 
-        using (await http.PostAsync(new Uri(Base, "tokenize"), Body("{\"content\":\"A\"}"), Token)) { }
+        using (await http.PostAsync(new Uri(Base, "tokenize"), Body($"{{\"model\":\"{Model}\",\"content\":\"A\"}}"), Token)) { }
         using (await http.PostAsync(new Uri(Base, "v1/chat/completions"), Body("{}"), Token)) { }
         await Assert.ThrowsAsync<InvalidDataException>(() => http.PostAsync(Base, Body("{}"), Token));
         await Assert.ThrowsAsync<InvalidDataException>(() => http.PostAsync(new Uri(Base, "v1/completions"), Body("{}"), Token));
@@ -47,7 +48,10 @@ public sealed class OpenJevEvaluationTests
         Assert.Equal(2, server.Calls);
         Assert.All(journal.Intents, intent => Assert.Equal("openjev", intent.Provider));
         Assert.Equal(2, journal.Intents.Count);
-        Assert.Equal("usage_missing", journal.Outcomes[0].Observation!.Diagnostic);
+        // Tokenization runs no inference: zero usage, attributed to the alias the client requested.
+        Assert.Equal(new ProviderTokenUsage(0, 0, null, null), journal.Outcomes[0].Observation!.Usage);
+        Assert.Equal("available", journal.Outcomes[0].Observation!.UsageStatus);
+        Assert.Equal(Model, journal.Outcomes[0].Observation!.Model);
         Assert.Equal(new ProviderTokenUsage(40, 1, null, null), journal.Outcomes[1].Observation!.Usage);
         Assert.Equal(Model, journal.Outcomes[1].Observation!.Model);
     }
@@ -72,8 +76,55 @@ public sealed class OpenJevEvaluationTests
             Json("{\"mensagem\":\"Oi\"}"), schema, Model, "openjev", null), Token));
 
         Assert.Equal("calar", output.GetProperty("acao").GetString());
-        Assert.Equal(21, journal.Intents.Count);
+        // Two enum options: exactly two label tokenizations plus one decision.
+        Assert.Equal(3, journal.Intents.Count);
         Assert.Equal(1, server.ChatCalls);
+    }
+
+    [Fact]
+    public async Task Openjev_trial_aggregates_tokens_and_projects_zero_local_cost()
+    {
+        var journal = new Journal();
+        using var server = new FakeLlamaServer();
+        server.Chats.Enqueue(Chat(-2.4, -0.1));
+        server.Chats.Enqueue(Chat(-0.2, -1.9));
+        using var http = new HttpClient(new EvaluationHttpHandler("openjev", Base, journal) { InnerHandler = server });
+        var factory = new EvaluationProviderFactory([new("openjev-host", "openjev", Base, http, () => null)]);
+        var schema = Json("""
+            {"type":"object","additionalProperties":false,"properties":{
+              "acao":{"type":"string","enum":["responder","calar"]},
+              "urgente":{"type":"boolean"}},"required":["acao","urgente"]}
+            """);
+        var profile = new ConfigurationProfile(1, "completion", "openjev", Model, "openjev-host", Model,
+            DateTimeOffset.UnixEpoch, Json("{}"), 0.5, [], new(1, "schema",
+                JsonSerializer.SerializeToElement(new { contractVersion = 1, responseSchema = schema })),
+            new(1, "prompt", Json("{\"system\":\"Instrução pinada\"}")), null);
+        await factory.Create(profile, Access()).CompleteAsync(new("case-step", "Instrução pinada",
+            Json("{\"mensagem\":\"Oi\"}"), schema, Model, "openjev", null), Token);
+
+        // Both fields share the alias's two labels: two tokenizations, two decisions.
+        Assert.Equal(4, journal.Intents.Count);
+        var trial = Guid.NewGuid();
+        var at = DateTimeOffset.UnixEpoch.AddYears(56);
+        var attempts = journal.Intents.Zip(journal.Outcomes, (intent, outcome) =>
+        {
+            var attempt = new PhysicalAttemptMeasurement(Guid.NewGuid(), trial, "observed", outcome, null)
+                { Provider = intent.Provider, RequestSha256 = intent.RequestSha256, StartedAt = at };
+            var terms = new AttemptPriceTerms(1, "openjev", Model, null, intent.RequestSha256, at.AddDays(-1), at.AddDays(1),
+                0, 100_000, "USD", "https://local.invalid/openjev", at, 0m, 0m, 0m, true);
+            var price = new RevisionRef(Guid.NewGuid(), RevisionHasher.Hash(terms.ToRevisionDocument()));
+            return attempt with { Cost = AttemptPriceProjection.Calculate(attempt, price, terms) };
+        }).ToArray();
+        Assert.All(attempts, attempt => Assert.Equal("list_price_estimate", attempt.Cost!.Status));
+
+        var measurement = TrialMeasurement.Aggregate(trial, TimeSpan.FromSeconds(1), attempts);
+
+        Assert.Equal(4, measurement.PhysicalCalls);
+        Assert.Equal(80, measurement.InputTokens);
+        Assert.Equal(2, measurement.OutputTokens);
+        Assert.Equal(0m, measurement.EstimatedCost);
+        Assert.Equal("list_price_estimate", measurement.CostStatus);
+        Assert.Equal("USD", measurement.Currency);
     }
 
     private static string Chat(double a, double b)

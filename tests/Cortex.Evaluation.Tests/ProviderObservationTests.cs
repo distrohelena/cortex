@@ -59,6 +59,34 @@ public sealed class ProviderObservationTests
     }
 
     [Fact]
+    public void Openjev_tokenize_is_zero_usage_attributed_to_the_requested_alias()
+    {
+        var result = ProviderObservationParser.ParseOpenJevTokenize(200, Encoding.UTF8.GetBytes("""{"tokens":[32]}"""),
+            Encoding.UTF8.GetBytes("""{"model":"qwen3-0.6b","content":"A","add_special":false}"""));
+        Assert.Equal(new ProviderTokenUsage(0, 0, null, null), result.Usage);
+        Assert.Equal("available", result.UsageStatus);
+        Assert.Equal("qwen3-0.6b", result.Model);
+        Assert.Null(result.Diagnostic);
+    }
+
+    [Theory]
+    [InlineData(200, "{}", "usage_missing")]
+    [InlineData(200, "{\"tokens\":\"A\"}", "response_invalid")]
+    [InlineData(200, "{\"tokens\":[-1]}", "response_invalid")]
+    [InlineData(200, "{\"tokens\":[1],\"tokens\":[2]}", "response_ambiguous")]
+    [InlineData(200, "not-json", "response_invalid")]
+    [InlineData(500, "{\"error\":{\"message\":\"private-text\"}}", "usage_missing")]
+    public void Openjev_tokenize_without_a_token_list_is_not_free(int status, string body, string diagnostic)
+    {
+        var result = ProviderObservationParser.ParseOpenJevTokenize(status, Encoding.UTF8.GetBytes(body),
+            Encoding.UTF8.GetBytes("""{"model":"qwen3-0.6b","content":"A"}"""));
+        Assert.Null(result.Usage);
+        Assert.Equal("unavailable", result.UsageStatus);
+        Assert.Equal(diagnostic, result.Diagnostic);
+        Assert.DoesNotContain("private-text", result.ToString());
+    }
+
+    [Fact]
     public void Partial_usage_remains_partial_and_does_not_assume_zero_input()
     {
         var result = Parse("openai", """{"usage":{"output_tokens":4}}""");

@@ -47,7 +47,9 @@ public sealed class EvaluationHttpHandler(string provider, Uri endpoint, IEvalua
             var original = response.Content;
             response.Content = CopyContent(bytes, original);
             original.Dispose();
-            var observation = ProviderObservationParser.Parse(provider, (int)response.StatusCode, bytes);
+            var observation = provider == "openjev" && request.RequestUri == requestEndpoints[1]
+                ? ProviderObservationParser.ParseOpenJevTokenize((int)response.StatusCode, bytes, payload)
+                : ProviderObservationParser.Parse(provider, (int)response.StatusCode, bytes);
             outcome = new("response_received", Stopwatch.GetElapsedTime(started), observation, null);
         }
         catch (Exception error) when (error is HttpRequestException or IOException or OperationCanceledException or InvalidDataException)

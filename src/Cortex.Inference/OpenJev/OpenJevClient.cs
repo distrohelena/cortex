@@ -38,7 +38,7 @@ public sealed class OpenJevClient(HttpClient http, Uri baseEndpoint)
         if (options is null || options.Count is < 2 or > MaximumOptions || options.Any(string.IsNullOrWhiteSpace))
             throw new InvalidDataException($"OpenJev requires 2 to {MaximumOptions} non-empty options.");
         var labels = AllLabels[..options.Count];
-        var bias = applyLabelBias ? await LabelTokensAsync(model, diagnostics, token) : null;
+        var bias = applyLabelBias ? await LabelTokensAsync(model, labels.Length, diagnostics, token) : null;
         var body = new Dictionary<string, object>
         {
             ["model"] = model,
@@ -63,13 +63,19 @@ public sealed class OpenJevClient(HttpClient http, Uri baseEndpoint)
             ParseDecision(response, model, options, labels, diagnostics, priorInputTokens, priorOutputTokens, started, token));
     }
 
-    private async Task<int[]> LabelTokensAsync(string model, CompletionDiagnostics? diagnostics, CancellationToken token)
+    /// <summary>Tokenizes only the labels a question needs; a later question with more options extends the model's cache.
+    /// Every tokenization is a physical call (journaled in evaluation), so none is made speculatively.</summary>
+    private async Task<int[]> LabelTokensAsync(string model, int count, CompletionDiagnostics? diagnostics, CancellationToken token)
     {
-        lock (labelTokens) if (labelTokens.TryGetValue(model, out var cached)) return cached;
-        var ids = new int[AllLabels.Length];
-        for (var i = 0; i < AllLabels.Length; i++)
+        int[]? cached;
+        lock (labelTokens) labelTokens.TryGetValue(model, out cached);
+        if (cached is not null && cached.Length >= count) return cached;
+        var ids = new int[count];
+        cached?.CopyTo(ids, 0);
+        for (var i = cached?.Length ?? 0; i < count; i++)
         {
-            using var response = await PostAsync("tokenize", new { content = AllLabels[i], add_special = false }, diagnostics, token);
+            // The model names the alias the ids belong to; llama-server ignores it, evaluation journals it.
+            using var response = await PostAsync("tokenize", new { model, content = AllLabels[i], add_special = false }, diagnostics, token);
             var label = AllLabels[i];
             ids[i] = await ReadResponseAsync(diagnostics, async () =>
             {
@@ -85,7 +91,8 @@ public sealed class OpenJevClient(HttpClient http, Uri baseEndpoint)
         }
         if (ids.Distinct().Count() != ids.Length)
             throw Rejected(new InvalidDataException("Invalid OpenJev label tokenization: labels share a token."), diagnostics);
-        lock (labelTokens) labelTokens.TryAdd(model, ids);
+        lock (labelTokens)
+            if (!labelTokens.TryGetValue(model, out var current) || current.Length < ids.Length) labelTokens[model] = ids;
         return ids;
     }
 

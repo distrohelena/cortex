@@ -56,6 +56,35 @@ public static class ProviderObservationParser
         catch (InvalidDataException) { return result with { Diagnostic = "usage_invalid" }; }
     }
 
+    /// <summary>OpenJev's llama-server <c>/tokenize</c> runs no inference, so a well-formed token list is observed as
+    /// zero usage. Its response names no model; the attempt is attributed to the alias the client put in the request,
+    /// which the same trial's decision responses must echo back.</summary>
+    public static ProviderObservation ParseOpenJevTokenize(int statusCode, ReadOnlyMemory<byte> body, ReadOnlyMemory<byte> request)
+    {
+        ProviderObservation result = new(statusCode, null, null, null, "unavailable", null, null);
+        if (body.Length > 1_048_576) return result with { Diagnostic = "body_too_large" };
+        try
+        {
+            using (var sent = JsonDocument.Parse(request, new JsonDocumentOptions { MaxDepth = 32 }))
+                if (sent.RootElement.ValueKind == JsonValueKind.Object && UniqueProperties(sent.RootElement))
+                    result = result with { Model = OptionalIdentifier(sent.RootElement, "model") };
+        }
+        catch (JsonException) { /* The model stays unattributed; usage below still stands on the response alone. */ }
+        try
+        {
+            using var document = JsonDocument.Parse(body, new JsonDocumentOptions { MaxDepth = 32 });
+            var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object) return result with { Diagnostic = "response_invalid" };
+            if (!UniqueProperties(root)) return result with { Diagnostic = "response_ambiguous" };
+            if (!root.TryGetProperty("tokens", out var tokens)) return result with { Diagnostic = "usage_missing" };
+            if (tokens.ValueKind != JsonValueKind.Array ||
+                tokens.EnumerateArray().Any(t => t.ValueKind != JsonValueKind.Number || !t.TryGetInt64(out var id) || id < 0))
+                return result with { Diagnostic = "response_invalid" };
+            return result with { Usage = new ProviderTokenUsage(0, 0, null, null), UsageStatus = "available" };
+        }
+        catch (JsonException) { return result with { Diagnostic = "response_invalid" }; }
+    }
+
     private static long? Counter(JsonElement parent, string name)
     {
         if (!parent.TryGetProperty(name, out var value) || value.ValueKind == JsonValueKind.Null) return null;
