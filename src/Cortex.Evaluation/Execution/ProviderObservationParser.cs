@@ -18,7 +18,7 @@ public static class ProviderObservationParser
     public static ProviderObservation Parse(string provider, int statusCode, ReadOnlyMemory<byte> body)
     {
         ProviderObservation result = new(statusCode, null, null, null, "unavailable", null, null);
-        if (provider is not ("openai" or "lmstudio" or "jev" or "laya"))
+        if (provider is not ("openai" or "lmstudio" or "jev" or "laya" or "openjev"))
             return result with { Diagnostic = "provider_unsupported" };
         if (body.Length > 1_048_576) return result with { Diagnostic = "body_too_large" };
         try
@@ -38,7 +38,7 @@ public static class ProviderObservationParser
                 return result with { Diagnostic = "usage_missing" };
             if (usage.ValueKind != JsonValueKind.Object) return result with { Diagnostic = "usage_invalid" };
 
-            var chat = provider == "lmstudio";
+            var chat = provider is "lmstudio" or "openjev";
             var input = Counter(usage, chat ? "prompt_tokens" : "input_tokens");
             var output = Counter(usage, chat ? "completion_tokens" : "output_tokens");
             var cached = DetailCounter(usage, chat ? "prompt_tokens_details" : "input_tokens_details", "cached_tokens");

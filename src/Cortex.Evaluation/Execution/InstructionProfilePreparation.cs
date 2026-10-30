@@ -14,7 +14,7 @@ public static class InstructionProfilePreparation
             string.IsNullOrWhiteSpace(instruction.NodeId) || string.IsNullOrWhiteSpace(instruction.System))
             throw new InvalidDataException("Instruction provenance is required.");
         var summary = settings.SummaryProfile;
-        if (settings.Provider is "jev" or "laya")
+        if (settings.Provider is "jev" or "laya" or "openjev")
         {
             var summaryDefinition = ValidateTypedSchema(instruction.ResponseSchema, summary is not null);
             if (summaryDefinition is { } definition && summary is not null)

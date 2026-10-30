@@ -37,7 +37,7 @@ public sealed class AttemptLedger : IEvaluationCallJournal
 
     public async Task<Guid> BeginAsync(PhysicalCallIntent intent, CancellationToken cancellationToken)
     {
-        if (intent.Provider is not ("openai" or "jev" or "lmstudio" or "laya") ||
+        if (intent.Provider is not ("openai" or "jev" or "lmstudio" or "laya" or "openjev") ||
             intent.RequestBytes is < 0 or > 1_048_576 || intent.RequestSha256 is not { Length: 64 } ||
             intent.RequestSha256.Any(c => !(c is >= '0' and <= '9' or >= 'a' and <= 'f')))
             throw new InvalidDataException("Invalid physical call intent.");

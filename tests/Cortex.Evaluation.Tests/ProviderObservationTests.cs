@@ -22,10 +22,12 @@ public sealed class ProviderObservationTests
         Assert.Equal(new ProviderTokenUsage(100, 40, 20, 30), result.Usage);
     }
 
-    [Fact]
-    public void Chat_usage_uses_prompt_completion_names_without_inventing_missing_details()
+    [Theory]
+    [InlineData("lmstudio")]
+    [InlineData("openjev")]
+    public void Chat_usage_uses_prompt_completion_names_without_inventing_missing_details(string provider)
     {
-        var result = Parse("lmstudio", """{"model":"google/gemma-4-e4b","usage":{"prompt_tokens":12,"completion_tokens":7}}""");
+        var result = Parse(provider, """{"model":"google/gemma-4-e4b","usage":{"prompt_tokens":12,"completion_tokens":7}}""");
         Assert.Equal(new ProviderTokenUsage(12, 7, null, null), result.Usage);
         Assert.Equal("available", result.UsageStatus);
     }

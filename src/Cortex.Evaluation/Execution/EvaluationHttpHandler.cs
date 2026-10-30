@@ -18,14 +18,18 @@ public sealed class EvaluationHttpHandler(string provider, Uri endpoint, IEvalua
 {
     private const int MaximumBodyBytes = 1_048_576;
     // LM Studio's adapter accepts a base URI; other adapters accept the full request URI.
-    private readonly Uri requestEndpoint = provider == "lmstudio"
-        ? new Uri(new Uri(endpoint.AbsoluteUri.TrimEnd('/') + "/"), "chat/completions")
-        : endpoint;
+    // OpenJev's base URI serves both its label tokenization and its decision chat completions.
+    private readonly Uri[] requestEndpoints = provider switch
+    {
+        "lmstudio" => [new Uri(new Uri(endpoint.AbsoluteUri.TrimEnd('/') + "/"), "chat/completions")],
+        "openjev" => [new Uri(endpoint, "v1/chat/completions"), new Uri(endpoint, "tokenize")],
+        _ => [endpoint]
+    };
 
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
-        if (request.Method != HttpMethod.Post || request.RequestUri != requestEndpoint || request.Content is null ||
-            provider is not ("openai" or "jev" or "lmstudio" or "laya"))
+        if (request.Method != HttpMethod.Post || !requestEndpoints.Any(uri => uri == request.RequestUri) || request.Content is null ||
+            provider is not ("openai" or "jev" or "lmstudio" or "laya" or "openjev"))
             throw new InvalidDataException("Evaluation request destination or provider is not authorized.");
         var payload = await ReadBoundedAsync(request.Content, cancellationToken);
         ReplaceRequestContent(request, payload);

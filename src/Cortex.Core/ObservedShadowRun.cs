@@ -386,12 +386,12 @@ public sealed class ObservedShadowRun : IAsyncDisposable
                 if (started.NodeId is null || !flow.Nodes.TryGetValue(started.NodeId, out var node) || node.HostEffect is not null) return false;
                 if (node.Source.Kind == "prompt")
                 {
-                    // Jev/Laya's response boundary submits decisions only. A general
+                    // Jev/Laya/OpenJev's response boundary submits decisions only. A general
                     // generation provider may have called tools before rejecting output.
                     if (containedTool && started.NodeId == failed[0].NodeId
                         && TypedFlowRunner.OptionalText(node.Source.Config, "provider") is "openai" or "lmstudio") continue;
                     if (!approvedNodes.Contains(started.NodeId)
-                        && TypedFlowRunner.OptionalText(node.Source.Config, "provider") is not ("jev" or "laya")) return false;
+                        && TypedFlowRunner.OptionalText(node.Source.Config, "provider") is not ("jev" or "laya" or "openjev")) return false;
                 }
                 else if (node.Source.Kind is not ("dm" or "group" or "accumulate" or "history" or "memory"
                     or "interpretBoundaries" or "property" or "count" or "switch" or "branch" or "exit")) return false;

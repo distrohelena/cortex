@@ -88,6 +88,7 @@ public sealed class ManifestTests
     [Theory]
     [InlineData("jev", "jev-1.13.0")]
     [InlineData("laya", "typed-decisions")]
+    [InlineData("openjev", "minicpm5-2b")]
     public void System_one_completion_profiles_can_be_typed_only_without_summary(string provider, string model)
     {
         var question = new ChoiceQuestionProfile("intent", "Choose intent.",

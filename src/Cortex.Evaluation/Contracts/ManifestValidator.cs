@@ -127,6 +127,8 @@ public static class ProfileValidator
                 "generationMaxTokens", "requestTimeoutSeconds"
             }.ToFrozenSet(StringComparer.Ordinal), true, false, false, false, EmptySet),
             ["jev"] = new(EmptySet, false, true, true, true, EmptySet),
+            // OpenJev's model is the operator's GGUF alias, so no allowlist applies.
+            ["openjev"] = new(EmptySet, false, true, true, true, EmptySet),
             ["laya"] = new(EmptySet, false, true, true, true, new[]
             {
                 "english", "multilingual", "typed-decisions", "convaiinnovations/laya",

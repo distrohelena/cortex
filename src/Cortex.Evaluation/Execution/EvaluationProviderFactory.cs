@@ -2,6 +2,7 @@ using Cortex.Core.Flows;
 using Cortex.Evaluation.Contracts;
 using Cortex.Inference.OpenAi;
 using Cortex.Inference.LmStudio;
+using Cortex.Inference.OpenJev;
 using Cortex.Inference.SystemOne;
 using System.Text.Json;
 
@@ -30,6 +31,7 @@ public sealed class EvaluationProviderFactory
                     "openai" => uri.AbsoluteUri != "https://api.openai.com/v1/responses",
                     "jev" => uri.AbsoluteUri != "https://api.typesafe.ai/v1/systemone",
                     "lmstudio" or "laya" => !uri.IsLoopback || uri.Scheme is not ("http" or "https"),
+                    "openjev" => !uri.IsLoopback || uri.Scheme is not ("http" or "https") || !uri.AbsolutePath.EndsWith('/'),
                     _ => true
                 })
                 throw new InvalidDataException("Invalid host evaluation endpoint.");
@@ -75,6 +77,9 @@ public sealed class EvaluationProviderFactory
                     endpoint.Endpoint, endpoint.Credential, provider == "jev", provider == "jev"
                         ? SystemOneProbabilityPolicy.Jev113TwoDecimals : SystemOneProbabilityPolicy.LayaFourDecimals),
                     provider, threshold!.Value, choiceQuestions: questions.ToDictionary(q => q.Field,
+                        q => new SystemOneChoiceQuestion(q.Instructions, q.Criteria), StringComparer.Ordinal)),
+                "openjev" => new OpenJevFlowCompletion(new OpenJevClient(endpoint.Http, endpoint.Endpoint), threshold!.Value,
+                    choiceQuestions: questions.ToDictionary(q => q.Field,
                         q => new SystemOneChoiceQuestion(q.Instructions, q.Criteria), StringComparer.Ordinal)),
                 _ => throw new InvalidDataException("Unsupported evaluation provider.")
             };

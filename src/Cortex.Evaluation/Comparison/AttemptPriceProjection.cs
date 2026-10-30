@@ -19,7 +19,7 @@ public static class AttemptPriceProjection
         ArgumentNullException.ThrowIfNull(revision);
         ArgumentNullException.ThrowIfNull(terms);
         if (revision.Id == Guid.Empty || terms.ContractVersion != 1 ||
-            terms.Provider is not ("openai" or "jev" or "lmstudio" or "laya") ||
+            terms.Provider is not ("openai" or "jev" or "lmstudio" or "laya" or "openjev") ||
             string.IsNullOrWhiteSpace(terms.Model) || terms.Model.Length > 256 || terms.Model.Any(char.IsControl) ||
             terms.ServiceTier is not null && (string.IsNullOrWhiteSpace(terms.ServiceTier) || terms.ServiceTier.Length > 128 || terms.ServiceTier.Any(char.IsControl)) ||
             terms.RequestSha256 is not { Length: 64 } || terms.RequestSha256.Any(c => !char.IsAsciiHexDigit(c) || char.IsUpper(c)) ||
